@@ -12,7 +12,7 @@
 
 | ID | Checkpoint | Depends on | Status | Owner / session | Last updated | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| C0 | Baseline identity and workspace | — | todo | | | |
+| C0 | Baseline identity and workspace | — | in-progress | Claude Code (Opus 5.5) session | 2026-09-25 | |
 | C1 | Acquire and verify candidates | C0 | todo | | | |
 | C2 | Provenance classification | C1 | todo | | | Can run in parallel with C3 |
 | C3 | Harness hardening (code) | C0 | todo | | | |
@@ -26,7 +26,7 @@
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
 | C12 | Optional: vision probe | C10 | todo | | | |
 
-**Next action:** Start C0.
+**Next action:** Finish C0.
 
 ## Candidate registry
 
