@@ -108,6 +108,10 @@ Local facts:
   generated corpus, device data, or raw eval outputs larger than a few KB.
 - Disk space: the Mac had about 28 GB free when this plan was written. Before each download,
   check `df -h /`. Stop and ask the user if there is less than 12 GB free.
+- Budget: the main path (C0–C8) needs about 15–20 GB, including downloads, builds, and caches.
+  **C3b needs at least 40 GB free** before downloading the QAT mobile checkpoint, because the
+  checkpoint and the conversion's temporary files may peak at 25–35 GB. The checkpoint size is
+  unverified, so check its Hugging Face file listing first.
 - Physical device:
   - Back up app data first (see `Development-Workflow.md`).
   - Record Home data counts before and after.
