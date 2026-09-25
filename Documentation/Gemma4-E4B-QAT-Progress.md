@@ -13,7 +13,7 @@
 | ID | Checkpoint | Depends on | Status | Owner / session | Last updated | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | C0 | Baseline identity and workspace | — | done | Claude Code (Opus 5.5) session | 2026-09-25 | Run C0-B0-1; B0 hash matches |
-| C1 | Acquire and verify candidates | C0 | in-progress | Claude Code (Opus 5.5) session | 2026-09-25 | |
+| C1 | Acquire and verify candidates | C0 | done | Claude Code (Opus 5.5) session | 2026-09-25 | M4-L hash matches (C1-M4L-2); M2-L and M4-Ls not downloaded |
 | C2 | Provenance classification | C1 | todo | | | Can run in parallel with C3 |
 | C3 | Harness hardening (code) | C0 | in-progress | Claude Code (Opus 5.5) session | 2026-09-25 | Started while the C1 download runs (C3 depends only on C0) |
 | C4 | Simulator compatibility (informational) | C1, C3 | todo | | | |
@@ -26,7 +26,7 @@
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
 | C12 | Optional: vision probe | C10 | todo | | | |
 
-**Next action:** Finish C1 (download running) and C3.
+**Next action:** Finish C3; run C2 alongside it.
 
 ## Candidate registry
 
@@ -36,7 +36,7 @@ a new row (plan §0, rule 5).
 | ID | Artifact | HF repo @ revision | Bytes | Published SHA-256 | Computed SHA-256 | Runtime / config | Provenance | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | B0 | `gemma-4-E2B-it.litertlm` (wi8 E2B fine-tune, bundled) | local export | 3,862,121,696 | `9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282` (manifest) | `9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282` (match, C0-B0-1) | LiteRT-LM 0.14.0, GPU, 4,096, deterministic | fine-tuned PTQ | baseline |
-| M4-L | `gemma-4-E4B-it-gpu.litertlm` | `litert-community/gemma-4-E4B-it-litert-lm` @ `2eee7ac325f20eb8c9ac1d0e972f7c84663062da` | 2,969,059,328 | `4912bb5a9c30993c51a7711f763212077458529312175df0573a78323a2bb7ff` | | LiteRT-LM 0.14.0, GPU, 4,096, deterministic | unconfirmed (C2) | candidate |
+| M4-L | `gemma-4-E4B-it-gpu.litertlm` | `litert-community/gemma-4-E4B-it-litert-lm` @ `2eee7ac325f20eb8c9ac1d0e972f7c84663062da` | 2,969,059,328 | `4912bb5a9c30993c51a7711f763212077458529312175df0573a78323a2bb7ff` || `4912bb5a9c30993c51a7711f763212077458529312175df0573a78323a2bb7ff` (match, C1-M4L-2) | LiteRT-LM 0.14.0, GPU, 4,096, deterministic | unconfirmed (C2) | candidate |
 | M4-Ls | `gemma-4-E4B-it.litertlm` | same @ same | 3,659,530,240 | `0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0` | | only if M4-L can't load | unconfirmed | fallback |
 | M2-L | `gemma-4-E2B-it.litertlm` (stock) | `litert-community/gemma-4-E2B-it-litert-lm` @ `b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1` | 2,588,147,712 | `181938105e0eefd105961417e8da75903eacda102c4fce9ce90f50b97139a63c` | | control arm (D9) | confirmed QAT (E2B discussion #30) | optional |
 
@@ -101,6 +101,18 @@ Run ID `C0-B0-1` (2026-09-25); evidence in `LocalModels/e4b-eval/C0-B0-1/`.
 
 ### C1 — Acquire and verify candidates
 - One line per candidate: computed SHA-256 = published? · download date · run ID
+- **M4-L:** computed `4912bb5a9c30993c51a7711f763212077458529312175df0573a78323a2bb7ff` =
+  published, 2,969,059,328 bytes · downloaded 2026-09-25 (23:01–23:07 UTC) · run `C1-M4L-2`.
+  File: `LocalModels/gemma-4-E4B-it-gpu.litertlm` (worktree root). Command:
+  `HF_HUB_DISABLE_TELEMETRY=1 ../Aquinas_Backend/aquinas_env/bin/hf download
+  litert-community/gemma-4-E4B-it-litert-lm gemma-4-E4B-it-gpu.litertlm --revision
+  2eee7ac325f20eb8c9ac1d0e972f7c84663062da --local-dir LocalModels` (hf 1.9.0, unauthenticated).
+  Free disk 22 GiB before, 19 GiB after.
+- `C1-M4L-1` is a void attempt: the command was stored in a zsh variable that didn't word-split,
+  so `hf` never ran (exit 127, nothing downloaded). Its folder is kept unchanged.
+- **M2-L:** not downloaded. C8's optional control arm (D9) isn't planned yet; download it in C1
+  style if the owner schedules it.
+- **M4-Ls:** not downloaded. Only needed if C4/C5 send us back here.
 
 ### C2 — Provenance classification
 - Classification (confirmed-QAT + citation / unconfirmed):
