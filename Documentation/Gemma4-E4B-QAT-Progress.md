@@ -27,14 +27,22 @@
 
 ## Open questions for the user
 
-_None yet. Add a dated entry for anything that blocks progress. Say what the question is, why it
-blocks, and what options you recommend._
+_Add a dated entry for anything that blocks progress. Say what the question is, why it blocks,
+and what options you recommend._
+
+- **2026-09-25: two E4B plans exist.** `Aquinas-Foundations/GEMMA-4-QAT-EVALUATION-PLAN.md` is an
+  earlier, broader QAT plan (workstream `QAT-00`). It was reset on 2026-09-18 to make room for the
+  now-shelved 12B work. Execute from *this* plan. Before C1, skim the older plan and its
+  `research/gemma-4-qat/` records for gates or findings worth carrying over. Record any conflict
+  that changes scope here so the owner can decide.
 
 ## Decisions log
 
 | Date | Decision | Made by | Reason |
 | --- | --- | --- | --- |
 | 2026-09-25 | Adopt plan D1–D6 (prebuilt package first, GPU, single engine, no fine-tune, 4,096 tokens, reversible promotion) | User + planning session | See plan §3 |
+| 2026-09-25 | Shelve all Gemma 4 12B research (rotated-ternary and llama.cpp IQ2_M) and remove its weights; E4B QAT becomes the model path | User | The 12B's modeled size exceeds what the base iPhone 17 survived; see `Aquinas-Foundations/research/rotated-ternary/STATUS.md`, "Shelving record" |
+| 2026-09-25 | Remove all Qwen weights except `Qwen3-4B-Aquinas-v3-Q4_K_M.gguf` in `Aquinas_Backend-llama-cpp-12b` | User | Disk space. Qwen is no longer a re-exportable fallback. |
 
 ## Evidence
 
