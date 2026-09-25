@@ -14,7 +14,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | C0 | Baseline identity and workspace | — | done | Claude Code (Opus 5.5) session | 2026-09-25 | Run C0-B0-1; B0 hash matches |
 | C1 | Acquire and verify candidates | C0 | done | Claude Code (Opus 5.5) session | 2026-09-25 | M4-L hash matches (C1-M4L-2); M2-L and M4-Ls not downloaded |
-| C2 | Provenance classification | C1 | in-progress | Claude Code (Opus 5.5) session | 2026-09-25 | Running in parallel with C3 |
+| C2 | Provenance classification | C1 | done | Claude Code (Opus 5.5) session | 2026-09-25 | **unconfirmed**; package is a GPU-only "artisan" text decoder (C2-M4L-1) |
 | C3 | Harness hardening (code) | C0 | in-progress | Claude Code (Opus 5.5) session | 2026-09-25 | Started while the C1 download runs (C3 depends only on C0) |
 | C4 | Simulator compatibility (informational) | C1, C3 | todo | | | |
 | C5 | Early phone memory/compat screen | C4 | todo | | | Freezes `operating_cap` |
@@ -57,6 +57,18 @@ Record these **before** the candidate numbers they govern are seen.
 _Add a dated entry for anything that blocks progress. Say what the question is, why it blocks,
 and what options you recommend._
 
+- **2026-09-25: E4B GPU package provenance (C2). Needs owner approval to post; not blocking.**
+  Nothing definitive exists, so M4-L stays **unconfirmed** (D8). Recommended: approve posting
+  this on the E4B discussion board (`litert-community/gemma-4-E4B-it-litert-lm`), or decline and
+  keep the unconfirmed label. Draft:
+  > Hi, could a maintainer say how `gemma-4-E4B-it-gpu.litertlm` (added in #19, SHA-256
+  > `4912bb5a…2bb7ff`) was produced? (1) Are its weights derived from the Gemma 4 QAT mobile
+  > checkpoint (`google/gemma-4-E4B-it-qat-mobile-transformers`), or post-training quantized from
+  > `google/gemma-4-E4B-it`? (2) Its decoder is a `tf_lite_artisan_text_decoder` with
+  > `backend_constraint: gpu_artisan`. Is it supported by the LiteRT-LM iOS Metal backend
+  > (v0.14.0)? (3) What activation precision does the artisan path use, and what is the
+  > package's maximum context (we run 4,096 tokens)? The model card covers the 3.66 GB and web
+  > packages but not this one. Thanks!
 - ~~**2026-09-25: two E4B plans exist.**~~ **Resolved 2026-09-25:** plan v2 carries over the older
   plan's memory headroom rule, eval categories, dev/held-out split, timing boundaries, and
   blocked-conversion finding. Where the two plans conflict, this plan wins.
@@ -115,11 +127,62 @@ Run ID `C0-B0-1` (2026-09-25); evidence in `LocalModels/e4b-eval/C0-B0-1/`.
 - **M4-Ls:** not downloaded. Only needed if C4/C5 send us back here.
 
 ### C2 — Provenance classification
-- Classification (confirmed-QAT + citation / unconfirmed):
+Run ID `C2-M4L-1` (checked 2026-09-25); raw API responses in `LocalModels/e4b-eval/C2-M4L-1/sources/`,
+package inspection in `peek.txt`, `tflite-histogram.json`, `tflite-metadata.txt` (commands in
+`command.txt`). B0 comparison peek: `C2-B0-1`.
+- Classification (confirmed-QAT + citation / unconfirmed): **unconfirmed.** Label M4-L "Gemma 4 E4B
+  (LiteRT Community GPU package)" and never "QAT" (D8).
+  - The E4B model card at the pinned revision (repo head is still `2eee7ac`) never says QAT. It
+    describes the 3.66 GB standard package and a text-only web package, but not the GPU package.
+  - The GPU package arrived in discussion #19 ("Upload gemma-4-E4B-it-gpu.litertlm", tylermullen,
+    org member, merged 2026-08-07) with an **empty description**.
+  - It is byte-for-byte the same **size** as `gemma-4-E4B-it-web.litertlm` (2,969,059,328 bytes),
+    but its SHA-256 differs (web: `3904d826…4f57a0`). The card's Web row lists a 2,969 MB model
+    as "specially optimized … text-only".
+  - None of the 22 E4B discussions carries a maintainer statement on QAT.
 - Discussions #16 and #18 findings:
+  - **#16 "strange loops and errors"** (user JNK333, 2026-07-03, open, no reply): reasoning is right,
+    but the visible answer degrades into loops, stray words, and duplicated digits
+    (for example "455 spaces", "6.6.6 m"). This predates the GPU package, and the file used isn't
+    named. It's a direct risk to our repetition guard and to named-entity fidelity; add a looping
+    case to C8.
+  - **#18 "context window size 4096？"** (open): the Android runtime threw "Input token ids are too
+    long … 5173 >= 4096". Org member TobiasLogic says the `.litertlm` was exported with a fixed
+    `kv_cache_max_len=4096`. Org member marissaw says `maxNumTokens` can raise it. Our production
+    value (D5) is exactly 4,096, so any prompt plus history above that is a **hard error, not a
+    truncation**; C6 must check how the adapter trims. Whether the GPU package's limit is 4,096
+    wasn't determinable from its metadata.
 - #2497 / E2B #30 / blog status when checked:
+  - **LiteRT-LM #2497:** open. Three comments, all non-maintainers; the last is 2026-07-01. No
+    official answer.
+  - **E2B #30:** marissaw (org member, 2026-06-12) says the E2B card's `.litertlm` files "already use
+    the QAT", "mixture of int2, int4 and int8". That's scoped to E2B. Follow-ups questioning it
+    (gungorbasa 2026-07-01, on upload timing; zst50 2026-08-14, asking for clarification) are
+    unanswered.
+  - **Google QAT blog:** mentions LiteRT-LM only generically ("Use Google's lightweight LiteRT-LM
+    runtime…"), with no artifact-specific statement.
 - Supporting: decoder dtype histogram, `prefer_activation_type`:
-- Draft owner-approval question (if any):
+  - `litert-lm-peek` (0.14.0): 3 sections, LiteRT-LM file version 1.6.0, created
+    2026-08-06T00:40:13Z, author "The ODML Authors".
+    - LlmMetadata: Gemma 4 template, `thought` channel, stop tokens 1/50/106.
+    - SP tokenizer.
+    - One TFLiteModel: `model_type: tf_lite_artisan_text_decoder`, `backend_constraint:
+      gpu_artisan`, `gpu_artisan_weights_version: 0.0`.
+    - **No** embedder, per-layer-embedder, vision, or audio section; it is **text-only**.
+  - **`prefer_activation_type`: absent.** B0's decoder declares `prefer_activation_type: fp16`
+    (`tf_lite_prefill_decode`, plus embedder/vision/per-layer-embedder sections).
+  - TFLite section: 1 subgraph `GEMMA4_4P5B`, **0 operators** (a weights container for the GPU
+    "artisan" path, not an executable op graph).
+  - Constant bytes by dtype: INT4 1,945,108,480 (258 tensors); UINT8 748,683,264 (84); INT8
+    250,347,520 (86); FLOAT32 8,625,184; INT32 6,381,568. **No INT2.** That differs from the
+    int2/int4/int8 mix stated for the E2B QAT package. The dtypes alone can't tell QAT from PTQ.
+  - Model metadata `backend = "gpu"`; `LlmParameters` decodes to 42 layers and hidden size 2,560,
+    but has no nameable activation field without its schema.
+  - **Consequence for C4:** a GPU-only artisan package probably **cannot run on the CPU backend**,
+    so C4's `sim-gpu-fail` branch ("confirm coherent output with `--litert-probe-cpu`") may be
+    impossible for M4-L. C4 records what actually happens.
+- Draft owner-approval question (if any): see *Open questions*, 2026-09-25 "E4B GPU package
+  provenance". **Not posted.**
 
 ### C3 — Harness hardening
 - Commit:
