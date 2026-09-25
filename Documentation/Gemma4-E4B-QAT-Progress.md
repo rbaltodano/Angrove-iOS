@@ -15,7 +15,7 @@
 | C0 | Baseline identity and workspace | — | done | Claude Code (Opus 5.5) session | 2026-09-25 | Run C0-B0-1; B0 hash matches |
 | C1 | Acquire and verify candidates | C0 | done | Claude Code (Opus 5.5) session | 2026-09-25 | M4-L hash matches (C1-M4L-2); M2-L and M4-Ls not downloaded |
 | C2 | Provenance classification | C1 | done | Claude Code (Opus 5.5) session | 2026-09-25 | **unconfirmed**; package is a GPU-only "artisan" text decoder (C2-M4L-1) |
-| C3 | Harness hardening (code) | C0 | in-progress | Claude Code (Opus 5.5) session | 2026-09-25 | Started while the C1 download runs (C3 depends only on C0) |
+| C3 | Harness hardening (code) | C0 | blocked | Claude Code (Opus 5.5) session | 2026-09-25 | All C3 work done (`fa88428`). Gate not literally met: 175/176 tests pass; the 1 failure is pre-existing on base `31aa476`. See *Open questions* |
 | C4 | Simulator compatibility (informational) | C1, C3 | todo | | | |
 | C5 | Early phone memory/compat screen | C4 | todo | | | Freezes `operating_cap` |
 | C6 | Integration diagnostics | C5 | todo | | | |
@@ -26,7 +26,7 @@
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
 | C12 | Optional: vision probe | C10 | todo | | | |
 
-**Next action:** Finish C3; run C2 alongside it.
+**Next action:** Owner resolves the C3 gate question in *Open questions* (recommended: accept the pre-existing test failure as baseline and mark C3 `done`). Then run C4, which is fully prepared.
 
 ## Candidate registry
 
@@ -57,6 +57,25 @@ Record these **before** the candidate numbers they govern are seen.
 _Add a dated entry for anything that blocks progress. Say what the question is, why it blocks,
 and what options you recommend._
 
+- **2026-09-25: C3 gate: pre-existing test failure. BLOCKS C3 → C4.** The C3 gate requires
+  "the build and all tests pass". 175/176 pass. The failure,
+  `MiniLMGroundingRetrievalTests.namedPassagesUseSourceTextAnchors` (resurrection case), fails
+  identically on untouched base `31aa476` (`C3-basecheck-1`) and is unrelated to C3's code. The
+  plan has no On-failure branch for C3.
+  - **Recommended:** accept this as a known baseline failure for the C3 gate. Record that here and
+    set C3 to `done`; C4 can then run immediately.
+  - **Alternative:** fix the grounding test or corpus mismatch first in a separate change on
+    `main`, then rerun the suite.
+  - Either way, C8's grounding is identical for B0 and M4-L, so it doesn't bias the A/B.
+- **2026-09-25: C5 harness prerequisites. Not blocking yet.** C5 asks for "~2,000-token prefill
+  with a 256-token decode" and a 4K equivalent.
+  - The raw probe accepts any prefill text through `--litert-probe-raw-question`.
+  - It has **no decode cap**: LiteRT-LM v0.14.0's Swift API has no max-output setting, and
+    breaking out of a stream without `Conversation.cancel()` leaves native decoding running
+    (see `LiteRTAquinasRuntime`'s notes on the cancel wedge).
+  - Before C5, decide whether "256-token decode" means (a) a prompt that asks for about 256
+    tokens, measured with `--litert-probe-benchmark`, or (b) a new capped-decode option, which
+    would be harness code and would need its own check.
 - **2026-09-25: E4B GPU package provenance (C2). Needs owner approval to post; not blocking.**
   Nothing definitive exists, so M4-L stays **unconfirmed** (D8). Recommended: approve posting
   this on the E4B discussion board (`litert-community/gemma-4-E4B-it-litert-lm`), or decline and
@@ -185,10 +204,94 @@ package inspection in `peek.txt`, `tflite-histogram.json`, `tflite-metadata.txt`
   provenance". **Not posted.**
 
 ### C3 — Harness hardening
-- Commit:
-- Tests added:
-- Full suite result:
-- Sample result JSON path (raw and quality modes on B0):
+- Commit: `fa88428` "Harden the LiteRT probe harness for the E4B evaluation (plan C3)".
+  - New files: `Services/LiteRTModelOverride.swift` (the one shared resolver),
+    `Features/Developer/LiteRTProbeFixture.swift`, and `Features/Developer/LiteRTProbeReport.swift`
+    (report, `task_vm_info` memory sampling, stderr tee for native log lines).
+  - Changed: `LiteRTDeviceProbe.swift`, `AquinasApplicationRuntime.swift` (DEBUG override),
+    `LiteRTAquinasRuntime.swift` (`maxNumTokens` constant, once-per-process loaded-model log), and
+    `Aquinas_iOSApp.swift` (lazy shared runtime).
+- Flags as built:
+  - Raw mode: `--litert-probe-context <n>` (default 2048); `--litert-probe-greedy` (the default:
+    production conversation sampler, topK 1 / topP 1 / temperature 0 / seed 0);
+    `--litert-probe-sampled` (topK 40, topP 0.95, temperature 0.2, seed 7; conflicts with
+    greedy); `--litert-probe-raw-question "<q>"` (default "What is prudence?");
+    `--litert-probe-cpu`.
+  - Opt-in `--litert-probe-benchmark`: prefill/decode token counts and rates from LiteRT-LM
+    `BenchmarkInfo`.
+  - Quality mode: `--litert-probe-fixture <abs path | Documents name>` (JSON `turns` of
+    user/assistant, `question`, optional `personality`, `compactedContext`) and
+    `--litert-probe-question`.
+  - Both modes: `--litert-model-path <abs>` or `--litert-model-document <name>` (the same
+    resolver as the app); `--litert-probe-run-id <id>` is embedded in the report.
+- **Deviations and decisions, all recorded here:**
+  1. **Benchmark mode is opt-in, not always on.** Enabling it changes native engine settings
+     (`is_benchmark: true`, `disable_delegate_clustering: true`,
+     `wait_for_weights_conversion_complete_in_benchmark: true`; seen in `C3-B0-raw-1`), so a
+     default gate run would not match production. B0's greedy output was identical with and
+     without it (`C3-B0-raw-3` vs `C3-B0-raw-4`). C5 must opt in to get prefill/decode rates and
+     should record that it did.
+  2. **`--litert-probe-cpu` now also works in quality mode**, DEBUG only, through the runtime's
+     existing `configureEvidenceExperimentCPU()` hook. It's needed because the simulator's Metal
+     delegate caps single allocations at 268,435,456 bytes and B0 requests 402,653,184
+     (`C3-B0-raw-1/2`: "Failed to initialize kernel … Max allocation size for this GPU").
+     CPU runs stay diagnostic (D2).
+  3. **Activation type** is read from the native executor settings dump
+     (`activation_data_type: FLOAT16`) captured by teeing stderr, because the Swift API doesn't
+     expose it. If that dump is absent, the report falls back to preference log lines and says so
+     in `activation.source`.
+  4. **Hashing timing.** The model SHA-256 in the report is computed *after* generation, so it
+     never warms the page cache before a timed load. The runtime's DEBUG loaded-model log hashes
+     in a detached utility task right after the first engine load, which **overlaps the first
+     request's I/O in Debug full-app runs**; C9's protocol should account for this or time from
+     after the log line. Release logs the manifest digest without rehashing.
+  5. **The override fails loudly.** If a DEBUG override flag is present but can't be resolved,
+     the app `fatalError`s rather than silently loading the bundled B0.
+  6. **`AquinasApplicationRuntime.shared` is now resolved lazily** (first `body` use). A
+     `--litert-probe` process therefore no longer builds MiniLM, grounding, and a second runtime
+     object, so probe memory numbers aren't inflated. Normal app launch behavior is unchanged in
+     practice: the runtime is created on the first render.
+- Tests added (`Aquinas-iOSTests/LiteRTProbeHarnessTests.swift`, 13, all passing):
+  `noFlagResolvesToNil`, `absolutePathResolves`, `documentNameResolves`,
+  `missingFilesAreRejected`, `invalidOverrideValuesAreRejected`, `overrideStoreDerivesManifest`,
+  `releaseIgnoresOverride`, `fixtureParsesToTranscript`, `fixtureWithoutTurns`,
+  `malformedFixturesAreRejected`, `rawProbeDefaults`, `rawProbeFlags`,
+  `rawProbeRejectsInvalidFlags`.
+  - `releaseIgnoresOverride` exercises the gate logic. The Release compile-out itself is shown by
+    `C3-release-build-1`: the Release simulator build succeeds, and the DEBUG-only
+    "Model override failed" string is absent from the Release binary.
+- Full suite result: **175/176 passed** (`C3-tests-2`, final code; `C3-tests-1` identical on the
+  pre-fix code).
+  - The one failure is `MiniLMGroundingRetrievalTests.namedPassagesUseSourceTextAnchors`: the
+    "What do the Gospels say about the resurrection of Jesus?" case doesn't return a `citation-`
+    reference containing "he isn't here, but is risen".
+  - It **fails identically on base `31aa476`** with the same provisioned assets (`C3-basecheck-1`,
+    a temporary detached worktree, since removed). C3 touched no grounding code.
+  - The C3 gate says "all tests pass" and has no On-failure branch, so C3 is `blocked` pending the
+    owner's decision.
+- Build: Debug and Release simulator builds succeed.
+- Sample result JSON path (raw and quality modes on B0): all runs use B0 `9a6345f1…65282`
+  (computed in-report), on the iPhone 17 simulator with iOS 27.0.
+  - Raw, GPU (default): `C3-B0-raw-2`. Status `failed`: the simulator Metal allocation ceiling,
+    expected. The JSON is still complete (settings, activation FLOAT16, memory, error).
+  - Raw, CPU, greedy: `C3-B0-raw-3` (warm cache) and `C3-B0-raw-5` (cold). Status `passed`.
+    Cold load 6.69 s, generation 0.82 s, resolved activation **FLOAT16** (executor settings),
+    peak footprint 818 MB. Response: "Prudence is the ability to govern and discipline oneself by
+    the use of reason".
+  - Raw, CPU with `--litert-probe-benchmark`: `C3-B0-raw-4`. 38 prefill / 17 decode tokens,
+    251.5 / 24.9 tok/s, same response.
+  - Quality, CPU, "What is prudence?": `C3-B0-quality-1`. Status `passed`, generation 3.86 s,
+    `corpusGrounded`, peak footprint 4.37 GB (CPU weight mapping).
+  - Quality, CPU, fixture `fixtures/c3-topic-shift.json` (mercy/justice turn, then "What's the
+    capital of Portugal?"): `C3-B0-quality-2`. Status `passed`: "The capital of Portugal is
+    Lisbon." plus unrequested elaboration, with no stale answer.
+  - All result files are at `LocalModels/e4b-eval/<run-id>/litert-probe-result.json`, next to
+    `console.log`, `litert-probe-stderr.log`, and `run.txt` (exact launch command, device, git
+    head).
+  - Reusable runner: `LocalModels/e4b-eval/run-sim-probe.sh <run-id> <flags…>`. It refuses to
+    reuse a run ID, and `PROBE_CLEAR_CACHE=1` gives a cold cache.
+  - `os_proc_available_memory()` reads 0 in the simulator, as expected; it's meaningful only on
+    the phone (C5).
 
 ### C4 — Simulator compatibility
 | Run ID | Mode | Backend | Load s | Gen s | Activation (and how it was determined) | Classification |
