@@ -14,7 +14,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | C0 | Baseline identity and workspace | — | done | Claude Code (Opus 5.5) session | 2026-09-25 | Run C0-B0-1; B0 hash matches |
 | C1 | Acquire and verify candidates | C0 | done | Claude Code (Opus 5.5) session | 2026-09-25 | M4-L hash matches (C1-M4L-2); M2-L and M4-Ls not downloaded |
-| C2 | Provenance classification | C1 | todo | | | Can run in parallel with C3 |
+| C2 | Provenance classification | C1 | in-progress | Claude Code (Opus 5.5) session | 2026-09-25 | Running in parallel with C3 |
 | C3 | Harness hardening (code) | C0 | in-progress | Claude Code (Opus 5.5) session | 2026-09-25 | Started while the C1 download runs (C3 depends only on C0) |
 | C4 | Simulator compatibility (informational) | C1, C3 | todo | | | |
 | C5 | Early phone memory/compat screen | C4 | todo | | | Freezes `operating_cap` |
