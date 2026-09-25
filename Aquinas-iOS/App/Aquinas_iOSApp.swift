@@ -9,7 +9,9 @@ import SwiftUI
 
 @main
 struct Aquinas_iOSApp: App {
-    private let runtime = AquinasApplicationRuntime.shared
+    /// Resolved on first use rather than at launch, so a `--litert-probe` process never builds
+    /// the app's runtime and MiniLM assets alongside the probe's own and skews its memory.
+    private var runtime: AquinasApplicationRuntime { .shared }
 
     /// True when Xcode's test runner launched the app only to host the unit test bundle.
     private static let isHostingUnitTests: Bool = {

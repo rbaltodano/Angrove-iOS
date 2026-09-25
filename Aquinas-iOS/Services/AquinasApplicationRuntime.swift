@@ -21,7 +21,7 @@ final class AquinasApplicationRuntime {
     /// `MiniLMEmbeddingProvider`'s doc comment.
     let embeddingProvider: any EmbeddingProvider
 
-    private init(modelStore: LiteRTModelStore = LiteRTModelStore()) {
+    private init(modelStore defaultModelStore: LiteRTModelStore = LiteRTModelStore()) {
         do {
             embeddingProvider = try MiniLMEmbeddingProvider()
         } catch {
@@ -33,8 +33,24 @@ final class AquinasApplicationRuntime {
         let forcesMacBackend = ProcessInfo.processInfo.arguments.contains(
             "--force-backend-model"
         )
+        let modelStore: LiteRTModelStore
+        do {
+            modelStore = try Self.developmentOverrideModelStore(
+                arguments: ProcessInfo.processInfo.arguments,
+                documentsDirectory: FileManager.default.urls(
+                    for: .documentDirectory,
+                    in: .userDomainMask
+                ).first,
+                isDebugBuild: true
+            ) ?? defaultModelStore
+        } catch {
+            // A diagnostic override that can't be honored must not silently fall back to the
+            // bundled model: every comparison run under it would be measuring the wrong file.
+            fatalError("Model override failed: \(error.localizedDescription)")
+        }
 #else
         let forcesMacBackend = false
+        let modelStore = defaultModelStore
 #endif
         if !forcesMacBackend, modelStore.hasInstalledModel() {
             let runtime = LiteRTAquinasRuntime(modelStore: modelStore)
@@ -58,5 +74,23 @@ final class AquinasApplicationRuntime {
             modelTasks = ModelTaskQueue()
             isOnDevice = false
         }
+    }
+
+    /// DEBUG-only model override (`--litert-model-path <abs>` or `--litert-model-document
+    /// <name>`) for evaluating a candidate package through the full app. Release builds never
+    /// call this with `isDebugBuild: true`, so they ignore both flags.
+    nonisolated static func developmentOverrideModelStore(
+        arguments: [String],
+        documentsDirectory: URL?,
+        isDebugBuild: Bool
+    ) throws -> LiteRTModelStore? {
+        guard isDebugBuild,
+              let url = try LiteRTModelOverride.resolvedModelURL(
+                arguments: arguments,
+                documentsDirectory: documentsDirectory
+              ) else {
+            return nil
+        }
+        return try LiteRTModelOverride.developmentStore(for: url)
     }
 }

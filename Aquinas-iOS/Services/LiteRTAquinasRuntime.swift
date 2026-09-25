@@ -76,6 +76,7 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
     private var generationSlotHeld = false
     private var generationWaiters: [(id: UUID, continuation: CheckedContinuation<Void, Error>)] = []
     private var lastTokenAt: ContinuousClock.Instant = .now
+    private var didLogLoadedModel = false
     private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "com.aquinas",
         category: "LiteRTAquinasRuntime"
@@ -91,6 +92,8 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
     /// Guards `initializeEngine()` specifically — cold load has measured ~4-5s in production, so
     /// this stays well clear of ordinary variance while still catching a genuinely wedged load.
     private static let loadStallTimeout: Duration = .seconds(60)
+    /// The production KV-cache size, shared by prompt, history, references, and answer.
+    static let maxNumTokens = 4_096
 
     init(modelStore: LiteRTModelStore = LiteRTModelStore()) {
         self.modelStore = modelStore
@@ -292,7 +295,7 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
             modelPath: modelURL.path,
             backend: backend,
             visionBackend: Self.visionBackend,
-            maxNumTokens: 4_096,
+            maxNumTokens: Self.maxNumTokens,
             cacheDir: cacheURL.path
         )
         let newEngine = Engine(engineConfig: config)
@@ -300,6 +303,32 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
         engine = newEngine
         lastLoadError = nil
         completedGenerations = 0
+        logLoadedModelOnce(at: modelURL)
+    }
+
+    /// Records which package this process actually loaded, once. DEBUG builds hash the file
+    /// (after load, at utility priority, so the hash never warms the page cache ahead of a
+    /// timed load); Release logs the manifest's declared digest rather than rereading gigabytes.
+    private func logLoadedModelOnce(at modelURL: URL) {
+        guard !didLogLoadedModel else { return }
+        didLogLoadedModel = true
+        let logger = logger
+        let declaredSHA256 = modelStore.manifest.sha256
+#if DEBUG
+        Task.detached(priority: .utility) {
+            let digest = (try? LiteRTModelInstaller.sha256(of: modelURL)) ?? "unreadable"
+            logger.notice(
+                "Loaded model \(modelURL.path, privacy: .public) sha256=\(digest, privacy: .public) (computed; manifest \(declaredSHA256, privacy: .public))"
+            )
+            Self.debugConsoleLog(
+                "loaded model \(modelURL.path) sha256=\(digest) (computed; manifest \(declaredSHA256))"
+            )
+        }
+#else
+        logger.notice(
+            "Loaded model \(modelURL.path, privacy: .public) sha256=\(declaredSHA256, privacy: .public) (manifest)"
+        )
+#endif
     }
 
     /// A hung `initializeEngine()` sits outside `generateOnce`'s own watchdog entirely — it runs

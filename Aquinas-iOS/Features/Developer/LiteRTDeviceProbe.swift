@@ -48,6 +48,7 @@ final class LiteRTDeviceProbeModel {
     private var engine: Engine?
     private var conversation: Conversation?
     private var productionRuntime: LiteRTAquinasRuntime?
+    private let launchMemory = LiteRTProbeMemory.sample()
 
     var copySummary: String {
         let sizeText = modelSizeBytes.map {
@@ -80,6 +81,7 @@ final class LiteRTDeviceProbeModel {
     func run() async {
         guard !didStart else { return }
         didStart = true
+        LiteRTProbeLogCapture.shared.start()
 
         if ProcessInfo.processInfo.arguments.contains("--litert-quality-probe") {
             await runConversationQualityProbe()
@@ -93,66 +95,111 @@ final class LiteRTDeviceProbeModel {
         generationSeconds = nil
         modelSizeBytes = nil
 
+        let arguments = ProcessInfo.processInfo.arguments
+        var report = LiteRTProbeReport(
+            mode: "raw",
+            arguments: arguments,
+            launchMemory: launchMemory
+        )
         do {
+            let options = try LiteRTRawProbeOptions.parse(arguments)
             let modelURL = try Self.locateModel()
             modelSizeBytes = try modelURL.resourceValues(
                 forKeys: [.fileSizeKey]
             ).fileSize.map(Int64.init)
+            report.model = .init(path: modelURL.path, byteCount: modelSizeBytes ?? 0)
 
-            let cacheURL = try Self.cacheDirectory()
-            let usesCPU = ProcessInfo.processInfo.arguments.contains(
-                "--litert-probe-cpu"
+            let systemMessage = "Answer clearly and in one concise sentence."
+            let sampling = options.sampling
+            report.settings = .init(
+                backend: options.usesCPU ? "cpu" : "gpu",
+                contextTokens: options.contextTokens,
+                sampler: .init(
+                    mode: options.sampled ? "sampled" : "greedy",
+                    topK: sampling.topK,
+                    topP: sampling.topP,
+                    temperature: sampling.temperature,
+                    seed: sampling.seed
+                ),
+                systemMessage: systemMessage,
+                benchmarkEnabled: options.benchmark
             )
+            report.input = .init(question: options.question, fixturePath: nil, priorTurnCount: 0)
+
+            if options.benchmark {
+                ExperimentalFlags.optIntoExperimentalAPIs()
+                ExperimentalFlags.enableBenchmark = true
+            }
+            let cacheURL = try Self.cacheDirectory()
             let config = try EngineConfig(
                 modelPath: modelURL.path,
-                backend: usesCPU ? .cpu() : .gpu,
-                maxNumTokens: 2_048,
+                backend: options.usesCPU ? .cpu() : .gpu,
+                maxNumTokens: options.contextTokens,
                 cacheDir: cacheURL.path
             )
             let engine = Engine(engineConfig: config)
             self.engine = engine
 
             phase = .loadingModel
-            detail = "Initializing the Aquinas checkpoint with the Metal backend."
+            detail = options.usesCPU
+                ? "Initializing the checkpoint with the CPU backend."
+                : "Initializing the checkpoint with the Metal backend."
+            report.memory.beforeLoad = LiteRTProbeMemory.sample()
             let loadClock = ContinuousClock.now
             try await engine.initialize()
             loadSeconds = Self.seconds(since: loadClock)
+            report.timing.loadSeconds = loadSeconds
+            report.memory.afterLoad = LiteRTProbeMemory.sample()
 
             let sampler = try SamplerConfig(
-                topK: 40,
-                topP: 0.95,
-                temperature: 0.2,
-                seed: 7
+                topK: sampling.topK,
+                topP: sampling.topP,
+                temperature: sampling.temperature,
+                seed: sampling.seed
             )
             let conversation = try await engine.createConversation(
                 with: ConversationConfig(
-                    systemMessage: Message(
-                        "Answer clearly and in one concise sentence.",
-                        role: .system
-                    ),
+                    systemMessage: Message(systemMessage, role: .system),
                     samplerConfig: sampler
                 )
             )
             self.conversation = conversation
 
             phase = .generating
-            detail = "The response is being generated entirely on this iPhone."
+            detail = "The response is being generated entirely on this device."
             let generationClock = ContinuousClock.now
             let message = try await conversation.sendMessage(
-                Message("What is prudence?")
+                Message(options.question)
             )
             generationSeconds = Self.seconds(since: generationClock)
+            report.timing.generationSeconds = generationSeconds
+            report.memory.afterGeneration = LiteRTProbeMemory.sample()
+            if options.benchmark, let info = try? conversation.getBenchmarkInfo() {
+                report.timing.timeToFirstTokenSeconds = info.timeToFirstTokenInSecond
+                report.timing.prefillTokens = info.lastPrefillTokenCount
+                report.timing.decodeTokens = info.lastDecodeTokenCount
+                report.timing.prefillTokensPerSecond = info.lastPrefillTokensPerSecond
+                report.timing.decodeTokensPerSecond = info.lastDecodeTokensPerSecond
+                report.timing.tokenCountSource = "LiteRT-LM BenchmarkInfo (last turn)"
+            }
             response = message.toString
+            report.response = response
             guard !response.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw LiteRTDeviceProbeError.emptyResponse
             }
 
             phase = .completed
             detail = "Aquinas loaded and generated a non-empty response on device."
+            report.status = "passed"
         } catch {
             phase = .failed
             detail = error.localizedDescription
+            report.status = "failed"
+            report.error = error.localizedDescription
+            report.memory.afterGeneration = report.memory.afterGeneration
+                ?? LiteRTProbeMemory.sample()
         }
+        await Self.finish(&report)
     }
 
     private func runConversationQualityProbe() async {
@@ -163,34 +210,88 @@ final class LiteRTDeviceProbeModel {
         generationSeconds = nil
         modelSizeBytes = nil
 
+        let arguments = ProcessInfo.processInfo.arguments
+        var report = LiteRTProbeReport(
+            mode: "quality",
+            arguments: arguments,
+            launchMemory: launchMemory
+        )
+        report.timing.tokenCountSource =
+            "unavailable: the production runtime owns and releases the native conversation"
         do {
             let modelURL = try Self.locateModel()
             modelSizeBytes = try modelURL.resourceValues(
                 forKeys: [.fileSizeKey]
             ).fileSize.map(Int64.init)
+            report.model = .init(path: modelURL.path, byteCount: modelSizeBytes ?? 0)
 
-            let modelStore = LiteRTModelStore(
-                manifest: LiteRTModelManifest(
-                    fileName: modelURL.lastPathComponent,
-                    byteCount: modelSizeBytes ?? 0,
-                    sha256: "development-probe"
+            let context: ConversationContext
+            let fixturePath: String?
+            if let fixtureValue = LiteRTProbeArguments.value(
+                after: "--litert-probe-fixture",
+                in: arguments
+            ) {
+                let fixtureURL = try LiteRTModelOverride.resolvedInputURL(
+                    fixtureValue,
+                    documentsDirectory: Self.documentsDirectory
+                )
+                context = try LiteRTProbeFixture.load(from: fixtureURL).conversationContext()
+                fixturePath = fixtureURL.path
+            } else {
+                let question = LiteRTProbeArguments.value(
+                    after: "--litert-probe-question",
+                    in: arguments
+                ) ?? "How can justice and mercy work together when someone repeatedly does wrong?"
+                context = ConversationContext(
+                    transcript: [.user(question, nil, [])]
+                )
+                fixturePath = nil
+            }
+            let sampling = LiteRTSampling.conversation
+            let usesCPU = arguments.contains("--litert-probe-cpu")
+            report.settings = .init(
+                backend: usesCPU ? "cpu" : "gpu",
+                contextTokens: LiteRTAquinasRuntime.maxNumTokens,
+                sampler: .init(
+                    mode: "production conversation (greedy)",
+                    topK: sampling.topK,
+                    topP: sampling.topP,
+                    temperature: sampling.temperature,
+                    seed: sampling.seed
                 ),
-                developmentModelURL: modelURL
+                systemMessage: nil,
+                benchmarkEnabled: false
             )
-            let runtime = LiteRTAquinasRuntime(modelStore: modelStore)
+            if case let .user(question, _, _)? = context.transcript.last {
+                report.input = .init(
+                    question: question,
+                    fixturePath: fixturePath,
+                    priorTurnCount: context.transcript.count - 1
+                )
+            }
+
+            let runtime = LiteRTAquinasRuntime(
+                modelStore: try LiteRTModelOverride.developmentStore(for: modelURL)
+            )
             productionRuntime = runtime
+            if usesCPU {
+#if DEBUG
+                // Diagnostic only (plan D2): lets the production path run where the Metal
+                // delegate can't, such as the simulator's 256 MiB allocation ceiling.
+                await runtime.configureEvidenceExperimentCPU()
+#else
+                throw LiteRTDeviceProbeError.cpuQualityProbeUnavailable
+#endif
+            }
             phase = .loadingModel
             detail = "Initializing the production Aquinas conversation runtime."
+            report.memory.beforeLoad = LiteRTProbeMemory.sample()
             let loadClock = ContinuousClock.now
             try await runtime.loadModelWeights()
             loadSeconds = Self.seconds(since: loadClock)
+            report.timing.loadSeconds = loadSeconds
+            report.memory.afterLoad = LiteRTProbeMemory.sample()
 
-            let question = Self.launchArgumentValue(
-                after: "--litert-probe-question"
-            ) ?? "How can justice and mercy work together when someone repeatedly does wrong?"
-            let context = ConversationContext(
-                transcript: [.user(question, nil, [])]
-            )
             let groundingProvider = try MiniLMGroundingProvider()
             let model = LiteRTAquinasModel(
                 runtime: runtime,
@@ -209,7 +310,12 @@ final class LiteRTDeviceProbeModel {
                 onUpdate: { _ in }
             )
             generationSeconds = Self.seconds(since: generationClock)
+            report.timing.generationSeconds = generationSeconds
+            report.memory.afterGeneration = LiteRTProbeMemory.sample()
             response = result.text
+            report.response = response
+            report.validatedKeyTermCount = result.keyTerms.count
+            report.evidenceBasis = result.evidenceBasis.map { String(describing: $0) }
             guard !response.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw LiteRTDeviceProbeError.emptyResponse
             }
@@ -220,51 +326,67 @@ final class LiteRTDeviceProbeModel {
 
             phase = .completed
             detail = "The production conversation path completed locally with \(result.keyTerms.count) validated Insight links."
+            report.status = "passed"
         } catch {
             phase = .failed
             detail = error.localizedDescription
+            report.status = "failed"
+            report.error = error.localizedDescription
+            report.memory.afterGeneration = report.memory.afterGeneration
+                ?? LiteRTProbeMemory.sample()
         }
+        await Self.finish(&report)
     }
 
+    /// Hashes the model (after every timed phase), attaches the captured native log lines, and
+    /// writes the report.
+    private static func finish(_ report: inout LiteRTProbeReport) async {
+        if let path = report.model?.path {
+            let url = URL(filePath: path)
+            report.model?.sha256 = await Task.detached(priority: .userInitiated) {
+                (try? LiteRTModelInstaller.sha256(of: url)) ?? "unreadable"
+            }.value
+        }
+        // Give the stderr reader a moment to drain what the native side just wrote.
+        try? await Task.sleep(for: .milliseconds(300))
+        report.activation = LiteRTProbeLogCapture.shared.activation()
+        report.diagnosticLogLines = LiteRTProbeLogCapture.shared.diagnosticLines()
+        report.finishedAt = Date.now.ISO8601Format()
+        report.write()
+    }
+
+    private static var documentsDirectory: URL? {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+    }
+
+    /// The override flags go through the same resolver the DEBUG app runtime uses; otherwise
+    /// the probe looks for the manifest's package where `LiteRTModelStore` would.
     private static func locateModel() throws -> URL {
+        if let overrideURL = try LiteRTModelOverride.resolvedModelURL(
+            arguments: ProcessInfo.processInfo.arguments,
+            documentsDirectory: documentsDirectory
+        ) {
+            return overrideURL
+        }
         let fileManager = FileManager.default
-        let arguments = ProcessInfo.processInfo.arguments
-        if let fileName = launchArgumentValue(
-            after: "--litert-model-document"
-        ),
-        let documentsURL = fileManager.urls(
-            for: .documentDirectory,
-            in: .userDomainMask
-        ).first {
-            let documentURL = documentsURL.appending(path: fileName)
-            guard fileManager.fileExists(atPath: documentURL.path) else {
-                throw LiteRTDeviceProbeError.modelMissing
-            }
-            return documentURL
-        }
-        if let flagIndex = arguments.firstIndex(of: "--litert-model-path"),
-           arguments.indices.contains(flagIndex + 1) {
-            let explicitURL = URL(filePath: arguments[flagIndex + 1])
-            guard fileManager.fileExists(atPath: explicitURL.path) else {
-                throw LiteRTDeviceProbeError.modelMissing
-            }
-            return explicitURL
-        }
+        let fileName = LiteRTModelManifest.aquinas.fileName
+        let resourceName = (fileName as NSString).deletingPathExtension
+        let resourceExtension = (fileName as NSString).pathExtension
         let candidateURLs = [
             Bundle.main.url(
-                forResource: "gemma-4-E2B-it",
-                withExtension: "litertlm",
+                forResource: resourceName,
+                withExtension: resourceExtension,
                 subdirectory: "LocalModels"
             ),
             Bundle.main.url(
-                forResource: "gemma-4-E2B-it",
-                withExtension: "litertlm"
+                forResource: resourceName,
+                withExtension: resourceExtension
             ),
             fileManager.urls(
                 for: .applicationSupportDirectory,
                 in: .userDomainMask
             ).first?.appending(
-                path: "Models/gemma-4-E2B-it.litertlm"
+                path: "Models/\(fileName)"
             )
         ].compactMap { $0 }
 
@@ -274,17 +396,6 @@ final class LiteRTDeviceProbeModel {
             throw LiteRTDeviceProbeError.modelMissing
         }
         return modelURL
-    }
-
-    private static func launchArgumentValue(after flag: String) -> String? {
-        let arguments = ProcessInfo.processInfo.arguments
-        guard let flagIndex = arguments.firstIndex(of: flag),
-              arguments.indices.contains(flagIndex + 1) else {
-            return nil
-        }
-        let value = arguments[flagIndex + 1]
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
     }
 
     private static func cacheDirectory() throws -> URL {
@@ -311,11 +422,77 @@ final class LiteRTDeviceProbeModel {
     }
 }
 
+nonisolated enum LiteRTRawProbeOptionsError: LocalizedError, Equatable {
+    case conflictingSamplers
+    case invalidContext(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .conflictingSamplers:
+            "Pass either --litert-probe-greedy or --litert-probe-sampled, not both."
+        case let .invalidContext(value):
+            "--litert-probe-context needs a positive token count, not \"\(value)\"."
+        }
+    }
+}
+
+/// Raw-probe launch flags. Greedy decoding with the production conversation sampler is the
+/// default for every gate; the old temperature-0.2 sampler needs an explicit
+/// `--litert-probe-sampled`. `--litert-probe-benchmark` reports prefill/decode token counts and
+/// rates, but it also switches the engine into LiteRT-LM's benchmark mode (for example
+/// `disable_delegate_clustering`), so it is opt-in and recorded in the report.
+nonisolated struct LiteRTRawProbeOptions: Equatable {
+    static let defaultContextTokens = 2_048
+    static let defaultQuestion = "What is prudence?"
+
+    let contextTokens: Int
+    let sampled: Bool
+    let question: String
+    let usesCPU: Bool
+    let benchmark: Bool
+
+    var sampling: LiteRTSampling {
+        sampled
+            ? LiteRTSampling(topK: 40, topP: 0.95, temperature: 0.2, seed: 7, isStructured: false)
+            : .conversation
+    }
+
+    static func parse(_ arguments: [String]) throws -> Self {
+        let greedy = arguments.contains("--litert-probe-greedy")
+        let sampled = arguments.contains("--litert-probe-sampled")
+        guard !(greedy && sampled) else {
+            throw LiteRTRawProbeOptionsError.conflictingSamplers
+        }
+        var contextTokens = defaultContextTokens
+        if arguments.contains("--litert-probe-context") {
+            let value = LiteRTProbeArguments.value(
+                after: "--litert-probe-context",
+                in: arguments
+            ) ?? ""
+            guard let parsed = Int(value), parsed > 0 else {
+                throw LiteRTRawProbeOptionsError.invalidContext(value)
+            }
+            contextTokens = parsed
+        }
+        return Self(
+            contextTokens: contextTokens,
+            sampled: sampled,
+            question: LiteRTProbeArguments.value(
+                after: "--litert-probe-raw-question",
+                in: arguments
+            ) ?? defaultQuestion,
+            usesCPU: arguments.contains("--litert-probe-cpu"),
+            benchmark: arguments.contains("--litert-probe-benchmark")
+        )
+    }
+}
+
 private enum LiteRTDeviceProbeError: LocalizedError {
     case modelMissing
     case cacheUnavailable
     case emptyResponse
     case productionPathFailed(String)
+    case cpuQualityProbeUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -327,6 +504,8 @@ private enum LiteRTDeviceProbeError: LocalizedError {
             "Aquinas initialized but returned an empty response."
         case .productionPathFailed(let message):
             "The production local path failed: \(message)"
+        case .cpuQualityProbeUnavailable:
+            "The CPU quality probe is available only in Debug builds."
         }
     }
 }
