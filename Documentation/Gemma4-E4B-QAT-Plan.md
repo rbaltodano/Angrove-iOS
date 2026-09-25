@@ -1,429 +1,533 @@
 # Gemma 4 E4B QAT migration — execution plan
 
-> Status: approved plan, not yet executed. This file is the **instructions**. It changes only
-> when the plan itself changes. Record all progress, measurements, and decisions in
-> [`Gemma4-E4B-QAT-Progress.md`](Gemma4-E4B-QAT-Progress.md), never here.
+> **Status:** plan v2, revised 2026-09-25 after an independent review
+> ([`Gemma4-E4B-QAT-Plan-Review.md`](Gemma4-E4B-QAT-Plan-Review.md); how each finding was handled
+> is recorded at the end of that file). Not yet executed.
+>
+> This file is the **instructions**. It changes only when the plan itself changes. Record all
+> progress, measurements, and decisions in [`Gemma4-E4B-QAT-Progress.md`](Gemma4-E4B-QAT-Progress.md),
+> never here.
 
 ## 0. How to use these two documents
 
-1. Read this plan in full, then read the progress ledger.
-2. In the ledger, find the first checkpoint whose status is not `done`. Resume there. Do not
-   redo `done` checkpoints unless the ledger says their evidence is invalid.
-3. Before you start a checkpoint, set it to `in-progress` with your session name and the date.
-   Commit that change so a parallel or later agent can see it.
-4. When you finish a checkpoint, fill in **every** evidence field the checkpoint requires, set
-   it to `done` (or `failed` / `blocked` with a reason), and commit.
-5. When a checkpoint fails, follow its **On failure** branch. Do not improvise a workaround that
-   the plan forbids. If no branch applies, set the checkpoint to `blocked`, write the question
-   for the user in the ledger's *Open questions*, and stop.
+1. Read this plan in full, then read the ledger's status board, candidate registry, and
+   *Open questions*.
+2. **Choose the next checkpoint:** the first checkpoint in §5 order whose status is `todo`,
+   `in-progress`, or `blocked`-with-a-recorded-resolution, **and** whose listed dependencies are
+   all `done` or `skipped`. `skipped` counts as resolved only when the ledger records a reason.
+   Never redo a `done` checkpoint unless the ledger marks its evidence invalid.
+3. Before starting, set the checkpoint to `in-progress` with your session name and date, and
+   commit.
+4. When you finish, fill in **every** evidence field, set the status (`done`, `failed`,
+   `blocked`, or `skipped`), and commit. Evidence must name the candidate ID, the exact command
+   or launch arguments, and an evidence path (§4.4).
+5. **Invalidation rule:** a gate's result belongs to one exact candidate: artifact hash, runtime,
+   and configuration. If any of those changes, every dependent gate for that candidate must be
+   rerun under a new run ID. A failed quality result is never erased by a later artifact or
+   configuration swap; the new configuration is recorded as a **new candidate**.
+6. When something fails, follow its **On failure** branch. If no branch applies, set the
+   checkpoint to `blocked`, write the question in *Open questions*, and stop.
 
-Required reading before any code change: [`AGENTS.md`](../AGENTS.md),
-[`Model-Runtime.md`](Model-Runtime.md),
-[`../../Aquinas-Foundations/MODEL-INTEGRATION.md`](../../Aquinas-Foundations/MODEL-INTEGRATION.md)
-(especially the LiteRT checkpoints and §8 fine-tuning policy), and
-[`Development-Workflow.md`](Development-Workflow.md).
+Required reading before any code change:
+- [`AGENTS.md`](../AGENTS.md)
+- [`Model-Runtime.md`](Model-Runtime.md)
+- [`Development-Workflow.md`](Development-Workflow.md)
+- [`../../Aquinas-Foundations/MODEL-INTEGRATION.md`](../../Aquinas-Foundations/MODEL-INTEGRATION.md),
+  especially the LiteRT checkpoints and §8, the fine-tuning policy
+- For background only: the earlier
+  [`GEMMA-4-QAT-EVALUATION-PLAN.md`](../../Aquinas-Foundations/GEMMA-4-QAT-EVALUATION-PLAN.md),
+  plus `research/gemma-4-qat/compatibility.md` and `LITERT-QAT-SUPPORT-CLARIFICATION.md`
+
+Where this plan and the older one conflict, this plan wins.
 
 ## 1. Goal and non-goals
 
-**Goal.** Replace the on-device conversation model with Google's **Gemma 4 E4B instruction model
-in its quantization-aware-trained (QAT) mobile form**, served through the existing LiteRT-LM
-runtime. Promote it only if it measurably beats the current checkpoint on factual and reasoning
-quality and passes every compatibility, memory, thermal, and lifecycle gate on the base iPhone 17
-(8 GB).
+**Goal:** replace the on-device conversation model with Google's **Gemma 4 E4B** published
+LiteRT-LM package, running on the existing LiteRT-LM runtime. Promote it only if it:
+- beats the current checkpoint by a predeclared margin on a held-out quality set; and
+- passes numeric memory, latency, lifecycle, and stability gates on the base iPhone 17 (8 GB).
 
-**Non-goals for this plan:**
+**Non-goals:**
+- **Fine-tuning** (decision D4).
+- **Vision.** Stay text-only (optional C12).
+- **Model hosting and download UI.**
+- **Changing the production decoding policy.**
+- **Converting Google's QAT Transformers checkpoint ourselves.** That route is blocked (§3, D7).
 
-- Fine-tuning E4B. See §3, decision D4. A fine-tune is a separate follow-up plan.
-- Vision and multimodal input. Stay text-only, matching today's `visionBackend = nil`. A vision
-  probe is optional (checkpoint C9) and never blocks promotion.
-- Model hosting and download UI. Promotion replaces the development seed only. The
-  hosted/resumable delivery work stays tracked in `MODEL-INTEGRATION.md`.
-- Changing the decoding policy. Deterministic decoding remains the default. The sampling test
-  in C6 is informational.
-
-## 2. Background facts (verified September 2026)
+## 2. Background facts (verified 2026-09-25)
 
 | Fact | Source |
 | --- | --- |
-| "4B" means **E4B**: 4.5B effective parameters, about 8B including per-layer embeddings. | HF `google/gemma-4-E4B-it-qat-mobile-transformers` |
-| QAT checkpoints ship as Q4_0 (GGUF/unquantized), w4a16 compressed tensors (vLLM), and **Mobile wNa8o8**. Only the mobile form targets LiteRT-LM. | Google QAT blog post; HF model cards |
-| Mobile wNa8o8 means static activations, channel-wise quantization, targeted 2-bit decode layers, and an optimized KV cache. | Same |
-| `litert-community/gemma-4-E4B-it-litert-lm` provides `gemma-4-E4B-it-gpu.litertlm` (2.97 GB) and `gemma-4-E4B-it.litertlm` (3.66 GB), under Apache 2.0. | HF repo file listing |
-| Published iPhone 17 Pro numbers: GPU prefill 1,189 tok/s, decode 25.1 tok/s, about 3.4 GB memory. CPU decode 9.7 tok/s, about 1 GB. | Same card |
-| It is **not confirmed** whether those `.litertlm` files are QAT-derived. No QAT to `.litertlm` converter is documented. LiteRT-LM issue #2497, which asks this, was unanswered at the time of writing. | GitHub `google-ai-edge/LiteRT-LM#2497` |
-| The app vendors LiteRT-LM **v0.14.0** (`Vendor/LiteRTLM`). The backend's `litert_conversion_env` has `litert_lm_builder`/`litert_lm_cli` 0.14.0, `litert_torch` nightly 0.10.0.dev20260730, and `ai_edge_quantizer` nightly. | Local inspection |
+| "4B" means **E4B**: 4.5B effective parameters, ~8B including per-layer embeddings. | HF `google/gemma-4-E4B-it-qat-mobile-transformers` |
+| `litert-community/gemma-4-E4B-it-litert-lm` is at revision `2eee7ac325f20eb8c9ac1d0e972f7c84663062da`. Its GPU package is 2,969,059,328 bytes (HF SHA-256 `4912bb5a9c30993c51a7711f763212077458529312175df0573a78323a2bb7ff`) and its standard package is 3,659,530,240 bytes (SHA-256 `0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0`). | HF API tree listing |
+| A LiteRT Community maintainer confirmed that the **E2B** `.litertlm` package is QAT (mixed int2/int4/int8), even though its filename doesn't say so. **No equivalent statement for E4B has been found.** | [E2B discussion #30](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/discussions/30); Foundations `LITERT-QAT-SUPPORT-CLARIFICATION.md` |
+| Stock E2B package (candidate M2-L): revision `b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1`, `gemma-4-E2B-it.litertlm`, 2,588,147,712 bytes, SHA-256 `181938105e0eefd105961417e8da75903eacda102c4fce9ce90f50b97139a63c`. An earlier base-iPhone run recorded a 3.89 s cold load. | Foundations `research/gemma-4-qat/compatibility.md` |
+| Our exporter (`litert_torch 0.10.0.dev20260730`) accepts only `dynamic_wi4_afp32`, `dynamic_wi8_emb4_afp32`, and `dynamic_wi8_afp32`. It has **no import/preservation path** for the mobile QAT (wNa8o8) schema. | Same `compatibility.md` |
+| The published iPhone 17 **Pro** benchmarks use the 3.66 GB package, cached initialization, 2,048 context, 1,024 prefill and 256 decode tokens. They do **not** predict our GPU package, the 8 GB base phone, or a 4,096-token app configuration. | HF E4B model card |
+| **A simulator GPU failure is not a phone failure.** In August, a package that failed the simulator's Metal delegate ran cleanly on the physical iPhone 17. | `../Aquinas_Backend/CLAUDE.md` (August 3, 2026 correction) |
+| The app vendors LiteRT-LM **v0.14.0**. | `Vendor/LiteRTLM` |
 
-Local facts:
+**Current code facts that constrain the gates:**
 
-- **Current bundled model:** `Aquinas-iOS/LocalModels/gemma-4-E2B-it.litertlm`, 3,862,121,696
-  bytes, SHA-256 `9a6345f1…65282`. This is the `dynamic_wi8_emb4_afp32` E2B candidate.
-  `LiteRTModelManifest.aquinas` pins it. `MODEL-INTEGRATION.md` still describes this candidate
-  as having failed its simulator gate, so the docs are stale. C0 establishes the real baseline.
-- **Past failures to watch for:**
-  - Qwen3-4B exceeded the simulator GPU's 268,435,456-byte maximum buffer allocation, then was
-    killed with signal 9 on the base iPhone 17.
-  - A package without `prefer_activation_type: fp16` resolved FLOAT32 and ran about 90× slower.
-  - Sampled decoding corrupted the 4-bit E2B checkpoint.
-- **Existing tooling:**
-  - `--litert-probe` launches `LiteRTDeviceProbeView`. `--litert-probe-auto` runs it
-    automatically.
-  - `--litert-quality-probe` runs the **production** `LiteRTAquinasModel` path with MiniLM
-    grounding.
-  - `--litert-probe-question "<q>"` sets the prompt. `--litert-probe-cpu` uses the CPU.
-  - `--litert-model-path <abs path>` selects the model. In the simulator it can point straight
-    at a file on the Mac. `--litert-model-document <name>` loads from the app's Documents
-    folder on a device.
-  - Probe prompts live in `../Aquinas_Backend/evaluation/runtime_comparison_prompts.json`.
-- **Uncommitted work:** `main` carries a lot of unrelated uncommitted work. Never stage, stash,
-  reset, or overwrite it.
+- **Probe, raw mode** (`LiteRTDeviceProbe.swift`) is hard-coded to 2,048 context, **samples at
+  temperature 0.2**, and asks "What is prudence?". `--litert-probe-cpu` affects only raw mode.
+- **Probe, quality mode** (`--litert-quality-probe`) uses the production `LiteRTAquinasModel` path
+  and reads `--litert-probe-question`. It builds a **single-turn** transcript only.
+- **`LiteRTModelStore`** checks a `developmentModelURL` by **size only**. It prefers an
+  Application Support copy over the bundle.
+- **`LiteRTAquinasRuntime`** deliberately **abandons** wedged native calls, leaving them running
+  (`abandoningStall`). It also skips `conversation.cancel()` on unload because of a native
+  thread-pool wedge, and waits 400 ms for teardown to drain. With a larger model, an abandoned
+  engine overlapping a reload is a real out-of-memory risk.
+- **Memory telemetry:** `ModelRuntimeLifecycle` already records resident memory at load/unload
+  through OS signposts.
 
-## 3. Key decisions (already made — do not relitigate)
+**Baseline:** the bundled `Aquinas-iOS/LocalModels/gemma-4-E2B-it.litertlm` is the
+`dynamic_wi8_emb4_afp32` E2B fine-tune, 3,862,121,696 bytes, SHA-256 `9a6345f1…65282`. Some
+`MODEL-INTEGRATION.md` text calling it failed is stale; C0 establishes the truth.
 
-- **D1 — Try the prebuilt package before converting anything.** Test the `litert-community` E4B
-  package first. Converting the QAT mobile checkpoint is a fallback (C3b), used only if C2 shows
-  the prebuilt package is not QAT-derived **and** its quality fails C6.
-- **D2 — Use the GPU/Metal backend, and the `-gpu` package first.** The app's runtime is
-  GPU-first. Test the standard 3.66 GB package on GPU only if the `-gpu` package fails to load.
-- **D3 — One process-scoped engine.** Never add a second live engine, a model picker, or an A/B
-  runtime. Switching models means changing the single `LiteRTModelManifest.aquinas`, plus a
-  DEBUG-only path override (C4).
-- **D4 — Raw model first, no fine-tune in this plan.** This follows `MODEL-INTEGRATION.md` §8
-  and the replacement-model checkpoint. A LoRA fine-tune followed by the existing PTQ export
-  (`export_litert_aquinas.py`) would **discard the QAT benefit**, because the adapter-merged
-  weights get re-quantized post-training. Any future fine-tune must keep the QAT mobile schema.
-  That is a separate plan.
-- **D5 — Keep `maxNumTokens` at 4,096.** This keeps the comparison like-for-like with the
-  current runtime. Raising it is a follow-up.
-- **D6 — Every promotion is reversible.** Record the old manifest values in the ledger. Keep the
-  old package file on disk (gitignored) until the user signs off.
+## 3. Decisions (do not relitigate)
 
-## 4. Environment and safety rules
+- **D1 — Evaluate the published package; don't convert.** Primary candidate: the E4B GPU package
+  (M4-L). The standard package (M4-Ls) is tried only if M4-L cannot load on the phone.
+- **D2 — Use the GPU (Metal) backend.** CPU runs are diagnostic only.
+- **D3 — One process-scoped engine.** Switching models means changing
+  `LiteRTModelManifest.aquinas`, plus the DEBUG-only override from C3. Never add a second live
+  engine or a model picker.
+- **D4 — No fine-tuning in this plan.** Evaluate raw instruction checkpoints first
+  (`MODEL-INTEGRATION.md` §8). Merging a LoRA adapter and re-exporting through our PTQ recipes
+  would produce a *different* quantized model. It would not preserve Google's QAT-trained
+  low-bit tolerance, and its fidelity would be unverified. A QAT-preserving fine-tune is a
+  separate future plan.
+- **D5 — Keep the production context at 4,096 tokens** for a like-for-like comparison. The C5
+  screen still measures 2K and 4K.
+- **D6 — Every promotion is reversible.** Record the old manifest, keep the old file, and verify
+  rollback in C10.
+- **D7 — The conversion route is blocked.** Exporting from
+  `google/gemma-4-E4B-it-qat-mobile-transformers` is **not** part of this plan. Reopen it only if
+  a pinned exporter version *documents* mobile QAT import and preservation. That would be a new
+  plan with a time box and at least 40 GB of free disk.
+- **D8 — Label provenance honestly; it doesn't gate quality.** Promotion depends on measured
+  gates, not on the "QAT" label. M4-L may be called "QAT" in docs and UI **only** with an
+  artifact-specific maintainer or source statement (C2). A candidate with unconfirmed provenance
+  may be promoted only after the owner records a decision to do so under an accurate label.
+- **D9 — M2-L (stock QAT E2B) is an optional control arm.** It shows whether any gain comes from
+  QAT or from the larger E4B model. Run it in C8 only if disk space and time allow; it never
+  blocks promotion.
 
-- Work on a branch, `feature/gemma4-e4b-qat`, created from `main` in a **git worktree** so the
-  uncommitted work in the main checkout is untouched. Stage only files this plan names.
-- Run every build and simulator step on a concrete arm64 simulator:
-  `-destination 'platform=iOS Simulator,name=iPhone 17'`. The generic destination cannot link
-  LiteRT.
-- Models live in the gitignored `LocalModels/` at the repo root. **Never commit a model**, a
-  generated corpus, device data, or raw eval outputs larger than a few KB.
-- Disk space: the Mac had about 28 GB free when this plan was written. Before each download,
-  check `df -h /`. Stop and ask the user if there is less than 12 GB free.
-- Budget: the main path (C0–C8) needs about 15–20 GB, including downloads, builds, and caches.
-  **C3b needs at least 40 GB free** before downloading the QAT mobile checkpoint, because the
-  checkpoint and the conversion's temporary files may peak at 25–35 GB. The checkpoint size is
-  unverified, so check its Hugging Face file listing first.
-- Physical device:
-  - Back up app data first (see `Development-Workflow.md`).
-  - Record Home data counts before and after.
-  - Prefer a disposable probe bundle identifier.
-  - **Never** run `devicectl … --remove-existing-content true` against the production app
-    container.
-- Committed `.swift` changes must pass the standard build and the full test suite from
-  `AGENTS.md`.
-- Commit messages end with the attribution line required by the current session.
+## 4. Environment, safety, and evidence rules
+
+### 4.1 Workspace
+- Work on a branch, `feature/gemma4-e4b-qat`, in a **git worktree** created from `main`.
+  Record the base commit.
+- The main checkout has unrelated uncommitted work. Record the list of dirty files as
+  *excluded* and never stage them.
+- **Ignored assets are not in a worktree.** Both of these are gitignored:
+  - the E2B baseline model, `Aquinas-iOS/LocalModels/gemma-4-E2B-it.litertlm`;
+  - the MiniLM/grounding assets, `Aquinas-iOS/LocalGrounding/` (`MiniLM.mlpackage`,
+    `embeddings.bin`, `passages.json`, `vocab.txt`).
+
+  Provision them explicitly: symlink or copy them from the main checkout, and record each source
+  path and hash. Otherwise the worktree's builds silently fall back to `NLEmbedding` and the
+  lexical grounding, which would invalidate every quality comparison.
+
+### 4.2 Builds and devices
+- Build on a concrete arm64 simulator:
+  `-destination 'platform=iOS Simulator,name=iPhone 17'`.
+- Before any device install, back up the app data (`Development-Workflow.md`) and record the
+  Home data counts.
+- Use a **disposable bundle ID** for device probes. The llama.cpp research used
+  `com.ryanbaltodano.Aquinas-iOS.ModelProbe`; reuse that pattern.
+- **Never** run `devicectl … --remove-existing-content true` against the production container.
+
+### 4.3 Disk
+- The main path needs about 15–20 GB (downloads, builds, caches). M2-L adds 2.6 GB.
+- Check `df -h /` before every download, and stop and ask if less than 12 GB would remain.
+- Models live in the gitignored `LocalModels/` at the repo root. Never commit a model.
+
+### 4.4 Evidence
+- Every run gets an ID, `<checkpoint>-<candidate>-<n>`, for example `C5-M4L-1`.
+- Raw outputs go to `LocalModels/e4b-eval/<run-id>/` (gitignored). Each run folder holds the
+  exact command or launch arguments, the effective settings the probe reports, and the device
+  and OS.
+- **Evidence folders are immutable.** A rerun gets a new ID.
+- The ledger records a summary and each run ID. Committed files must stay small, so never
+  commit model outputs larger than a few KB.
 
 ## 5. Checkpoints
 
-Each checkpoint lists its **Do** steps, its **Gate** (pass criteria), the **Evidence** to record
-in the ledger, and what to do **On failure**. The IDs match the ledger.
+Order and dependencies:
 
-### C0 — Baseline and workspace
+`C0 → C1 → C2 → C3 → C4 → C5 → C6 → C7 → C8 → C9 → C10`, with `C11` and `C12` optional.
 
-**Do**
+C2 can run in parallel with C3.
 
-1. Create the worktree and branch (§4). Confirm `git status` in the worktree is clean.
-2. Record the current manifest values (file name, byte count, SHA-256), the vendored LiteRT-LM
-   version, the free disk space, and the Xcode and simulator versions.
-3. Build the app (standard build command).
-4. Run the current bundled model through the quality probe on the simulator for each prompt in
-   the **eval set** (§6):
-   - Launch arguments: `--litert-probe --litert-probe-auto --litert-quality-probe
-     --litert-probe-question "<q>"`.
-   - Capture load time, generation time, full response text, and key-term count from the probe
-     UI, using `get_page_text`/screenshot or the simulator tool.
-5. Save raw outputs to `LocalModels/e4b-eval/baseline/<prompt-id>.txt` (gitignored).
+### C0 — Baseline identity and workspace
 
-**Gate:** the baseline model loads and answers every eval prompt, or its failures are recorded
-exactly. This checkpoint establishes truth, so a failing baseline still completes C0.
-
-**Evidence:** the manifest values; the environment versions; a per-prompt table of load
-seconds, generation seconds, word count, `{{term}}` count, and a pass/fail note.
-
-**On failure:** if the app does not build, fix nothing beyond what the build needs. If the fix
-touches unrelated code, set C0 to `blocked` and ask the user.
-
-### C1 — Acquire the E4B package
+**Depends on:** nothing.
 
 **Do**
+1. Set up the worktree (§4.1) and provision the ignored assets.
+2. Record the environment:
+   - the base commit, the list of excluded dirty files, and free disk;
+   - the Xcode and simulator runtime versions;
+   - the LiteRT-LM iOS framework binary SHA-256
+     (`Vendor/LiteRTLM/Binaries/CLiteRTLM.xcframework/ios-arm64/…`).
+3. Re-identify the B0 baseline by **computing** its SHA-256 and comparing it to the manifest.
+4. Build the app.
 
-1. Download `gemma-4-E4B-it-gpu.litertlm` from `litert-community/gemma-4-E4B-it-litert-lm` into
-   `LocalModels/`. Use `huggingface-cli download` from `../Aquinas_Backend/aquinas_env`, or
-   `curl -L` with resume.
-2. Record its byte count and `shasum -a 256`.
-3. Download the 3.66 GB `gemma-4-E4B-it.litertlm` **only if C3a fails**.
+**Gate:** the build passes and B0's identity matches the manifest.
 
-**Gate:** the file is complete. Its size matches the Hugging Face listing, and the SHA-256 is
-recorded.
+**Evidence:** all of the above.
 
-**Evidence:** the file name, bytes, SHA-256, the source URL with its commit hash from the HF
-repo, and the download date.
+### C1 — Acquire and verify the candidates
 
-### C2 — Determine whether the package is QAT-derived
-
-**Do**
-
-1. Inspect the package with `litert_lm_cli` or the `litert_lm_builder` Python API from
-   `../Aquinas_Backend/litert_conversion_env`. List its sections, its metadata (including
-   `prefer_activation_type`), the tensor dtype distribution of the decoder, whether any tensors
-   are 2-bit, and whether static activation quantization parameters are present.
-2. Compare against the E2B package. Its HF card claims the mixed 2/4/8-bit mobile scheme.
-3. Recheck GitHub issue `google-ai-edge/LiteRT-LM#2497` and the HF model cards for any newer
-   statement.
-
-**Gate:** none. This checkpoint classifies the package as **QAT**, **not QAT**, or **unknown**.
-The answer affects C3b and the final recommendation, not whether you continue.
-
-**Evidence:** the classification, the exact signals that support it, the dtype histogram, and
-the activation-type metadata.
-
-**On failure:** if the tools can't read the package, classify it as `unknown`, note the error,
-and continue.
-
-### C3a — Simulator compatibility gate (prebuilt package)
+**Depends on:** C0.
 
 **Do**
+1. Download M4-L (`gemma-4-E4B-it-gpu.litertlm`) at the **pinned revision** from §2 into
+   `LocalModels/`. Use `hf download` from `../Aquinas_Backend/aquinas_env` with `--revision`.
+2. Compute its SHA-256 and compare it to the **HF-published LFS SHA-256** in §2.
+3. Download M2-L the same way, but only if C8's optional arm is planned.
+4. Download M4-Ls only if C4/C5 send you here.
 
-1. Launch the probe in its **raw** mode with `--litert-probe --litert-probe-auto
-   --litert-model-path <abs path to E4B file>`.
-2. Launch the probe in **production** mode with the same arguments plus
-   `--litert-quality-probe`, asking "What is prudence?".
-3. From the logs, capture:
-   - the Metal device creation lines;
-   - the resolved activation type (it must be FLOAT16);
-   - any `Failed to initialize kernel`, max-buffer, or delegate-rollback errors;
-   - load and generation seconds.
+**Gate:** the computed hash equals the published hash. A mismatch fails the checkpoint; delete
+the file and retry once.
 
-**Gate:** both modes complete; the activation type is FLOAT16; the response is coherent English;
-and there are no repetition or mixed-script rejects.
+**Evidence:** a registry row for each candidate.
 
-**Evidence:** the per-mode table and the relevant log excerpts, with the error text quoted
-exactly.
+### C2 — Provenance classification
+
+**Depends on:** C1. Can run in parallel with C3.
+
+**Do**
+1. Search the E4B repository's model card and discussions for a maintainer statement on QAT
+   provenance. Read discussions #16 ("strange loops and errors") and #18 ("context window size
+   4096？") as well; both are relevant to our configuration.
+2. Recheck E2B discussion #30, Google's QAT blog post, and LiteRT-LM issue #2497 for updates.
+3. As **supporting** evidence only, inspect the package with `litert-lm-peek` or
+   `litert-lm-builder` from `../Aquinas_Backend/litert_conversion_env`: sections, metadata,
+   `prefer_activation_type`, and the decoder's dtype histogram.
+4. If nothing definitive exists, draft a one-paragraph question for the E4B discussion board and
+   put it in *Open questions*. **Posting it requires owner approval.**
+
+**Gate:** none. The classification is **confirmed-QAT** (with a citation) or **unconfirmed**.
+Both continue; see D8.
+
+**Evidence:** the classification, citations, the dtype histogram, and the activation metadata.
+
+### C3 — Harness hardening (code)
+
+**Depends on:** C0. This is the only checkpoint that adds shared app code before promotion.
+
+**Do**
+1. **Raw probe.** Add launch flags `--litert-probe-context <n>` (default 2048),
+   `--litert-probe-greedy`, and `--litert-probe-raw-question "<q>"`.
+   - `--litert-probe-greedy` gives deterministic decoding matching the production sampler; it
+     is the default for any gate.
+   - Temperature 0.2 remains available only through an explicit `--litert-probe-sampled`.
+2. **Quality probe.** Add `--litert-probe-fixture <file>`. It loads a JSON conversation fixture
+   (prior user/assistant turns plus a final question) from Documents or an absolute simulator
+   path, so multi-turn and topic-shift cases run through the production path.
+3. **Effective-settings report.** Both modes print, and write to
+   `Documents/litert-probe-result.json`:
+   - the model URL, byte count, and **computed** SHA-256;
+   - the backend, context, and sampler;
+   - the resolved activation type, if the runtime exposes it (otherwise the relevant log line);
+   - load and generation seconds, and prefill and decode token counts, if available;
+   - the peak physical footprint (`task_vm_info.phys_footprint`) and `os_proc_available_memory()`
+     at launch, before load, and after generation.
+4. **DEBUG model override.** In `AquinasApplicationRuntime.init`, inside the same `#if DEBUG`
+   block as `--force-backend-model`, accept `--litert-model-path <abs>` or
+   `--litert-model-document <name>`.
+   - Resolve the file with **one shared resolver** used by both the probe and the app.
+   - Build `LiteRTModelStore(manifest: <derived name/size, sha "development-override">,
+     developmentModelURL:)`.
+   - Log the loaded URL and SHA-256 once at engine initialization.
+   - Release builds ignore both flags.
+5. Make `LiteRTDeviceProbe.locateModel()` fall back to `LiteRTModelManifest.aquinas.fileName`.
+6. **Tests.** The resolver resolves each flag form, and rejects missing files. The override is
+   compiled out of Release. Parse fixtures, including a malformed fixture.
+7. Run the build and the full test suite.
+
+**Gate:** the build and all tests pass. A simulator run of each probe mode on B0 writes a result
+JSON containing every field in step 3.
+
+**Evidence:** commit, test names, and a sample result JSON path.
+
+### C4 — Simulator compatibility (informational)
+
+**Depends on:** C1, C3.
+
+**Do:** run M4-L through the raw probe (greedy, 2048, "What is prudence?") and the quality probe
+(`--litert-probe-question "What is prudence?"`) in the arm64 simulator. Capture:
+- Metal device creation;
+- delegate selection;
+- the resolved activation type;
+- any `Failed to initialize kernel`, max-buffer, or delegate-rollback errors;
+- load and generation seconds.
+
+**Classification:** `sim-pass`, `sim-gpu-fail` (the simulator's Metal delegate failed), or
+`model-fail` (it fails on CPU as well, or the output is incoherent on CPU).
+
+**Gate and branches**
+- **`sim-pass`:** go to C5.
+- **`sim-gpu-fail`:** do **not** reject the candidate. Confirm it generates coherent output with
+  `--litert-probe-cpu`, record `sim-gpu-fail`, and go to C5. The phone decides.
+- **`model-fail`:** go to C5 anyway for a single bounded load test. If the phone also fails, try
+  M4-Ls once (C1).
+- **FLOAT32 activation:** record whether it comes from a quantized graph by design or from an
+  unintended fallback (look for delegate or kernel fallback log lines). Do not patch package
+  metadata.
+
+### C5 — Early phone memory and compatibility screen
+
+**Depends on:** C4. This runs **before** any expensive quality work. Disposable bundle ID only.
+
+**Do**
+1. **Freeze the memory cap first.**
+   - On the base iPhone 17, in the probe app with the production entitlements, record
+     `os_proc_available_memory()` at launch.
+   - Run B0 through the same protocol (steps 2–3) and record its peak footprint.
+   - Define **`operating_cap` = the launch value of `os_proc_available_memory()`** on that
+     device and OS build.
+   - The gate is **`candidate_peak ≤ 0.85 × operating_cap`**, measured in the full app during
+     C9. The owner may revise the cap in *Decisions* **before** candidate numbers are seen.
+2. **M4-L raw probe (greedy)**, one run each, in a fresh process:
+   - load only;
+   - "What is prudence?";
+   - a ~2,000-token prefill fixture with a 256-token decode;
+   - a ~4,000-token prefill fixture with a 256-token decode.
+
+   Record the peak footprint, load seconds, and prefill and decode rates for each. If the
+   runtime reports it, also record the largest single Metal allocation.
+3. Hold the loaded session for 60 s after the 4K run. Watch for jetsam or `vm-pageshortage`
+   entries in the device logs.
+
+**Gate:** there is no jetsam, signal 9, or GPU out-of-memory error. The 4K-run peak footprint
+must be ≤ 0.80 × `operating_cap`; this is stricter than C9 because the full app adds MiniLM and
+UI overhead. The output must be coherent.
 
 **On failure**
+- Try M4-Ls on the GPU once.
+- If only the 4K run fails, record it and ask the owner whether a 2K-context configuration
+  should become a **new candidate**. That would override D5.
+- Otherwise mark C5 `failed` and stop. The plan's outcome is "rejected with evidence".
 
-- If there is a max-buffer or kernel failure on the simulator, retry once with
-  `--litert-probe-cpu` to isolate the backend. A CPU pass with a GPU failure means the package
-  cannot ship on the Metal path. Mark C3a `failed`, then try the standard 3.66 GB package once
-  (the C1 fallback).
-- If the activation type is FLOAT32, record it. Do **not** patch package metadata by hand.
-  Go to C3b, which rebuilds with FP16 preference.
-- If both packages fail, go to C3b.
+### C6 — Integration diagnostics
 
-### C3b — Conversion fallback (conditional)
-
-**Run this only if:** C3a failed for both packages, **or** C2 said "not QAT" / "unknown" and C6
-later fails on quality. Otherwise mark it `skipped` with the reason.
+**Depends on:** C5.
 
 **Do**
+1. **Rendered prompts.** Diff B0 against M4-L on:
+   - the rendered chat template and role markers;
+   - how system instructions are placed;
+   - EOS and channel handling, including the thought/visible channel markers;
+   - how the runtime truncates at 4,096 tokens.
 
-1. Download `google/gemma-4-E4B-it-qat-mobile-transformers` into
-   `../Aquinas_Backend/models/` (gitignored there). Check disk space first.
-2. Try an export with `litert_torch`'s Gemma 4 generative path or `litert_lm_builder` in
-   `litert_conversion_env`. Preserve the checkpoint's own quantization metadata, which means no
-   extra PTQ recipe. Set `prefer_activation_type: fp16`, text-only, a KV cache of 4,096 tokens,
-   and a prefill signature of 128. Write a new script, `scripts/export_litert_e4b_qat.py`, next
-   to `export_litert_aquinas.py`. Do not modify that existing script.
-3. Rerun the C3a gate against the output.
+   Use a fixed fixture and print the exact prompt LiteRT-LM receives, if it's exposed; otherwise
+   use a tokenized reconstruction.
+2. **Structured outputs.** Run every structured-output schema used locally once through the
+   quality path: definition, node label, Midpoint, Make Node, Question of the Day, and
+   compaction. Classify each failure as **template/parsing**, **retrieval**, or **model**.
+3. **Images in text-only mode.** Open a conversation that has image-bearing history and try to
+   attach an image. Confirm the app degrades gracefully, with no crash and no silent loss of
+   text context.
 
-**Gate:** the same as C3a.
+**Gate:** there are no template or parsing failures. Fix these in the adapter only when they are
+**E4B-specific**, and record the fix. Model failures continue to C8 as quality findings.
 
-**Evidence:** the exact converter versions and command, the output bytes and SHA-256, and the
-C3a-style results.
+### C7 — Full-app functional and lifecycle stress (simulator)
 
-**On failure:** if the toolchain can't consume the wNa8o8 checkpoint, record the exact error.
-Then add a comment to `LiteRT-LM#2497`, **but only after the user approves posting**. Set C3b
-to `blocked`. The plan then continues with whichever prebuilt package passed C3a, if one did;
-otherwise the whole effort is blocked.
+**Depends on:** C6.
 
-### C4 — DEBUG model-path override for full-app testing
+Run the full app with the C3 override. Stop the backend, or point recovery at
+`http://127.0.0.1:9`, so backend recovery cannot mask a local failure.
 
-The probe already accepts `--litert-model-path`, but the full app always uses the manifest.
-Add a narrow DEBUG-only override so the real UI and `ModelTaskQueue` can run E4B without
-swapping the bundled file.
+1. **Functional.** Run:
+   - three questions plus one follow-up, and a topic-shift reset;
+   - a contextual definition;
+   - save an Insight, then run node label, Make Node (exactly 3), and Midpoint;
+   - Question of the Day and compaction;
+   - queue reorder.
+2. **Lifecycle stress.** Run each of these, and each must be followed by a **successful new
+   request**:
+   - cancel mid-generation;
+   - foreground preemption of background work;
+   - a forced stall timeout (temporarily lower the watchdog in DEBUG);
+   - backgrounding during generation;
+   - idle unload followed by reload;
+   - a simulated memory warning.
+3. **Assertions for each stress case:**
+   - there are no stale UI updates after cancellation;
+   - resident memory returns to within 10% of its pre-request level after unload;
+   - the signposts show **no overlap** between an abandoned engine's native work and a new
+     engine's load. If an abandoned call is still running when reload starts, record it as a
+     blocker.
 
-**Do**
+**Gate:** all functional actions validate locally, and all stress cases pass their assertions.
 
-1. In `AquinasApplicationRuntime.init`, in the same `#if DEBUG` block as
-   `--force-backend-model`, read `--litert-model-path <path>`. When it is present, build
-   `LiteRTModelStore(manifest: <manifest derived from that file's name and size, sha
-   "development-override">, developmentModelURL: url)`. Release builds must ignore the flag,
-   just as they ignore `--force-backend-model`.
-2. Make `LiteRTDeviceProbe.locateModel()` fall back to `LiteRTModelManifest.aquinas.fileName`
-   instead of the hard-coded `gemma-4-E2B-it` names.
-3. Add a focused test in `Aquinas-iOSTests/`. It must show that the override yields a store
-   resolving the given URL. If the launch-argument parsing is testable, it must also show that
-   the store ignores a missing file.
-4. Build and run the full test suite.
+### C8 — Quality A/B
 
-**Gate:** the build passes; all tests pass; the full app launched in the simulator with the
-override answers a question with E4B. Confirm this by showing the model's file name in the
-Developer view or the logs.
-
-**Evidence:** the commit hash, the test names, and a simulator screenshot path in the ledger.
-
-### C5 — Functional parity in the full app (simulator)
-
-Run the app with the C4 override, then do the following:
-
-1. Ask three conversation questions and one follow-up. Confirm the topic-shift reset still works.
-2. Tap a highlighted key term to create a contextual definition.
-3. Save that Insight. Trigger a Node label. Run Make Node, which must produce exactly three
-   children. Run a Midpoint on two Insights.
-4. Trigger the Question of the Day and context compaction, using a long conversation.
-5. Cancel an in-flight answer from the Model Task control. Queue two tasks and reorder them.
-6. Background the app during generation, then return. Confirm the lease unload and reload
-   behavior.
-
-**Gate:** every structured action validates without backend recovery. Confirm this by checking
-the logs for recovery. Mark the backend unreachable (`127.0.0.1:9`) or leave it stopped so that
-recovery cannot mask a local failure. Cancellation and the lifecycle behave as they do today.
-
-**Evidence:** a pass/fail row per action, with any validation or repair failures quoted.
-
-**On failure:** a structured-output failure is a **quality** finding, not a plumbing bug. Record
-it. Change prompts only if the failure also reproduces on the baseline. Never add heuristic
-fallbacks (`AGENTS.md`, `MODEL-INTEGRATION.md`).
-
-### C6 — Quality A/B (simulator)
+**Depends on:** C7.
 
 **Do**
+1. **Build the eval set before looking at any candidate output**, and write it to
+   `LocalModels/e4b-eval/eval-set/`.
+   - **40 development cases** and **40 held-out cases**. Freeze both files and record their
+     SHA-256 in the ledger.
+   - Categories, spread evenly across both sets:
+     - definitions/distinctions;
+     - reasoning/application;
+     - source-dependent questions where grounding should apply;
+     - absent or conflicting evidence, where the answer should state uncertainty;
+     - multi-turn and topic shift (as fixtures);
+     - known regressions.
 
-1. Run every eval-set prompt (§6) through `--litert-quality-probe` on E4B. Save the outputs to
-   `LocalModels/e4b-eval/e4b/<prompt-id>.txt`.
-2. Build a **blinded** comparison sheet at `LocalModels/e4b-eval/blind.md`:
-   - For each prompt, show the two answers labeled A and B in randomized order.
-   - Keep the key in `blind-key.json`.
-3. Ask the user to score each prompt 1–5 on accuracy, depth, and voice, and to mark any
-   critical failure. Agents do not grade answers from their own generating checkpoint (per the
-   evaluation policy). The agent **may** score the objective checks:
-   - word count;
-   - `{{term}}` compliance (the number of markers, within the 12-marker ceiling);
-   - repetition or mixed-script rejects;
-   - whether the known factual traps were answered correctly.
-4. **Informational only:** rerun three prompts at temperature 0.2 with `seed 7` through the raw
-   probe. Record whether any corruption appears. Do not change the production decoding policy.
+     The known regressions come from the §6 seed list: factual traps, repetition/looping,
+     shallow answers, and named-entity fidelity.
+   - Each case records its category, whether it is a fixture, and any **objective check** (a
+     required fact or a forbidden claim).
+2. **Freeze the configuration.** This means production retrieval, the same grounding corpus,
+   deterministic decoding, the same budgets, and 4,096 context. Record the configuration hash.
+   Prompt adjustments may be tried on the development set **only**, and only for E4B-specific
+   template issues from C6.
+3. **Run.** Run B0 and M4-L (and M2-L if D9 applies) on both sets through the quality probe with
+   fixtures. Record whether grounding answered each case, or generation did.
+4. **Score.**
+   - **Objective checks and link validity:** score these automatically. Link validity means each
+     `{{term}}` marker yields a key term that actually occurs in the text, within the ceiling of
+     12.
+   - **Subjective scores:** accuracy, depth, and voice, each 1–5, plus a critical-failure flag.
+     First-pass scoring is done by **a different model** from any candidate (for example, the
+     reviewing assistant), using the rubric in the older plan and blind A/B labels
+     (`blind-key.json`).
+   - **Owner review:** the owner reviews at least 25% of cases, **all** critical flags, and every
+     case where the scorer's preference is weak. The owner's scores override the scorer's.
+5. **Informational:** run five development cases at temperature 0.2, seed 7, with 3 repeats. This
+   does not change the production policy.
 
-**Gate for promotion eligibility**
+**Gate (held-out set only)**
 
-- There are zero critical failures.
-- E4B wins or ties on the factual-trap prompts.
-- E4B's mean subjective score is ≥ the baseline's mean.
-- E4B's marker compliance is ≥ the baseline's.
-- There are zero repetition or garbage rejects.
+| Check | Required |
+| --- | --- |
+| Critical failures | M4-L ≤ B0, and at most 1 |
+| Mean accuracy | M4-L ≥ B0 + 0.3 **and** ≥ 3.0 absolute |
+| Any category's mean accuracy | Does not regress by more than 0.5 against B0 |
+| Objective checks passed | M4-L ≥ B0 |
+| Valid-link rate | M4-L ≥ B0 |
+| Repetition or garbage rejects | Zero |
 
-**Evidence:** the objective table, the user's scores (once provided), and the sampling
-observations.
+**Absolute floors apply even if B0 performs badly.** A broken baseline never lowers the bar.
 
-**On failure:** if C2 did not classify the package as QAT, and C3b has not been attempted, go to
-C3b. Otherwise mark C6 `failed` and stop before C7. Record in the ledger that the model is not
-an improvement.
+**On failure:** mark C8 `failed`. The outcome is "rejected with evidence". Do not go back to
+conversion (D7).
 
-### C7 — Physical-device gate (base iPhone 17, 8 GB)
+### C9 — Physical-device sustained gate
 
-Requires C3a (or C3b), C5, and C6 to be `done`.
+**Depends on:** C8. Uses the disposable bundle ID and the full app with the override.
+
+**Protocol (freeze in the ledger before running)**
+- **Cold** means a fresh process with the LiteRT cache cleared. **Cached** means a fresh process
+  with the cache present.
+- Run 5 trials of each. Report every sample, the p95, and the max.
+- Time these boundaries:
+  - request accepted;
+  - retrieval complete;
+  - prefill start and end;
+  - first visible output delivered to the UI (LiteRT currently buffers, so report this
+    honestly);
+  - visible answer complete;
+  - metadata complete.
+- Use fixed inputs: the one-sentence prompt, and the justice-and-mercy prompt with a declared
+  output budget.
+- Alternate B0 and M4-L sessions to limit thermal and ordering bias. Record the starting thermal
+  state.
+
+**Also run**
+- 20 consecutive turns, recording the per-turn latency, the thermal state over time, and the
+  peak physical footprint;
+- 5 background/foreground cycles during generation;
+- 1 simulated memory warning, followed by a successful request;
+- an idle hold of more than 60 s.
+
+**Gate (provisional product budgets; the owner may revise them before the run)**
+
+| Metric | Budget |
+| --- | --- |
+| Peak physical footprint | ≤ 0.85 × `operating_cap` (C5) |
+| Cold load (p95) | ≤ 12 s |
+| Cached load (p95) | ≤ 3 s |
+| One-sentence answer complete (p95) | ≤ 4 s |
+| Justice-and-mercy answer complete (p95) | ≤ 60 s |
+| Turn-20 latency vs. turn-1 latency | ≤ 1.5× |
+| Thermal state | Never `critical` |
+
+There must also be no jetsam, and the app must recover from every warning and background cycle.
+
+**On failure:** record it. Do not promote. The owner decides whether any configuration change
+becomes a new candidate.
+
+### C10 — Promotion
+
+**Depends on:** C9, plus **explicit owner approval recorded in the ledger**. D8 applies to the
+label.
 
 **Do**
-
-1. Back up the app data and record the Home data counts.
-2. Install a Debug build under a disposable probe bundle identifier if possible. Copy the E4B
-   file into that app's Documents container. **Do not use `--remove-existing-content`.**
-3. Measure the following:
-   - Raw probe (`--litert-model-document <file>`): cold load, cached load, and one-sentence
-     generation.
-   - Production probe: the justice-and-mercy prompt.
-   - A sustained run of 20 consecutive turns in the full app with the override path. Record
-     peak resident memory (Instruments or the app's signposts), the thermal state over time,
-     and the per-turn latency.
-   - Five background/foreground cycles during generation, and one simulated memory warning.
-   - That the app survives more than 60 seconds idle after generation.
-
-**Gate**
-
-- There is no jetsam or signal 9.
-- Cold load is ≤ 12 s. Cached load is ≤ 3 s.
-- The one-sentence answer takes ≤ 4 s.
-- The justice-and-mercy answer finishes in ≤ 60 s.
-- Thermal state never reaches `critical` during the 20 turns.
-- Peak memory leaves the app running with no memory warnings in normal use.
-
-These thresholds are about 2–3× the E2B device baseline (4.33 s load, 1.27 s answer). The user
-may change them in the ledger's *Decisions*.
-
-**Evidence:** the full measurement table, the device OS version, and the confirmation that the
-backup was taken and data counts match afterward.
-
-**On failure:** for memory or jetsam problems, try once with `maxNumTokens: 2_048`, set only
-through a DEBUG experiment and not committed. If that passes, record it as a decision for the
-user and do not promote. Otherwise mark C7 `failed`, and E2B stays.
-
-### C8 — Promotion
-
-Requires C7 to be `done` and **explicit user approval recorded in the ledger**.
-
-**Do**
-
-1. Update `LiteRTModelManifest.aquinas` in `Aquinas-iOS/Services/LiteRTModelStore.swift` with
-   the new file name, byte count, and SHA-256. Update its comment to describe the E4B QAT
-   package, and whether it is prebuilt or converted.
-2. Place the package at `Aquinas-iOS/LocalModels/<new name>` as the development seed. Leave the
-   old E2B file in `LocalModels/` at the repo root until the user signs off on removing it.
-3. Update the comment on `LiteRTAquinasRuntime.visionBackend` so it no longer references the
-   `wi8` E2B package. Stay text-only.
+1. Update `LiteRTModelManifest.aquinas`: the file name, bytes, and SHA-256, plus a comment
+   stating the provenance classification.
+2. Place the package as the development seed at `Aquinas-iOS/LocalModels/<name>`. Keep B0's file
+   in root `LocalModels/` until the owner signs off.
+3. Update the `visionBackend` comment in `LiteRTAquinasRuntime.swift`. Stay text-only.
 4. Update the docs in the same change:
-   - Add a dated "Gemma 4 E4B QAT checkpoint" section to `MODEL-INTEGRATION.md`, with the
-     measurements, and correct the stale `wi8` statement.
-   - Update the model name in §2 "Current decisions".
-   - Update `Model-Runtime.md`.
-   - Mark this plan `executed` at the top.
-5. Run the standard build and the full test suite. Do one final simulator smoke test without the
-   override.
-6. Open a PR from `feature/gemma4-e4b-qat`. Do not merge without the user.
+   - `MODEL-INTEGRATION.md`: add a dated checkpoint with the measurements, fix the stale `wi8`
+     text, and update §2.
+   - `Model-Runtime.md`.
+   - Mark this plan `executed`.
+5. Run the build and the full test suite.
+6. **Phone checks, without the override.**
+   - Run a **no-override** smoke test on the phone, using the packaged artifact installed under
+     the disposable ID. The log must show the loaded URL and SHA-256.
+   - **Rollback check:** restore the old manifest and file on a scratch branch, rebuild, and
+     confirm B0 loads.
+7. Open a PR from `feature/gemma4-e4b-qat`. Don't merge it.
 
-**Gate:** the build and tests are green, the smoke test passes, and the PR is open.
+**Gate:** the build and tests are green, both phone checks pass, and the PR is open.
 
-**Evidence:** the commit hashes, the PR URL, and the rollback values: the old manifest and the
-old file location.
+**Evidence:** the commits, the PR URL, the rollback values, and the verified loaded hashes.
 
-### C9 — Optional: vision probe (never blocks)
+### C11 — Optional: M2-L control analysis
 
-With the promoted package, set `visionBackend` to `.gpu` in a DEBUG experiment. Attach one image
-in the simulator and record whether the vision tower loads. Report only. Re-enabling vision is a
-separate change.
+If D9 ran, summarize whether M4-L's gains over B0 track M2-L's. In other words, is the gain from
+QAT or from model size? This is informational only.
 
-## 6. Eval set
+### C12 — Optional: vision probe (never blocks)
 
-The eval set is the same for the baseline (C0) and E4B (C6). Use a stable `prompt-id` for each
-prompt.
+With the promoted package, set `visionBackend = .gpu` in a DEBUG experiment and test one image.
+Record whether the vision tower loads. Report only.
 
-| prompt-id | Prompt | Checks |
-| --- | --- | --- |
-| `definition-prudence` | What is prudence? | Short, accurate |
-| `moral-act-motive` | Can an otherwise good deed be morally tainted by an evil motive? | Dialectic depth |
-| `mercy-justice` | Think carefully about whether mercy can conflict with justice. | Depth; no looping |
-| `justice-mercy-repeat` | How can justice and mercy work together when someone repeatedly does wrong? | Probe default; depth |
-| `trap-peloponnesian` | Was the Peloponnesian War part of the Greco-Persian Wars? | Must say no |
-| `trap-nicaea` | When was the First Council of Nicaea and what did it address? | 325; Arianism |
-| `trap-constantinople` | What did the First Council of Constantinople in 381 add to the creed? | Holy Spirit article |
-| `trap-didache` | Who wrote the Didache? | States that the author is unknown or anonymous |
-| `natural-law` | What is natural law? | `{{term}}` markers present |
-| `essence-existence` | How does Aquinas distinguish essence from existence? | Named-entity fidelity; markers |
-| `topic-shift` | Ask `mercy-justice`, then "What's the capital of Portugal?" | No stale-answer repeat |
+## 6. Eval seed list (seeds for C8, not the eval set itself)
 
-The trap prompts come from failures recorded in `MODEL-INTEGRATION.md`. Grounding notes may
-answer some of them directly. Record whether each answer came from grounding or from generation.
+These are the known regressions from `MODEL-INTEGRATION.md`. Put each in the development or
+held-out set, not both. Add fresh paraphrase variants to the other set.
+
+| Seed | Must |
+| --- | --- |
+| What is prudence? | Short and accurate |
+| Can an otherwise good deed be morally tainted by an evil motive? | Show dialectic depth |
+| Think carefully about whether mercy can conflict with justice. | Show depth without looping |
+| How can justice and mercy work together when someone repeatedly does wrong? | Show depth |
+| Was the Peloponnesian War part of the Greco-Persian Wars? | Say no |
+| When was the First Council of Nicaea, and what did it address? | Say 325 and Arianism |
+| What did Constantinople (381) add to the creed? | Name the Holy Spirit article |
+| Who wrote the Didache? | Say the author is unknown |
+| What is natural law? | Include `{{term}}` markers |
+| How does Aquinas distinguish essence from existence? | Keep named entities exact |
+| Ask the mercy/justice question, then "What's the capital of Portugal?" | Not repeat the stale answer |
 
 ## 7. Definition of done
 
-Either **promoted** (C8 `done`, PR open, docs updated) or **rejected with evidence** (a failed
-gate recorded, E2B unchanged, and a ledger summary explaining why). Both outcomes are complete.
-Leave the ledger with a final summary section filled in.
+The work is complete when one of these is true:
+- **Promoted:** C10 is `done`, the PR is open, and the docs are updated.
+- **Rejected with evidence:** a gate failed, B0 is unchanged, and the ledger's final summary says
+  why.
