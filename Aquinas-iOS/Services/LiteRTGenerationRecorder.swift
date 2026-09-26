@@ -51,6 +51,13 @@ nonisolated final class LiteRTGenerationRecorder: @unchecked Sendable {
 
     private init() {}
 
+    /// How many generations have started so far; brackets one caller's generations.
+    var startedCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return nextIndex
+    }
+
     func begin(
         sampling: Sampling,
         systemInstruction: String,

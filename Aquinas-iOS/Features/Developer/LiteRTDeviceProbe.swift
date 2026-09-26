@@ -83,6 +83,23 @@ final class LiteRTDeviceProbeModel {
         didStart = true
         LiteRTProbeLogCapture.shared.start()
 
+        if let evalFile = LiteRTProbeArguments.value(
+            after: "--litert-eval-batch",
+            in: ProcessInfo.processInfo.arguments
+        ) {
+            phase = .generating
+            detail = "Running the eval set through the production path."
+            do {
+                await LiteRTEvalBatchProbe.run(modelURL: try Self.locateModel(), evalFile: evalFile)
+                phase = .completed
+                detail = "Eval batch finished; see litert-eval-results.jsonl."
+            } catch {
+                phase = .failed
+                detail = error.localizedDescription
+            }
+            return
+        }
+
         if ProcessInfo.processInfo.arguments.contains("--litert-diagnostics-probe") {
             phase = .generating
             detail = "Running every local generation contract once."
