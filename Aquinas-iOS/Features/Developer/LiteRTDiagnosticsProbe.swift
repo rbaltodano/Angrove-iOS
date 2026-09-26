@@ -28,6 +28,7 @@ enum LiteRTDiagnosticsProbe {
         let device: LiteRTProbeReport.Device
         let launchArguments: [String]
         let recordsGenerations: Bool
+        let usesCPU: Bool
         var model: LiteRTProbeReport.Model?
         var loadSeconds: Double?
         var activation: LiteRTProbeReport.Activation?
@@ -42,7 +43,8 @@ enum LiteRTDiagnosticsProbe {
             startedAt: Date.now.ISO8601Format(),
             device: .current,
             launchArguments: arguments,
-            recordsGenerations: arguments.contains("--litert-record-generations")
+            recordsGenerations: arguments.contains("--litert-record-generations"),
+            usesCPU: arguments.contains("--litert-probe-cpu")
         )
         let byteCount = (try? modelURL.resourceValues(forKeys: [.fileSizeKey]))?
             .fileSize.map(Int64.init) ?? 0
@@ -51,6 +53,12 @@ enum LiteRTDiagnosticsProbe {
             let runtime = LiteRTAquinasRuntime(
                 modelStore: try LiteRTModelOverride.developmentStore(for: modelURL)
             )
+            if report.usesCPU {
+#if DEBUG
+                // Diagnostic only: the simulator's Metal delegate can't run these packages.
+                await runtime.configureEvidenceExperimentCPU()
+#endif
+            }
             let clock = ContinuousClock.now
             try await runtime.loadModelWeights()
             report.loadSeconds = seconds(since: clock)
