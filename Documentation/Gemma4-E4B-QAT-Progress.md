@@ -17,7 +17,7 @@
 | C2 | Provenance classification | C1 | done | Claude Code (Opus 5.5) session | 2026-09-25 | **unconfirmed**; package is a GPU-only "artisan" text decoder (C2-M4L-1) |
 | C3 | Harness hardening (code) | C0 | done | Claude Code (Opus 5.5) session | 2026-09-26 | `fa88428`. 175/176 tests; the 1 failure is pre-existing on base and accepted as baseline by the owner (see *Decisions log*) |
 | C4 | Simulator compatibility (informational) | C1, C3 | done | Claude Code (Opus 5.5) session | 2026-09-26 | **sim-pass** (GPU_ARTISAN Metal, F16); C4-M4L-1..3 |
-| C5 | Early phone memory/compat screen | C4 | in-progress | Claude Code (Opus 5.5) session | 2026-09-26 | Freezes `operating_cap` |
+| C5 | Early phone memory/compat screen | C4 | done | Claude Code (Opus 5.5) session | 2026-09-26 | M4-L **failed** (jetsam at 2K and 4K); per the On failure branch, M4-Ls **passed** all four runs (4K peak 0.165 × cap). M4-Ls is now the active candidate |
 | C6 | Integration diagnostics | C5 | todo | | | |
 | C7 | Full-app functional + lifecycle stress | C6 | todo | | | |
 | C8 | Quality A/B (40 dev + 40 held-out) | C7 | todo | | | Needs owner review time |
@@ -26,7 +26,7 @@
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
 | C12 | Optional: vision probe | C10 | todo | | | |
 
-**Next action:** Finish C5.
+**Next action:** C6 for **M4-Ls**. Recommended first: land the owner's backend-removal work on `main` and merge it into this branch, since C6 may touch `LiteRTAquinasModel.swift`, which that work rewrites. See *Open questions*.
 
 ## Candidate registry
 
@@ -36,8 +36,8 @@ a new row (plan §0, rule 5).
 | ID | Artifact | HF repo @ revision | Bytes | Published SHA-256 | Computed SHA-256 | Runtime / config | Provenance | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | B0 | `gemma-4-E2B-it.litertlm` (wi8 E2B fine-tune, bundled) | local export | 3,862,121,696 | `9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282` (manifest) | `9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282` (match, C0-B0-1) | LiteRT-LM 0.14.0, GPU, 4,096, deterministic | fine-tuned PTQ | baseline |
-| M4-L | `gemma-4-E4B-it-gpu.litertlm` | `litert-community/gemma-4-E4B-it-litert-lm` @ `2eee7ac325f20eb8c9ac1d0e972f7c84663062da` | 2,969,059,328 | `4912bb5a9c30993c51a7711f763212077458529312175df0573a78323a2bb7ff` || `4912bb5a9c30993c51a7711f763212077458529312175df0573a78323a2bb7ff` (match, C1-M4L-2) | LiteRT-LM 0.14.0, GPU, 4,096, deterministic | unconfirmed (C2) | candidate |
-| M4-Ls | `gemma-4-E4B-it.litertlm` | same @ same | 3,659,530,240 | `0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0` | | only if M4-L can't load | unconfirmed | fallback |
+| M4-L | `gemma-4-E4B-it-gpu.litertlm` | `litert-community/gemma-4-E4B-it-litert-lm` @ `2eee7ac325f20eb8c9ac1d0e972f7c84663062da` | 2,969,059,328 | `4912bb5a9c30993c51a7711f763212077458529312175df0573a78323a2bb7ff` | `4912bb5a9c30993c51a7711f763212077458529312175df0573a78323a2bb7ff` (match, C1-M4L-2) | LiteRT-LM 0.14.0, GPU (GPU_ARTISAN), 4,096, deterministic | unconfirmed (C2-M4L-1); text-only `gpu_artisan` decoder | **rejected at C5** (jetsam `vm-pageshortage` at 2K and 4K prefill; `C5-M4L-4`, `C5-M4L-5`) |
+| M4-Ls | `gemma-4-E4B-it.litertlm` | same @ same | 3,659,530,240 | `0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0` | `0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0` (match, C1-M4Ls-1) | LiteRT-LM 0.14.0, GPU, 4,096, deterministic, vision/audio not loaded | unconfirmed (no statement for any E4B package; see C2) | **active candidate** (passed C5) |
 | M2-L | `gemma-4-E2B-it.litertlm` (stock) | `litert-community/gemma-4-E2B-it-litert-lm` @ `b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1` | 2,588,147,712 | `181938105e0eefd105961417e8da75903eacda102c4fce9ce90f50b97139a63c` | | control arm (D9) | confirmed QAT (E2B discussion #30) | optional |
 
 ## Frozen values
@@ -57,6 +57,12 @@ Record these **before** the candidate numbers they govern are seen.
 _Add a dated entry for anything that blocks progress. Say what the question is, why it blocks,
 and what options you recommend._
 
+- **2026-09-26: Merge the backend removal before C6. Recommended; not blocking yet.** C6 may need
+  E4B-specific adapter fixes in `LiteRTAquinasModel.swift`, and the owner's uncommitted work on
+  `main` rewrites that file (and deletes `BackendAquinasModel`, which this branch's quality probe
+  still uses as its fallback). Doing C6 on the old code would mean redoing the fixes after a
+  conflicted merge. Recommended: commit the backend removal on `main`, then merge `main` into
+  `feature/gemma4-e4b-qat`, rerun the build and tests, and then run C6 for M4-Ls.
 - **2026-09-26: C5 memory metric doesn't see M4-L's GPU memory. Decide before C9; not blocking C5.**
   - The plan gates on peak `phys_footprint` ÷ `operating_cap`.
   - For the GPU_ARTISAN package, `phys_footprint` stayed at 0.36–0.51 GB while jetsam reports
@@ -109,6 +115,7 @@ and what options you recommend._
 | 2026-09-25 | Adopt plan D1–D6 (prebuilt package first, GPU, single engine, no fine-tune, 4,096 tokens, reversible promotion) | User + planning session | See plan §3 |
 | 2026-09-25 | Shelve all Gemma 4 12B research (rotated-ternary and llama.cpp IQ2_M) and remove its weights; E4B QAT becomes the model path | User | The 12B's modeled size exceeds what the base iPhone 17 survived; see `Aquinas-Foundations/research/rotated-ternary/STATUS.md`, "Shelving record" |
 | 2026-09-25 | Remove all Qwen weights except `Qwen3-4B-Aquinas-v3-Q4_K_M.gguf` in `Aquinas_Backend-llama-cpp-12b` | User | Disk space. Qwen is no longer a re-exportable fallback. |
+| 2026-09-26 | M4-L rejected at C5 (jetsam at 2K and 4K). Per C5's On failure branch, M4-Ls tried once on the GPU and passed; **M4-Ls is now the active candidate** for C6 onward (D1's fallback case). M4-L's failed results stand (plan §0 rule 5) | Plan branch, executed by Claude Code session | `C5-M4L-4`, `C5-M4L-5`, `C5-M4Ls-1..4` |
 | 2026-09-26 | Accept the pre-existing `MiniLMGroundingRetrievalTests.namedPassagesUseSourceTextAnchors` failure (fails identically on base `31aa476`, run `C3-basecheck-1`) as a known baseline failure for the C3 gate; C3 → `done` | User | Owner replied "phone is plugged in, go ahead and continue" to the recommended resolution. Recorded as acceptance of that recommendation |
 | 2026-09-26 | Note only: the owner's **uncommitted** backend-removal work in the main checkout also edits this plan (C3 step 4 and C7 wording) and adds a decision row to its copy of this ledger. It doesn't affect C4 or C5. When it lands on `main`, merge it into `feature/gemma4-e4b-qat`; expect conflicts in `LiteRTDeviceProbe.swift`, `AquinasApplicationRuntime.swift`, and this ledger | Claude Code session | This branch predates that work; main's working tree is not touched |
 | 2026-09-25 | Adopt plan v2 after independent review: conversion route blocked (D7); provenance labels but doesn't gate (D8); M2-L optional control (D9); early phone screen before quality; numeric memory cap; eval set 40 dev + 40 held-out with cross-model first-pass scoring and owner spot checks | User + planning session | [`Gemma4-E4B-QAT-Plan-Review.md`](Gemma4-E4B-QAT-Plan-Review.md), "Disposition" |
@@ -155,7 +162,16 @@ Run ID `C0-B0-1` (2026-09-25); evidence in `LocalModels/e4b-eval/C0-B0-1/`.
   so `hf` never ran (exit 127, nothing downloaded). Its folder is kept unchanged.
 - **M2-L:** not downloaded. C8's optional control arm (D9) isn't planned yet; download it in C1
   style if the owner schedules it.
-- **M4-Ls:** not downloaded. Only needed if C4/C5 send us back here.
+- ~~**M4-Ls:** not downloaded. Only needed if C4/C5 send us back here.~~ **2026-09-26:** C5's On
+  failure branch sent us here.
+  - **M4-Ls:** computed `0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0` =
+    published, 3,659,530,240 bytes, run `C1-M4Ls-1`. Same `hf download` command with
+    `gemma-4-E4B-it.litertlm`. Free disk 24 GiB before, 20 GiB after.
+  - Peek (`C1-M4Ls-1/peek.txt`): standard multimodal layout with `tf_lite_embedder`,
+    `tf_lite_per_layer_embedder`, audio sections (CPU-constrained), a vision encoder
+    (`prefer_activation_type: fp16`) and vision adapter, and a `tf_lite_prefill_decode` decoder
+    with **`prefer_activation_type: fp16`**. That's the same structure as B0, not the artisan
+    format.
 
 ### C2 — Provenance classification
 Run ID `C2-M4L-1` (checked 2026-09-25); raw API responses in `LocalModels/e4b-eval/C2-M4L-1/sources/`,
@@ -348,6 +364,13 @@ All runs: M4-L via `--litert-model-path …/LocalModels/gemma-4-E4B-it-gpu.liter
   - `llm_metal_runner.mm:165] Metal LLM tokens initialized.`
   - `RegisterAccelerator: ptr=…, name=GPU Metal`
   - Executor settings: `activation_data_type: Not set` and `allow_src_quantized_fc_conv_ops: true`.
+- **M4-Ls (added 2026-09-26, after C5 sent us to it):**
+  | Run ID | Mode | Backend | Load s | Gen s | Activation | Classification |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | C4-M4Ls-1 | raw, 2,048, cold cache | GPU | — | — | FLOAT16 (executor settings) | **sim-gpu-fail**: `Failed to create DelegateKernelLiteRtMetal: … texture binding has argument index 31 that is greater than 30`, then "Restored original execution plan", then "Failed to create engine" |
+  | C4-M4Ls-2 | raw, 2,048, `--litert-probe-cpu` | CPU | 5.67 | 1.52 | FLOAT16 | coherent: "Prudence is the ability to govern and discipline oneself by the use of reason." |
+  - Per the `sim-gpu-fail` branch the phone decides, and it passed (C5). This is another case of a
+    simulator Metal limit that the phone doesn't have.
 
 ### C5 — Early phone screen
 - Device / iOS build / backup location / Home data counts before → after:
@@ -419,6 +442,30 @@ itself is the decisive signal here. See *Open questions*.
   `run.txt`. It refuses to run if the probe app path can't be resolved exactly.
 - **C5 gate for M4-L: failed** (jetsam at 2K and 4K). Per the On failure branch, M4-Ls (the
   standard 3.66 GB package) is tried on the GPU once.
+
+**M4-Ls (the On failure branch's single GPU try).** Copied to the probe app's Documents and loaded
+with `--litert-model-document gemma-4-E4B-it.litertlm`. Every run's preflight and teardown
+verified no other probe process was alive.
+
+| Run ID | Case | Peak footprint | ÷ cap | Load s | Prefill tok/s | Decode tok/s | Result |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| C5-M4Ls-1 | load only (cold: first load, wrote GPU cache) | 986,796,008 | 0.142 | 14.32 | — | — | pass (FLOAT16) |
+| C5-M4Ls-2 | prudence | 986,763,192 | 0.142 | 8.34 | — | — | pass: "Prudence is the ability to govern and discipline oneself by the use of reason, especially in the choice of action." (2.10 s) |
+| C5-M4Ls-3 | 2K (1,995) + 216 | 1,148,670,936 | 0.165 | 6.58 | 827.5 | 19.8 | pass, coherent summary |
+| C5-M4Ls-4 | 4K (3,818) + 203 | 1,152,586,976 | **0.165** | 7.09 | 810.1 | 18.9 | pass, coherent summary with one garbled phrase ("The authoritatively argues"; B0 had a similar one, "The textually,"). **60 s hold OK**: available 5.89 GB after the hold |
+
+- No jetsam: the device's crash-log listing has no JetsamEvent in the M4-Ls window, no signal 9,
+  and no GPU out-of-memory error. The only new device log was a `diskwrites_resource` report
+  from the first load's GPU weight cache.
+- **Gate for M4-Ls: pass.** No jetsam; the 4K-run peak is 1,152,586,976 bytes, far below
+  0.80 × cap = 5,576,378,221; output is coherent.
+- Footprint validity: M4-Ls uses the standard delegate like B0, whose `phys_footprint` matched
+  jetsam's resident count. This is independent support, not proof, for M4-Ls.
+- Versus B0 on the same protocol: M4-Ls has a lower peak (1.15 vs 2.04 GB), faster prefill
+  (810–828 vs 634–835 tok/s), faster decode (18.9–19.8 vs 12.9–17.1 tok/s), and similar warm load
+  (6.6–8.3 vs 8.2–16.2 s).
+- On the phone, both E4B packages sit in the probe app's Documents (6.6 GB). Keep them for C9;
+  remove them with the probe app when the evaluation ends.
 
 ### C6 — Integration diagnostics
 - Template/role/EOS/channel/truncation diff summary:
