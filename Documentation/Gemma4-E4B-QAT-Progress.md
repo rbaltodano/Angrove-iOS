@@ -13,10 +13,10 @@
 | ID | Checkpoint | Depends on | Status | Owner / session | Last updated | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | C0 | Baseline identity and workspace | — | done | Claude Code (Opus 5.5) session | 2026-09-25 | Run C0-B0-1; B0 hash matches |
-| C1 | Acquire and verify candidates | C0 | done | Claude Code (Opus 5.5) session | 2026-09-25 | M4-L hash matches (C1-M4L-2); M2-L and M4-Ls not downloaded |
+| C1 | Acquire and verify candidates | C0 | done | Claude Code (Opus 5.5) session | 2026-09-26 | M4-L (C1-M4L-2) and M4-Ls (C1-M4Ls-1, added via C5's branch) hashes match; M2-L not downloaded |
 | C2 | Provenance classification | C1 | done | Claude Code (Opus 5.5) session | 2026-09-25 | **unconfirmed**; package is a GPU-only "artisan" text decoder (C2-M4L-1) |
 | C3 | Harness hardening (code) | C0 | done | Claude Code (Opus 5.5) session | 2026-09-26 | `fa88428`. 175/176 tests; the 1 failure is pre-existing on base and accepted as baseline by the owner (see *Decisions log*) |
-| C4 | Simulator compatibility (informational) | C1, C3 | done | Claude Code (Opus 5.5) session | 2026-09-26 | **sim-pass** (GPU_ARTISAN Metal, F16); C4-M4L-1..3 |
+| C4 | Simulator compatibility (informational) | C1, C3 | done | Claude Code (Opus 5.5) session | 2026-09-26 | M4-L **sim-pass** (GPU_ARTISAN, F16; C4-M4L-1..3); M4-Ls **sim-gpu-fail**, coherent on CPU (C4-M4Ls-1..2) |
 | C5 | Early phone memory/compat screen | C4 | done | Claude Code (Opus 5.5) session | 2026-09-26 | M4-L **failed** (jetsam at 2K and 4K); per the On failure branch, M4-Ls **passed** all four runs (4K peak 0.165 × cap). M4-Ls is now the active candidate |
 | C6 | Integration diagnostics | C5 | todo | | | |
 | C7 | Full-app functional + lifecycle stress | C6 | todo | | | |
