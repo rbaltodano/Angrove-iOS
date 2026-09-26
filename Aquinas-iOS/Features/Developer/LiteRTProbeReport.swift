@@ -261,8 +261,14 @@ nonisolated final class LiteRTProbeLogCapture: @unchecked Sendable {
     func activation() -> LiteRTProbeReport.Activation {
         let activationLines = snapshot().filter {
             $0.localizedCaseInsensitiveContains("activation")
+                || $0.contains("CalculationsPrecision")
         }
-        let settingsLines = activationLines.filter { $0.contains("activation_data_type") }
+        // The GPU "artisan" executor leaves `activation_data_type` unset and states its
+        // precision as `CalculationsPrecision::F16` instead.
+        let settingsLines = activationLines.filter {
+            $0.contains("CalculationsPrecision")
+                || ($0.contains("activation_data_type") && !$0.contains("Not set"))
+        }
         let resolved = (settingsLines + activationLines).lazy.compactMap { line -> String? in
             let range = NSRange(line.startIndex..., in: line)
             guard let match = Self.activationPattern.firstMatch(in: line, range: range),
@@ -274,7 +280,7 @@ nonisolated final class LiteRTProbeLogCapture: @unchecked Sendable {
         return LiteRTProbeReport.Activation(
             resolvedType: resolved,
             source: !settingsLines.isEmpty
-                ? "native executor settings (activation_data_type, stderr)"
+                ? "native executor settings (activation_data_type or CalculationsPrecision, stderr)"
                 : activationLines.isEmpty
                     ? "not exposed by the LiteRT-LM Swift API, and no native log line mentioned it"
                     : "native LiteRT-LM preference log line (stderr); no executor settings dump",
