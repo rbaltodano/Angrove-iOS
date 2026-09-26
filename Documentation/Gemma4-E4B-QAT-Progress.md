@@ -46,7 +46,7 @@ Record these **before** the candidate numbers they govern are seen.
 
 | Name | Value | Frozen on / run ID | Notes |
 | --- | --- | --- | --- |
-| `operating_cap` (C5) | | | `os_proc_available_memory()` at launch, base iPhone 17 |
+| `operating_cap` (C5) | **6,970,472,776 bytes** (6.49 GiB). C5 gate 0.80× = 5,576,378,221; C9 gate 0.85× = 5,924,901,860 | 2026-09-26, run `C5-B0-1` (launch sample), frozen before any M4-L phone run | `os_proc_available_memory()` at launch in the ModelProbe build (production memory entitlements), iPhone 17 "Ry", iOS 27.0 (24A5430a). Defined by the plan, not chosen; the owner may still revise it in *Decisions* before reading M4-L's phone numbers |
 | Eval set dev SHA-256 (C8) | | | |
 | Eval set held-out SHA-256 (C8) | | | |
 | C8 config hash | | | |
@@ -371,7 +371,7 @@ All runs: M4-L via `--litert-model-path …/LocalModels/gemma-4-E4B-it-gpu.liter
     - The 60 s hold uses `--litert-probe-hold-seconds 60` on the 4K run.
     - New harness options for this: `8b64c7e` (load-only, hold, question file, system message),
       14/14 harness tests pass.
-- `operating_cap` (frozen, see Frozen values):
+- `operating_cap` (frozen, see Frozen values): 6,970,472,776 bytes, from `C5-B0-1`'s launch sample (committed before any M4-L phone run).
 - B0 reference peak footprint (same protocol):
 
 | Run ID | Case | Peak footprint | ÷ cap | Load s | Prefill tok/s | Decode tok/s | Largest Metal alloc | Result |
