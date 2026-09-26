@@ -26,8 +26,7 @@
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
 | C12 | Optional: vision probe | C10 | todo | | | |
 
-**Next action:** C8 runs for B0 and M4-Ls on the simulator CPU (eval set frozen), then blind
-first-pass scoring. C7 is deliberately deferred until the owner's backend-removal work is merged
+**Next action:** Owner review of the C8 held-out scores (link in C8 evidence), then apply it and rerun the gate. Session: finish dev-set scoring and C8 step 5 (sampling). C7 is deliberately deferred until the owner's backend-removal work is merged
 (see *Decisions log*, 2026-09-26).
 
 ## Candidate registry
@@ -603,7 +602,13 @@ behavior doesn't depend on the backend. Build `fb02847`, with `--litert-diagnost
   `rubric.md`. Pairs, key, and scores: `C8-blind-held-1/`. Scores were hashed before the key was
   opened (`scores.jsonl` `f63f826e…36adba`, `pairs.jsonl` `2cc41bdf…3d1c7`). First-pass scores are
   not edited after unblinding; later evidence goes to owner review.
-- Owner review coverage (% of cases, all critical flags, weak-preference cases):
+- Owner review coverage (% of cases, all critical flags, weak-preference cases): **pending.**
+  - Review page (private, blind A/B, no key): https://claude.ai/artifact/FWZ2bVVoGuuK5LaUKUoABH
+  - Required: 10 critical-flag cases and 24 weak-preference cases, which is 34/40 (85%, above the
+    25% minimum). 6 more are optional.
+  - Decisions are stored in the page's `reviews` collection. The session reads them back with
+    `ArtifactData list reviews`, adds them to `scores.jsonl` as `owner` overrides, and reruns
+    `c8_gate.py`.
 
 **Held-out runs (config v2):** `C8-B0-held-2` and `C8-M4Ls-held-2`, 40/40 cases each, 0
 failures, 0 living-session warnings. Simulator CPU, FLOAT16. In-run hashes: B0 `9a6345f1…`,
