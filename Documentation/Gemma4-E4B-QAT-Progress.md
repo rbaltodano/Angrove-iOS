@@ -15,8 +15,8 @@
 | C0 | Baseline identity and workspace | — | done | Claude Code (Opus 5.5) session | 2026-09-25 | Run C0-B0-1; B0 hash matches |
 | C1 | Acquire and verify candidates | C0 | done | Claude Code (Opus 5.5) session | 2026-09-25 | M4-L hash matches (C1-M4L-2); M2-L and M4-Ls not downloaded |
 | C2 | Provenance classification | C1 | done | Claude Code (Opus 5.5) session | 2026-09-25 | **unconfirmed**; package is a GPU-only "artisan" text decoder (C2-M4L-1) |
-| C3 | Harness hardening (code) | C0 | blocked | Claude Code (Opus 5.5) session | 2026-09-25 | All C3 work done (`fa88428`). Gate not literally met: 175/176 tests pass; the 1 failure is pre-existing on base `31aa476`. See *Open questions* |
-| C4 | Simulator compatibility (informational) | C1, C3 | todo | | | |
+| C3 | Harness hardening (code) | C0 | done | Claude Code (Opus 5.5) session | 2026-09-26 | `fa88428`. 175/176 tests; the 1 failure is pre-existing on base and accepted as baseline by the owner (see *Decisions log*) |
+| C4 | Simulator compatibility (informational) | C1, C3 | in-progress | Claude Code (Opus 5.5) session | 2026-09-26 | |
 | C5 | Early phone memory/compat screen | C4 | todo | | | Freezes `operating_cap` |
 | C6 | Integration diagnostics | C5 | todo | | | |
 | C7 | Full-app functional + lifecycle stress | C6 | todo | | | |
@@ -26,7 +26,7 @@
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
 | C12 | Optional: vision probe | C10 | todo | | | |
 
-**Next action:** Owner resolves the C3 gate question in *Open questions* (recommended: accept the pre-existing test failure as baseline and mark C3 `done`). Then run C4, which is fully prepared.
+**Next action:** Finish C4, then C5 (phone connected).
 
 ## Candidate registry
 
@@ -57,7 +57,8 @@ Record these **before** the candidate numbers they govern are seen.
 _Add a dated entry for anything that blocks progress. Say what the question is, why it blocks,
 and what options you recommend._
 
-- **2026-09-25: C3 gate: pre-existing test failure. BLOCKS C3 → C4.** The C3 gate requires
+- ~~**2026-09-25: C3 gate: pre-existing test failure. BLOCKS C3 → C4.**~~ **Resolved 2026-09-26:** accepted as a
+  known baseline failure (see *Decisions log*). The C3 gate requires
   "the build and all tests pass". 175/176 pass. The failure,
   `MiniLMGroundingRetrievalTests.namedPassagesUseSourceTextAnchors` (resurrection case), fails
   identically on untouched base `31aa476` (`C3-basecheck-1`) and is unrelated to C3's code. The
@@ -99,6 +100,8 @@ and what options you recommend._
 | 2026-09-25 | Adopt plan D1–D6 (prebuilt package first, GPU, single engine, no fine-tune, 4,096 tokens, reversible promotion) | User + planning session | See plan §3 |
 | 2026-09-25 | Shelve all Gemma 4 12B research (rotated-ternary and llama.cpp IQ2_M) and remove its weights; E4B QAT becomes the model path | User | The 12B's modeled size exceeds what the base iPhone 17 survived; see `Aquinas-Foundations/research/rotated-ternary/STATUS.md`, "Shelving record" |
 | 2026-09-25 | Remove all Qwen weights except `Qwen3-4B-Aquinas-v3-Q4_K_M.gguf` in `Aquinas_Backend-llama-cpp-12b` | User | Disk space. Qwen is no longer a re-exportable fallback. |
+| 2026-09-26 | Accept the pre-existing `MiniLMGroundingRetrievalTests.namedPassagesUseSourceTextAnchors` failure (fails identically on base `31aa476`, run `C3-basecheck-1`) as a known baseline failure for the C3 gate; C3 → `done` | User | Owner replied "phone is plugged in, go ahead and continue" to the recommended resolution. Recorded as acceptance of that recommendation |
+| 2026-09-26 | Note only: the owner's **uncommitted** backend-removal work in the main checkout also edits this plan (C3 step 4 and C7 wording) and adds a decision row to its copy of this ledger. It doesn't affect C4 or C5. When it lands on `main`, merge it into `feature/gemma4-e4b-qat`; expect conflicts in `LiteRTDeviceProbe.swift`, `AquinasApplicationRuntime.swift`, and this ledger | Claude Code session | This branch predates that work; main's working tree is not touched |
 | 2026-09-25 | Adopt plan v2 after independent review: conversion route blocked (D7); provenance labels but doesn't gate (D8); M2-L optional control (D9); early phone screen before quality; numeric memory cap; eval set 40 dev + 40 held-out with cross-model first-pass scoring and owner spot checks | User + planning session | [`Gemma4-E4B-QAT-Plan-Review.md`](Gemma4-E4B-QAT-Plan-Review.md), "Disposition" |
 
 ## Evidence
