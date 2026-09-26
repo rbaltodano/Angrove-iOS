@@ -233,6 +233,29 @@ struct LiteRTProbeHarnessTests {
         #expect(options.benchmark)
     }
 
+    @Test("Raw probe supports load-only, hold, question-file, and system-message runs")
+    func rawProbeScreenFlags() throws {
+        let defaults = try LiteRTRawProbeOptions.parse([])
+        #expect(!defaults.loadOnly)
+        #expect(defaults.holdSeconds == 0)
+        #expect(defaults.questionFile == nil)
+        #expect(defaults.systemMessage == LiteRTRawProbeOptions.defaultSystemMessage)
+
+        let options = try LiteRTRawProbeOptions.parse([
+            "--litert-probe-load-only",
+            "--litert-probe-hold-seconds", "60",
+            "--litert-probe-raw-question-file", "prefill-4k.txt",
+            "--litert-probe-system-message", "Summarize the passage."
+        ])
+        #expect(options.loadOnly)
+        #expect(options.holdSeconds == 60)
+        #expect(options.questionFile == "prefill-4k.txt")
+        #expect(options.systemMessage == "Summarize the passage.")
+        #expect(throws: LiteRTRawProbeOptionsError.invalidHold("-1")) {
+            try LiteRTRawProbeOptions.parse(["--litert-probe-hold-seconds", "-1"])
+        }
+    }
+
     @Test("Raw probe rejects conflicting samplers and invalid contexts")
     func rawProbeRejectsInvalidFlags() {
         #expect(throws: LiteRTRawProbeOptionsError.conflictingSamplers) {

@@ -47,6 +47,8 @@ struct LiteRTProbeReport: Encodable {
         let question: String
         let fixturePath: String?
         let priorTurnCount: Int
+        var questionFilePath: String?
+        var questionFileSHA256: String?
     }
 
     struct Activation: Encodable {
@@ -71,6 +73,7 @@ struct LiteRTProbeReport: Encodable {
         var beforeLoad: LiteRTProbeMemory.Sample?
         var afterLoad: LiteRTProbeMemory.Sample?
         var afterGeneration: LiteRTProbeMemory.Sample?
+        var afterHold: LiteRTProbeMemory.Sample?
     }
 
     let runID: String?
@@ -88,6 +91,7 @@ struct LiteRTProbeReport: Encodable {
     var diagnosticLogLines: [String] = []
     var timing = Timing(tokenCountSource: "unavailable")
     var memory = Memory()
+    var holdSeconds: Int?
     var response: String?
     var validatedKeyTermCount: Int?
     var evidenceBasis: String?
