@@ -83,6 +83,20 @@ final class LiteRTDeviceProbeModel {
         didStart = true
         LiteRTProbeLogCapture.shared.start()
 
+        if ProcessInfo.processInfo.arguments.contains("--litert-diagnostics-probe") {
+            phase = .generating
+            detail = "Running every local generation contract once."
+            do {
+                await LiteRTDiagnosticsProbe.run(modelURL: try Self.locateModel())
+                phase = .completed
+                detail = "Diagnostics finished; see litert-diagnostics-result.json."
+            } catch {
+                phase = .failed
+                detail = error.localizedDescription
+            }
+            return
+        }
+
         if ProcessInfo.processInfo.arguments.contains("--litert-quality-probe") {
             await runConversationQualityProbe()
             return

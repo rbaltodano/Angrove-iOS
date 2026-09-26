@@ -276,6 +276,9 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
     // prepare failure). Text generation is unaffected. Ship text-only until that's fixed;
     // re-enable (.gpu) once a vision-capable package passes the same load gate.
     private static let visionBackend: Backend? = nil
+    /// Whether image content may be sent to the engine. Without a vision executor LiteRT-LM
+    /// rejects the whole request ("Vision executor should not be null").
+    static let supportsVision = visionBackend != nil
 
     /// `Engine.close()` deletes the native handle synchronously, but the GPU backend's own
     /// worker pool can still be finishing teardown from the just-closed engine when the next
@@ -365,6 +368,15 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
                 sampling: sampling
             )
         }
+#if DEBUG
+        let recordIndex = Self.recordGenerationStart(
+            conversation: conversation,
+            systemInstruction: systemInstruction,
+            initialMessages: initialMessages,
+            message: message,
+            sampling: sampling
+        )
+#endif
         do {
             let result = try await racingStall {
                 try await self.streamText(
@@ -382,13 +394,61 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
                     onText: onText
                 )
             }
+#if DEBUG
+            if let recordIndex {
+                LiteRTGenerationRecorder.shared.finish(recordIndex, output: result, error: nil)
+            }
+#endif
             await finishConversation()
             return result
         } catch {
+#if DEBUG
+            if let recordIndex {
+                LiteRTGenerationRecorder.shared.finish(recordIndex, output: nil, error: error)
+            }
+#endif
             await finishConversation()
             throw error
         }
     }
+
+#if DEBUG
+    /// Opt-in diagnostics (`--litert-record-generations`): renders the exact prompt through
+    /// LiteRT-LM's own template before sending. Returns `nil`, and does nothing, when disabled.
+    private static func recordGenerationStart(
+        conversation: Conversation,
+        systemInstruction: String,
+        initialMessages: [Message],
+        message: Message,
+        sampling: LiteRTSampling
+    ) -> Int? {
+        guard LiteRTGenerationRecorder.isEnabled else { return nil }
+        var preface: String?
+        var rendered: String?
+        var renderError: String?
+        do {
+            preface = try conversation.renderPrefaceIntoString()
+            rendered = try conversation.renderMessageIntoString(message)
+        } catch {
+            renderError = String(reflecting: error)
+        }
+        return LiteRTGenerationRecorder.shared.begin(
+            sampling: .init(
+                topK: sampling.topK,
+                topP: sampling.topP,
+                temperature: sampling.temperature,
+                seed: sampling.seed,
+                isStructured: sampling.isStructured
+            ),
+            systemInstruction: systemInstruction,
+            message: message.toString,
+            initialMessageCount: initialMessages.count,
+            renderedPreface: preface,
+            renderedMessage: rendered,
+            renderError: renderError
+        )
+    }
+#endif
 
     /// v0.14.0 removed explicit close(); dropping the last strong reference (here and by letting
     /// `activeConversation` go out of scope) triggers native cleanup in deinit.
