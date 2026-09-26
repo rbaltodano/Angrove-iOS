@@ -57,6 +57,14 @@ Record these **before** the candidate numbers they govern are seen.
 _Add a dated entry for anything that blocks progress. Say what the question is, why it blocks,
 and what options you recommend._
 
+- **2026-09-26: C5 memory metric doesn't see M4-L's GPU memory. Decide before C9; not blocking C5.**
+  - The plan gates on peak `phys_footprint` ÷ `operating_cap`.
+  - For the GPU_ARTISAN package, `phys_footprint` stayed at 0.36–0.51 GB while jetsam reports
+    showed 2.67–3.35 GB resident, and the phone killed the probe for `vm-pageshortage`. For B0 the
+    metrics agree.
+  - **Recommended:** any future candidate using the artisan path is gated on jetsam absence plus
+    the jetsam report's resident pages (or a Metal-allocation total) rather than `phys_footprint`
+    alone. Record it as a *Decision* if adopted.
 - ~~**2026-09-25: C3 gate: pre-existing test failure. BLOCKS C3 → C4.**~~ **Resolved 2026-09-26:** accepted as a
   known baseline failure (see *Decisions log*). The C3 gate requires
   "the build and all tests pass". 175/176 pass. The failure,
@@ -372,15 +380,45 @@ All runs: M4-L via `--litert-model-path …/LocalModels/gemma-4-E4B-it-gpu.liter
     - New harness options for this: `8b64c7e` (load-only, hold, question file, system message),
       14/14 harness tests pass.
 - `operating_cap` (frozen, see Frozen values): 6,970,472,776 bytes, from `C5-B0-1`'s launch sample (committed before any M4-L phone run).
-- B0 reference peak footprint (same protocol):
+- B0 reference peak footprint (same protocol): **2,038,600,496 bytes** (0.29 × cap, run `C5-B0-4`).
+  All four B0 runs passed. B0's footprint agrees with jetsam's resident count: `C5-B0-4`'s
+  lifetimeMax was 124,426 pages × 16 KiB = 2.04 GB.
+  | Run ID | Case | Peak footprint | ÷ cap | Load s | Prefill tok/s | Decode tok/s | Result |
+  | --- | --- | --- | --- | --- | --- | --- | --- |
+  | C5-B0-1 | load only | 1,807,192,568 | 0.26 | 10.98 | — | — | pass (FP16) |
+  | C5-B0-2 | prudence | 1,972,163,184 | 0.28 | 8.16 | — | — | pass: "Prudence is the virtue that enables one to discern the right course of action in a given situation" (5.03 s) |
+  | C5-B0-3 | 2K (2,007) + 226 | 1,785,074,216 | 0.26 | 16.24 | 634.3 | 12.9 | pass (system jetsam event reclaimed daemons; probe untouched) |
+  | C5-B0-4 | 4K (3,830) + 265 | 2,038,600,496 | 0.29 | 12.27 | 834.7 | 17.1 | pass; 60 s hold OK (available after hold 6.59 GB) |
+
+All runs: 4,096 context, greedy decoding, ModelProbe build `8b64c7e`, model hash verified in-report.
 
 | Run ID | Case | Peak footprint | ÷ cap | Load s | Prefill tok/s | Decode tok/s | Largest Metal alloc | Result |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| | load only | | | | | | | |
-| | prudence | | | | | | | |
-| | 2K prefill + 256 | | | | | | | |
-| | 4K prefill + 256 | | | | | | | |
-- 60 s hold: jetsam or pressure events?
+| C5-M4L-1 | load only | 355,109,064 † | 0.05 † | 8.54 | — | — | — | pass (F16) |
+| C5-M4L-2 | prudence | 506,530,568 † | 0.07 † | 1.43 | — | — | — | pass: "Prudence is the ability to govern and discipline oneself by the use of reason." (3.46 s). **Jetsam saw this process at 2.67 GB resident** |
+| ~~C5-M4L-3~~ | ~~2K prefill + 256~~ | — | — | — | — | — | — | **invalid**: `C5-M4L-2`'s process (PID 33461) was still alive, frontmost, and holding 2.67 GB. The script's terminate step failed, so this wasn't a fresh process. It was killed (`vm-pageshortage`, 3.30 GB resident). Superseded by `C5-M4L-5` |
+| C5-M4L-4 | 4K (3,818) + ~256 | — | — | — | — | — | — | **FAIL: jetsam** `vm-pageshortage` during prefill. The only probe process, active and frontmost, **3.31 GB resident** (JetsamEvent 17:24:52). No result JSON |
+| C5-M4L-5 | 2K (1,995) + ~256 | — | — | — | — | — | — | **FAIL: jetsam** `vm-pageshortage` during prefill. Fresh process, verified alone, active and frontmost, **3.35 GB resident** (JetsamEvent 17:27:30). No result JSON |
+
+† **`phys_footprint` under-reports M4-L.** The artisan GPU executor's memory isn't reflected in
+`task_vm_info.phys_footprint`: 0.36–0.51 GB reported, against 2.67–3.35 GB resident in the jetsam
+reports, and the system's wired pages rise further. For B0 the two measures agree. So the plan's
+footprint ÷ cap gate **can't be evaluated honestly for M4-L from the in-process metric**; jetsam
+itself is the decisive signal here. See *Open questions*.
+
+- 60 s hold: not reached for M4-L; the 4K run was killed during prefill. B0 held 60 s with no
+  pressure kill.
+- Jetsam and pressure evidence: `C5-M4L-4/device-logs-new/JetsamEvent-2026-09-26-172323.ips` (the
+  invalid overlap), `C5-M4L-4/device-logs-late/JetsamEvent-2026-09-26-172452.ips` (the 4K kill), and
+  `C5-M4L-5/device-logs-late/JetsamEvent-2026-09-26-172730.ips` (the 2K kill).
+  - Each M4-L kill also took the suspended production Aquinas app (PID 32720) and many daemons
+    (`vm-pageshortage`). The production app's data is on disk and backed up.
+  - Device timestamps run about 30–60 s ahead of the host clock.
+- Harness fix during C5: `run-device-probe.sh` now force-kills and **verifies no probe process
+  is alive** before launch and after teardown, recorded as "preflight" and "teardown" in each
+  `run.txt`. It refuses to run if the probe app path can't be resolved exactly.
+- **C5 gate for M4-L: failed** (jetsam at 2K and 4K). Per the On failure branch, M4-Ls (the
+  standard 3.66 GB package) is tried on the GPU once.
 
 ### C6 — Integration diagnostics
 - Template/role/EOS/channel/truncation diff summary:
