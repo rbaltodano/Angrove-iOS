@@ -663,6 +663,16 @@ Gate computed by `c8_gate.py` (first pass, before owner review):
      (Part/Question/Article) or strip them.
   3. **Corpus-scope abstentions on well-known questions**: just war (held-B3), when the Summa was
      left unfinished (held-D2), levitation (held-D6). They affect both arms identically.
+- **Dev runs (config v2):** `C8-B0-dev-2`, `C8-M4Ls-dev-2`, 40/40 each, 0 failures, 0 living-session
+  warnings.
+  - Objective checks: B0 29/40, M4-Ls 30/40.
+  - Cases with validated links: 4 → 25. Valid-link rate 1.00 (4 cases) → 0.94.
+  - Rejects: 0 / 0.
+  - Category passes B0 → M4-Ls: definition 6→6, multi-turn 3→4, reasoning 5→6, regression 7→5,
+    source 4→5, uncertainty 4→4.
+  - The dev set doesn't gate. No E4B-specific template issue was found (C6), so no prompt
+    adjustment is made.
+  - Blind subjective scoring of dev is pending.
 - Sampling (temperature 0.2) observations:
 
 ### C9 — Physical-device sustained gate
