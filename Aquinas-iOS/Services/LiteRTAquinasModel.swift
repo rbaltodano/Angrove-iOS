@@ -72,6 +72,14 @@ struct LiteRTAquinasModel: AquinasModel {
         sanitizedVisibleText(raw)
     }
 
+    /// The engine message for one transcript block, exactly as a request would send it.
+    static func engineMessage(
+        _ block: ChatBlock,
+        isLatestUserRequest: Bool = false
+    ) -> Message? {
+        liteRTMessage(block, isLatestUserRequest: isLatestUserRequest)
+    }
+
     static func questionOfTheDayQuestion(from raw: String) -> String? {
         let cleaned = sanitizedVisibleText(raw)
             .replacingOccurrences(of: "```", with: "")
@@ -1818,16 +1826,29 @@ private extension LiteRTAquinasModel {
                 \(prompt)
                 """
             }
+            let images = uploads.filter { $0.imageData != nil }
+            if !images.isEmpty, !LiteRTAquinasRuntime.supportsVision {
+                // A text-only engine rejects any image content, which failed this turn and
+                // every later turn carrying it in history. Keep the text and say what's missing.
+                prompt += Self.unviewableImageNote(count: images.count)
+            }
             if !prompt.isEmpty {
                 contents.append(.text(prompt))
             }
-            contents.append(contentsOf: uploads.compactMap {
-                $0.imageData.map(Content.imageData)
-            })
+            if LiteRTAquinasRuntime.supportsVision {
+                contents.append(contentsOf: images.compactMap {
+                    $0.imageData.map(Content.imageData)
+                })
+            }
             return contents.isEmpty
                 ? nil
                 : Message(contents: contents, role: .user)
         }
+    }
+
+    static func unviewableImageNote(count: Int) -> String {
+        let subject = count == 1 ? "an image" : "\(count) images"
+        return "\n\n[The user attached \(subject), which this on-device model cannot view. Say so briefly if the question depends on it.]"
     }
 
     static func plainTranscript<S: Sequence>(
@@ -1911,14 +1932,39 @@ private extension LiteRTAquinasModel {
         latestQuestion: String,
         previousQuestion: String
     ) -> Bool {
-        let latest = topicWords(in: latestQuestion)
+        // A word that points back into the conversation ("Why was *that* council important?",
+        // "Is *it* still taught?") makes the question a continuation.
+        let referringWords: Set<String> = [
+            "also", "but", "further", "more", "that", "this", "these", "those", "it", "its",
+            "they", "them", "their", "he", "him", "his", "she", "her", "why", "such", "same"
+        ]
+        if !words(in: latestQuestion).isDisjoint(with: referringWords) { return false }
+        // A question with no subject of its own once generic follow-up wording is removed
+        // ("Can you give a concrete example?", "Explain more simply") can only be about the
+        // conversation so far. Treating it as a new topic dropped all history, so the model
+        // answered as if nothing had been said.
+        let latest = topicWords(in: latestQuestion).subtracting(followUpWords)
+        guard !latest.isEmpty else { return false }
         let previous = topicWords(in: previousQuestion)
         guard latest.count >= 2, previous.count >= 2 else { return false }
-        let continuationWords: Set<String> = [
-            "also", "but", "further", "more", "that", "this", "why"
-        ]
-        if !latest.isDisjoint(with: continuationWords) { return false }
         return latest.isDisjoint(with: previous)
+    }
+
+    /// Wording that asks for more of what was just discussed rather than naming a subject.
+    private static let followUpWords: Set<String> = [
+        "you", "your", "give", "show", "tell", "say", "provide", "concrete", "specific", "real",
+        "simple", "simpler", "simply", "quick", "brief", "short", "shorter", "longer", "detail",
+        "details", "please", "again", "another", "one", "example", "examples", "instance",
+        "elaborate", "expand", "explain", "clarify", "rephrase", "summarize", "summarise",
+        "continue", "mean", "meant", "means", "point", "instead", "else", "other", "way", "words"
+    ]
+
+    private static func words(in text: String) -> Set<String> {
+        Set(
+            text.lowercased()
+                .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+                .map(String.init)
+        )
     }
 
     static func duplicatesEarlierAnswer(

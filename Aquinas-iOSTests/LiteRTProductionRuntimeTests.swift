@@ -1,4 +1,5 @@
 import Foundation
+import LiteRTLM
 import Testing
 @testable import Aquinas_iOS
 
@@ -243,6 +244,68 @@ struct LiteRTProductionRuntimeTests {
                 previousQuestion: "What was the second ecumenical council?"
             )
         )
+    }
+
+    @Test("Follow-ups without a subject of their own keep the conversation")
+    func subjectlessFollowUpsKeepContext() {
+        let previous = "Think carefully about whether mercy can conflict with justice."
+        for followUp in [
+            "Can you give a concrete example?",
+            "Explain more simply, please.",
+            "Could you elaborate?",
+            "Give me another example.",
+            "Is it still taught today?",
+            "What did he mean by those?"
+        ] {
+            #expect(
+                !LiteRTAquinasModel.startsFreshTopic(
+                    latestQuestion: followUp,
+                    previousQuestion: previous
+                ),
+                "dropped history for: \(followUp)"
+            )
+        }
+        #expect(
+            LiteRTAquinasModel.startsFreshTopic(
+                latestQuestion: "What's the capital of Portugal?",
+                previousQuestion: previous
+            )
+        )
+        #expect(
+            LiteRTAquinasModel.startsFreshTopic(
+                latestQuestion: "Can you explain quantum entanglement in physics?",
+                previousQuestion: previous
+            )
+        )
+    }
+
+    @MainActor
+    @Test("A text-only runtime sends image turns as text with a note, never image content")
+    func imagesBecomeTextNotesWithoutVision() throws {
+        try #require(!LiteRTAquinasRuntime.supportsVision)
+        let upload = UploadedFile(
+            name: "diagram.png",
+            imageData: Data([0x89, 0x50]),
+            rotationDegrees: 0
+        )
+        for isLatest in [true, false] {
+            let message = try #require(
+                LiteRTAquinasModel.engineMessage(
+                    .user("What does this diagram show?", nil, [upload]),
+                    isLatestUserRequest: isLatest
+                )
+            )
+            #expect(message.contents.allSatisfy { content in
+                if case .imageData = content { return false }
+                return true
+            })
+            #expect(message.toString.contains("What does this diagram show?"))
+            #expect(message.toString.contains("cannot view"))
+        }
+        let imageOnly = try #require(
+            LiteRTAquinasModel.engineMessage(.user("", nil, [upload]))
+        )
+        #expect(imageOnly.toString.contains("cannot view"))
     }
 
     @MainActor
