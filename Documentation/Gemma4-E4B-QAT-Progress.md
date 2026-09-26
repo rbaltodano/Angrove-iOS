@@ -18,7 +18,7 @@
 | C3 | Harness hardening (code) | C0 | done | Claude Code (Opus 5.5) session | 2026-09-26 | `fa88428`. 175/176 tests; the 1 failure is pre-existing on base and accepted as baseline by the owner (see *Decisions log*) |
 | C4 | Simulator compatibility (informational) | C1, C3 | done | Claude Code (Opus 5.5) session | 2026-09-26 | M4-L **sim-pass** (GPU_ARTISAN, F16; C4-M4L-1..3); M4-Ls **sim-gpu-fail**, coherent on CPU (C4-M4Ls-1..2) |
 | C5 | Early phone memory/compat screen | C4 | done | Claude Code (Opus 5.5) session | 2026-09-26 | M4-L **failed** (jetsam at 2K and 4K); per the On failure branch, M4-Ls **passed** all four runs (4K peak 0.165 × cap). M4-Ls is now the active candidate |
-| C6 | Integration diagnostics | C5 | todo | | | |
+| C6 | Integration diagnostics | C5 | in-progress | Claude Code (Opus 5.5) session | 2026-09-26 | Instrument built and validated; two app bugs found and fixed; phone runs for M4-Ls and B0 not yet done |
 | C7 | Full-app functional + lifecycle stress | C6 | todo | | | |
 | C8 | Quality A/B (40 dev + 40 held-out) | C7 | todo | | | Needs owner review time |
 | C9 | Physical-device sustained gate | C8 | todo | | | |
@@ -26,7 +26,11 @@
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
 | C12 | Optional: vision probe | C10 | todo | | | |
 
-**Next action:** C6 for **M4-Ls**. Recommended first: land the owner's backend-removal work on `main` and merge it into this branch, since C6 may touch `LiteRTAquinasModel.swift`, which that work rewrites. See *Open questions*.
+**Next action:** Finish C6 on the phone. The probe app is already installed at `d583c94`, with
+both packages and the prompt files in its Documents. Run:
+`PROBE_RESULT_FILE=litert-diagnostics-result.json PROBE_TIMEOUT=1500 LocalModels/e4b-eval/run-device-probe.sh C6-M4Ls-1 --litert-diagnostics-probe --litert-record-generations --litert-model-document gemma-4-E4B-it.litertlm`
+and the same for B0 (`C6-B0-1`, no model flag). Then diff the rendered prompts and classify every
+structured case.
 
 ## Candidate registry
 
@@ -115,6 +119,8 @@ and what options you recommend._
 | 2026-09-25 | Adopt plan D1–D6 (prebuilt package first, GPU, single engine, no fine-tune, 4,096 tokens, reversible promotion) | User + planning session | See plan §3 |
 | 2026-09-25 | Shelve all Gemma 4 12B research (rotated-ternary and llama.cpp IQ2_M) and remove its weights; E4B QAT becomes the model path | User | The 12B's modeled size exceeds what the base iPhone 17 survived; see `Aquinas-Foundations/research/rotated-ternary/STATUS.md`, "Shelving record" |
 | 2026-09-25 | Remove all Qwen weights except `Qwen3-4B-Aquinas-v3-Q4_K_M.gguf` in `Aquinas_Backend-llama-cpp-12b` | User | Disk space. Qwen is no longer a re-exportable fallback. |
+| 2026-09-26 | Don't commit or merge the owner's uncommitted backend removal on `main`; continue on this branch. Its model-path changes are only failure-fallback removal plus a new quote-notability task; conversation prompts are unchanged, so results carry over. Add quote notability to C6 after the merge | Claude Code session (owner delegated all decisions 2026-09-26) | `git diff` of `LiteRTAquinasModel.swift` on `main`; no edits there since 11:59 |
+| 2026-09-26 | Fix the follow-up history bug and the image failure before C8 (`d583c94`), although neither is E4B-specific. Both break the multi-turn behavior C8 grades, and both arms run the same code, so the A/B stays fair. The C8 configuration is frozen after these fixes | Claude Code session (delegated) | C6 harness run `C6prep-harness-1` |
 | 2026-09-26 | M4-L rejected at C5 (jetsam at 2K and 4K). Per C5's On failure branch, M4-Ls tried once on the GPU and passed; **M4-Ls is now the active candidate** for C6 onward (D1's fallback case). M4-L's failed results stand (plan §0 rule 5) | Plan branch, executed by Claude Code session | `C5-M4L-4`, `C5-M4L-5`, `C5-M4Ls-1..4` |
 | 2026-09-26 | Accept the pre-existing `MiniLMGroundingRetrievalTests.namedPassagesUseSourceTextAnchors` failure (fails identically on base `31aa476`, run `C3-basecheck-1`) as a known baseline failure for the C3 gate; C3 → `done` | User | Owner replied "phone is plugged in, go ahead and continue" to the recommended resolution. Recorded as acceptance of that recommendation |
 | 2026-09-26 | Note only: the owner's **uncommitted** backend-removal work in the main checkout also edits this plan (C3 step 4 and C7 wording) and adds a decision row to its copy of this ledger. It doesn't affect C4 or C5. When it lands on `main`, merge it into `feature/gemma4-e4b-qat`; expect conflicts in `LiteRTDeviceProbe.swift`, `AquinasApplicationRuntime.swift`, and this ledger | Claude Code session | This branch predates that work; main's working tree is not touched |
@@ -468,7 +474,43 @@ verified no other probe process was alive.
   remove them with the probe app when the evaluation ends.
 
 ### C6 — Integration diagnostics
-- Template/role/EOS/channel/truncation diff summary:
+**Status 2026-09-26: in progress.** (C6 was started without its separate in-progress commit;
+this entry records it.)
+
+- **Instrument.** Commit `e02437d`.
+  - `--litert-record-generations` (DEBUG only, off by default) writes each native generation's
+    exact rendered prompt, taken from LiteRT-LM's own `renderPreface`/`renderMessage`, together
+    with the sampler and the raw output or error, to `Documents/litert-generations.jsonl`.
+  - `--litert-diagnostics-probe` runs, through the production model on fixed inputs:
+    single-turn, follow-up, and topic-shift conversation; two image cases; contextual definition;
+    node label; tree seed; Midpoint; Make Node (exactly 3); Question of the Day; and compaction.
+- **Harness validation, simulator** (`C6prep-harness-1`). This used M4-L only because the
+  simulator GPU can run it; it is **not** candidate evidence. All 12 cases returned and 14
+  generations were recorded with rendered prompts. It exposed two app bugs that affect **B0 and
+  E4B equally**:
+  1. **Follow-ups lost all history.** `isLikelyTopicShift` treated "Can you give a concrete
+     example?" after a mercy/justice question as a new topic, because the two share no content
+     words. The rendered prompt had no prior turns (`initialMessageCount 0`), and the model
+     replied that no concept had been given.
+     - Fixed in `d583c94`: a referring word, or a question with no subject of its own once
+       generic follow-up wording is removed, continues the conversation. Real topic changes
+       (Portugal, JavaScript, Peloponnesian War) still reset.
+     - Test: `subjectlessFollowUpsKeepContext`.
+  2. **Any image broke the conversation.** The runtime has no vision executor, and LiteRT-LM
+     rejects image content ("Vision executor should not be null, please TryLoadingVisionExecutor()
+     first"). That failed the turn *and every later turn* carrying the image in history (the
+     simulator fell through to the backend-error text).
+     - Fixed in `d583c94`: when `LiteRTAquinasRuntime.supportsVision` is false, image turns go
+       to the engine as text plus a short note that the model can't view the image.
+     - Test: `imagesBecomeTextNotesWithoutVision`.
+- Full suite after the fixes: 178/179 (`C6-tests-2`). The one failure is the accepted baseline
+  failure.
+- Observed on M4-L, to recheck on M4-Ls and B0: "What is natural law?" is routed to the
+  structured contextual-definition task, so it returns no `{{term}}` links. That's app routing,
+  not the model, and matters for §6's natural-law seed in C8.
+- Template/role/EOS/channel/truncation diff summary: pending the phone runs. M4-L's rendered
+  prompt uses `<|turn>system` … `<turn|>` / `<|turn>user` / `<|turn>model` with the `thought`
+  channel. The system instruction goes in the system turn and history as separate turns.
 - Structured-schema results (per schema: pass / template / retrieval / model):
 - Image-history and attachment behavior in text-only mode:
 - E4B-specific adapter fixes (commit):
