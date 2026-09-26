@@ -17,7 +17,7 @@
 | C2 | Provenance classification | C1 | done | Claude Code (Opus 5.5) session | 2026-09-25 | **unconfirmed**; package is a GPU-only "artisan" text decoder (C2-M4L-1) |
 | C3 | Harness hardening (code) | C0 | done | Claude Code (Opus 5.5) session | 2026-09-26 | `fa88428`. 175/176 tests; the 1 failure is pre-existing on base and accepted as baseline by the owner (see *Decisions log*) |
 | C4 | Simulator compatibility (informational) | C1, C3 | done | Claude Code (Opus 5.5) session | 2026-09-26 | **sim-pass** (GPU_ARTISAN Metal, F16); C4-M4L-1..3 |
-| C5 | Early phone memory/compat screen | C4 | todo | | | Freezes `operating_cap` |
+| C5 | Early phone memory/compat screen | C4 | in-progress | Claude Code (Opus 5.5) session | 2026-09-26 | Freezes `operating_cap` |
 | C6 | Integration diagnostics | C5 | todo | | | |
 | C7 | Full-app functional + lifecycle stress | C6 | todo | | | |
 | C8 | Quality A/B (40 dev + 40 held-out) | C7 | todo | | | Needs owner review time |
@@ -26,7 +26,7 @@
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
 | C12 | Optional: vision probe | C10 | todo | | | |
 
-**Next action:** C5 (phone connected).
+**Next action:** Finish C5.
 
 ## Candidate registry
 
@@ -68,7 +68,8 @@ and what options you recommend._
   - **Alternative:** fix the grounding test or corpus mismatch first in a separate change on
     `main`, then rerun the suite.
   - Either way, C8's grounding is identical for B0 and M4-L, so it doesn't bias the A/B.
-- **2026-09-25: C5 harness prerequisites. Not blocking yet.** C5 asks for "~2,000-token prefill
+- ~~**2026-09-25: C5 harness prerequisites. Not blocking yet.**~~ **Resolved 2026-09-26 (session
+  decision, option (a), reversible):** see C5 evidence, "Protocol choices". C5 asks for "~2,000-token prefill
   with a 256-token decode" and a 4K equivalent.
   - The raw probe accepts any prefill text through `--litert-probe-raw-question`.
   - It has **no decode cap**: LiteRT-LM v0.14.0's Swift API has no max-output setting, and
@@ -342,6 +343,34 @@ All runs: M4-L via `--litert-model-path …/LocalModels/gemma-4-E4B-it-gpu.liter
 
 ### C5 — Early phone screen
 - Device / iOS build / backup location / Home data counts before → after:
+  - Device: iPhone 17 "Ry" (iPhone18,3, `92295FBA-BC31-5608-BCB3-7C367E627732`), iOS 27.0 (24A5430a).
+  - Backup: `/Users/ryanbaltodano/Developer/aquinas-backup-20260926-170531-e4b-c5`, taken before any install with `xcrun devicectl device copy from` on the
+    production container (`com.ryanbaltodano.Aquinas-iOS`). It covers `Library/Application Support`,
+    `Library/Preferences`, and `Library/Saved Application State`. 30/30 files match the device's
+    sizes, with per-file SHA-256 in `MANIFEST.sha256`.
+    - **Excluded:** about 26 GB of old experiment models in the production app's `Documents/`
+      (listed in the backup's `README.txt`), plus caches and tmp.
+  - Home data counts before: 1 conversation, 10 saved Insights, 1 study topic, 77 seen Insight
+    IDs, 19 Insight Tree canvas-state files, 5 conversation backup files
+    (`HOME-DATA-COUNTS.json`).
+  - Probes install only under `com.ryanbaltodano.Aquinas-iOS.ModelProbe`, using the existing
+    profile with the same three kernel memory entitlements as production.
+  - **Protocol choices (recorded before any phone numbers):**
+    - All C5 runs use the production context of 4,096 tokens (D5) and greedy decoding, in a fresh
+      process each.
+    - Prefill prompts come from grounding-corpus text (Summa), calibrated on the simulator with
+      M4-L's tokenizer (runs `C5prep-calib-*`).
+      - 2K: `fixtures/c5-prefill-2k.txt`, 1,995 prefill tokens, SHA-256 `a81b1222…fcd5a7`.
+      - 4K: `fixtures/c5-prefill-4k.txt`, 3,818 prefill tokens, SHA-256 `2623ddac…87c284`.
+      - A true 4,000-token prefill can't fit a 256-token decode inside 4,096.
+    - **Decode is approximated** with the system message "Summarize the passage in about 240
+      words." It yielded 204–226 decode tokens in the simulator. There is no decode cap (see the
+      C5 prerequisite in *Open questions*; resolved by option (a)).
+    - Prefill and decode runs use `--litert-probe-benchmark`, which switches LiteRT-LM into
+      benchmark mode (recorded in each report). The load-only and prudence runs don't.
+    - The 60 s hold uses `--litert-probe-hold-seconds 60` on the 4K run.
+    - New harness options for this: `8b64c7e` (load-only, hold, question file, system message),
+      14/14 harness tests pass.
 - `operating_cap` (frozen, see Frozen values):
 - B0 reference peak footprint (same protocol):
 
