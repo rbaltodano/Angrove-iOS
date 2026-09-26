@@ -599,17 +599,65 @@ behavior doesn't depend on the backend. Build `fb02847`, with `--litert-diagnost
     0 living-session warnings, no crash.
   - `C8-M4Ls-held-1` (v1) was stopped as superseded (`ABORTED.txt`). v1 evidence is not used for
     the gate.
-- Scorer model:
+- Scorer model: Claude Opus 5.5 (the reviewing assistant; not a candidate), blind A/B per
+  `rubric.md`. Pairs, key, and scores: `C8-blind-held-1/`. Scores were hashed before the key was
+  opened (`scores.jsonl` `f63f826e…36adba`, `pairs.jsonl` `2cc41bdf…3d1c7`). First-pass scores are
+  not edited after unblinding; later evidence goes to owner review.
 - Owner review coverage (% of cases, all critical flags, weak-preference cases):
 
-| Metric (held-out) | B0 | M4-L | M2-L (opt.) | Required | Pass? |
+**Held-out runs (config v2):** `C8-B0-held-2` and `C8-M4Ls-held-2`, 40/40 cases each, 0
+failures, 0 living-session warnings. Simulator CPU, FLOAT16. In-run hashes: B0 `9a6345f1…`,
+M4-Ls `0b2a8980…`, held-out file `06e0014e…`. Median 13.2 s/case for B0 and 23.5 s for M4-Ls
+(CPU; not a latency measurement). 5 cases per arm were answered by verified grounding with no
+generation. Objective scores: `score_objective.py` → `objective-scores.json` in each run folder.
+Gate computed by `c8_gate.py` (first pass, before owner review):
+
+| Metric (held-out) | B0 | M4-Ls | M2-L (opt.) | Required | Pass? (first pass) |
 | --- | --- | --- | --- | --- | --- |
-| Critical failures | | | | M4-L ≤ B0 and ≤ 1 | |
-| Mean accuracy | | | | ≥ B0 + 0.3 and ≥ 3.0 | |
-| Worst category Δ accuracy | | | | ≥ −0.5 | |
-| Objective checks passed | | | | ≥ B0 | |
-| Valid-link rate | | | | ≥ B0 | |
-| Repetition / garbage rejects | | | | 0 | |
+| Critical failures | 9 | 2 | — | M4-Ls ≤ B0 and ≤ 1 | **no, by one** (pending owner review; see note) |
+| Mean accuracy | 3.05 | **3.85** | — | ≥ B0 + 0.3 and ≥ 3.0 | yes (+0.80) |
+| Worst category Δ accuracy | — | −0.14 (regression: 3.86 → 3.71) | — | ≥ −0.5 | yes |
+| Objective checks passed | 26/40 | **28/40** | — | ≥ B0 | yes |
+| Valid-link rate | none (1 case with links; 0 raw markers) | **0.86** (19 cases with links) | — | ≥ B0 | yes |
+| Repetition / garbage rejects | 0 | 0 | — | 0 | yes |
+
+- Also: mean depth 2.95 → 3.43; mean voice 3.00 → 3.85. Category accuracy B0 → M4-Ls:
+  definition 3.14 → 4.00, multi-turn 2.83 → 4.00, reasoning 2.29 → 3.43, regression 3.86 → 3.71,
+  source 3.29 → 4.29, uncertainty 2.83 → 3.67. Pairwise (sum of the three dimensions): M4-Ls wins
+  27, ties 10, loses 3.
+- **B0's 9 critical failures** (unblinded):
+  - held-A3: named "wisdom, fortitude, piety" as the theological virtues.
+  - held-A5: wrong definition of transcendental.
+  - held-B1: an erring conscience "does not bind".
+  - held-B4: presents an objection as the Summa's teaching.
+  - held-B5: "God's existence cannot be proven by reason".
+  - held-C3: "the soul is not incorruptible".
+  - held-C4: "law pertains to the will".
+  - held-D4: swapped Dante's and Aquinas's centuries and invented a "Summa contra Cleros".
+  - held-E5: "No, Aquinas did not comment", with the context present.
+  - Several of these are B0 adopting an article's *objections* as the conclusion.
+- **M4-Ls's 2 critical flags:**
+  - held-A5: the same wrong "transcendental" definition as B0.
+  - held-C2: "Article 7 of Question 41" for God's simplicity (Summa I q3 a7).
+- **Scorer note for owner review (held-C2), evidence found after unblinding.** The grounding
+  passage the app supplied reads **"41 Article. 7 - Whether God is altogether simple?"**; `41` is
+  the corpus file's running section number (the same scheme yields "Summa Theologica, 273, A[4]"
+  in B0's answers). M4-Ls repeated the app's label rather than inventing one.
+  - **Recommendation:** reclassify as non-critical (a corpus-induced locator error; accuracy
+    unchanged).
+  - With that override, M4-Ls has **1** critical failure and **every held-out gate row passes**.
+- **App findings from C8 (both arms, not model-specific; not fixed during the frozen run):**
+  1. **Topic-shift false positive, again.** held-E2 "How is each article structured?" after a
+     Summa question was sent with **no history** in both arms (`initialMessageCount 0`), so both
+     answered about generic articles. The referring-word rule from `d583c94` doesn't cover
+     "each"/"its"-less follow-ups that name a new noun. Propose: carry history whenever the
+     previous turn is recent and the question is short, and reset only on a clear new named
+     subject.
+  2. **Grounding locators are misleading.** Corpus running numbers are shown to the model as if
+     they were question numbers. Propose: normalize corpus labels to real Summa locators
+     (Part/Question/Article) or strip them.
+  3. **Corpus-scope abstentions on well-known questions**: just war (held-B3), when the Summa was
+     left unfinished (held-D2), levitation (held-D6). They affect both arms identically.
 - Sampling (temperature 0.2) observations:
 
 ### C9 — Physical-device sustained gate
