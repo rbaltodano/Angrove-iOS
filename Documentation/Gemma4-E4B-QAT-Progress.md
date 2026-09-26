@@ -20,7 +20,7 @@
 | C5 | Early phone memory/compat screen | C4 | done | Claude Code (Opus 5.5) session | 2026-09-26 | M4-L **failed** (jetsam at 2K and 4K); per the On failure branch, M4-Ls **passed** all four runs (4K peak 0.165 × cap). M4-Ls is now the active candidate |
 | C6 | Integration diagnostics | C5 | done | Claude Code (Opus 5.5) session | 2026-09-26 | M4-Ls: 12/12 contracts OK, no template/parsing failures (simulator CPU). Found and fixed 2 app bugs; found B0's JSON-wrapped system prompt |
 | C7 | Full-app functional + lifecycle stress | C6 | todo | | | |
-| C8 | Quality A/B (40 dev + 40 held-out) | C7 | in-progress | Claude Code (Opus 5.5) session | 2026-09-26 | Started before C7 by recorded decision; simulator CPU; config `f83d962f…` |
+| C8 | Quality A/B (40 dev + 40 held-out) | C7 | in-progress | Claude Code (Opus 5.5) session | 2026-09-26 | Started before C7 by recorded decision; simulator CPU; config v2 `7bcffd4a…` (v1 runs aborted by a native crash, now fixed) |
 | C9 | Physical-device sustained gate | C8 | todo | | | |
 | C10 | Promotion | C9 + owner approval | todo | | | |
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
@@ -51,7 +51,7 @@ Record these **before** the candidate numbers they govern are seen.
 | `operating_cap` (C5) | **6,970,472,776 bytes** (6.49 GiB). C5 gate 0.80× = 5,576,378,221; C9 gate 0.85× = 5,924,901,860 | 2026-09-26, run `C5-B0-1` (launch sample), frozen before any M4-L phone run | `os_proc_available_memory()` at launch in the ModelProbe build (production memory entitlements), iPhone 17 "Ry", iOS 27.0 (24A5430a). Defined by the plan, not chosen; the owner may still revise it in *Decisions* before reading M4-L's phone numbers |
 | Eval set dev SHA-256 (C8) | `2b112f0c1ea22b4bc6e107ece5dc9bf71e4175883c8c40761bb8a8bb997337bd` (`eval-set/dev.jsonl`, 40 cases) | 2026-09-26, before any C8 run | Generator `build_eval_set.py` `de623e49…99cdb`. 7 regression, 7 definition, 7 reasoning, 7 source, 6 uncertainty, 6 multi-turn |
 | Eval set held-out SHA-256 (C8) | `06e0014eb2eb28fdeba7a192b82b89d2921a29d15d14962658d05a7f72a20dfd` (`eval-set/heldout.jsonl`, 40 cases) | 2026-09-26, before any C8 run | Same category spread. Seeds S1, S3, S5, S7, S9, S11 are here; S2, S4, S6, S8, S10 are in dev, each with a paraphrase in the other set |
-| C8 config hash | `f83d962f42dbbcfe45859f70792cbe02a911ffc056512e7ea3524db74a0fe71c` (`eval-set/c8-config.json`) | 2026-09-26, before any C8 run | App commit of the batch probe, production decoding, 4,096 context, simulator CPU FLOAT16, grounding asset hashes, eval-set and rubric hashes, both arms' model hashes. Rubric frozen as `eval-set/rubric.md` (`68b242dd…62576`) |
+| C8 config hash | ~~`f83d962f…a0fe71c`~~ (v1, app `fb3cc59`; superseded before any complete run, see C8 evidence) → **`7bcffd4a4485c45f3227c8272dcc5ad592e5dac8d178225e99ee90ac29c25f4f`** (`eval-set/c8-config-v2.json`, app `e1ddd70`) | 2026-09-26, v2 frozen before any v2 run | App commit of the batch probe, production decoding, 4,096 context, simulator CPU FLOAT16, grounding asset hashes, eval-set and rubric hashes, both arms' model hashes. Rubric frozen as `eval-set/rubric.md` (`68b242dd…62576`) |
 | C9 timing protocol | | | Link the frozen protocol file |
 
 ## Open questions for the user
@@ -585,7 +585,20 @@ behavior doesn't depend on the backend. Build `fb02847`, with `--litert-diagnost
     M4-Ls in C4/C5) for "What is prudence?", the Portugal topic shift, "What is natural law?", and
     a mercy/justice follow-up. All four are plan-mandated §6 seeds, so they're included anyway. No
     other case was written after seeing a candidate answer to it.
-- Config hash: `f83d962f…a0fe71c` (see Frozen values).
+- Config hash: v2 `7bcffd4a…c25f4f` (see Frozen values).
+- **v1 runs aborted: a native crash in the shipped runtime, found and fixed.**
+  - `C8-B0-held-1` (v1) crashed after 26/40 cases with **SIGSEGV** in LiteRT-LM teardown
+    (`litert_lm_conversation_delete` → `~LlmLiteRtCompiledModelExecutorStatic`, freeing tensor
+    buffers). It was preceded by "EngineAdvancedImpl destructed with 1 living sessions!" (4 of
+    those in 28 generations).
+  - Cause: the vendored wrapper deleted the engine and its conversation on two detached threads
+    that race whenever both are released together, which happens on every 4-generation engine
+    refresh. The race is backend-independent and exists on the phone, affecting B0 in production.
+  - Fixed in `e1ddd70`: a conversation holds its engine until its native delete returns.
+  - Verified by `C8fix-stress-1` (same workload, uncommitted fix): 40/40 cases, 39 generations,
+    0 living-session warnings, no crash.
+  - `C8-M4Ls-held-1` (v1) was stopped as superseded (`ABORTED.txt`). v1 evidence is not used for
+    the gate.
 - Scorer model:
 - Owner review coverage (% of cases, all critical flags, weak-preference cases):
 
