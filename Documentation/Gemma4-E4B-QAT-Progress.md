@@ -51,8 +51,8 @@ Record these **before** the candidate numbers they govern are seen.
 | Name | Value | Frozen on / run ID | Notes |
 | --- | --- | --- | --- |
 | `operating_cap` (C5) | **6,970,472,776 bytes** (6.49 GiB). C5 gate 0.80× = 5,576,378,221; C9 gate 0.85× = 5,924,901,860 | 2026-09-26, run `C5-B0-1` (launch sample), frozen before any M4-L phone run | `os_proc_available_memory()` at launch in the ModelProbe build (production memory entitlements), iPhone 17 "Ry", iOS 27.0 (24A5430a). Defined by the plan, not chosen; the owner may still revise it in *Decisions* before reading M4-L's phone numbers |
-| Eval set dev SHA-256 (C8) | | | |
-| Eval set held-out SHA-256 (C8) | | | |
+| Eval set dev SHA-256 (C8) | `2b112f0c1ea22b4bc6e107ece5dc9bf71e4175883c8c40761bb8a8bb997337bd` (`eval-set/dev.jsonl`, 40 cases) | 2026-09-26, before any C8 run | Generator `build_eval_set.py` `de623e49…99cdb`. 7 regression, 7 definition, 7 reasoning, 7 source, 6 uncertainty, 6 multi-turn |
+| Eval set held-out SHA-256 (C8) | `06e0014eb2eb28fdeba7a192b82b89d2921a29d15d14962658d05a7f72a20dfd` (`eval-set/heldout.jsonl`, 40 cases) | 2026-09-26, before any C8 run | Same category spread. Seeds S1, S3, S5, S7, S9, S11 are here; S2, S4, S6, S8, S10 are in dev, each with a paraphrase in the other set |
 | C8 config hash | | | |
 | C9 timing protocol | | | Link the frozen protocol file |
 
@@ -529,7 +529,13 @@ this entry records it.)
 | Memory warning | | | | | |
 
 ### C8 — Quality A/B
-- Eval set location and SHA-256s (see Frozen values):
+- Eval set location and SHA-256s (see Frozen values): `LocalModels/e4b-eval/eval-set/`, frozen
+  2026-09-26. Each case records its category, whether it is a fixture, and objective checks:
+  required regex groups, forbidden claims, `requires_links`, and optional `max_words`.
+  - **Exposure disclosure.** Before the freeze I had already seen candidate outputs (M4-L, and
+    M4-Ls in C4/C5) for "What is prudence?", the Portugal topic shift, "What is natural law?", and
+    a mercy/justice follow-up. All four are plan-mandated §6 seeds, so they're included anyway. No
+    other case was written after seeing a candidate answer to it.
 - Config hash:
 - Scorer model:
 - Owner review coverage (% of cases, all critical flags, weak-preference cases):
