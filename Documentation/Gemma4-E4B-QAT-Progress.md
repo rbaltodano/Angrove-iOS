@@ -16,7 +16,7 @@
 | C1 | Acquire and verify candidates | C0 | done | Claude Code (Opus 5.5) session | 2026-09-25 | M4-L hash matches (C1-M4L-2); M2-L and M4-Ls not downloaded |
 | C2 | Provenance classification | C1 | done | Claude Code (Opus 5.5) session | 2026-09-25 | **unconfirmed**; package is a GPU-only "artisan" text decoder (C2-M4L-1) |
 | C3 | Harness hardening (code) | C0 | done | Claude Code (Opus 5.5) session | 2026-09-26 | `fa88428`. 175/176 tests; the 1 failure is pre-existing on base and accepted as baseline by the owner (see *Decisions log*) |
-| C4 | Simulator compatibility (informational) | C1, C3 | in-progress | Claude Code (Opus 5.5) session | 2026-09-26 | |
+| C4 | Simulator compatibility (informational) | C1, C3 | done | Claude Code (Opus 5.5) session | 2026-09-26 | **sim-pass** (GPU_ARTISAN Metal, F16); C4-M4L-1..3 |
 | C5 | Early phone memory/compat screen | C4 | todo | | | Freezes `operating_cap` |
 | C6 | Integration diagnostics | C5 | todo | | | |
 | C7 | Full-app functional + lifecycle stress | C6 | todo | | | |
@@ -26,7 +26,7 @@
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
 | C12 | Optional: vision probe | C10 | todo | | | |
 
-**Next action:** Finish C4, then C5 (phone connected).
+**Next action:** C5 (phone connected).
 
 ## Candidate registry
 
@@ -297,10 +297,48 @@ package inspection in `peek.txt`, `tflite-histogram.json`, `tflite-metadata.txt`
     the phone (C5).
 
 ### C4 — Simulator compatibility
+All runs: M4-L via `--litert-model-path …/LocalModels/gemma-4-E4B-it-gpu.litertlm` (computed SHA-256
+`4912bb5a…2bb7ff` in each report), iPhone 17 simulator, iOS 27.0, Debug build at `26f7ade`
+(runs 2–3 at `26f7ade` plus the reporting-only parser fix committed right after). Greedy decoding.
+
 | Run ID | Mode | Backend | Load s | Gen s | Activation (and how it was determined) | Classification |
 | --- | --- | --- | --- | --- | --- | --- |
-| | | | | | | |
-- Quoted log lines:
+| C4-M4L-1 | raw, 2,048, "What is prudence?", cold cache | GPU → `GPU_ARTISAN` (Metal) | 15.84 | 2.24 | **F16**: `CalculationsPrecision::F16` (the executor's `activation_data_type` is "Not set"); read from the log by hand, before the parser fix | sim-pass |
+| C4-M4L-2 | quality (production path), 4,096, "What is prudence?", cold cache | GPU → `GPU_ARTISAN` | 9.82 | 5.62 | **F16** (same line, parsed automatically) | sim-pass |
+| C4-M4L-3 | raw, 2,048, no cache clear | GPU → `GPU_ARTISAN` | 19.67 | 2.22 | F16 | sim-pass |
+
+- **Classification: `sim-pass`.** Per the gate branch, go to C5. The CPU check isn't required on
+  this branch and wasn't run (the package is GPU-only anyway; see C2).
+- **Outputs.**
+  - Raw (runs 1 and 3, identical): "Prudence is the ability to govern and discipline oneself by
+    the use of reason." That's the same sentence as B0 on CPU, plus a period.
+  - Quality: "Prudence is the third prudence, which is both true and perfect because it takes
+    counsel, judges, and commands rightly concerning the good end of man's whole life. It is
+    distinct from the first prudence, which is found only in sinners, and imperfect prudence,
+    which is common to both good and wicked men." That's coherent and `corpusGrounded`, with 0
+    validated Insight links (B0 also had 0 on this question).
+- **Activation.** It isn't FLOAT32, so there's no fallback to explain. The artisan executor
+  computes in F16 by design. No delegate rollback, `Failed to initialize kernel`, or max-buffer
+  error occurred. That's unlike B0, whose standard delegate hits the simulator's 256 MiB
+  allocation ceiling.
+- **Findings that matter downstream.**
+  1. **No LiteRT cache is written for M4-L**: the cache folder is empty before and after every
+     run. Reloads are full loads (15.8 s, then 19.7 s without clearing), so C9's "cached load
+     p95 ≤ 3 s" budget may not be achievable by design. C5 and C9 should measure the phone
+     before drawing conclusions.
+  2. The simulator's `phys_footprint` doesn't reflect GPU memory reliably (raw peak 212 MB vs
+     quality peak 3.26 GB). These aren't gate numbers; C5's phone numbers are.
+  3. The 4,096-token quality configuration loaded and generated with no "too long" error for
+     this prompt. The #18 hard limit still needs C6's truncation check.
+- Quoted log lines (from `C4-M4L-1/litert-probe-stderr.log`):
+  - `litert_lm_loader.cc:244] section_backend_constraint: gpu_artisan`
+  - `engine_settings.cc:189] Artisan model detected. Switching backend from GPU to GPU_ARTISAN.`
+  - `litert_executor_utils.cc:444] Build ModelResources for Artisan Text Decoder.`
+  - `llm_gpu_artisan_executor.cc:304]   LlmExecutorSettings: backend: GPU_ARTISAN`
+  - `gpu_model_info_generator.cc:32] CalculationsPrecision::F16`
+  - `llm_metal_runner.mm:165] Metal LLM tokens initialized.`
+  - `RegisterAccelerator: ptr=…, name=GPU Metal`
+  - Executor settings: `activation_data_type: Not set` and `allow_src_quantized_fc_conv_ops: true`.
 
 ### C5 — Early phone screen
 - Device / iOS build / backup location / Home data counts before → after:
