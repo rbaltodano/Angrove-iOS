@@ -185,7 +185,7 @@ public actor Engine {
       )
     }
 
-    return Conversation(handle: conversationHandle, toolManager: toolManager)
+    return Conversation(handle: conversationHandle, toolManager: toolManager, engine: self)
   }
 
   /// Pure construction of the native conversation handle, with no actor-isolated state touched,

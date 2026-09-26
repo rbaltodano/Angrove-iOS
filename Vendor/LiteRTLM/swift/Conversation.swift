@@ -51,15 +51,19 @@ public class Conversation {
 
   private var handle: CConversationHandle?
   private let toolManager: ToolManager
+  /// The engine this conversation's native session lives in. Holding it guarantees the engine
+  /// outlives the conversation: see `deinit`.
+  private let engine: Engine?
 
   /// Whether the conversation is alive and ready to be used.
   public var isAlive: Bool {
     return handle != nil
   }
 
-  init(handle: CConversationHandle, toolManager: ToolManager) {
+  init(handle: CConversationHandle, toolManager: ToolManager, engine: Engine? = nil) {
     self.handle = handle
     self.toolManager = toolManager
+    self.engine = engine
   }
 
   deinit {
@@ -71,10 +75,20 @@ public class Conversation {
     // would silently freeze that entire actor, including its own stall-detection watchdog,
     // forever. Firing the delete on a disposable thread means a hang costs one throwaway
     // thread, never the caller.
+    //
+    // The thread also keeps the owning engine alive until the delete returns. `Engine.deinit`
+    // deletes the native engine on its own detached thread, so when a caller dropped an engine
+    // and its conversation together the two deletes raced; if the engine went first, LiteRT-LM
+    // logged "EngineAdvancedImpl destructed with 1 living sessions!" and the conversation's
+    // delete then freed tensor buffers that no longer existed (SIGSEGV in
+    // `LlmLiteRtCompiledModelExecutorStatic` teardown). Releasing the engine only after the
+    // conversation is gone makes the order deterministic.
     if let handle = handle {
       let handleToDelete = handle
+      let owningEngine = engine
       Thread {
         litert_lm_conversation_delete(handleToDelete)
+        withExtendedLifetime(owningEngine) {}
       }.start()
     }
   }
