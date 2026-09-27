@@ -21,10 +21,11 @@
   app was uninstalled after the gate failed.
 - A bounded-memory SHA-256 fix (`a4fd7c0`) and DEBUG C9 timing harness (`7ac77a8`)
   are committed; the physical build passed. The system-prompt file was not edited.
-- A question is pending: whether the owner wants a **new candidate plan and phone tests**
-  or to pause model testing. Any new configuration or product criteria need a fresh plan,
-  frozen values, and new run IDs; C9's failed evidence is immutable. The C8 phone GPU
-  repeat, C10 rollback check, Foundations update, and PR remain undone under this plan.
+- The owner delegated the next step to the senior developer. P1 informational usability
+  diagnostics are frozen in `Gemma4-E4B-Post-C9-Diagnostics.md` before new phone runs.
+  C9 remains failed and immutable. P1 cannot promote E4B; any new product criteria need a
+  separate predeclared promotion plan. The C8 phone GPU repeat, C10 rollback check,
+  Foundations update, and PR remain undone under the original plan.
 
 ## Prior handoff (2026-09-27; historical, superseded by the current handoff)
 
