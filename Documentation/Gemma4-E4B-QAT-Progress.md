@@ -1008,3 +1008,16 @@ the completed verification; this entry is its actual completion evidence. No tri
 - Runner now captures lifecycle traces, clears prior traces before launch, and bounds each
   CoreDevice command to 30 seconds. SHA-256 `759133eb…903fb6`; complete hash in preparation
   evidence. Production process closed before the trials; installed production app/data retained.
+
+**C9 diagnostic correction before further model trials:** `sha256(of:)` used FileHandle reads
+without a per-chunk autorelease pool. The runtime invokes it after load for DEBUG identity
+logging, concurrently with generation. Local reproduction on the exact B0 bytes produced the
+same SHA-256 both ways, but original peak footprint was **3,873,705,152 bytes**, versus
+**13,959,696 bytes** with per-chunk autorelease (1.86 GB versus 18.4 MB max RSS).
+Evidence: `C9-diagnostics-1/hash-original.txt`, `hash-bounded.txt`, and archived reproduction
+source. Add a per-chunk pool in `LiteRTModelInstaller.sha256`; no model, sampler, prompts, or
+vendor binary change. `C9-B0-1` is invalid for controlled model-memory comparison due to this
+proven diagnostic overhead; its incomplete result remains preserved and its exact exit cause
+remains unconfirmed. M4-Ls has not yet loaded in any C9 trial. Restart trial pair with new IDs
+on the rebuilt harness; keep the frozen budgets. This correction also makes installation hash
+verification bounded in memory. Phone repeat must confirm actual memory behavior.
