@@ -19,15 +19,15 @@
 | C4 | Simulator compatibility (informational) | C1, C3 | done | Claude Code (Opus 5.5) session | 2026-09-26 | M4-L **sim-pass** (GPU_ARTISAN, F16; C4-M4L-1..3); M4-Ls **sim-gpu-fail**, coherent on CPU (C4-M4Ls-1..2) |
 | C5 | Early phone memory/compat screen | C4 | done | Claude Code (Opus 5.5) session | 2026-09-26 | M4-L **failed** (jetsam at 2K and 4K); per the On failure branch, M4-Ls **passed** all four runs (4K peak 0.165 × cap). M4-Ls is now the active candidate |
 | C6 | Integration diagnostics | C5 | done | Claude Code (Opus 5.5) session | 2026-09-26 | M4-Ls: 12/12 contracts OK, no template/parsing failures (simulator CPU). Found and fixed 2 app bugs; found B0's JSON-wrapped system prompt |
-| C7 | Full-app functional + lifecycle stress | C6 | todo | | | |
+| C7 | Full-app functional + lifecycle stress | C6 | in-progress | Claude Code (Opus 5.5) session | 2026-09-27 | Simulator CPU, merged code (`047245e` + C7 instrumentation) |
 | C8 | Quality A/B (40 dev + 40 held-out) | C7 | done | Claude Code (Opus 5.5) session | 2026-09-27 | **M4-Ls passes all held-out rows** after the owner-delegated review (accuracy 3.05 → 3.85; critical 9 → 1). Run before C7 by recorded decision; simulator CPU; confirm held-out on the phone GPU before C10 |
 | C9 | Physical-device sustained gate | C8 | todo | | | |
 | C10 | Promotion | C9 + owner approval | todo | | | |
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
 | C12 | Optional: vision probe | C10 | todo | | | |
 
-**Next action:** Blocked on the owner: (1) commit the backend-removal work on `main` so it can be merged here and C7 run; (2) the phone, for the C8 held-out confirmation on the phone GPU and for C9. C7 is deliberately deferred until the owner's backend-removal work is merged
-(see *Decisions log*, 2026-09-26).
+**Next action:** Finish C7 (simulator, CPU). Then the phone: C9 and the C8 held-out
+confirmation on the phone GPU.
 
 ## Candidate registry
 
