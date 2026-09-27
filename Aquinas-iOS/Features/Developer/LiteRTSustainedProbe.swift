@@ -51,14 +51,17 @@ enum LiteRTSustainedProbe {
             let app = AquinasApplicationRuntime.shared
             guard app.isOnDevice else { throw ProbeError.noModel }
             var samples: [[String: Any]] = []
-            let sampler = Task { @MainActor in
+            let twentyTurns = args.contains("--litert-c9-twenty-turns")
+            if twentyTurns { UIApplication.shared.isIdleTimerDisabled = true }
+            defer { if twentyTurns { UIApplication.shared.isIdleTimerDisabled = false } }
+            let sampler = Task.detached {
                 while !Task.isCancelled {
                     LiteRTLifecycleTrace.shared.record("c9-sample", ["thermal": ProcessInfo.processInfo.thermalState.rawValue])
                     try? await Task.sleep(for: .seconds(1))
                 }
             }
             defer { sampler.cancel() }
-            let count = args.contains("--litert-c9-twenty-turns") ? 21 : 1
+            let count = twentyTurns ? 21 : 1
             let question = args.contains("--litert-c9-long") ? longQuestion : shortQuestion
             for turn in 0..<count {
                 let start = ProcessInfo.processInfo.systemUptime

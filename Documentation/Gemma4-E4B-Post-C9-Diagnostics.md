@@ -53,3 +53,14 @@ frozen before its runs, phone GPU quality confirmation, and owner approval.
 P1 does not pass or fail C9. Recommend either (a) a new, predeclared product plan with explicit
 latency tradeoffs and full device/quality gates, or (b) stopping E4B promotion work. Base the
 recommendation on every P1 sample and the C9 failure. Report what remained unverified.
+
+### Instrumentation amendment before P1 runs (2026-09-27)
+
+For the 20-turn continuous foreground diagnostic only, the DEBUG probe disables iOS's idle
+screen timer while the run is active, then restores it. This prevents the screen locking and
+suspending a test intended to measure sustained foreground work. The separate real OS
+background/foreground question still requires explicit scene transitions. Thermal tracing runs
+from a detached task so synchronous retrieval/model calls do not pause its one-second samples.
+Neither change alters the LiteRT model, sampler, prompt, queue, or runtime lifecycle policy.
+Commit the instrumented build and use it for **all** P1 runs; no P1 model run preceded this
+amendment.
