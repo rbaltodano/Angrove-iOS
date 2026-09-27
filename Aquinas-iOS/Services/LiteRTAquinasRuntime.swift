@@ -136,7 +136,26 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
         self.modelStore = modelStore
     }
 
+    /// Load and unload take the generation slot, like generation itself. The lifecycle manager
+    /// calls them from outside that slot, and actor reentrancy otherwise lets a generation run
+    /// against an engine that is half-loaded or was just dropped (seen on the phone: a request
+    /// hit `modelNotLoaded` mid-load, and its retry then loaded a second engine beside the first).
     func loadModelWeights() async throws {
+        try await acquireGenerationSlot()
+        defer { releaseGenerationSlot() }
+        try await loadEngineHoldingSlot()
+    }
+
+    func unloadModelWeights() async {
+        // Never skip the slot: dropping the engine under a running generation is exactly the
+        // race the slot prevents. A cancelled wait leaves the engine loaded; the next load is then
+        // a no-op.
+        guard (try? await acquireGenerationSlot()) != nil else { return }
+        defer { releaseGenerationSlot() }
+        unloadEngineHoldingSlot()
+    }
+
+    private func loadEngineHoldingSlot() async throws {
         if let engine, await engine.isInitialized() {
             return
         }
@@ -161,7 +180,7 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
         throw finalError ?? LiteRTAquinasRuntimeError.modelNotLoaded
     }
 
-    func unloadModelWeights() async {
+    private func unloadEngineHoldingSlot() {
         // Deliberately no `activeConversation.cancel()` here — confirmed via device console
         // capture that `litert_lm_conversation_cancel_process` can leave the native
         // `callback_thread_pool` (a single-worker pool) permanently stuck on
@@ -233,9 +252,14 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
             try await drainNativeTeardown()
             pendingTeardownDrain = false
         }
+        // The lifecycle may have unloaded between granting this request's lease and this point;
+        // load here instead of failing with `modelNotLoaded`.
+        if engine == nil {
+            try await loadEngineHoldingSlot()
+        }
 
         if completedGenerations >= Self.generationsBeforeRefresh {
-            await unloadModelWeights()
+            unloadEngineHoldingSlot()
             try await initializeEngineWithWatchdog()
             try await drainNativeTeardown()
         }
@@ -275,7 +299,7 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
             // Rebuilding while the failed stream still runs would load a new engine next to a
             // live native session on the old one. If it hasn't ended, retry on this engine.
             if await waitForAbandonedNativeWork() {
-                await unloadModelWeights()
+                unloadEngineHoldingSlot()
                 try await initializeEngineWithWatchdog()
             }
             try await drainNativeTeardown()

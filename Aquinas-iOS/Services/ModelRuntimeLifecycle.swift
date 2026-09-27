@@ -263,6 +263,9 @@ actor ModelRuntimeLifecycleManager {
 
         do {
             try await task.value
+            // An unload (memory warning, background) that waited on this load may have run
+            // first; never report a model it just dropped as ready.
+            guard state == .loading else { return state == .ready || state == .generating }
             loadTask = nil
             transition(to: .ready)
             return true
@@ -326,6 +329,8 @@ actor ModelRuntimeLifecycleManager {
         if state == .loading, let loadTask {
             _ = try? await loadTask.value
             self.loadTask = nil
+            // A request may have taken a lease while this waited for the load to finish.
+            guard activeLeaseIDs.isEmpty else { return }
         }
         if let unloadTask {
             await unloadTask.value

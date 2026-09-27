@@ -175,6 +175,31 @@ struct ModelRuntimeLifecycleTests {
         #expect(await log.events == ["first", "second", "midpoint"])
     }
 
+    @Test("An unload that waited on a load never drops a model a request has leased")
+    func unloadDuringLoadYieldsToLease() async throws {
+        let gate = TestGate()
+        let driver = TestModelRuntimeDriver(loadGate: gate)
+        let manager = makeManager(driver: driver)
+
+        let leaseTask = Task { await manager.acquireLease() }
+        try await waitUntil { await driver.loadCount == 1 }
+        let unloadTask = Task { await manager.unloadAsSoonAsIdle(reason: .memoryPressure) }
+        try await Task.sleep(for: .milliseconds(50))
+        await gate.open()
+
+        // Either side may win once the load finishes. The invariant: a granted lease is never
+        // followed by an unload of the model it leased.
+        let lease = await leaseTask.value
+        await unloadTask.value
+        if let lease {
+            #expect(await driver.unloadCount == 0)
+            #expect(await manager.currentState() == .generating)
+            await manager.releaseLease(lease)
+        } else {
+            #expect(await driver.unloadCount == 1)
+        }
+    }
+
     @MainActor
     @Test("Reordering upcoming tasks changes the order they run in")
     func reorderedUpcomingTasksRunInNewOrder() async throws {
@@ -280,9 +305,16 @@ private actor TestModelRuntimeDriver: ModelRuntimeDriver {
     nonisolated let supportsUnloading = true
     private(set) var loadCount = 0
     private(set) var unloadCount = 0
+    /// When set, each load waits for this gate, so a test can act while a load is in flight.
+    let loadGate: TestGate?
+
+    init(loadGate: TestGate? = nil) {
+        self.loadGate = loadGate
+    }
 
     func loadModelWeights() async throws {
         loadCount += 1
+        await loadGate?.wait()
     }
 
     func unloadModelWeights() async {
