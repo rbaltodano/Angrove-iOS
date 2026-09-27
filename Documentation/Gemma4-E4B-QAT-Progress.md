@@ -84,7 +84,7 @@ The owner is handing this work to Codex. State as of commit `2776cc9` on `featur
 | C6 | Integration diagnostics | C5 | done | Claude Code (Opus 5.5) session | 2026-09-26 | M4-Ls: 12/12 contracts OK, no template/parsing failures (simulator CPU). Found and fixed 2 app bugs; found B0's JSON-wrapped system prompt |
 | C7 | Full-app functional + lifecycle stress | C6 | done | Claude Code (Opus 5.5) session | 2026-09-27 | **Pass** (simulator CPU). Fixed 3 lifecycle bugs: suspension read as a stall, two overlap paths. Final probe: all cases pass, 0 overlaps, memory within 1%. 199/200 tests (known baseline failure). Make Node has no UI entry (pre-existing) |
 | C8 | Quality A/B (40 dev + 40 held-out) | C7 | done | Claude Code (Opus 5.5) session | 2026-09-27 | **M4-Ls passes all held-out rows** after the owner-delegated review (accuracy 3.05 → 3.85; critical 9 → 1). Run before C7 by recorded decision; simulator CPU; confirm held-out on the phone GPU before C10 |
-| C9 | Physical-device sustained gate | C8 | todo | | | |
+| C9 | Physical-device sustained gate | C8 | in-progress | Codex takeover | 2026-09-27 | Protocol v1 frozen below; no device trials started |
 | C10 | Promotion | C9 + owner approval | in-progress | Claude Code (Opus 5.5) session | 2026-09-27 | Owner approved. Code, seed, and docs done on the branch; sim no-override smoke passes; 199/200 tests. **Merge held for C9**; phone smoke, rollback check, and PR pending |
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
 | C12 | Optional: vision probe | C10 | todo | | | |
@@ -114,7 +114,7 @@ Record these **before** the candidate numbers they govern are seen.
 | Eval set dev SHA-256 (C8) | `2b112f0c1ea22b4bc6e107ece5dc9bf71e4175883c8c40761bb8a8bb997337bd` (`eval-set/dev.jsonl`, 40 cases) | 2026-09-26, before any C8 run | Generator `build_eval_set.py` `de623e49…99cdb`. 7 regression, 7 definition, 7 reasoning, 7 source, 6 uncertainty, 6 multi-turn |
 | Eval set held-out SHA-256 (C8) | `06e0014eb2eb28fdeba7a192b82b89d2921a29d15d14962658d05a7f72a20dfd` (`eval-set/heldout.jsonl`, 40 cases) | 2026-09-26, before any C8 run | Same category spread. Seeds S1, S3, S5, S7, S9, S11 are here; S2, S4, S6, S8, S10 are in dev, each with a paraphrase in the other set |
 | C8 config hash | ~~`f83d962f…a0fe71c`~~ (v1, app `fb3cc59`; superseded before any complete run, see C8 evidence) → **`7bcffd4a4485c45f3227c8272dcc5ad592e5dac8d178225e99ee90ac29c25f4f`** (`eval-set/c8-config-v2.json`, app `e1ddd70`) | 2026-09-26, v2 frozen before any v2 run | App commit of the batch probe, production decoding, 4,096 context, simulator CPU FLOAT16, grounding asset hashes, eval-set and rubric hashes, both arms' model hashes. Rubric frozen as `eval-set/rubric.md` (`68b242dd…62576`) |
-| C9 timing protocol | | | Link the frozen protocol file |
+| C9 timing protocol | v1, frozen in C9 below | 2026-09-27, Codex takeover; committed before trials | Original budgets unchanged; B0 versus M4-Ls |
 
 ## Open questions for the user
 
@@ -824,10 +824,75 @@ Gate computed by `c8_gate.py` (first pass, before owner review):
   agree with held-out. This is recorded as a deviation from `rubric.md`'s "score every case".
 
 ### C9 — Physical-device sustained gate
-- Frozen protocol file:
+**Frozen protocol v1 — 2026-09-27, Codex takeover (before trials).** This ledger section is
+its committed protocol; amendments require a new version committed before affected runs.
+
+- Candidate: **M4-Ls**, standard package hash `0b2a8980…45bd52e0`; comparator B0
+  `9a6345f1…3365282`, full hashes in the registry. Same LiteRT 0.14.0 vendor binary,
+  GPU, 4,096 context, deterministic production sampler, production retrieval/MiniLM assets,
+  text-only. No prompt or decoding-policy changes. Record build commit, binary/asset hashes,
+  effective settings, model URL/hash, device OS/build, and exact commands with each run.
+- Device: physical base iPhone 17 “Ry”; verify identity/OS on connection. Only disposable
+  `com.ryanbaltodano.Aquinas-iOS.ModelProbe`, using the full app runtime, queue, and override.
+  Back up production Documents and Library, verify readable backup and Home data counts before
+  installs/experiments. Preserve the installed production app and all model source files.
+- Fixed prompts: S = “In one sentence, what is prudence?”; J = “How can justice and mercy work
+  together when someone repeatedly does wrong? Answer in at most 180 words.” J's declared
+  target is approximately 256 output tokens, requested through the prompt (no native hard
+  decode cap, as recorded for C5). Report actual output words/tokens where available; never
+  truncate timing or silently discard an over-budget answer.
+- Five cold and five cached fresh-process trials **per prompt per arm**: 40 sessions total.
+  For each prompt and repetition 1–5: B0 cold, M4-Ls cold, B0 cached, M4-Ls cached; reverse
+  arm order on even repetitions. Preserve each arm's cache for its paired cached trial.
+  Cold means clear only that arm's disposable LiteRT cache before launch; cached means
+  cache present from its cold trial. Record cache inventory/actions. No benchmark mode.
+  Start each session at nominal thermal state; record power/charging state, start/end
+  thermal state, and any cooldown. Never exclude a slow completed trial.
+- Measure monotonic boundaries: queue acceptance, retrieval completion, native prefill start
+  and end, first visible answer delivered to UI, visible answer complete, metadata complete.
+  Record native engine load separately. Answer latency is queue acceptance to visible answer
+  completion, including load/retrieval. Public approach text is not first answer output.
+  Buffered output is reported as buffered. Native boundaries unavailable from production
+  instrumentation must be explicitly unavailable, never inferred as measured. Resolve missing
+  gate instrumentation before trials; do not replace the full app with raw-probe measurements.
+- Report every sample, nearest-rank p95 (`ceil(.95*n)`, hence max for n=5), and max, separately
+  by arm, prompt, and cache state. Both cache strata must meet answer budgets.
+- Sustained: one warm-up excluded from ratio, then 20 consecutive J requests per arm through
+  the full app queue, no deliberate pauses. Use identical fresh conversation inputs each turn
+  to control input size; separately carry out lifecycle follow-up/history cases from C7.
+  Record each latency, thermal state at least once per second while active, and peak physical
+  footprint. Compare turn 20/turn 1 within the same arm.
+- Lifecycle on M4-Ls GPU: five actual OS background/foreground cycles while a native generation
+  is active (5, 15, 65, 5, 15 seconds background hold); each followed by a successful new request.
+  Queue-only inactive toggles are supplementary and cannot establish OS suspension recovery.
+  Simulate one app memory warning during generation and one while idle, verify unload/recovery.
+  Hold idle for 75 seconds and verify a subsequent request; also explicitly test idle unload
+  and reload with a DEBUG shortened idle timeout in a separate lifecycle run.
+- C7 carry-overs: cancel during native generation, immediately enqueue a new request, measure
+  cancellation-to-success and abandoned-native wait; repeat with a forced DEBUG stall.
+  Include foreground preemption. Require zero stale updates after cancel, no overlap of old
+  native work/deletes with new conversation/load, and settled post-unload resident memory
+  within 10% of the warmed pre-request unloaded baseline. Report first retrieval warm-up
+  separately. Preserve traces proving native completion rather than assuming a timeout did so.
+- Frozen gates (M4-Ls): peak physical footprint ≤ **5,924,901,860 bytes** (0.85 of frozen
+  6,970,472,776 cap); cold load p95 ≤12 s; cached load p95 ≤3 s; S answer p95 ≤4 s;
+  J answer p95 ≤60 s; turn20/turn1 ≤1.5; thermal never critical; no jetsam, signal 9,
+  GPU OOM, unrecovered warning/background cycle, stale updates, or native overlap.
+  Inspect device crash/jetsam logs before/after, including delayed reports; footprint alone
+  cannot prove safety. B0 results are contextual and never lower M4-Ls's absolute budgets.
+- IDs: new `C9-B0-<n>` and `C9-M4Ls-<n>` directories only, immutable after collection;
+  preparation uses `C9-preflight-<n>`. Archive exact commands, results, traces, and failure
+  evidence under `LocalModels/e4b-eval/`. Interrupted trials remain recorded and get new IDs.
+- On failure: record and commit, stop promotion; owner decides any new configuration/candidate.
+  Missing prerequisite with no failure branch: mark blocked and record the question, per §0.
+  C8 GPU confirmation follows a passing C9, both arms on frozen held-out fixtures, with new
+  run/config IDs; then C10 disposable no-override smoke, scratch-branch rollback, and PR.
+  No merge is authorized. Verify repository visibility before pushing/opening a PR: owner's
+  “don't post anything publicly” restriction applies.
+
 - Device / iOS / backup / data counts:
 
-| Metric | Budget | B0 | M4-L | Pass? |
+| Metric | Budget | B0 | M4-Ls | Pass? |
 | --- | --- | --- | --- | --- |
 | Peak footprint | ≤ 0.85 × cap | | | |
 | Cold load p95 / max | ≤ 12 s | | | |
