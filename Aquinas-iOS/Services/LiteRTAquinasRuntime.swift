@@ -67,6 +67,14 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
         precondition(engine == nil)
         evidenceExperimentUsesCPU = true
     }
+
+    /// Diagnostic only (plan C8 step 5): replaces conversation (non-structured) sampling so an
+    /// evaluation can observe sampled decoding. Production decoding never sets it.
+    private var evidenceConversationSampling: LiteRTSampling?
+
+    func configureEvidenceConversationSampling(_ sampling: LiteRTSampling) {
+        evidenceConversationSampling = sampling
+    }
 #endif
     private var engine: Engine?
     private var activeConversation: Conversation?
@@ -150,7 +158,10 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
         sampling: LiteRTSampling = .conversation,
         onText: (@Sendable (String) async -> Void)? = nil
     ) async throws -> String {
-        try await withGenerationSlot(sampling: sampling) { attemptSampling in
+#if DEBUG
+        let sampling = sampling.isStructured ? sampling : (evidenceConversationSampling ?? sampling)
+#endif
+        return try await withGenerationSlot(sampling: sampling) { attemptSampling in
             try await self.generateOnce(
                 systemInstruction: systemInstruction,
                 initialMessages: initialMessages,

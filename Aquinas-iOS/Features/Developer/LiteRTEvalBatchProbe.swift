@@ -90,6 +90,13 @@ enum LiteRTEvalBatchProbe {
                 await runtime.configureEvidenceExperimentCPU()
 #endif
             }
+#if DEBUG
+            if arguments.contains("--litert-eval-sampled") {
+                await runtime.configureEvidenceConversationSampling(
+                    LiteRTSampling(topK: 40, topP: 0.95, temperature: 0.2, seed: 7, isStructured: false)
+                )
+            }
+#endif
             let clock = ContinuousClock.now
             try await runtime.loadModelWeights()
             summary.loadSeconds = seconds(since: clock)
