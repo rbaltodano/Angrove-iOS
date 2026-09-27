@@ -117,6 +117,7 @@ and what options you recommend._
 | 2026-09-25 | Shelve all Gemma 4 12B research (rotated-ternary and llama.cpp IQ2_M) and remove its weights; E4B QAT becomes the model path | User | The 12B's modeled size exceeds what the base iPhone 17 survived; see `Aquinas-Foundations/research/rotated-ternary/STATUS.md`, "Shelving record" |
 | 2026-09-25 | Remove all Qwen weights except `Qwen3-4B-Aquinas-v3-Q4_K_M.gguf` in `Aquinas_Backend-llama-cpp-12b` | User | Disk space. Qwen is no longer a re-exportable fallback. |
 | 2026-09-26 | Don't commit or merge the owner's uncommitted backend removal on `main`; continue on this branch. Its model-path changes are only failure-fallback removal plus a new quote-notability task; conversation prompts are unchanged, so results carry over. Add quote notability to C6 after the merge | Claude Code session (owner delegated all decisions 2026-09-26) | `git diff` of `LiteRTAquinasModel.swift` on `main`; no edits there since 11:59 |
+| 2026-09-27 | Owner delegated the C8 owner review to the session. The session applied only the evidence-based held-C2 reclassification (critical → non-critical, a corpus-induced locator), which it had recommended before any review; the held-out gate then passes. Caveat: the reviewer and the first-pass scorer are now the same assistant, so the plan's independent spot check didn't happen | Owner (delegation) + Claude Code session | "i don't have time to go through everything in that artifact. again i trust your judgment. continue" |
 | 2026-09-26 | **Run C8 before C7** (deviates from §5 order). C7 exercises the full app's UI, queue, lifecycle, and Insight Tree, which the owner's uncommitted backend removal rewrites (56 files, about 3.3k lines removed); C7 evidence gathered before that merge would be invalidated by it (§0 rule 5). C8 exercises the model prompt path, which that work leaves unchanged apart from failure fallback. Risk accepted: if C7 later forces a model-path change, the affected C8 results are rerun | Claude Code session (delegated) | Owner away with the phone; `main` still uncommitted |
 | 2026-09-26 | Run C8 on the **simulator CPU** for both arms (same backend, same numerics class: FLOAT16 activations). The phone GPU isn't available. Confirm the held-out set on the phone GPU when it is available, before C10 | Claude Code session (delegated) | Both standard packages fail the simulator's Metal delegate |
 | 2026-09-26 | Fix the follow-up history bug and the image failure before C8 (`d583c94`), although neither is E4B-specific. Both break the multi-turn behavior C8 grades, and both arms run the same code, so the A/B stays fair. The C8 configuration is frozen after these fixes | Claude Code session (delegated) | C6 harness run `C6prep-harness-1` |
@@ -602,7 +603,15 @@ behavior doesn't depend on the backend. Build `fb02847`, with `--litert-diagnost
   `rubric.md`. Pairs, key, and scores: `C8-blind-held-1/`. Scores were hashed before the key was
   opened (`scores.jsonl` `f63f826e…36adba`, `pairs.jsonl` `2cc41bdf…3d1c7`). First-pass scores are
   not edited after unblinding; later evidence goes to owner review.
-- Owner review coverage (% of cases, all critical flags, weak-preference cases): **pending.**
+- Owner review coverage (% of cases, all critical flags, weak-preference cases): **delegated.**
+  - 2026-09-27 the owner declined to review the cases ("I don't have time … I trust your
+    judgment") and delegated the review to the session; see *Decisions log*.
+  - Applied: exactly one change, held-C2, where M4-Ls's critical flag was removed on documentary
+    evidence (the locator was copied from the app's corpus label). Recorded as an `owner`
+    override in `C8-blind-held-1/scores-reviewed.jsonl`.
+  - No other first-pass score was changed. Gate rerun: `C8-blind-held-1-reviewed/` →
+    **all six held-out rows pass.**
+  - The earlier review-page text follows, kept for the record: **pending.**
   - Review page (private, blind A/B, no key): https://claude.ai/artifact/FWZ2bVVoGuuK5LaUKUoABH
   - Required: 10 critical-flag cases and 24 weak-preference cases, which is 34/40 (85%, above the
     25% minimum). 6 more are optional.
@@ -619,7 +628,7 @@ Gate computed by `c8_gate.py` (first pass, before owner review):
 
 | Metric (held-out) | B0 | M4-Ls | M2-L (opt.) | Required | Pass? (first pass) |
 | --- | --- | --- | --- | --- | --- |
-| Critical failures | 9 | 2 | — | M4-Ls ≤ B0 and ≤ 1 | **no, by one** (pending owner review; see note) |
+| Critical failures | 9 | 2 → **1** after review | — | M4-Ls ≤ B0 and ≤ 1 | **yes** after the delegated review (first pass: no, by one) |
 | Mean accuracy | 3.05 | **3.85** | — | ≥ B0 + 0.3 and ≥ 3.0 | yes (+0.80) |
 | Worst category Δ accuracy | — | −0.14 (regression: 3.86 → 3.71) | — | ≥ −0.5 | yes |
 | Objective checks passed | 26/40 | **28/40** | — | ≥ B0 | yes |
