@@ -212,6 +212,13 @@ enum ConversationDraftRetention {
 
 /// Atomic handoff from an Insight Tree into an existing conversation. A Study Topic origin is
 /// retained when present so canceling the quote can reopen that tree and restore its selection.
+/// Opens a conversation's Insight Tree with one Node Concept selected (Home's Loose Thread).
+struct ConversationNodeFocusRequest: Identifiable, Equatable {
+    let id = UUID()
+    let conversationID: UUID
+    let nodeID: UUID
+}
+
 struct InsightConversationQuoteRequest: Identifiable, Equatable {
     let id: UUID
     let topicID: UUID?
@@ -252,6 +259,34 @@ struct StudyTopicTreeSelectionRequest: Identifiable, Equatable {
         self.id = id
         self.topicID = topicID
         self.insightID = insightID
+    }
+}
+
+extension ChatBranch {
+    /// Every Insight surfaced in these branches — starting, attached, and context concepts,
+    /// quoted chips, and inline Insights in responses — deduplicated by term, in order.
+    static func mentionedInsights(in branches: [ChatBranch]) -> [ConceptDefinition] {
+        var seen = Set<String>()
+        var result: [ConceptDefinition] = []
+        func add(_ concept: ConceptDefinition) {
+            if seen.insert(concept.word.lowercased()).inserted { result.append(concept) }
+        }
+        for branch in branches {
+            [branch.startingConcept, branch.attachedConcept, branch.branchContextConcept]
+                .compactMap { $0 }
+                .forEach(add)
+            for block in branch.activeChatBlocks {
+                switch block {
+                case .user(_, let concept?, _):
+                    add(concept)
+                case .user:
+                    break
+                case .text(let text):
+                    InlineInsightMarkup.insights(in: text).forEach(add)
+                }
+            }
+        }
+        return result
     }
 }
 

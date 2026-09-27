@@ -353,9 +353,6 @@ final class LiteRTDeviceProbeModel {
             let groundingProvider = try MiniLMGroundingProvider()
             let model = LiteRTAquinasModel(
                 runtime: runtime,
-                fallback: BackendAquinasModel(
-                    baseURL: URL(string: "http://127.0.0.1:9")!
-                ),
                 groundingProvider: groundingProvider
             )
 
@@ -377,8 +374,7 @@ final class LiteRTDeviceProbeModel {
             guard !response.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw LiteRTDeviceProbeError.emptyResponse
             }
-            if response.contains("couldn't reach the local Aquinas backend")
-                || response.contains("on-device Aquinas model couldn't complete") {
+            if response.contains("on-device Aquinas model couldn't complete") {
                 throw LiteRTDeviceProbeError.productionPathFailed(response)
             }
 

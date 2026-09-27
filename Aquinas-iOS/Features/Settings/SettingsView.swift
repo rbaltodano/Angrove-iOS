@@ -16,6 +16,7 @@ struct SettingsView: View {
     @Binding var inputFont: ConversationFontOption
     @Binding var responseFont: ConversationFontOption
     @Binding var conversationPersonality: ConversationPersonality
+    @Binding var collectedDefinitions: [ConceptDefinition]
     var onOpenMenu: () -> Void
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
     var onClearInsightTree: () -> Void = {}
@@ -39,8 +40,10 @@ struct SettingsView: View {
                         inputFont: $inputFont,
                         responseFont: $responseFont,
                         conversationPersonality: $conversationPersonality,
+                        collectedDefinitions: $collectedDefinitions,
                         onReset: resetSettings,
-                        onClearInsightTree: onClearInsightTree
+                        onClearInsightTree: onClearInsightTree,
+                        onSelectUserGuideTopic: { path.append(.userGuideTopic($0)) }
                     )
                     .navigationBarBackButtonHidden(true)
                     .toolbar(.hidden, for: .navigationBar)
@@ -52,7 +55,7 @@ struct SettingsView: View {
             HStack(spacing: 8) {
                 AquinasNavButton(onMenuTap: onOpenMenu)
                 if !path.isEmpty {
-                    NavBackCapsuleButton(title: "Settings") {
+                    NavBackCapsuleButton(title: backTitle) {
                         guard !path.isEmpty else { return }
                         path.removeLast()
                     }
@@ -74,6 +77,12 @@ struct SettingsView: View {
         .onDisappear {
             onDetailVisibilityChange(false)
         }
+    }
+
+    /// Back returns one level, so from a guide topic it leads to the User Guide, not Settings.
+    private var backTitle: String {
+        if case .userGuideTopic = path.last { return "User Guide" }
+        return "Settings"
     }
 
     private var settingsBackGesture: some Gesture {
@@ -99,7 +108,7 @@ struct SettingsView: View {
         colorSchemeOverride = nil
         userName = ""
         customInstructions = ""
-        conversationFontSize = .small
+        conversationFontSize = .medium
         conversationTextAlignment = .center
         inputFont = .serif
         responseFont = .sans
@@ -116,7 +125,8 @@ private enum SettingsRoute: Hashable {
     case modelActivity
     case textAndDisplay
     case conversationDefaults
-    case documentation
+    case userGuide
+    case userGuideTopic(UserGuideTopic.ID)
     case reportBug
 }
 
@@ -160,7 +170,7 @@ private struct SettingsHubView: View {
                 SettingsHubSection(
                     title: "Support",
                     rows: [
-                        SettingsHubItem(title: "Documentation", iconName: "book", route: .documentation),
+                        SettingsHubItem(title: "User Guide", iconName: "book", route: .userGuide),
                         SettingsHubItem(title: "Report a Bug", iconName: "ladybug", route: .reportBug)
                     ],
                     onSelect: onSelect
@@ -233,8 +243,10 @@ private struct SettingsDestinationView: View {
     @Binding var inputFont: ConversationFontOption
     @Binding var responseFont: ConversationFontOption
     @Binding var conversationPersonality: ConversationPersonality
+    @Binding var collectedDefinitions: [ConceptDefinition]
     let onReset: () -> Void
     var onClearInsightTree: () -> Void = {}
+    var onSelectUserGuideTopic: (UserGuideTopic.ID) -> Void = { _ in }
 
     var body: some View {
         switch route {
@@ -262,11 +274,12 @@ private struct SettingsDestinationView: View {
             )
         case .conversationDefaults:
             ConversationDefaultsSettingsView()
-        case .documentation:
-            SettingsInformationView(
-                title: "Documentation",
-                message: "Guides for Aquinas will appear here as they become available."
-            )
+        case .userGuide:
+            UserGuideSettingsView(onSelectTopic: onSelectUserGuideTopic)
+        case .userGuideTopic(let id):
+            if let topic = UserGuideTopic.topic(id: id) {
+                UserGuideTopicView(topic: topic, collectedDefinitions: $collectedDefinitions)
+            }
         case .reportBug:
             SettingsInformationView(
                 title: "Report a Bug",

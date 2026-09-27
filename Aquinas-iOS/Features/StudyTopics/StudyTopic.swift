@@ -76,24 +76,35 @@ enum StudyTopicInsightTreeStore {
 
 @MainActor
 enum StudyTopicInsightTreeBuilder {
+    /// Every bookmarked Insight from every conversation in the topic: those saved from the
+    /// conversation, plus any bookmarked Insight that appears in its transcript (chips, inline
+    /// Insights, branch concepts) however it was bookmarked.
     static func snapshot(
         topicID: UUID,
         conversations: [InquiryConversation],
         savedInsights: [ConceptDefinition],
         insightIDs: @MainActor (UUID) -> Set<UUID> = ConversationInsightMembershipStore.insightIDs(for:)
     ) -> [ConceptDefinition] {
-        let topicConversationIDs = conversations
-            .filter { $0.studyTopicID == topicID }
-            .map(\.id)
-        let topicInsightIDs = topicConversationIDs.reduce(into: Set<UUID>()) {
-            $0.formUnion(insightIDs($1))
+        let topicConversations = conversations.filter { $0.studyTopicID == topicID }
+        var topicInsightIDs = Set<UUID>()
+        var topicInsightTerms = Set<String>()
+        for conversation in topicConversations {
+            topicInsightIDs.formUnion(insightIDs(conversation.id))
+            for insight in ChatBranch.mentionedInsights(in: conversation.branches) {
+                topicInsightIDs.insert(insight.id)
+                topicInsightTerms.insert(term(insight.word))
+            }
         }
 
         return savedInsights
-            .filter { topicInsightIDs.contains($0.id) }
+            .filter { topicInsightIDs.contains($0.id) || topicInsightTerms.contains(term($0.word)) }
             .uniquedByWord()
             .sorted {
                 $0.word.localizedCaseInsensitiveCompare($1.word) == .orderedAscending
             }
+    }
+
+    private static func term(_ word: String) -> String {
+        word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 }

@@ -247,6 +247,7 @@ final class ModelTaskQueue {
         originPage: ModelTaskOriginPage? = nil,
         conversationID: UUID? = nil,
         priority: ModelTaskPriority = .foreground,
+        runsNext: Bool = false,
         onStart: @escaping () -> Void = {},
         onCancel: @escaping () -> Void = {},
         operation: @escaping () async -> Void
@@ -286,7 +287,9 @@ final class ModelTaskQueue {
             currentTask = nil
             waitingJobs.insert(currentJob, at: 0)
         }
-        waitingJobs.insert(job, at: defaultInsertionIndex(for: priority))
+        // `runsNext` lets follow-up work for a just-finished answer (its Insight Tree mapping)
+        // run before questions that were already waiting behind it.
+        waitingJobs.insert(job, at: runsNext ? 0 : defaultInsertionIndex(for: priority))
         publishUpcomingTasks()
         startNextIfNeeded()
         return job.id

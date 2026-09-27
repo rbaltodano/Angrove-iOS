@@ -39,7 +39,7 @@ final class InsightQuestionBarViewModel: ObservableObject {
         return messages.first { $0.id == pendingAssistantID }?.funStatusText
     }
 
-    // Prototype response — replace with real API call when backend is wired.
+    // Prototype response — replace with a real AquinasModel call when this is wired.
     private static let simulatedResponse = """
     Thomas Aquinas is one of the most influential figures in western thought. Often referred to as the Doctor Angelicus (the Angelic Doctor), he is the primary architect of [Thomism](aq://thomism), a philosophical system that synthesized Aristotelian logic with Christian doctrine. The Didache (pronounced DID-ah-kay), also known as "The Teaching of the Twelve Apostles," is one of the most significant documents from the early Christian era. It's essentially the first church manual — a concise guide on ethics, rituals, and organizational hierarchy. It comes from the same root as the English word "didactic."
     """
@@ -99,7 +99,7 @@ final class InsightQuestionBarViewModel: ObservableObject {
 struct InsightQuestionBar: View {
     @Binding var contextInsight: InsightModel?
     var inputFont: ConversationFontOption = .serif
-    var conversationFontSize: ConversationFontSizeOption = .small
+    var conversationFontSize: ConversationFontSizeOption = .medium
     var onSaveThread: (([EphemeralMessage]) -> Void)? = nil
     var onOpen: (() -> Void)? = nil
     var onKeyboardActiveChange: ((Bool) -> Void)? = nil

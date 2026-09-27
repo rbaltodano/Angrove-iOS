@@ -12,10 +12,8 @@ import CoreML
 /// noise: empirically, unrelated pairs ("Quantum Entanglement" / "Photosynthesis") routinely score
 /// *higher* than related ones, so any fixed membership threshold either merges everything into one
 /// cluster or splits everything apart — there's no working cutoff in that space. MiniLM is the
-/// same embedding space `MiniLMGroundingProvider` searches the grounding corpus with, and the same
-/// one the backend's persisted Insight Tree clusters with server-side, so on-device clustering
-/// (the global Insight Library, and the local fallback before a conversation's persisted tree
-/// loads) finally compares apples to apples instead of noise to noise.
+/// same embedding space `MiniLMGroundingProvider` searches the grounding corpus with, so on-device
+/// Insight Tree clustering compares apples to apples instead of noise to noise.
 struct MiniLMEmbeddingProvider: EmbeddingProvider {
     static let version = "minilm-l6-v2.v1"
     var version: String { Self.version }

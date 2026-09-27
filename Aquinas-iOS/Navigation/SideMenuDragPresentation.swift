@@ -51,7 +51,9 @@ private struct SideMenuDragPresentation: ViewModifier {
                       !(activePage == .settings && isSettingsDetailVisible),
                       abs(value.translation.width) > abs(value.translation.height) else { return }
                 guard value.translation.width > 0 else { return }
+                // Pages with horizontally scrolling content only open the menu from the edge.
                 let requiresLeadingEdge = activePage == .insights || activePage == .conversation
+                    || activePage == .library
                 guard !requiresLeadingEdge || value.startLocation.x < 30 else { return }
 
                 if !isDragging {

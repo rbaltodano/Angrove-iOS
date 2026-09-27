@@ -260,11 +260,10 @@ enum DailyQuestionSourceSelector {
     }
 }
 
-/// Picks a conversation to scope the four backend-fetched Home sections to (Loose Thread, Today
-/// in History, Terms You Glossed Over, Your Quote). Reuses `DailyQuestionSourceSelector`'s
-/// ordering -- Study Topics excluded, active conversation first, then most-recently-created --
-/// without its `hasQuestion`/`hasAnswer` transcript requirement, since these routes don't need a
-/// real Q&A exchange to scope to, just *a* conversation.
+/// Picks a conversation to scope Home's conversation-based discovery sections to (Loose Thread,
+/// Terms You Glossed Over, Your Quote). Reuses `DailyQuestionSourceSelector`'s ordering -- Study
+/// Topics excluded, active conversation first, then most-recently-created -- without its
+/// `hasQuestion`/`hasAnswer` transcript requirement.
 enum HomeSectionSourceSelector {
     static func selectConversationID(
         conversations: [InquiryConversation],

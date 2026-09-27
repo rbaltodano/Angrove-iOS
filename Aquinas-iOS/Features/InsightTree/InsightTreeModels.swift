@@ -20,8 +20,8 @@ struct InsightModel: Identifiable, Codable, Equatable, Hashable {
     /// different, incompatible vector space and must be recomputed rather than compared —
     /// see `EmbeddingProvider`'s doc comment.
     var embeddingVersion: String?
-    /// Backend-computed relationship to the owning Node. Present for persisted conversation
-    /// trees; nil for the legacy in-memory/global-library canvas.
+    /// Precomputed relationship to the owning Node. When nil, layout derives distance from the
+    /// Insight and Node embeddings.
     var relatednessToNode: Double?
     var distanceToNode: Double?
 

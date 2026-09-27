@@ -27,6 +27,10 @@ typealias BlurFadeModifier = GlideFadeModifier
 
 /// Simple wrapping layout for streamed words and inline insight links.
 struct FlowLayout: Layout {
+    /// Extra space between rows, on top of each row's text height. Plain text meant to read like
+    /// a model response uses this as its `lineSpacing`.
+    static let rowSpacing: CGFloat = 8
+
     var spacing: CGFloat = 4.5
     var alignment: TextAlignment = .center
 
@@ -119,7 +123,7 @@ struct FlowLayout: Layout {
                     rowRanges.append((rowStart..<idx, max(0, currentX - spacing)))
                     rowStart = idx
                     currentX = 0
-                    currentY += lineHeight + 8
+                    currentY += lineHeight + FlowLayout.rowSpacing
                     lineHeight = 0
                 }
                 points.append(CGPoint(x: currentX, y: currentY))

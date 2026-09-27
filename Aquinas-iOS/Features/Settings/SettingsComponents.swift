@@ -151,15 +151,17 @@ struct SettingsChoiceRow<Option: SettingsChoice>: View {
                 }
             } label: {
                 HStack(spacing: 4) {
-                    Text(selection.title)
+                    BlurSwapText(Text(selection.title), value: selection)
                         .lineLimit(1)
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: 8, weight: .bold))
                 }
                 .font(.custom("Figtree-Bold", size: 12))
                 .foregroundStyle(AquinasTheme.Colors.primaryReadable)
+                .animation(.spring(response: 0.42, dampingFraction: 0.84), value: selection)
             }
             .buttonStyle(.plain)
+            .pulsesOnChange(of: selection, anchor: .trailing)
         }
         .frame(maxWidth: .infinity, minHeight: 32)
     }

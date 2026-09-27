@@ -77,6 +77,42 @@ nonisolated struct InquirySnapshotFileStore {
         try write(snapshot, createsBackup: true)
     }
 
+    /// A mounted page can save a snapshot captured before an offscreen job finished. Keep
+    /// completed slots when that stale snapshot still contains the identical pending question.
+    /// Imports use `write` directly; clear/delete change the branch or remove its blocks.
+    func savePreservingCompletedResponses(_ snapshot: InquiryPersistenceSnapshot) throws {
+        var snapshot = snapshot
+        if let stored = load() {
+            for conversationIndex in snapshot.conversations.indices {
+                guard let savedConversation = stored.conversations.first(where: {
+                    $0.id == snapshot.conversations[conversationIndex].id
+                }) else { continue }
+                for branchIndex in snapshot.conversations[conversationIndex].branches.indices {
+                    var branch = snapshot.conversations[conversationIndex].branches[branchIndex]
+                    guard let savedBranch = savedConversation.branches.first(where: { $0.id == branch.id }),
+                          branch.topQuestionText == savedBranch.topQuestionText else { continue }
+                    for index in branch.activeChatBlocks.indices {
+                        guard branch.activeChatBlocks[index] == .text(""),
+                              savedBranch.activeChatBlocks.indices.contains(index),
+                              case .text(let answer) = savedBranch.activeChatBlocks[index],
+                              !answer.isEmpty,
+                              branch.activeChatBlocks.prefix(index) == savedBranch.activeChatBlocks.prefix(index)
+                        else { continue }
+                        branch.activeChatBlocks[index] = .text(answer)
+                        if let presentation = savedBranch.responsePresentation(at: index) {
+                            branch.setResponsePresentation(presentation)
+                        }
+                        if index == branch.activeChatBlocks.count - 1 {
+                            branch.showBottomInput = true
+                        }
+                    }
+                    snapshot.conversations[conversationIndex].branches[branchIndex] = branch
+                }
+            }
+        }
+        try save(snapshot)
+    }
+
     /// Replaces only the branch whose model response just completed. This narrow write is used by
     /// shell-owned model work after its originating SwiftUI screen has been removed, so a stale
     /// view snapshot cannot turn the completed answer back into an empty response placeholder.
@@ -95,6 +131,25 @@ nonisolated struct InquirySnapshotFileStore {
         }
         snapshot.conversations[conversationIndex].branches[branchIndex] = completedBranch
         try write(snapshot, createsBackup: true)
+    }
+
+    /// Read and update one existing response slot. Navigation must not determine its destination,
+    /// and a late result must never recreate a cleared/deleted branch or missing question.
+    func completeDetachedResponse(
+        branchID: UUID,
+        conversationID: UUID,
+        responseIndex: Int,
+        annotatedText: String,
+        presentation: ResponsePresentationMetadata
+    ) throws {
+        guard let snapshot = load(),
+              var branch = snapshot.conversations.first(where: { $0.id == conversationID })?
+                .branches.first(where: { $0.id == branchID }),
+              branch.activeChatBlocks.indices.contains(responseIndex) else { return }
+        branch.activeChatBlocks[responseIndex] = .text(annotatedText)
+        branch.setResponsePresentation(presentation)
+        branch.showBottomInput = true
+        try saveCompletedBranch(branch, conversationID: conversationID)
     }
 
     func exportData() throws -> Data {
@@ -254,6 +309,24 @@ enum InquiryPersistenceStore {
         shared.saveCompletedBranch(completedBranch, conversationID: conversationID)
     }
 
+    /// Completes a response for a conversation that is no longer displayed, addressing the
+    /// persisted branch by ID rather than through any view binding.
+    static func completeDetachedResponse(
+        branchID: UUID,
+        conversationID: UUID,
+        responseIndex: Int,
+        annotatedText: String,
+        presentation: ResponsePresentationMetadata
+    ) {
+        shared.completeDetachedResponse(
+            branchID: branchID,
+            conversationID: conversationID,
+            responseIndex: responseIndex,
+            annotatedText: annotatedText,
+            presentation: presentation
+        )
+    }
+
     static func exportData() throws -> Data {
         try shared.exportData()
     }
@@ -300,12 +373,30 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
     }
 
     func save(_ snapshot: InquiryPersistenceSnapshot) {
-        enqueue("Unable to save inquiry snapshot") { try $0.save(snapshot) }
+        enqueue("Unable to save inquiry snapshot") { try $0.savePreservingCompletedResponses(snapshot) }
     }
 
     func saveCompletedBranch(_ completedBranch: ChatBranch, conversationID: UUID) {
         enqueue("Unable to save completed response") {
             try $0.saveCompletedBranch(completedBranch, conversationID: conversationID)
+        }
+    }
+
+    func completeDetachedResponse(
+        branchID: UUID,
+        conversationID: UUID,
+        responseIndex: Int,
+        annotatedText: String,
+        presentation: ResponsePresentationMetadata
+    ) {
+        enqueue("Unable to save detached response") {
+            try $0.completeDetachedResponse(
+                branchID: branchID,
+                conversationID: conversationID,
+                responseIndex: responseIndex,
+                annotatedText: annotatedText,
+                presentation: presentation
+            )
         }
     }
 

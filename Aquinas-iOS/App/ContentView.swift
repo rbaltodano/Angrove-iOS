@@ -38,6 +38,8 @@ struct ContentView: View {
     @State private var activePage: AppPage = .home
     @State private var displayedPage: AppPage = .home
     @State private var isLibraryReaderVisible = false
+    /// Measured height of the shell's single Model Controls bar, reserved as bottom inset.
+    @State private var modelControlsHeight: CGFloat = 0
     @State private var libraryNavigationRequest: LibraryNavigationRequest?
     @State private var hasAppliedStartupDestination = false
     @State private var appLockController = AppLockController()
@@ -121,8 +123,6 @@ struct ContentView: View {
     @State private var globalInsightIsPersonalityMenuOpen: Bool = false
     @State private var globalInsightHighlightedBridge: (UUID, UUID)? = nil
     @State private var globalInsightHighlightRequest: Int = 0
-    @State private var globalInsightHighlightedNodeID: UUID? = nil
-    @State private var globalInsightNodeFocusRequest: Int = 0
     @State private var globalInsightIsSearchActive: Bool = false
     @State private var globalInsightSearchQuery: String = ""
     @State private var globalInsightSearchResultIndex: Int = 0
@@ -137,15 +137,15 @@ struct ContentView: View {
     @State private var studyTopicsControls = StudyTopicsPageControls()
     @State private var modelCompletionNotifications = ModelCompletionNotificationCenter()
     @State private var questionOfTheDay = HomeQuestionOfTheDayStore.loadPending()
-    @State private var dailyQuestionRefreshTask: Task<Void, Never>? = nil
-    @State private var dailyQuestionGenerationRetryNotBefore = Date.distantPast
-    @State private var isDailyQuestionGenerationErrorPresented: Bool = false
     @State private var homeLooseThread: LooseThreadCard? = nil
     @State private var homeTodayInHistory: TodayInHistoryCard? = nil
     @State private var homeGlossedTerm: GlossedTermCard? = nil
     @State private var homeYourQuote: YourQuoteCard? = nil
-    @Environment(\.homeBackendService) private var homeBackendService
-    @AppStorage("aquinas.settings.conversationFontSize") private var conversationFontSize: ConversationFontSizeOption = .small
+    @State private var conversationNodeFocusRequest: ConversationNodeFocusRequest? = nil
+    @State private var dailyQuestionRefreshTask: Task<Void, Never>? = nil
+    @State private var dailyQuestionGenerationRetryNotBefore = Date.distantPast
+    @State private var isDailyQuestionGenerationErrorPresented: Bool = false
+    @AppStorage("aquinas.settings.conversationFontSize") private var conversationFontSize: ConversationFontSizeOption = .medium
     @AppStorage(SettingsStorageKey.conversationTextAlignment) private var conversationTextAlignment: ConversationTextAlignmentOption = .center
     @AppStorage("aquinas.settings.inputFont") private var inputFont: ConversationFontOption = .serif
     @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .sans
@@ -288,13 +288,9 @@ struct ContentView: View {
 
     // MARK: - Page Views
 
-    /// The single, persistent Model Controls bar shown across every non-conversation page.
-    /// Anchored via `.safeAreaInset` outside the page-content fade/offset transition, so it stays
-    /// in place while page content animates behind it — its own content simply swaps (with an
-    /// implicit crossfade) to match `displayedPage`, mirroring the button-swap feel already used
-    /// when switching between internal conversation pages. The conversation page keeps its own
-    /// composer dock (`InquiryControlDock`), which is far more than a status/action pill and stays
-    /// owned by `CurrentConversationView`.
+    /// Publishes the shell-owned pages' controls to the app's single `ModelControlsHost`. These
+    /// views render nothing themselves; the conversation, the Library reader, and Study Topic
+    /// trees publish their own (higher-priority) controls from inside their pages.
     @ViewBuilder private func globalModelControlsBar(
         usesLandscapeInsightSplit: Bool
     ) -> some View {
@@ -307,20 +303,10 @@ struct ContentView: View {
                 action: {
                     newConversationRequest += 1
                     activePage = .conversation
-                }
+                },
+                surfaceID: "home",
+                extraFade: (height: 350, opacity: 1)
             )
-            .background(alignment: .bottom) {
-                LinearGradient(
-                    colors: [
-                        AquinasTheme.Colors.canvas.opacity(0),
-                        AquinasTheme.Colors.canvas
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 350)
-                .allowsHitTesting(false)
-            }
         case .conversation:
             EmptyView()
         case .library:
@@ -328,7 +314,8 @@ struct ContentView: View {
                 PageModelControls(
                     modelTasks: modelTasks,
                     popupState: modelTasksPopupState,
-                    alwaysShowModelStatus: true
+                    alwaysShowModelStatus: true,
+                    surfaceID: "library"
                 )
             }
         case .openConversations:
@@ -339,12 +326,14 @@ struct ContentView: View {
                 action: {
                     newConversationRequest += 1
                     activePage = .conversation
-                }
+                },
+                surfaceID: "open-conversations"
             )
         case .settings:
             PageModelControls(
                 modelTasks: modelTasks,
-                popupState: modelTasksPopupState
+                popupState: modelTasksPopupState,
+                surfaceID: "settings"
             )
         case .insights:
             GlobalInsightsModelControls(
@@ -413,11 +402,8 @@ struct ContentView: View {
                     : nil,
                 onConfirmUpdate: updateGlobalInsightTree,
                 onDeclineUpdate: dismissGlobalInsightTreeUpdate,
-                contextCard: globalInsightsContextCardState
-            )
-            .frame(maxWidth: usesLandscapeInsightSplit ? 420 : .infinity)
-            .frame(
-                maxWidth: .infinity,
+                contextCard: globalInsightsContextCardState,
+                maxWidth: usesLandscapeInsightSplit ? 420 : nil,
                 alignment: usesLandscapeInsightSplit ? .trailing : .center
             )
         case .studyTopics:
@@ -431,7 +417,8 @@ struct ContentView: View {
                     confirmationTitle: studyTopicsControls.confirmationTitle,
                     onConfirm: studyTopicsControls.onConfirm,
                     onDecline: studyTopicsControls.onDecline,
-                    action: studyTopicsControls.action
+                    action: studyTopicsControls.action,
+                    surfaceID: "study-topics"
                 )
             }
         }
@@ -477,8 +464,6 @@ struct ContentView: View {
             onStudyToolsActiveChange: { globalInsightStudyToolsActive = $0 },
             onStudyBranchCountChange: { globalInsightStudyBranchCount = $0 },
             restoreSelectedInsightID: globalInsightRestoreSelectionID,
-            restoreSelectedNodeID: globalInsightHighlightedNodeID,
-            nodeSelectionRequest: globalInsightNodeFocusRequest,
             promotedInsightIDs: globalInsightPromotedIDs,
             onRemoveInsight: { def in
                 withAnimation {
@@ -640,6 +625,7 @@ struct ContentView: View {
             requestedForkConcept: $requestedForkConcept,
             insightConversationQuoteRequest: $insightConversationQuoteRequest,
             newConversationInsightQuoteRequest: $newConversationInsightQuoteRequest,
+            conversationNodeFocusRequest: $conversationNodeFocusRequest,
             conversationFontSize: conversationFontSize,
             conversationTextAlignment: conversationTextAlignment,
             inputFont: inputFont,
@@ -784,9 +770,13 @@ struct ContentView: View {
                                         activePage = .insights
                                     },
                                     onFocusNode: { nodeID in
-                                        globalInsightHighlightedNodeID = nodeID
-                                        globalInsightNodeFocusRequest += 1
-                                        activePage = .insights
+                                        guard let card = homeLooseThread,
+                                              card.nodeID == nodeID else { return }
+                                        conversationNodeFocusRequest = ConversationNodeFocusRequest(
+                                            conversationID: card.conversationID,
+                                            nodeID: nodeID
+                                        )
+                                        activePage = .conversation
                                     },
                                     onStartTodayInHistory: { card in
                                         pendingNewConversationQuestion = card.title
@@ -852,6 +842,7 @@ struct ContentView: View {
                                     inputFont: $inputFont,
                                     responseFont: $responseFont,
                                     conversationPersonality: $conversationPersonality,
+                                    collectedDefinitions: $collectedDefinitions,
                                     onOpenMenu: presentGlobalSideMenu,
                                     onDetailVisibilityChange: { isSettingsDetailVisible = $0 },
                                     onClearInsightTree: clearInsightTree
@@ -937,14 +928,21 @@ struct ContentView: View {
                     // Matches the pages' canvas so the slide offset during page transitions
                     // doesn't reveal a differently tinted strip behind the page.
                     .background(canvasColor)
-                    // Rendered here — outside the fade/offset applied to the two branches above —
-                    // so the Model Controls bar stays put and simply swaps its own content while
-                    // page transitions play, instead of animating (and briefly disappearing) with
-                    // the page itself. `.safeAreaInset` also gives every page's scroll content the
-                    // same automatic bottom clearance it always had, without hand-measuring heights.
-                    .safeAreaInset(edge: .bottom) {
+                    .background {
                         globalModelControlsBar(usesLandscapeInsightSplit: usesLandscapeInsightSplit)
-                            .animation(.easeInOut(duration: 0.22), value: displayedPage)
+                    }
+                    // The app's one Model Controls bar. It lives here — outside every page and the
+                    // fade/offset applied to them — so it never swaps out; only the buttons the
+                    // visible page publishes change inside it. The inset reserves its measured
+                    // height so every page's content keeps the same bottom clearance.
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        Color.clear.frame(height: modelControlsHeight)
+                    }
+                    .overlayPreferenceValue(ModelControlsPreferenceKey.self, alignment: .bottom) { configuration in
+                        ModelControlsHost(configuration: configuration)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                                modelControlsHeight = height
+                            }
                     }
                     .eraseToAnyView()
                 }
@@ -1446,34 +1444,40 @@ struct ContentView: View {
         collectedDefinitions = InsightLibraryStore.load()
     }
 
-    /// Fetches the four backend-driven Home sections. Fail-quiet like every other background
-    /// fetch in this codebase: a `nil` result (whether from a backend "nothing qualifies" `null`
-    /// or a network failure) simply means that section doesn't render -- no error state, no retry.
+    /// Selects the four on-device Home discovery sections. Each is fail-quiet: a `nil` result
+    /// simply means that section doesn't render -- no error state, no placeholder.
     private func refreshHomeSections() async {
-        guard AquinasBackendConfiguration.canRecoverFromCurrentDevice,
-              let conversationID = HomeSectionSourceSelector.selectConversationID(
-                conversations: sideMenuConversations,
-                activeConversationID: sideMenuActiveConversationID
-              ) else {
+        let todayInHistory = HomeDiscovery.todayInHistory()
+        guard let conversationID = HomeSectionSourceSelector.selectConversationID(
+            conversations: sideMenuConversations,
+            activeConversationID: sideMenuActiveConversationID
+        ) else {
+            withAnimation(.easeInOut(duration: 0.35)) {
+                homeTodayInHistory = todayInHistory
+                homeLooseThread = nil
+                homeGlossedTerm = nil
+                homeYourQuote = nil
+            }
             return
         }
 
-        async let looseThread = try? homeBackendService.looseThread(conversationID: conversationID)
-        async let todayInHistory = try? homeBackendService.todayInHistory(
-            conversationID: conversationID,
-            overrideDate: nil
+        let savedInsights = collectedDefinitions
+        let glossedTerm = HomeDiscovery.glossedTerm(
+            in: GlossedTermStore.records(for: conversationID),
+            savedInsightIDs: Set(savedInsights.map(\.id))
         )
-        async let glossedTerm = try? homeBackendService.glossedTerm(conversationID: conversationID)
-        async let yourQuote = try? homeBackendService.yourQuote(conversationID: conversationID)
-
-        let (resolvedLooseThread, resolvedTodayInHistory, resolvedGlossedTerm, resolvedYourQuote) =
-            await (looseThread, todayInHistory, glossedTerm, yourQuote)
+        let yourQuote = HomeDiscovery.yourQuote(in: conversationID)
+        let looseThread = await HomeDiscovery.looseThread(
+            in: conversationID,
+            savedInsights: savedInsights,
+            embeddingProvider: embeddingProvider
+        )
 
         withAnimation(.easeInOut(duration: 0.35)) {
-            homeLooseThread = resolvedLooseThread ?? nil
-            homeTodayInHistory = HomeTodayInHistoryStore.isAnswered() ? nil : (resolvedTodayInHistory ?? nil)
-            homeGlossedTerm = resolvedGlossedTerm ?? nil
-            homeYourQuote = resolvedYourQuote ?? nil
+            homeTodayInHistory = todayInHistory
+            homeLooseThread = looseThread
+            homeGlossedTerm = glossedTerm
+            homeYourQuote = yourQuote
         }
     }
 
@@ -1511,7 +1515,7 @@ struct ContentView: View {
 
         Task { @MainActor in
             let reconciledInsights = await Task.detached(priority: .userInitiated) {
-                Self.reconcileGlobalInsights(
+                GlobalInsightReconciliation.reconcile(
                     existing: existingSnapshot,
                     incoming: incomingSnapshot
                 )
@@ -1535,71 +1539,6 @@ struct ContentView: View {
             modelTasksPopupState.reset()
             UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.7)
         }
-    }
-
-    /// Reconciles newly collected Insights against the existing global library without doing an
-    /// all-pairs comparison. Only the nearest existing candidate is considered, and only a very
-    /// high similarity is treated as the same underlying Insight. Unrelated Insights are retained
-    /// unchanged; parent/child and merely related concepts remain separate.
-    private nonisolated static func reconcileGlobalInsights(
-        existing: [ConceptDefinition],
-        incoming: [ConceptDefinition]
-    ) -> [ConceptDefinition] {
-        var result: [ConceptDefinition] = []
-        var resultIDs = Set<UUID>()
-        for insight in existing where resultIDs.insert(insight.id).inserted {
-            result.append(insight)
-        }
-        let threshold = 0.86
-        var embeddingsByID: [UUID: [Double]] = [:]
-        for insight in result {
-            embeddingsByID[insight.id] = computeEmbedding(
-                for: "\(insight.word). \(insight.semanticDefinition)"
-            )
-        }
-
-        for candidate in incoming.uniquedByWord() {
-            guard let candidateEmbedding = computeEmbedding(
-                for: "\(candidate.word). \(candidate.semanticDefinition)"
-            ) else { continue }
-
-            let nearest = result.compactMap { saved -> (ConceptDefinition, Double)? in
-                guard let savedEmbedding = embeddingsByID[saved.id] else { return nil }
-                return (saved, cosineSimilarity(candidateEmbedding, savedEmbedding))
-            }.max { $0.1 < $1.1 }
-
-            guard let (saved, similarity) = nearest, similarity >= threshold else {
-                if resultIDs.insert(candidate.id).inserted {
-                    result.append(candidate)
-                    embeddingsByID[candidate.id] = candidateEmbedding
-                }
-                continue
-            }
-
-            // Keep the shorter title as the canonical display name. Prefer the more informative
-            // definition when one is clearly longer, avoiding duplicate chips while retaining the
-            // existing Insight's stable identity.
-            let canonicalTitle = candidate.word.split(separator: " ").count < saved.word.split(separator: " ").count
-                ? candidate.word : saved.word
-            let canonicalDefinitions = candidate.semanticDefinition.count > saved.semanticDefinition.count
-                ? candidate.contextualDefinitions : saved.contextualDefinitions
-            let merged = ConceptDefinition(
-                id: saved.id,
-                word: canonicalTitle,
-                partOfSpeech: saved.partOfSpeech,
-                pronunciation: saved.pronunciation,
-                meaning: canonicalDefinitions.first?.meaning ?? saved.meaning,
-                example: saved.example,
-                definitions: canonicalDefinitions
-            )
-            if let index = result.firstIndex(where: { $0.id == saved.id }) {
-                result[index] = merged
-                embeddingsByID[saved.id] = computeEmbedding(
-                    for: "\(merged.word). \(merged.semanticDefinition)"
-                )
-            }
-        }
-        return result
     }
 
     private func dismissGlobalInsightTreeUpdate() {
@@ -1746,7 +1685,7 @@ private struct DailyQuestionGenerationAlert: ViewModifier {
             Button("Cancel", role: .cancel) { }
             Button("Try Again", action: retry)
         } message: {
-            Text("No placeholder question was created. Check that the Aquinas backend is available and try again.")
+            Text("No placeholder question was created. The on-device model couldn’t finish; please try again.")
         }
     }
 }

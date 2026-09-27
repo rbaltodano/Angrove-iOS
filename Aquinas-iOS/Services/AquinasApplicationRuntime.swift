@@ -30,9 +30,6 @@ final class AquinasApplicationRuntime {
             embeddingProvider = NLEmbeddingProvider()
         }
 #if DEBUG
-        let forcesMacBackend = ProcessInfo.processInfo.arguments.contains(
-            "--force-backend-model"
-        )
         let modelStore: LiteRTModelStore
         do {
             modelStore = try Self.developmentOverrideModelStore(
@@ -49,10 +46,9 @@ final class AquinasApplicationRuntime {
             fatalError("Model override failed: \(error.localizedDescription)")
         }
 #else
-        let forcesMacBackend = false
         let modelStore = defaultModelStore
 #endif
-        if !forcesMacBackend, modelStore.hasInstalledModel() {
+        if modelStore.hasInstalledModel() {
             let runtime = LiteRTAquinasRuntime(modelStore: modelStore)
             let lifecycle = ModelRuntimeLifecycleManager(
                 driver: runtime,
@@ -70,7 +66,7 @@ final class AquinasApplicationRuntime {
             modelTasks = ModelTaskQueue(runtimeLifecycle: lifecycle)
             isOnDevice = true
         } else {
-            model = BackendAquinasModel()
+            model = UnavailableAquinasModel()
             modelTasks = ModelTaskQueue()
             isOnDevice = false
         }

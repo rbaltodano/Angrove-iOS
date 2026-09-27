@@ -8,13 +8,13 @@ import SwiftUI
 
 // MARK: - Model Boundary
 
-/// The single boundary between the app and "the model" — whatever text-generation backend is
+/// The single boundary between the app and "the model" — whatever text-generation engine is
 /// answering conversations, defining terms, labeling subjects, blending concepts, and generating
 /// Make Node children. Every generative call in the app funnels through here.
-/// `BackendAquinasModel` is the live environment default; `MockAquinasModel` remains available for
-/// previews and tests only. See
-/// `MODEL-INTEGRATION.md` §3/§6 for the backend JSON/route contract and `INSIGHT-TREE.md` §10 for
-/// the Insight Tree-specific seam inventory.
+/// `LiteRTAquinasModel` is the live on-device model, composed by `AquinasApplicationRuntime`;
+/// `UnavailableAquinasModel` stands in when no verified model is installed. `MockAquinasModel`
+/// remains available for previews and tests only. See `MODEL-INTEGRATION.md` for the structured
+/// output contract and `INSIGHT-TREE.md` §10 for the Insight Tree-specific seam inventory.
 protocol AquinasModel {
     /// The response to the running conversation: plain prose plus the terms worth defining within
     /// it (see `ModelResponse`). This complete-response operation remains available as the
@@ -59,8 +59,8 @@ protocol AquinasModel {
     /// descriptions — used to name a Node Concept.
     func labelSubject(forTitles titles: [String]) async throws -> String
 
-    /// Extracts this turn's main subject (label + summary) for the on-device-only Insight Tree
-    /// fallback, used when the backend-owned persisted tree is unreachable. `nil` means
+    /// Extracts this turn's main subject (label + summary) to seed the on-device Insight Tree.
+    /// `nil` means
     /// extraction genuinely failed. This always returns a candidate for every turn — whether it
     /// actually becomes a new Node Concept or attaches to an existing one is decided by the
     /// caller via embedding similarity against the Nodes already on the tree, not by this call;
@@ -86,6 +86,16 @@ protocol AquinasModel {
         conversationTitle: String,
         insights: [ConceptDefinition]
     ) async throws -> DailyQuestionDraft
+
+    /// Judges whether a user's own message reads as an original synthesis, insight, or judgment
+    /// worth resurfacing on Home as "Your Quote". The model never rewrites the message.
+    func assessQuoteNotability(_ message: String) async throws -> QuoteNotability
+}
+
+struct QuoteNotability: Equatable {
+    let isNotable: Bool
+    /// One short reason when notable; `nil` otherwise.
+    let reason: String?
 }
 
 enum AquinasModelActionError: Error {
@@ -95,9 +105,8 @@ enum AquinasModelActionError: Error {
 }
 
 extension AquinasModel {
-    /// Only `LiteRTAquinasModel` implements this real on-device fallback; every other model
-    /// boundary (backend-connected, mock) has no use for it, so this default keeps them at
-    /// zero extra surface area.
+    /// Only `LiteRTAquinasModel` implements this; every other model boundary (unavailable, mock)
+    /// has no use for it, so this default keeps them at zero extra surface area.
     func insightTreeSeedCandidate(
         question: String,
         response: String
@@ -142,6 +151,12 @@ extension AquinasModel {
         conversationID: UUID?
     ) async -> ConceptDefinition? {
         nil
+    }
+
+    /// Only `LiteRTAquinasModel` performs this check; other boundaries fail explicitly so no
+    /// quote is ever flagged from preview or placeholder behavior.
+    func assessQuoteNotability(_ message: String) async throws -> QuoteNotability {
+        throw AquinasModelActionError.unavailable
     }
 
     func generateQuestionOfTheDay(
@@ -308,7 +323,7 @@ enum ConversationPromptMarkup {
 }
 
 /// A term the model flagged as worth defining, with enough context to place its highlight
-/// precisely. Mirrors the backend's `key_terms` shape (MODEL-INTEGRATION.md §3) — the model
+/// precisely. Mirrors the structured-output `key_terms` shape (MODEL-INTEGRATION.md §3) — the model
 /// returns plain prose plus this structured list; application code, not the model, turns
 /// validated terms into `aq://` highlight markup, since the model isn't trusted to produce
 /// correct application URLs itself.
@@ -461,7 +476,7 @@ struct ModelResponse {
         }
         var result = mutable as String
         if let insight {
-            // The local and backend generation adapters populate `insight` only after their
+            // The generation adapter populates `insight` only after its
             // deterministic direct-definition intent gate requires and validates one. The model
             // supplies definition content; it does not decide whether a card should appear.
             result = "\(InlineInsightMarkup.marker(for: insight))\n\n\(result)"
@@ -555,7 +570,7 @@ enum InlineInsightMarkup {
 
 // MARK: - Environment
 
-private let defaultAquinasModel: AquinasModel = BackendAquinasModel()
+private let defaultAquinasModel: AquinasModel = UnavailableAquinasModel()
 
 extension EnvironmentValues {
     @Entry var aquinasModel: AquinasModel = defaultAquinasModel

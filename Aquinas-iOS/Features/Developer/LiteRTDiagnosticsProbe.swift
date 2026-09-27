@@ -64,7 +64,6 @@ enum LiteRTDiagnosticsProbe {
             report.loadSeconds = seconds(since: clock)
             let model = LiteRTAquinasModel(
                 runtime: runtime,
-                fallback: BackendAquinasModel(baseURL: URL(string: "http://127.0.0.1:9")!),
                 groundingProvider: try MiniLMGroundingProvider()
             )
             for diagnosticCase in cases(model: model) {

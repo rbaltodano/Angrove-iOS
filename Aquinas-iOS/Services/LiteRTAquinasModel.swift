@@ -6,9 +6,8 @@
 import Foundation
 import LiteRTLM
 
-/// The live local-first model boundary. Generation stays on the phone whenever LiteRT is healthy;
-/// the development backend remains a recovery path while model delivery and failure telemetry are
-/// being productionized.
+/// The live on-device model boundary. All generation runs on the phone through LiteRT; failures
+/// surface explicitly rather than falling back to another engine.
 struct LiteRTAquinasModel: AquinasModel {
 #if DEBUG
     /// Exposes the production prompt to the opt-in evidence experiment only.
@@ -20,27 +19,14 @@ struct LiteRTAquinasModel: AquinasModel {
     }
 #endif
     private let runtime: LiteRTAquinasRuntime
-    private let fallback: BackendAquinasModel
     private let groundingProvider: any AquinasGroundingProviding
 
     init(
         runtime: LiteRTAquinasRuntime,
-        fallback: BackendAquinasModel = BackendAquinasModel(),
         groundingProvider: any AquinasGroundingProviding = LocalAquinasGroundingProvider()
     ) {
         self.runtime = runtime
-        self.fallback = fallback
         self.groundingProvider = groundingProvider
-    }
-
-    /// Whether falling back to the development backend can possibly succeed. On a physical
-    /// device pointed at loopback (the shipped default) it never can, so every fallback call is
-    /// guaranteed-useless work sitting in the serialized generation path — which is exactly what
-    /// made batches of queued definitions feel stuck: each local failure paid a full engine
-    /// unload + 3.86GB reload + retry, and *then* a doomed network round trip, before the queue
-    /// could move on. `respond()` has always guarded this; every other operation did not.
-    private var canUseBackendFallback: Bool {
-        AquinasBackendConfiguration.canRecoverFromCurrentDevice
     }
 
     static func definitionRequestTerm(
@@ -510,19 +496,12 @@ struct LiteRTAquinasModel: AquinasModel {
             guard !Task.isCancelled else {
                 return ModelResponse(text: "")
             }
-            guard AquinasBackendConfiguration.canRecoverFromCurrentDevice else {
-                let response = ModelResponse(
-                    text: "The on-device Aquinas model couldn't complete that response. Please try again."
-                )
-                onUpdate(.generationStarted)
-                onUpdate(.responseText(response.text))
-                return response
-            }
-            return await fallback.respond(
-                to: context,
-                thinkingEnabled: thinkingEnabled,
-                onUpdate: onUpdate
+            let response = ModelResponse(
+                text: "The on-device Aquinas model couldn't complete that response. Please try again."
             )
+            onUpdate(.generationStarted)
+            onUpdate(.responseText(response.text))
+            return response
         }
     }
 
@@ -552,8 +531,7 @@ struct LiteRTAquinasModel: AquinasModel {
             )
         } catch {
             guard !Task.isCancelled else { return "" }
-            guard canUseBackendFallback else { return context.compactedContext ?? "" }
-            return await fallback.compact(context)
+            return context.compactedContext ?? ""
         }
     }
 
@@ -569,8 +547,7 @@ struct LiteRTAquinasModel: AquinasModel {
             )
         } catch {
             if Task.isCancelled { throw CancellationError() }
-            guard canUseBackendFallback else { throw error }
-            return try await fallback.defineTerm(term, in: context)
+            throw error
         }
     }
 
@@ -587,26 +564,8 @@ struct LiteRTAquinasModel: AquinasModel {
             )
         } catch {
             if Task.isCancelled { throw CancellationError() }
-            guard canUseBackendFallback else { throw error }
-            return try await fallback.defineTerm(
-                term,
-                in: context,
-                conversationID: conversationID
-            )
+            throw error
         }
-    }
-
-    func cachedDefinition(
-        for term: String,
-        in context: ConversationContext,
-        conversationID: UUID?
-    ) async -> ConceptDefinition? {
-        guard canUseBackendFallback else { return nil }
-        return await fallback.cachedDefinition(
-            for: term,
-            in: context,
-            conversationID: conversationID
-        )
     }
 
     func labelSubject(forTitles titles: [String]) async throws -> String {
@@ -637,8 +596,7 @@ struct LiteRTAquinasModel: AquinasModel {
             return label
         } catch {
             if Task.isCancelled { throw CancellationError() }
-            guard canUseBackendFallback else { throw error }
-            return try await fallback.labelSubject(forTitles: titles)
+            throw error
         }
     }
 
@@ -721,6 +679,34 @@ struct LiteRTAquinasModel: AquinasModel {
         }
     }
 
+    func assessQuoteNotability(_ message: String) async throws -> QuoteNotability {
+        let prompt = """
+        <TASK:QUOTE_NOTABILITY>
+        Perform a neutral application task, not persona conversation. Decide whether the user's
+        message below reads as an original synthesis, insight, or judgment worth resurfacing to
+        the user later -- not a question, not routine acknowledgment, not a request for the
+        assistant to do something. Do not rewrite, improve, or paraphrase the message. If notable,
+        give one short reason describing what makes it notable; otherwise reason is null.
+        Return JSON only, in exactly this shape: {"is_notable_insight":false,"reason":null}
+
+        User message:
+        \(message)
+        </TASK:QUOTE_NOTABILITY>
+        """
+        do {
+            let raw = try await generateStructured(prompt)
+            let payload: QuoteNotabilityPayload = try Self.decodeJSON(raw)
+            let reason = payload.reason?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return QuoteNotability(
+                isNotable: payload.isNotableInsight,
+                reason: payload.isNotableInsight && reason?.isEmpty == false ? reason : nil
+            )
+        } catch {
+            if Task.isCancelled { throw CancellationError() }
+            throw error
+        }
+    }
+
     private static func validatedInsightTreeSeed(
         label: String?,
         summary: String?
@@ -782,11 +768,7 @@ struct LiteRTAquinasModel: AquinasModel {
             }
         } catch {
             if Task.isCancelled { throw CancellationError() }
-            guard canUseBackendFallback else { throw error }
-            return try await fallback.blendConceptCandidates(
-                concepts,
-                weights: weights
-            )
+            throw error
         }
     }
 
@@ -823,8 +805,7 @@ struct LiteRTAquinasModel: AquinasModel {
             }
         } catch {
             if Task.isCancelled { throw CancellationError() }
-            guard canUseBackendFallback else { throw error }
-            return try await fallback.generateChildren(for: concept)
+            throw error
         }
     }
 
@@ -877,12 +858,7 @@ struct LiteRTAquinasModel: AquinasModel {
         } catch {
             if Task.isCancelled { throw CancellationError() }
             Self.debugQuestionOfTheDayLog("generation failed: \(String(reflecting: error))")
-            guard canUseBackendFallback else { throw error }
-            return try await fallback.generateQuestionOfTheDay(
-                from: context,
-                conversationTitle: conversationTitle,
-                insights: insights
-            )
+            throw error
         }
     }
 
@@ -2238,6 +2214,16 @@ private struct MidpointPromptSource: Encodable {
 
 private struct LabelPayload: Decodable {
     let label: String
+}
+
+private struct QuoteNotabilityPayload: Decodable {
+    let isNotableInsight: Bool
+    let reason: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case isNotableInsight = "is_notable_insight"
+        case reason
+    }
 }
 
 private struct InsightTreeSeedPayload: Decodable {

@@ -8,7 +8,7 @@ import Foundation
 /// Wipes every on-device Insight Tree artifact so the tree can be rebuilt from scratch: saved
 /// (bookmarked) Insights, the global and Study Topic tree snapshots, Nodes, positions, Make Node
 /// children, placed Midpoints, discovery dots, seeds, and pending analysis. Conversations
-/// themselves are untouched. Backend-persisted trees are not reachable from here.
+/// themselves are untouched.
 enum InsightTreeReset {
     /// Exact UserDefaults keys owned by Insight Tree stores.
     static let exactKeys: [String] = [
@@ -16,7 +16,7 @@ enum InsightTreeReset {
         "aquinas.global-insight-tree.snapshot.v1",
         "aquinas.global-insight-tree.promoted-ids.v1",
         "aquinas.study-topic.insight-trees.v1",
-        "aquinas.pendingInsightTreeAnalysis.v2",
+        "aquinas.pendingInsightTreeAnalysis.v2", // retired backend analysis queue
         "aquinas.conversation.insight-memberships.v1",
         "AquinasSeenInsightIDs",
         "AquinasUndiscoveredInsightIDs",

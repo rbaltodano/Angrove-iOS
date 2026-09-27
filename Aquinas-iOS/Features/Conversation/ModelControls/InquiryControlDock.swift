@@ -88,7 +88,6 @@ struct InquiryControlDock: View {
     @State private var addFlashOpacity: CGFloat = 1
     @AppStorage(SettingsStorageKey.modelActivityDisplay)
     private var activityDisplay: ModelActivityDisplayOption = .detailed
-    @FocusState private var isCanvasSearchFieldFocused: Bool
 
     /// Flash the Add button while in Select mode with an insight hovered, hinting it can be added.
     private var shouldFlashAdd: Bool {
@@ -206,8 +205,49 @@ struct InquiryControlDock: View {
         return "\(modelTasks.currentPosition)/\(modelTasks.totalCount)"
     }
 
+    /// Some parent views (`CurrentConversationView`, Study Topic trees) mount this invisibly;
+    /// the visible bar is the shell's single `ModelControlsHost`.
+    var surfaceID: String = "conversation"
+    var priority: Int = 1
+    var maxWidth: CGFloat? = nil
+    var alignment: Alignment = .center
+
     var body: some View {
-        ModelControlsStack(
+        Color.clear
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+            .modelControls(configuration)
+            .onAppear {
+                isScrollButtonVisible = !isAtBottom
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .aquinasMiniScrollButtonVisibilityChanged)) { notification in
+                guard let isVisible = notification.userInfo?["isVisible"] as? Bool else { return }
+                isScrollButtonVisible = isVisible
+            }
+            .onChange(of: hasCanvasHover) { _, selected in
+                if selected { canvasActionDrawID = UUID() }
+            }
+            .onChange(of: hasCanvasInsightHover) { _, isHoveringInsight in
+                if isHoveringInsight { dismissContextPopup() }
+            }
+            .onChange(of: hasSelectedCanvasItems) { _, isSelecting in
+                if isSelecting { dismissContextPopup() }
+            }
+            .onChange(of: isCanvasAskMode) { _, isAsking in
+                guard isAsking else { return }
+                dismissContextPopup()
+                modelTasksPopupState?.reset()
+                isCanvasSearchActive?.wrappedValue = false
+            }
+            .onDisappear {
+                contextCard.compactTask?.cancel()
+            }
+    }
+
+    private var configuration: ModelControlsConfiguration {
+        ModelControlsConfiguration(
+            id: surfaceID,
+            priority: priority,
             showsScrollToBottom: !isCanvasMode && isScrollButtonVisible,
             onScrollToBottom: onScrollToBottom,
             contextCard: contextCard,
@@ -221,207 +261,151 @@ struct InquiryControlDock: View {
             confirmationTitle: confirmationTitle,
             onConfirm: onConfirm,
             onDecline: onDecline,
-            controlsUpdateKey: controlLayoutKey
-        ) {
-            ZStack(alignment: .top) {
-                HStack(alignment: .center, spacing: isCanvasAskMode ? 12 : 24) {
-                if showsAttachmentControl {
-                    attachmentButton
-                        .transition(.scale(scale: 0.4).combined(with: .opacity))
-                }
+            controlsUpdateKey: controlLayoutKey,
+            buttons: AnyView(buttons),
+            pillHorizontalPadding: showsStudyControls ? 0 : (isCanvasAskMode ? 16 : 32),
+            pillVerticalPadding: showsStudyControls ? 0 : 24,
+            showsPillChrome: !showsStudyControls,
+            isControlButtonPressed: isControlButtonPressed,
+            pillReplacement: canvasSearchIsActive
+                ? canvasSearchText.map { AnyView(expandedCanvasSearchBar(text: $0)) }
+                : nil,
+            bottomPadding: isKeyboardOpen ? 8 : 24,
+            maxWidth: maxWidth,
+            alignment: alignment
+        )
+    }
 
-                if showsCanvasSearchControl {
-                    canvasSearchButton
-                        .transition(.scale(scale: 0.4).combined(with: .opacity))
-                }
+    private var buttons: some View {
+        HStack(alignment: .center, spacing: isCanvasAskMode ? 12 : 24) {
+        if showsAttachmentControl {
+            attachmentButton
+                .transition(.scale(scale: 0.4).combined(with: .opacity))
+        }
 
-                if showsModelStatusControl, let modelTasks {
-                    if let modelStatusOverride {
-                        ModelStatusButton(
-                            modelTasks: modelTasks,
-                            action: {},
-                            controlIsPressed: $isControlButtonPressed,
-                            statusOverride: modelStatusOverride
-                        )
-                        .transition(.scale(scale: 0.4).combined(with: .opacity))
-                    } else {
-                        ModelStatusButton(
-                            modelTasks: modelTasks,
-                            action: handleModelStatusTap,
-                            controlIsPressed: $isControlButtonPressed
-                        )
-                        .transition(.scale(scale: 0.4).combined(with: .opacity))
-                    }
-                }
+        if showsCanvasSearchControl {
+            canvasSearchButton
+                .transition(.scale(scale: 0.4).combined(with: .opacity))
+        }
 
-                if isCanvasMode && showsStudyControls {
-                    StudyBranchDockControls(
-                        count: studyBranchCount,
-                        onCountChange: onStudyBranchCountChange,
-                        isLeaving: isLeavingStudy
-                    )
-                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                } else if isCanvasMode && isCanvasAskMode {
-                    canvasActionButton(
-                        title: "New Conversation",
-                        icon: "plus.bubble",
-                        action: onAskInNewConversation
-                    )
-                    .transition(.scale(scale: 0.4).combined(with: .opacity))
-                    canvasActionButton(
-                        title: "Existing Conversation",
-                        icon: "bubble.left.and.bubble.right",
-                        action: onAskInExistingConversation
-                    )
-                    .transition(.scale(scale: 0.4).combined(with: .opacity))
-                    cancelCanvasAskButton
-                        .transition(.scale(scale: 0.4).combined(with: .opacity))
-                } else if isLoadingCollapsed {
-                    // Generating a placed midpoint, nothing hovered — keep only status + context.
-                    EmptyView()
-                } else if isCanvasMode && isMidpointMode {
-                    canvasActionButton(title: "Center", icon: "lines.measurement.horizontal", action: onMidpointCenter)
-                        .transition(.scale(scale: 0.4).combined(with: .opacity))
-                    canvasActionButton(title: "Place", icon: "arrow.down", action: onMidpointPlace)
-                        .transition(.scale(scale: 0.4).combined(with: .opacity))
-                } else if isCanvasMode && isStudyMode {
-                    // Study keeps the tree's hover controls; Tools opens Study's tools.
-                    if hasCanvasHover {
-                        canvasActionButton(title: usesCanvasAskFlow ? "Ask" : "Quote", icon: "arrow.turn.down.right", action: onQuoteCanvasItem)
-                            .transition(.scale(scale: 0.4).combined(with: .opacity))
-                    }
-                    studyToolsButton
-                        .transition(.scale(scale: 0.4).combined(with: .opacity))
-                } else if isCanvasMode && (hasCanvasHover || hasSelectedCanvasItems) {
-                    if hasSelectedCanvasItems && hasCanvasHover {
-                        // Selection mode + hovering an addable insight/node:
-                        // the Add button is the only control present.
-                        if canAddCanvasSelection {
-                            selectCanvasActionButton
-                                .opacity(shouldFlashAdd ? addFlashOpacity : 1)
-                                .onAppear { startAddFlashIfNeeded() }
-                                .onChange(of: shouldFlashAdd) { _, _ in startAddFlashIfNeeded() }
-                        }
-                    } else if hasSelectedCanvasItems {
-                        // Selection mode, nothing hovered: hint (1 selected) or the
-                        // selection actions (Inquire, Midpoint, and Study).
-                        if selectedCanvasItemCount == 1 {
-                            Text("Tap another Insight for actions")
-                                .font(.custom("Figtree-Bold", size: 14))
-                                .foregroundColor(AquinasTheme.Colors.paragraphText.opacity(0.75))
-                                .fixedSize()
-                                .transition(.opacity)
-                        } else if selectedCanvasItemCount == 2 {
-                            canvasActionButton(title: "Inquire", icon: "point.3.connected.trianglepath.dotted", action: onInquireConnection)
-                                .transition(.scale(scale: 0.4).combined(with: .opacity))
-                            canvasActionButton(title: "Midpoint", icon: "graph.2d", action: onMidpointConcepts)
-                                .transition(.scale(scale: 0.4).combined(with: .opacity))
-                            canvasActionButton(title: "Study", icon: "graph.3d", action: onStudyCanvasInsight)
-                                .transition(.scale(scale: 0.4).combined(with: .opacity))
-                        } else {
-                            canvasActionButton(title: "Inquire", icon: "point.3.connected.trianglepath.dotted", action: onInquireConnection)
-                                .transition(.scale(scale: 0.4).combined(with: .opacity))
-                            canvasActionButton(title: "Midpoint", icon: "graph.2d", action: onMidpointConcepts)
-                                .transition(.scale(scale: 0.4).combined(with: .opacity))
-                            canvasActionButton(title: "Study", icon: "graph.3d", action: onStudyCanvasInsight)
-                                .transition(.scale(scale: 0.4).combined(with: .opacity))
-                        }
-                    } else {
-                        // No selection yet — entry point while hovering an insight/node.
-                        selectCanvasActionButton
-                        // Study opens for a hovered Insight or Node Concept.
-                        if hasCanvasHover {
-                            canvasActionButton(title: usesCanvasAskFlow ? "Ask" : "Quote", icon: "arrow.turn.down.right", action: onQuoteCanvasItem)
-                                .transition(.scale(scale: 0.4).combined(with: .opacity))
-                            canvasActionButton(title: "Study", icon: "graph.3d", action: onStudyCanvasInsight)
-                                .transition(.scale(scale: 0.4).combined(with: .opacity))
-                        }
-                    }
-                }
-
-                if isCanvasMode && hasSelectedCanvasItems && !isCanvasAskMode && !showsStudyControls && !isStudyMode {
-                    clearCanvasSelectionButton
-                        .transition(.scale(scale: 0.4).combined(with: .opacity))
-                }
-
-                if showsContextControl {
-                    contextButton
-                        .transition(.scale(scale: 0.4).combined(with: .opacity))
-                }
-
-                if showsSendButton {
-                    sendButton
-                        .transition(.scale(scale: 0.4).combined(with: .opacity))
-                }
-                }
-                .padding(.horizontal, showsStudyControls ? 0 : (isCanvasAskMode ? 16 : 32))
-                .padding(.vertical, showsStudyControls ? 0 : 24)
-                .fixedSize(horizontal: true, vertical: true)
-                .background(AquinasTheme.Colors.canvasSecondary.opacity(showsStudyControls ? 0 : 1))
-                .clipShape(Capsule())
-                .overlay(Capsule().stroke(AquinasTheme.Colors.controlBorder.opacity(showsStudyControls ? 0 : 1), lineWidth: 1))
-                .modifier(FloatingControlPressFeedback(isButtonPressed: isControlButtonPressed))
-                .animation(.spring(response: 0.38, dampingFraction: 0.78), value: controlLayoutKey)
-                .opacity(canvasSearchIsActive ? 0 : 1)
-                .allowsHitTesting(!canvasSearchIsActive)
-
-                if canvasSearchIsActive, let canvasSearchText {
-                    expandedCanvasSearchBar(text: canvasSearchText)
-                        .padding(.horizontal, 16)
-                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
-                }
+        if showsModelStatusControl, let modelTasks {
+            if let modelStatusOverride {
+                ModelStatusButton(
+                    modelTasks: modelTasks,
+                    action: {},
+                    controlIsPressed: $isControlButtonPressed,
+                    statusOverride: modelStatusOverride
+                )
+                .transition(.scale(scale: 0.4).combined(with: .opacity))
+            } else {
+                ModelStatusButton(
+                    modelTasks: modelTasks,
+                    action: handleModelStatusTap,
+                    controlIsPressed: $isControlButtonPressed
+                )
+                .transition(.scale(scale: 0.4).combined(with: .opacity))
             }
         }
-        .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.bottom, isKeyboardOpen ? 8 : 24)
-        .animation(.spring(response: 0.42, dampingFraction: 0.86), value: isKeyboardOpen)
-        .animation(.spring(response: 0.42, dampingFraction: 0.86), value: showsSendButton)
-        .animation(.easeInOut(duration: 0.24), value: canvasSearchIsActive)
-        .background(alignment: .bottom) {
-            LinearGradient(
-                stops: [
-                    .init(color: AquinasTheme.Colors.canvas.opacity(0.95), location: 0),
-                    .init(color: AquinasTheme.Colors.canvas.opacity(0), location: 1)
-                ],
-                startPoint: UnitPoint(x: 0.5, y: 0.52),
-                endPoint: UnitPoint(x: 0.5, y: 0)
+
+        if isCanvasMode && showsStudyControls {
+            StudyBranchDockControls(
+                count: studyBranchCount,
+                onCountChange: onStudyBranchCountChange,
+                isLeaving: isLeavingStudy
             )
-            .ignoresSafeArea(edges: .bottom)
-            .allowsHitTesting(false)
-        }
-        .onAppear {
-            isScrollButtonVisible = !isAtBottom
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .aquinasMiniScrollButtonVisibilityChanged)) { notification in
-            guard let isVisible = notification.userInfo?["isVisible"] as? Bool else { return }
-            isScrollButtonVisible = isVisible
-        }
-        .onChange(of: hasCanvasHover) { _, selected in
-            if selected { canvasActionDrawID = UUID() }
-        }
-        .onChange(of: hasCanvasInsightHover) { _, isHoveringInsight in
-            if isHoveringInsight { dismissContextPopup() }
-        }
-        .onChange(of: hasSelectedCanvasItems) { _, isSelecting in
-            if isSelecting { dismissContextPopup() }
-        }
-        .onChange(of: isCanvasAskMode) { _, isAsking in
-            guard isAsking else { return }
-            dismissContextPopup()
-            modelTasksPopupState?.reset()
-            isCanvasSearchActive?.wrappedValue = false
-        }
-        .onChange(of: canvasSearchIsActive) { _, isActive in
-            if isActive {
-                DispatchQueue.main.async {
-                    isCanvasSearchFieldFocused = true
+            .transition(.opacity.combined(with: .scale(scale: 0.96)))
+        } else if isCanvasMode && isCanvasAskMode {
+            canvasActionButton(
+                title: "New Conversation",
+                icon: "plus.bubble",
+                action: onAskInNewConversation
+            )
+            .transition(.scale(scale: 0.4).combined(with: .opacity))
+            canvasActionButton(
+                title: "Existing Conversation",
+                icon: "bubble.left.and.bubble.right",
+                action: onAskInExistingConversation
+            )
+            .transition(.scale(scale: 0.4).combined(with: .opacity))
+            cancelCanvasAskButton
+                .transition(.scale(scale: 0.4).combined(with: .opacity))
+        } else if isLoadingCollapsed {
+            // Generating a placed midpoint, nothing hovered — keep only status + context.
+            EmptyView()
+        } else if isCanvasMode && isMidpointMode {
+            canvasActionButton(title: "Center", icon: "lines.measurement.horizontal", action: onMidpointCenter)
+                .transition(.scale(scale: 0.4).combined(with: .opacity))
+            canvasActionButton(title: "Place", icon: "arrow.down", action: onMidpointPlace)
+                .transition(.scale(scale: 0.4).combined(with: .opacity))
+        } else if isCanvasMode && isStudyMode {
+            // Study keeps the tree's hover controls; Tools opens Study's tools.
+            if hasCanvasHover {
+                canvasActionButton(title: usesCanvasAskFlow ? "Ask" : "Quote", icon: "arrow.turn.down.right", action: onQuoteCanvasItem)
+                    .transition(.scale(scale: 0.4).combined(with: .opacity))
+            }
+            studyToolsButton
+                .transition(.scale(scale: 0.4).combined(with: .opacity))
+        } else if isCanvasMode && (hasCanvasHover || hasSelectedCanvasItems) {
+            if hasSelectedCanvasItems && hasCanvasHover {
+                // Selection mode + hovering an addable insight/node:
+                // the Add button is the only control present.
+                if canAddCanvasSelection {
+                    selectCanvasActionButton
+                        .opacity(shouldFlashAdd ? addFlashOpacity : 1)
+                        .onAppear { startAddFlashIfNeeded() }
+                        .onChange(of: shouldFlashAdd) { _, _ in startAddFlashIfNeeded() }
+                }
+            } else if hasSelectedCanvasItems {
+                // Selection mode, nothing hovered: hint (1 selected) or the
+                // selection actions (Inquire, Midpoint, and Study).
+                if selectedCanvasItemCount == 1 {
+                    Text("Tap another Insight for actions")
+                        .font(.custom("Figtree-Bold", size: 14))
+                        .foregroundColor(AquinasTheme.Colors.paragraphText.opacity(0.75))
+                        .fixedSize()
+                        .transition(.opacity)
+                } else if selectedCanvasItemCount == 2 {
+                    canvasActionButton(title: "Inquire", icon: "point.3.connected.trianglepath.dotted", action: onInquireConnection)
+                        .transition(.scale(scale: 0.4).combined(with: .opacity))
+                    canvasActionButton(title: "Midpoint", icon: "graph.2d", action: onMidpointConcepts)
+                        .transition(.scale(scale: 0.4).combined(with: .opacity))
+                    canvasActionButton(title: "Study", icon: "graph.3d", action: onStudyCanvasInsight)
+                        .transition(.scale(scale: 0.4).combined(with: .opacity))
+                } else {
+                    canvasActionButton(title: "Inquire", icon: "point.3.connected.trianglepath.dotted", action: onInquireConnection)
+                        .transition(.scale(scale: 0.4).combined(with: .opacity))
+                    canvasActionButton(title: "Midpoint", icon: "graph.2d", action: onMidpointConcepts)
+                        .transition(.scale(scale: 0.4).combined(with: .opacity))
+                    canvasActionButton(title: "Study", icon: "graph.3d", action: onStudyCanvasInsight)
+                        .transition(.scale(scale: 0.4).combined(with: .opacity))
                 }
             } else {
-                isCanvasSearchFieldFocused = false
+                // No selection yet — entry point while hovering an insight/node.
+                selectCanvasActionButton
+                // Study opens for a hovered Insight or Node Concept.
+                if hasCanvasHover {
+                    canvasActionButton(title: usesCanvasAskFlow ? "Ask" : "Quote", icon: "arrow.turn.down.right", action: onQuoteCanvasItem)
+                        .transition(.scale(scale: 0.4).combined(with: .opacity))
+                    canvasActionButton(title: "Study", icon: "graph.3d", action: onStudyCanvasInsight)
+                        .transition(.scale(scale: 0.4).combined(with: .opacity))
+                }
             }
         }
-        .onDisappear {
-            contextCard.compactTask?.cancel()
+
+        if isCanvasMode && hasSelectedCanvasItems && !isCanvasAskMode && !showsStudyControls && !isStudyMode {
+            clearCanvasSelectionButton
+                .transition(.scale(scale: 0.4).combined(with: .opacity))
+        }
+
+        if showsContextControl {
+            contextButton
+                .transition(.scale(scale: 0.4).combined(with: .opacity))
+        }
+
+        if showsSendButton {
+            sendButton
+                .transition(.scale(scale: 0.4).combined(with: .opacity))
+        }
         }
     }
 
@@ -453,19 +437,7 @@ struct InquiryControlDock: View {
                 .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
                 .accessibilityLabel("Dismiss Insight search")
 
-                TextField(
-                    "",
-                    text: text,
-                    prompt: Text("Search")
-                        .foregroundColor(AquinasTheme.Colors.placeholderText)
-                )
-                .font(.custom("Figtree-SemiBold", size: 14))
-                .foregroundColor(AquinasTheme.Colors.paragraphText)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .submitLabel(.search)
-                .focused($isCanvasSearchFieldFocused)
-                .accessibilityLabel("Search Insights")
+                CanvasSearchTextField(text: text)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -514,13 +486,9 @@ struct InquiryControlDock: View {
         withAnimation(.easeInOut(duration: 0.24)) {
             isCanvasSearchActive?.wrappedValue = true
         }
-        DispatchQueue.main.async {
-            isCanvasSearchFieldFocused = true
-        }
     }
 
     private func dismissCanvasSearch() {
-        isCanvasSearchFieldFocused = false
         canvasSearchText?.wrappedValue = ""
         withAnimation(.easeInOut(duration: 0.24)) {
             isCanvasSearchActive?.wrappedValue = false
@@ -685,7 +653,7 @@ struct InquiryControlDock: View {
         Button(action: onSelectCanvasItem) {
             HStack(spacing: 8) {
                 selectionCountIcon
-                Text(selectedCanvasItemCount >= 1 ? "Add concept to selection" : "Select")
+                BlurSwapText(selectedCanvasItemCount >= 1 ? "Add concept to selection" : "Select")
                     .font(.custom("Figtree-Bold", size: 14))
             }
             .frame(height: 16, alignment: .center)
@@ -746,4 +714,30 @@ struct InquiryControlDock: View {
         .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
     }
 
+}
+
+/// Owns its own focus so it can live in the shell's `ModelControlsHost`, away from the dock
+/// that publishes it; it takes focus as soon as the expanded search appears.
+private struct CanvasSearchTextField: View {
+    @Binding var text: String
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        TextField(
+            "",
+            text: $text,
+            prompt: Text("Search")
+                .foregroundColor(AquinasTheme.Colors.placeholderText)
+        )
+        .font(.custom("Figtree-SemiBold", size: 14))
+        .foregroundColor(AquinasTheme.Colors.paragraphText)
+        .textInputAutocapitalization(.never)
+        .autocorrectionDisabled()
+        .submitLabel(.search)
+        .focused($isFocused)
+        .accessibilityLabel("Search Insights")
+        .onAppear {
+            DispatchQueue.main.async { isFocused = true }
+        }
+    }
 }

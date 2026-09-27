@@ -52,6 +52,8 @@ struct GlobalInsightsModelControls: View {
     var onConfirmUpdate: () -> Void
     var onDeclineUpdate: () -> Void
     let contextCard: ContextCardState
+    var maxWidth: CGFloat? = nil
+    var alignment: Alignment = .center
 
     var body: some View {
         InquiryControlDock(
@@ -107,7 +109,11 @@ struct GlobalInsightsModelControls: View {
             showsContextWheel: false,
             onClearConversation: {},
             onContextWillOpen: onContextWillOpen,
-            contextCard: contextCard
+            contextCard: contextCard,
+            surfaceID: "insights",
+            priority: 0,
+            maxWidth: maxWidth,
+            alignment: alignment
         )
     }
 }
