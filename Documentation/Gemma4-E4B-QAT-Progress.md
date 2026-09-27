@@ -979,3 +979,21 @@ any install. Prepare DEBUG-only full-app queue timing instrumentation without ed
 `LiteRTAquinasModel.swift`. No production prompt, sampler, model, or vendor binary changes.
 Native prefill timestamps remain explicitly unavailable in production mode per frozen protocol.
 Stale worktree simulator products removed before device build; models/evidence preserved.
+
+**C9 backup clarification v1.1, frozen before trials:** Documents contains only seven legacy
+model binaries (inventory: `C9-preflight-3/documents-inventory.json`), no user-created data.
+Copying them was stopped to avoid disk exhaustion; this attempt's partial/redundant model
+backup copies removed. Production model files untouched. Backup scope is persisted Application
+Support and Preferences; regenerateable caches omitted. Application Support matches every
+file and size in the new device inventory. Preferences copy from `C9-preflight-1` is reused:
+the new phone inventory confirms the same 42,225-byte file and exact modification timestamp
+(2026-09-27T21:34:02Z); direct retries stalled. All backed-up JSON/plists parse; hashes in
+`C9-preflight-3/backup-manifest.json`. Counts: 9 conversations, 13 saved Insights, 1 study
+topic, 81 seen Insight IDs. Backup prerequisite is satisfied without modifying production.
+
+Harness commit `7ac77a8` adds DEBUG-only full-app shared queue timing, retrieval observation,
+visible answer delivery, metadata completion, per-second thermal/memory traces, and independent
+per-model disposable caches. Native prefill timestamps remain explicitly unavailable, as
+frozen in v1. No benchmark mode, prompt changes, or vendor binary changes. Device build passes
+(`C9-preflight-3/build-final.log`). The commit message's backup-verification phrase preceded
+the completed verification; this entry is its actual completion evidence. No trials yet.
