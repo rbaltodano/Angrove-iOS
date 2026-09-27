@@ -75,3 +75,32 @@ P1 model run, then uninstalled at the owner's request to reach a stopping point.
 remains installed with its data untouched. No P1 run IDs exist. Resume by reinstalling the
 built disposable app, checking its new installed bundle path, then prime its E4B cache under
 `P1-M4Ls-1` with the frozen flags. Do not reuse old C9 IDs or results.
+
+## P1 results so far — 2026-09-27 (Claude session)
+
+Fresh production-data backup first: `P1-preflight-2` (28 files, matching `P1-preflight-1`).
+The production app process was closed before the runs. The disposable app was built from
+`e1a4a7b`'s instrumented code (unchanged at `3ca9ad6`), installed, and then uninstalled
+afterwards. Summaries come from `LocalModels/e4b-eval/p1_summary.py`. Load time is taken from
+the native load interval in the lifecycle trace. Thermal state stayed nominal throughout, all
+answers succeeded, and there was no jetsam.
+
+| Run | Kind | Load (s) | Request → answer complete (s) | Peak footprint |
+| --- | --- | --- | --- | --- |
+| P1-M4Ls-1 | Prime (cache cleared) | 14.77 | 24.69 | 1.13 GB |
+| P1-M4Ls-2 | Cached | 7.66 | 16.37 | 1.13 GB |
+| P1-M4Ls-3 | Cached | 7.47 | 16.13 | 1.13 GB |
+| P1-M4Ls-4 | Cached | 8.32 | 17.44 | 1.24 GB |
+
+Cached: load min / median / max = 7.47 / 7.66 / 8.32 s; answer = 16.13 / 16.37 / 17.44 s. After
+the load, each answer took about 8.7–9.1 s, consistent with C9.
+
+**Not run yet:** the 20-turn sequence (`--litert-c9-twenty-turns`), the 75-second idle hold with
+reload, and the real OS lifecycle checks. Resume at `P1-M4Ls-5` by reinstalling the disposable
+app (its bundle path changes on every install).
+
+**Reading (informational, not a gate).** Cached load (about 7.7 s) matches B0's
+*cache-cleared* load in C9 (7.9 s). B0's cached load hasn't been measured, so there is no
+cached comparison yet. Most of the answer time after loading is spent on prefill and decode
+of the grounded prompt, and C9's valid samples show it for both models (E4B about 9 s vs B0
+about 10.5 s). Reducing prompt size is a model-independent latency lever.
