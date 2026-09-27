@@ -997,3 +997,14 @@ per-model disposable caches. Native prefill timestamps remain explicitly unavail
 frozen in v1. No benchmark mode, prompt changes, or vendor binary changes. Device build passes
 (`C9-preflight-3/build-final.log`). The commit message's backup-verification phrase preceded
 the completed verification; this entry is its actual completion evidence. No trials yet.
+
+**Initial C9 trials (preserved, not rerun under the same IDs).**
+- `C9-B0-1`: cold S, nominal thermal state, GPU FLOAT16, 4,096 context. Native load 11.918 s;
+  peak observed physical footprint 4,341,227,624 bytes. Runner observed PID 46564 absent
+  before a completed answer/result; cause unconfirmed (no matching delayed crash report yet).
+  It is not a successful baseline timing sample. Exact arguments and traces are in the run.
+- `C9-M4Ls-1`: trial not started: thermal state fair (1). Harness refused before loading the
+  candidate, per frozen nominal-start rule. Cool down, then use a new ID.
+- Runner now captures lifecycle traces, clears prior traces before launch, and bounds each
+  CoreDevice command to 30 seconds. SHA-256 `759133eb…903fb6`; complete hash in preparation
+  evidence. Production process closed before the trials; installed production app/data retained.
