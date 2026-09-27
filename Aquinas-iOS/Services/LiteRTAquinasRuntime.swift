@@ -61,7 +61,16 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
 
     private let modelStore: LiteRTModelStore
 #if DEBUG
-    private var evidenceExperimentUsesCPU = false
+    /// `--litert-force-cpu` runs the full app on the CPU executor (plan C7: the simulator's
+    /// Metal limits reject some packages on GPU).
+    private var evidenceExperimentUsesCPU = ProcessInfo.processInfo.arguments
+        .contains("--litert-force-cpu")
+    /// `--litert-stall-once-seconds <n>` lowers the stall watchdog until it fires once, forcing
+    /// one stall timeout (plan C7); every later request uses the production value.
+    private var forcedStallTimeout: Duration? = LiteRTProbeArguments
+        .value(after: "--litert-stall-once-seconds", in: ProcessInfo.processInfo.arguments)
+        .flatMap(Int.init)
+        .map { .seconds($0) }
 
     func configureEvidenceExperimentCPU() {
         precondition(engine == nil)
@@ -75,6 +84,11 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
     func configureEvidenceConversationSampling(_ sampling: LiteRTSampling) {
         evidenceConversationSampling = sampling
     }
+
+    /// Lowers the stall watchdog until it fires once (the lifecycle probe's forced stall).
+    func forceStallOnce(after timeout: Duration) {
+        forcedStallTimeout = timeout
+    }
 #endif
     private var engine: Engine?
     private var activeConversation: Conversation?
@@ -84,6 +98,13 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
     private var generationSlotHeld = false
     private var generationWaiters: [(id: UUID, continuation: CheckedContinuation<Void, Error>)] = []
     private var lastTokenAt: ContinuousClock.Instant = .now
+    /// When the stall watchdog last checked in, or its window opened; see `hasStalled()`.
+    private var lastStallCheckAt: ContinuousClock.Instant?
+    /// The conversation of a generation this runtime stopped waiting for (a stall, a guard
+    /// rejection, or any other thrown error) while its native stream may still be running. The
+    /// wrapper's stream context keeps it alive until the native side finishes, so it turns `nil`
+    /// exactly when that native work ends. See `waitForAbandonedNativeWork()`.
+    private weak var abandonedConversation: Conversation?
     private var didLogLoadedModel = false
     private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "com.aquinas",
@@ -100,6 +121,14 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
     /// Guards `initializeEngine()` specifically — cold load has measured ~4-5s in production, so
     /// this stays well clear of ordinary variance while still catching a genuinely wedged load.
     private static let loadStallTimeout: Duration = .seconds(60)
+    /// The watchdog polls every 5 s. A gap far longer than that means the process was suspended
+    /// (the app was backgrounded), which says nothing about native progress.
+    private static let suspensionGap: Duration = .seconds(15)
+    /// How long a new native call waits for an abandoned stream to finish before going ahead:
+    /// the stall window, so a healthy stream that was merely abandoned can finish its answer.
+    private static let abandonedWorkWait: Duration = .seconds(45)
+    /// How long a new engine load waits for earlier engines and conversations to finish deleting.
+    private static let nativeDeleteWait: Duration = .seconds(10)
     /// The production KV-cache size, shared by prompt, history, references, and answer.
     static let maxNumTokens = 4_096
 
@@ -147,8 +176,24 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
         // v0.14.0 of the vendored LiteRTLM package removed explicit close() from both
         // Conversation and Engine; native cleanup now happens in deinit when the last
         // strong reference is released, so dropping these references is the teardown.
+        let hadEngine = engine != nil
         activeConversation = nil
         engine = nil
+        LiteRTLifecycleTrace.shared.record(
+            "unload",
+            ["hadEngine": hadEngine, "inFlight": LiteRTLifecycleTrace.shared.inFlightKinds()]
+        )
+#if DEBUG
+        // Native teardown finishes on its own threads after the references drop; sample memory
+        // once it has had time to settle (plan C7's post-unload memory check).
+        Task.detached(priority: .utility) {
+            try? await Task.sleep(for: .seconds(5))
+            LiteRTLifecycleTrace.shared.record(
+                "unload-settled",
+                ["inFlight": LiteRTLifecycleTrace.shared.inFlightKinds()]
+            )
+        }
+#endif
     }
 
     func generate(
@@ -183,6 +228,7 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
         defer { releaseGenerationSlot() }
         try Task.checkCancellation()
 
+        await waitForAbandonedNativeWork()
         if pendingTeardownDrain {
             try await drainNativeTeardown()
             pendingTeardownDrain = false
@@ -200,6 +246,10 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
             return result
         } catch {
             if error is CancellationError || Task.isCancelled {
+                LiteRTLifecycleTrace.shared.record(
+                    "cancelled",
+                    ["inFlight": LiteRTLifecycleTrace.shared.inFlightKinds()]
+                )
                 throw CancellationError()
             }
             logger.error(
@@ -222,8 +272,12 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
             // A completed native Conversation can occasionally leave the mobile session unable
             // to create the next conversation. Rebuild the engine once and retry locally before
             // allowing the model boundary to use network recovery.
-            await unloadModelWeights()
-            try await initializeEngineWithWatchdog()
+            // Rebuilding while the failed stream still runs would load a new engine next to a
+            // live native session on the old one. If it hasn't ended, retry on this engine.
+            if await waitForAbandonedNativeWork() {
+                await unloadModelWeights()
+                try await initializeEngineWithWatchdog()
+            }
             try await drainNativeTeardown()
             do {
                 let result = try await attempt(sampling.retryVariant)
@@ -298,6 +352,52 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
         try? await Task.sleep(for: .milliseconds(400))
     }
 
+    /// A thrown generation (stall, guard rejection, error) stops the Swift side listening, but
+    /// the native stream keeps decoding until it ends on its own: cancelling it natively can
+    /// wedge LiteRT-LM's callback pool (see `unloadModelWeights`). Starting another conversation,
+    /// or rebuilding the engine, while it runs puts two native sessions on one engine, or deletes
+    /// the engine under a live one. Wait for it to end first, but only for a bounded time: a
+    /// genuinely wedged stream never ends, and blocking every later request on it would be worse.
+    /// Returns whether the abandoned stream (if any) has ended.
+    @discardableResult
+    private func waitForAbandonedNativeWork() async -> Bool {
+        guard abandonedConversation != nil else { return true }
+        let start = ContinuousClock.now
+        LiteRTLifecycleTrace.shared.record("abandoned-wait-begin")
+        while abandonedConversation != nil,
+              start.duration(to: .now) < Self.abandonedWorkWait {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        let finished = abandonedConversation == nil
+        LiteRTLifecycleTrace.shared.record(
+            "abandoned-wait-end",
+            ["finished": finished, "seconds": Self.seconds(start.duration(to: .now))]
+        )
+        if !finished {
+            logger.error("An abandoned native stream is still running; continuing anyway")
+            abandonedConversation = nil
+        }
+        return finished
+    }
+
+    /// `Engine` and `Conversation` delete their native handles on detached threads after the
+    /// last reference drops, so an unload returns before the old engine is gone. Loading the
+    /// next engine meanwhile briefly holds two engines' memory and overlaps their native work.
+    private func waitForPendingNativeDeletes() async {
+        let kinds = ["engine-delete", "conversation-delete"]
+        guard NativeActivityMonitor.runningCount(of: kinds) > 0 else { return }
+        let start = ContinuousClock.now
+        while NativeActivityMonitor.runningCount(of: kinds) > 0,
+              start.duration(to: .now) < Self.nativeDeleteWait {
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        LiteRTLifecycleTrace.shared.record(
+            "delete-wait",
+            ["seconds": Self.seconds(start.duration(to: .now)),
+             "finished": NativeActivityMonitor.runningCount(of: kinds) == 0]
+        )
+    }
+
     private func initializeEngine() async throws {
         let modelURL = try modelStore.installedModelURL()
         let cacheURL = try modelStore.cacheDirectory()
@@ -312,8 +412,15 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
             maxNumTokens: Self.maxNumTokens,
             cacheDir: cacheURL.path
         )
+        await waitForPendingNativeDeletes()
         let newEngine = Engine(engineConfig: config)
-        try await newEngine.initialize()
+        LiteRTLifecycleTrace.shared.record(
+            "load-begin",
+            ["inFlight": LiteRTLifecycleTrace.shared.inFlightKinds()]
+        )
+        try await LiteRTLifecycleTrace.shared.tracking("load") {
+            try await newEngine.initialize()
+        }
         engine = newEngine
         lastLoadError = nil
         completedGenerations = 0
@@ -372,12 +479,14 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
         // this whole call (and the generation slot every later call queues behind) blocked
         // forever with no watchdog ever having started.
         let conversation = try await racingStall {
-            try await self.makeConversation(
-                engine: engine,
-                systemInstruction: systemInstruction,
-                initialMessages: initialMessages,
-                sampling: sampling
-            )
+            try await LiteRTLifecycleTrace.shared.tracking("create-conversation") {
+                try await self.makeConversation(
+                    engine: engine,
+                    systemInstruction: systemInstruction,
+                    initialMessages: initialMessages,
+                    sampling: sampling
+                )
+            }
         }
 #if DEBUG
         let recordIndex = Self.recordGenerationStart(
@@ -390,20 +499,23 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
 #endif
         do {
             let result = try await racingStall {
-                try await self.streamText(
-                    on: conversation,
-                    message: message,
-                    // The repetition/corruption guard was built for — and, per its own doc
-                    // comment, deliberately requires substantial repetition before firing — free
-                    // -form conversational prose, where a genuine degenerate greedy-decoding loop
-                    // is the real risk. Confirmed via device console capture that it also fires
-                    // on short structured JSON payloads: cutting a ~26-word label+summary off
-                    // mid-string, before the closing `"}`, guarantees a JSON parse failure — a
-                    // worse outcome than the rare case this guard exists to prevent. Structured
-                    // calls are short and bounded already; skip it.
-                    appliesDegenerateOutputGuard: !sampling.isStructured,
-                    onText: onText
-                )
+                try await LiteRTLifecycleTrace.shared.tracking("generate") {
+                    try await self.streamText(
+                        on: conversation,
+                        message: message,
+                        // The repetition/corruption guard was built for — and, per its own doc
+                        // comment, deliberately requires substantial repetition before firing —
+                        // free-form conversational prose, where a genuine degenerate
+                        // greedy-decoding loop is the real risk. Confirmed via device console
+                        // capture that it also fires on short structured JSON payloads: cutting a
+                        // ~26-word label+summary off mid-string, before the closing `"}`,
+                        // guarantees a JSON parse failure — a worse outcome than the rare case this
+                        // guard exists to prevent. Structured calls are short and bounded already;
+                        // skip it.
+                        appliesDegenerateOutputGuard: !sampling.isStructured,
+                        onText: onText
+                    )
+                }
             }
 #if DEBUG
             if let recordIndex {
@@ -418,6 +530,7 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
                 LiteRTGenerationRecorder.shared.finish(recordIndex, output: nil, error: error)
             }
 #endif
+            abandonedConversation = conversation
             await finishConversation()
             throw error
         }
@@ -526,9 +639,7 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
                 while !Task.isCancelled {
                     try? await Task.sleep(for: .seconds(5))
                     guard !Task.isCancelled else { return }
-                    guard await runtime.secondsSinceLastToken() >= Self.seconds(Self.stallTimeout) else {
-                        continue
-                    }
+                    guard await runtime.hasStalled() else { continue }
                     onTimeout()
                     box.resume(.failure(LiteRTAquinasRuntimeError.stalledGeneration))
                     work.cancel()
@@ -538,8 +649,35 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
         }
     }
 
-    private func secondsSinceLastToken() -> Double {
-        Self.seconds(lastTokenAt.duration(to: .now))
+    private func hasStalled() -> Bool {
+        let now = ContinuousClock.now
+        defer { lastStallCheckAt = now }
+        if let lastStallCheckAt, lastStallCheckAt.duration(to: now) > Self.suspensionGap {
+            // The process was suspended between checks. Restart the window rather than count
+            // time the native side could not have used.
+            lastTokenAt = now
+            LiteRTLifecycleTrace.shared.record(
+                "stall-window-reset-after-suspension",
+                ["gapSeconds": Self.seconds(lastStallCheckAt.duration(to: now))]
+            )
+            return false
+        }
+        var timeout = Self.stallTimeout
+#if DEBUG
+        if let forcedStallTimeout { timeout = forcedStallTimeout }
+#endif
+        let stalled = Self.seconds(lastTokenAt.duration(to: .now)) >= Self.seconds(timeout)
+        if stalled {
+#if DEBUG
+            forcedStallTimeout = nil
+#endif
+            LiteRTLifecycleTrace.shared.record(
+                "stall-timeout",
+                ["timeoutSeconds": Self.seconds(timeout),
+                 "inFlight": LiteRTLifecycleTrace.shared.inFlightKinds()]
+            )
+        }
+        return stalled
     }
 
     /// Convenience over `abandoningStall(pollingAgainst:)`: resets the stall clock and races
@@ -558,6 +696,7 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
         _ operation: @escaping @Sendable @concurrent () async throws -> T
     ) async throws -> T {
         lastTokenAt = .now
+        lastStallCheckAt = lastTokenAt
         return try await Self.abandoningStall(pollingAgainst: self, operation, onTimeout: {})
     }
 

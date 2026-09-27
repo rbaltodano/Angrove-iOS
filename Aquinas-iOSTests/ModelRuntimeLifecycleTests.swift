@@ -176,6 +176,33 @@ struct ModelRuntimeLifecycleTests {
     }
 
     @MainActor
+    @Test("Reordering upcoming tasks changes the order they run in")
+    func reorderedUpcomingTasksRunInNewOrder() async throws {
+        let queue = ModelTaskQueue(runtimeLifecycle: makeManager(driver: TestModelRuntimeDriver()))
+        let log = TestEventLog()
+        let gate = TestGate()
+
+        queue.enqueue(kind: .userQuestion(branchID: UUID(), responseIndex: 1)) {
+            await gate.wait()
+            await log.record("running")
+        }
+        let second = queue.enqueue(kind: .userQuestion(branchID: UUID(), responseIndex: 1)) {
+            await log.record("second")
+        }
+        let third = queue.enqueue(kind: .userQuestion(branchID: UUID(), responseIndex: 1)) {
+            await log.record("third")
+        }
+        try await waitUntil { await queue.currentTask != nil }
+
+        #expect(queue.moveUpcoming(id: third, relativeTo: second, placeAfterTarget: false))
+        #expect(queue.upcomingTasks.map(\.id) == [third, second])
+
+        await gate.open()
+        try await waitUntil { await log.events.count == 3 }
+        #expect(await log.events == ["running", "third", "second"])
+    }
+
+    @MainActor
     @Test("A midpoint placed during background tree work leaves that work queued, not lost")
     func midpointDuringBackgroundWorkKeepsBackgroundWork() async throws {
         let queue = ModelTaskQueue(runtimeLifecycle: makeManager(driver: TestModelRuntimeDriver()))

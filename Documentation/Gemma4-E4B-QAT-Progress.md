@@ -19,15 +19,15 @@
 | C4 | Simulator compatibility (informational) | C1, C3 | done | Claude Code (Opus 5.5) session | 2026-09-26 | M4-L **sim-pass** (GPU_ARTISAN, F16; C4-M4L-1..3); M4-Ls **sim-gpu-fail**, coherent on CPU (C4-M4Ls-1..2) |
 | C5 | Early phone memory/compat screen | C4 | done | Claude Code (Opus 5.5) session | 2026-09-26 | M4-L **failed** (jetsam at 2K and 4K); per the On failure branch, M4-Ls **passed** all four runs (4K peak 0.165 × cap). M4-Ls is now the active candidate |
 | C6 | Integration diagnostics | C5 | done | Claude Code (Opus 5.5) session | 2026-09-26 | M4-Ls: 12/12 contracts OK, no template/parsing failures (simulator CPU). Found and fixed 2 app bugs; found B0's JSON-wrapped system prompt |
-| C7 | Full-app functional + lifecycle stress | C6 | in-progress | Claude Code (Opus 5.5) session | 2026-09-27 | Simulator CPU, merged code (`047245e` + C7 instrumentation) |
+| C7 | Full-app functional + lifecycle stress | C6 | done | Claude Code (Opus 5.5) session | 2026-09-27 | **Pass** (simulator CPU). Fixed 3 lifecycle bugs: suspension read as a stall, two overlap paths. Final probe: all cases pass, 0 overlaps, memory within 1%. 199/200 tests (known baseline failure). Make Node has no UI entry (pre-existing) |
 | C8 | Quality A/B (40 dev + 40 held-out) | C7 | done | Claude Code (Opus 5.5) session | 2026-09-27 | **M4-Ls passes all held-out rows** after the owner-delegated review (accuracy 3.05 → 3.85; critical 9 → 1). Run before C7 by recorded decision; simulator CPU; confirm held-out on the phone GPU before C10 |
 | C9 | Physical-device sustained gate | C8 | todo | | | |
 | C10 | Promotion | C9 + owner approval | todo | | | |
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
 | C12 | Optional: vision probe | C10 | todo | | | |
 
-**Next action:** Finish C7 (simulator, CPU). Then the phone: C9 and the C8 held-out
-confirmation on the phone GPU.
+**Next action:** Needs the phone: C9 (include C7's device carry-overs) and the C8 held-out
+confirmation on the phone GPU. Then C10 with owner approval.
 
 ## Candidate registry
 
@@ -125,6 +125,7 @@ and what options you recommend._
 | 2026-09-26 | Accept the pre-existing `MiniLMGroundingRetrievalTests.namedPassagesUseSourceTextAnchors` failure (fails identically on base `31aa476`, run `C3-basecheck-1`) as a known baseline failure for the C3 gate; C3 → `done` | User | Owner replied "phone is plugged in, go ahead and continue" to the recommended resolution. Recorded as acceptance of that recommendation |
 | 2026-09-27 | Pushed `main` (`b6903b4`) and `feature/gemma4-e4b-qat` to GitHub. GitHub CI (Xcode 26.6, iOS 26.5 simulator) failed one timing-sensitive test, `InquiryPersistenceStoreTests.threeConversationsKeepTheirAnswers` (25 s on the runner), which passes locally on iOS 27. The previous `main` CI run (`36164608561`, before these changes) failed three other timing tests. Per the owner, local iOS 27 runs are authoritative and CI flakiness doesn't block | Owner instruction | CI run `36286937989` |
 | 2026-09-27 | Owner asked the session to verify and commit the backend-removal and Home work on `main`, then merge. Verified (build; 182/183 tests, the one failure pre-existing; the app launches and Home renders), committed as `fdf3d72`, and merged into this branch. The one conflict (`AquinasApplicationRuntime`: `--force-backend-model` removed, DEBUG model override kept) was resolved, and the probes' dead backend fallbacks were removed. Merged code: build OK, 198/199 tests (same pre-existing failure). Two pre-existing Home bugs found (not from this work): an empty "Where You Left Off" section when no conversation is selected, and "On the Incarnation" (Athanasius) described as "outlined by Augustine of Hippo". One likely catalog error: Today in History 05-11 (the Didache manuscript's colophon dates the copy to 11 June 1056) | Owner request, executed by Claude Code session | `LocalModels/e4b-eval/main-verify-1`, `merge-verify-1` |
+| 2026-09-27 | C7 on the simulator CPU. Run the stress cases through a DEBUG probe (`--litert-lifecycle-probe`) that drives the app's own runtime, queue, and model, plus manual UI runs for real suspension and memory warnings. Fix the three lifecycle bugs C7 found in this branch; they are runtime bugs, not model-specific | Claude Code session (delegated) | Hand-driven CPU timing is too coarse for preemption and cancel windows; the probe is repeatable. The bugs affect B0 as well, and C9 needs them fixed |
 | 2026-09-26 | Note only: the owner's **uncommitted** backend-removal work in the main checkout also edits this plan (C3 step 4 and C7 wording) and adds a decision row to its copy of this ledger. It doesn't affect C4 or C5. When it lands on `main`, merge it into `feature/gemma4-e4b-qat`; expect conflicts in `LiteRTDeviceProbe.swift`, `AquinasApplicationRuntime.swift`, and this ledger | Claude Code session | This branch predates that work; main's working tree is not touched |
 | 2026-09-25 | Adopt plan v2 after independent review: conversion route blocked (D7); provenance labels but doesn't gate (D8); M2-L optional control (D9); early phone screen before quality; numeric memory cap; eval set 40 dev + 40 held-out with cross-model first-pass scoring and owner spot checks | User + planning session | [`Gemma4-E4B-QAT-Plan-Review.md`](Gemma4-E4B-QAT-Plan-Review.md), "Disposition" |
 | 2026-09-26 | Remove the app's HTTP backend client (`BackendAquinasModel`, `--force-backend-model`, tree and Home services). C3 and C7 no longer need to disable backend recovery | User | The app is fully on-device; plan steps C3 item 4 and C7 updated to match |
@@ -578,17 +579,73 @@ behavior doesn't depend on the backend. Build `fb02847`, with `--litert-diagnost
 - E4B-specific adapter fixes (commit):
 
 ### C7 — Full-app functional and lifecycle stress
+Simulator (iPhone 17, iOS 27.0), **CPU executor** (M4-Ls can't run on the simulator GPU, C4),
+merged code. Runs are in `LocalModels/e4b-eval/C7-M4Ls-*`. The phone GPU repeat is part of C9.
+
+**Instrumentation added (DEBUG unless noted).**
+- `--litert-force-cpu`, `--litert-stall-once-seconds <n>`, and `--litert-idle-timeout-seconds <n>`.
+- A Darwin-notification trigger for memory warnings:
+  `notifyutil -p com.aquinas.debug.memory-warning`.
+- `LiteRTLifecycleTrace`: always-on "Native Call" signposts. With `--litert-lifecycle-trace` it
+  also writes a JSONL trace with `phys_footprint`.
+- Vendor patch: `NativeActivityMonitor` reports engine and conversation deletes on their
+  detached threads, and native streams until the native side releases them.
+- `--litert-lifecycle-probe`, which runs the stress cases through the app's own runtime, queue,
+  and model.
+
+**Functional (full app UI, `C7-M4Ls-func-1`).** All actions validated locally, with these exceptions.
+| Action | Result |
+| --- | --- |
+| 3 questions + follow-up | Pass. The follow-up carried history (`initialMessageCount` 2, then 4) |
+| Topic-shift reset | Pass. "Switching topics: … Eucharist" sent with no history |
+| Contextual definition | Pass ("Accidents", 6.4 s) |
+| Save Insight → node label → Midpoint | Pass. Label JSON valid; Midpoint produced 3 candidates and placed "Visible Accidents" |
+| Make Node | **Not reachable in the UI (pre-existing).** Nothing calls `onCreateCanvasConcept` since `d00394c` split `InquiryControlDock`. The model contract passed in C6 (exactly 3) |
+| Question of the Day | Pass. Grounded question from the Eucharist conversation |
+| Compaction (`/compact`) | Pass. A 17 s checkpoint that keeps each topic |
+| Queue reorder | UI drag not exercised: CPU answers finish before a second one can be queued by hand. Covered by the new test `reorderedUpcomingTasksRunInNewOrder` (model-independent) |
+
+Side findings (all pre-existing, none model-specific):
+- The node-label task was sent an empty Insight (`": "`) and returned "No insights provided". The
+  app then asked for a definition of that label: two wasted generations, with nothing persisted.
+- The Midpoint card's second row wraps its percentage vertically when the title is long.
+- Regenerate returns an identical answer, because production decoding is greedy.
+
+**Lifecycle stress.** The first manual pass (`C7-M4Ls-stress-1/2`) found three bugs. All three are
+fixed in the runtime.
+1. **Suspension read as a stall.** Backgrounding during generation suspends the process. On
+   resume, the watchdog counted the suspended time as "no tokens", failed the answer ("couldn't
+   complete"), and abandoned a healthy stream. Fix: a watchdog gap over 15 s (or a suspension
+   before the first check) restarts the stall window. Verified in `C7-M4Ls-stress-4`: after 64 s
+   in the background, the answer resumed and completed.
+2. **Overlap after a thrown generation.** After a stall, the next conversation started while
+   the abandoned native stream was still decoding: two sessions on one engine
+   (`stress-2`, 15:09:18 and 15:22:24). Fix: new native calls wait up to 45 s for an abandoned
+   stream. The error-retry path no longer rebuilds the engine under a live stream.
+3. **Overlap at reload.** A new engine loaded while the previous engine's native delete was still
+   running on its detached thread (`lifecycle-2`: 3 overlaps). Fix: loads wait up to 10 s for
+   pending deletes. In practice the wait is about 0.1 s.
+
+Final probe (`C7-M4Ls-lifecycle-4`): **all cases pass; 0 overlaps.**
 | Case | Result | Next request OK? | Memory back within 10%? | Engine overlap? | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Conversation + follow-up + topic shift | | | | | |
-| Definition / Insight / node label / Make Node / Midpoint | | | | | |
-| Question of the Day / compaction / queue reorder | | | | | |
-| Cancel mid-generation | | | | | |
-| Foreground preemption | | | | | |
-| Forced stall timeout | | | | | |
-| Background during generation | | | | | |
-| Idle unload → reload | | | | | |
-| Memory warning | | | | | |
+| Conversation + follow-up + topic shift | Pass | Yes | n/a | No | func-1 |
+| Definition / Insight / node label / Make Node / Midpoint | Pass; Make Node N/A (no UI entry) | Yes | n/a | No | func-1; C6 covers Make Node |
+| Question of the Day / compaction / queue reorder | Pass (reorder via test) | Yes | n/a | No | func-1 |
+| Cancel mid-generation | Pass; 0 updates after cancel; UI area stays empty | Yes (48 s: waits for the abandoned stream) | Yes | No | stress-2, lifecycle-4 |
+| Foreground preemption | Pass; background task re-queued and succeeded on attempt 2 | Yes | Yes | No | lifecycle-4 |
+| Forced stall timeout | Pass; explicit failure message shown | Yes (38 s) | Yes | No (was yes before fix 2) | stress-2, lifecycle-4 |
+| Background during generation | Pass after fix 1 | Yes | Yes | No | stress-4 (real suspension); lifecycle-4 (queue level) |
+| Idle unload → reload | Pass | Yes | Yes: ratio 1.000–1.006 (about 105 MB each time; first cycle 1.12 while retrieval assets load) | No (was yes before fix 3) | lifecycle-4 |
+| Memory warning | Pass; unload is immediate (2.96 GB → 169 MB) | Yes | Yes | No | stress-4 (app); lifecycle-4 (idle and during generation) |
+
+- Tests: 199/200. The one failure is the known baseline `namedPassagesUseSourceTextAnchors`.
+  New test: `reorderedUpcomingTasksRunInNewOrder`.
+- C8 impact: the fixes only change stall, error-retry, and reload paths. No C8 generation
+  errored, retried, or stalled (0 errors in 160 generations), so C8 results stand.
+- Carried to C9 (phone GPU): repeat backgrounding and memory warning on the device. A cancel or
+  stall now delays the next request until the abandoned stream ends (up to 45 s); measure that
+  on the GPU.
 
 ### C8 — Quality A/B
 - Eval set location and SHA-256s (see Frozen values): `LocalModels/e4b-eval/eval-set/`, frozen

@@ -16,6 +16,40 @@ import Foundation
 import OSLog
 import CLiteRTLM
 
+/// Aquinas patch: tracks native work that outlives the Swift call that started it (engine and
+/// conversation deletes on detached threads, and streams that keep generating after their
+/// consumer stopped listening), so callers can wait for it before loading a new engine, and
+/// lifecycle tests can check that nothing overlaps. Kinds: "engine-delete",
+/// "conversation-delete", "native-stream".
+public enum NativeActivityMonitor {
+  public typealias Observer = @Sendable (_ kind: String, _ isBegin: Bool) -> Void
+
+  private static let lock = NSLock()
+  private static var observer: Observer?
+  private static var running: [String: Int] = [:]
+
+  public static func setObserver(_ newObserver: Observer?) {
+    lock.lock()
+    observer = newObserver
+    lock.unlock()
+  }
+
+  /// How many of the given kinds of native work are running now.
+  public static func runningCount(of kinds: [String]) -> Int {
+    lock.lock()
+    defer { lock.unlock() }
+    return kinds.reduce(0) { $0 + (running[$1] ?? 0) }
+  }
+
+  static func report(_ kind: String, isBegin: Bool) {
+    lock.lock()
+    running[kind] = max(0, (running[kind] ?? 0) + (isBegin ? 1 : -1))
+    let current = observer
+    lock.unlock()
+    current?(kind, isBegin)
+  }
+}
+
 /// Manages the lifecycle of a LiteRT-LM engine, providing an interface for interacting with the
 /// underlying native library.
 ///
@@ -321,8 +355,10 @@ public actor Engine {
     // last reference on a native call that can hang.
     if let handle = handle {
       let handleToDelete = handle
+      NativeActivityMonitor.report("engine-delete", isBegin: true)
       Thread {
         litert_lm_engine_delete(handleToDelete)
+        NativeActivityMonitor.report("engine-delete", isBegin: false)
       }.start()
     }
   }

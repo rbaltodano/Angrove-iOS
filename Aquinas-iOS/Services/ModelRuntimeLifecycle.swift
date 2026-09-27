@@ -316,6 +316,7 @@ actor ModelRuntimeLifecycleManager {
               state == .ready else {
             return
         }
+        LiteRTLifecycleTrace.shared.record("idle-unload")
         await unload(reason: .idle)
     }
 
@@ -390,6 +391,10 @@ actor ModelRuntimeLifecycleManager {
             thermalPressure.rawValue,
             activeLeaseIDs.count,
             Self.residentMemoryBytes()
+        )
+        LiteRTLifecycleTrace.shared.record(
+            "state",
+            ["state": newState.rawValue, "activeLeases": activeLeaseIDs.count]
         )
         notifyTransitionWaiters()
     }
