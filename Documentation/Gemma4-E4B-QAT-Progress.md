@@ -8,6 +8,69 @@
 > Status values: `todo` · `in-progress` · `done` · `failed` · `blocked` · `skipped` (with reason)
 > Selection and invalidation rules: plan §0.
 
+## Handoff (2026-09-27): read this first
+
+The owner is handing this work to Codex. State as of commit `2776cc9` on `feature/gemma4-e4b-qat`
+(worktree `~/Developer/Aquinas-iOS-e4b-qat`; not pushed; `main` is at `047245e`).
+
+**Where things stand**
+- **Done:** C0–C8.
+  - C7 passed on the simulator CPU and fixed 3 lifecycle bugs.
+  - After C7, a phone session showed a load/unload race; it's fixed in `2776cc9`. Load and unload
+    now take the generation slot, and a lease is never granted on a model an unload just dropped.
+    Test: `unloadDuringLoadYieldsToLease`.
+- **C10 in progress:** the owner approved promotion.
+  - Done on the branch: the manifest and seed are switched to E4B (`21479f3`); the simulator
+    no-override smoke passed.
+  - The owner's phone runs this branch's build as the production app (`com.ryanbaltodano.Aquinas-iOS`,
+    installed 2026-09-27 with data kept). Its console log shows the bundled E4B loading with the
+    manifest SHA-256.
+  - Data backup from before the install: `LocalModels/phone-backup-20260927-155645/` (gitignored).
+- **Remaining, in order:**
+  1. **C9 on the phone.** Freeze the protocol in this ledger first (plan §C9). Include C7's device
+     carry-overs: backgrounding, memory warnings, and the wait after a cancel or stall. Reinstall
+     the disposable probe app (`com.ryanbaltodano.Aquinas-iOS.ModelProbe`, uninstalled 2026-09-27)
+     with `LocalModels/e4b-eval/run-device-probe.sh`.
+  2. Confirm the C8 held-out set on the phone GPU (`--litert-eval-batch`, no `--litert-probe-cpu`).
+  3. Finish C10:
+     - Rollback check: B0's values are in the manifest comment; its file is at root `LocalModels/`.
+     - Open a PR from this branch. Merge only if C9 passes.
+     - At merge, main's gitignored `Aquinas-iOS/LocalModels/` still holds E2B. Swap in
+       `gemma-4-E4B-it.litertlm` (an APFS clone) and move E2B out, or the main build fails the
+       manifest check.
+  4. Apply `Documentation/Gemma4-E4B-MODEL-INTEGRATION-Update.md` to
+     `../Aquinas-Foundations/MODEL-INTEGRATION.md`. That repo has uncommitted owner edits, so
+     coordinate with the owner.
+- **Known issues outside this plan** (not model-specific):
+  - Insight Tree node labels (`InsightTreeViewModel.requestClusterLabels`) call the model outside
+    `ModelTaskQueue`, so they jump ahead of queued questions. The owner is handing this to Codex
+    separately.
+  - The node-label task was once sent an empty Insight (`": "`).
+  - Make Node has no UI entry; the owner is reworking it.
+  - Pre-existing failing test: `MiniLMGroundingRetrievalTests.namedPassagesUseSourceTextAnchors`
+    (accepted baseline).
+- **Parallel work:** the owner may change system prompts in `LiteRTAquinasModel.swift` on `main`.
+  This branch doesn't modify that file relative to `main`.
+
+**Tools and evidence (gitignored, in `LocalModels/e4b-eval/`)**
+- Run folders `C*-*/` are immutable evidence; never reuse a run ID.
+- Simulator: `run-sim-probe.sh <run-id> <args>` runs a probe; `c7-launch.sh` and `c7-collect.sh`
+  run the full app with debug switches.
+- Phone: `run-device-probe.sh`.
+- Probes (DEBUG launch args):
+  - `--litert-probe --litert-probe-auto` plus one of: `--litert-diagnostics-probe` (every model
+    contract), `--litert-eval-batch <jsonl>` (C8), or `--litert-lifecycle-probe` (C7 stress cases).
+  - Common flags: `--litert-model-path <abs>`, `--litert-probe-cpu` or `--litert-force-cpu`
+    (the simulator can't run E4B on its GPU), `--litert-record-generations`,
+    `--litert-lifecycle-trace`, `--litert-idle-timeout-seconds <n>`,
+    `--litert-stall-once-seconds <n>`.
+  - Memory warning in the simulator:
+    `xcrun simctl spawn <device> notifyutil -p com.aquinas.debug.memory-warning`.
+- Eval set and scoring: `eval-set/` (frozen), `score_objective.py`, `make_blind_pairs.py`, `c8_gate.py`.
+- Build and test: an arm64 simulator destination (`platform=iOS Simulator,name=iPhone 17,OS=27.0`)
+  with `-derivedDataPath build/DerivedData`. Free disk space is tight (about 8 GB); delete stale
+  build products before large builds.
+
 ## Status board
 
 | ID | Checkpoint | Depends on | Status | Owner / session | Last updated | Notes |
@@ -26,9 +89,8 @@
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
 | C12 | Optional: vision probe | C10 | todo | | | |
 
-**Next action:** Needs the phone. Run C9 (include C7's device carry-overs) and the C8 held-out
-confirmation on the phone GPU, then finish C10: phone smoke, rollback check, and PR. Merge only
-if C9 passes.
+**Next action:** See *Handoff*. C9 on the phone, then the C8 held-out set on the phone GPU, then
+finish C10 (rollback check and PR; merge only if C9 passes).
 
 ## Candidate registry
 
@@ -59,13 +121,13 @@ Record these **before** the candidate numbers they govern are seen.
 _Add a dated entry for anything that blocks progress. Say what the question is, why it blocks,
 and what options you recommend._
 
-- **2026-09-26: Merge the backend removal before C6. Recommended; not blocking yet.** C6 may need
+- ~~**2026-09-26: Merge the backend removal before C6.**~~ **Resolved 2026-09-27:** merged (`b6903b4`). C6 may need
   E4B-specific adapter fixes in `LiteRTAquinasModel.swift`, and the owner's uncommitted work on
   `main` rewrites that file (and deletes `BackendAquinasModel`, which this branch's quality probe
   still uses as its fallback). Doing C6 on the old code would mean redoing the fixes after a
   conflicted merge. Recommended: commit the backend removal on `main`, then merge `main` into
   `feature/gemma4-e4b-qat`, rerun the build and tests, and then run C6 for M4-Ls.
-- **2026-09-26: C5 memory metric doesn't see M4-L's GPU memory. Decide before C9; not blocking C5.**
+- **2026-09-26: C5 memory metric doesn't see M4-L's GPU memory. Still open for C9.** M4-L is rejected; the active candidate M4-Ls is not an artisan package, but C9 should still check jetsam reports, not `phys_footprint` alone.
   - The plan gates on peak `phys_footprint` ÷ `operating_cap`.
   - For the GPU_ARTISAN package, `phys_footprint` stayed at 0.36–0.51 GB while jetsam reports
     showed 2.67–3.35 GB resident, and the phone killed the probe for `vm-pageshortage`. For B0 the
@@ -797,7 +859,10 @@ Gate computed by `c8_gate.py` (first pass, before owner review):
   `…/Aquinas-iOS.app/gemma-4-E4B-it.litertlm` with computed SHA-256 = manifest `0b2a8980…45bd52e0`.
   The full lifecycle probe passed (all cases, 0 overlaps).
 - Build: pass. Tests: 199/200 (the known baseline failure).
-- No-override phone smoke (loaded URL and SHA-256): pending (phone).
+- No-override phone smoke (production app, Debug build of `2776cc9`'s parent `21479f3`, 2026-09-27):
+  it loaded `/private/var/containers/Bundle/Application/981F9234-…/Aquinas-iOS.app/gemma-4-E4B-it.litertlm`
+  with computed SHA-256 = manifest `0b2a8980…45bd52e0`. The same session surfaced the load/unload race
+  fixed in `2776cc9` (then reinstalled). Repeat under C9 on the final build.
 - Rollback check result: pending (phone).
 - Commits / PR URL: pending.
 
