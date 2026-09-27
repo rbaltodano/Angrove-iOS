@@ -10,6 +10,12 @@
 
 ## Current handoff — after C9 (2026-09-27)
 
+Claude reviewer: start with [`Gemma4-E4B-Review-Handoff.md`](Gemma4-E4B-Review-Handoff.md)
+for the current evidence, code changes, open questions, and review boundaries. This section
+supersedes the historical handoff below; do not execute its old “Remaining, in order” list.
+The execution plan remains frozen as instructions; its top “Not yet executed” line is historical.
+The status board and final summary here contain the outcome.
+
 - Worktree `~/Developer/Aquinas-iOS-e4b-qat`, branch `feature/gemma4-e4b-qat`.
   All takeover commits are local and unpushed; `main` still declares B0.
 - C0–C8 remain done. **C9 failed** on the physical iPhone under the frozen protocol:
@@ -108,11 +114,15 @@ The owner is handing this work to Codex. State as of commit `2776cc9` on `featur
 | C7 | Full-app functional + lifecycle stress | C6 | done | Claude Code (Opus 5.5) session | 2026-09-27 | **Pass** (simulator CPU). Fixed 3 lifecycle bugs: suspension read as a stall, two overlap paths. Final probe: all cases pass, 0 overlaps, memory within 1%. 199/200 tests (known baseline failure). Make Node has no UI entry (pre-existing) |
 | C8 | Quality A/B (40 dev + 40 held-out) | C7 | done | Claude Code (Opus 5.5) session | 2026-09-27 | **M4-Ls passes all held-out rows** after the owner-delegated review (accuracy 3.05 → 3.85; critical 9 → 1). Run before C7 by recorded decision; simulator CPU; confirm held-out on the phone GPU before C10 |
 | C9 | Physical-device sustained gate | C8 | failed | Codex takeover | 2026-09-27 | M4-Ls failed cold-load and short-answer p95 gates; C9-M4Ls-2, early stop is decisive for nearest-rank p95 |
-| C10 | Promotion | C9 + owner approval | blocked | Claude Code + Codex takeover | 2026-09-27 | C9 failed; owner-approved branch prework retained, no merge/PR. Production phone still has E4B pending owner choice |
+| C10 | Promotion | C9 + owner approval | blocked | Claude Code + Codex takeover | 2026-09-27 | C9 failed; branch prework retained, no merge/PR. Existing phone E4B remains a temporary personal trial |
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
 | C12 | Optional: vision probe | C10 | todo | | | |
 
-**Next action:** C9 failed; follow its On failure branch. Do not promote. Owner decides whether to keep the earlier E4B phone install temporarily or roll it back, and whether a revised configuration becomes a new candidate. C8 phone GPU confirmation, C10 rollback check, and PR are held. Main still declares B0.
+**Next action:** Claude reviews the [review handoff](Gemma4-E4B-Review-Handoff.md) and the frozen
+[P1 diagnostic plan](Gemma4-E4B-Post-C9-Diagnostics.md). P1 has no runs and the owner requested
+a stopping point. C9 is failed; do not promote. E4B stays on the owner's phone only as a temporary
+personal trial. C8 phone GPU confirmation, C10 rollback check, Foundations update, and PR are held.
+Main still declares B0. Do not push to the public remote.
 
 ## Candidate registry
 
@@ -123,7 +133,7 @@ a new row (plan §0, rule 5).
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | B0 | `gemma-4-E2B-it.litertlm` (wi8 E2B fine-tune, bundled) | local export | 3,862,121,696 | `9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282` (manifest) | `9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282` (match, C0-B0-1) | LiteRT-LM 0.14.0, GPU, 4,096, deterministic | fine-tuned PTQ | baseline |
 | M4-L | `gemma-4-E4B-it-gpu.litertlm` | `litert-community/gemma-4-E4B-it-litert-lm` @ `2eee7ac325f20eb8c9ac1d0e972f7c84663062da` | 2,969,059,328 | `4912bb5a9c30993c51a7711f763212077458529312175df0573a78323a2bb7ff` | `4912bb5a9c30993c51a7711f763212077458529312175df0573a78323a2bb7ff` (match, C1-M4L-2) | LiteRT-LM 0.14.0, GPU (GPU_ARTISAN), 4,096, deterministic | unconfirmed (C2-M4L-1); text-only `gpu_artisan` decoder | **rejected at C5** (jetsam `vm-pageshortage` at 2K and 4K prefill; `C5-M4L-4`, `C5-M4L-5`) |
-| M4-Ls | `gemma-4-E4B-it.litertlm` | same @ same | 3,659,530,240 | `0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0` | `0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0` (match, C1-M4Ls-1) | LiteRT-LM 0.14.0, GPU, 4,096, deterministic, vision/audio not loaded | unconfirmed (no statement for any E4B package; see C2) | **active candidate** (passed C5) |
+| M4-Ls | `gemma-4-E4B-it.litertlm` | same @ same | 3,659,530,240 | `0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0` | `0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0` (match, C1-M4Ls-1) | LiteRT-LM 0.14.0, GPU, 4,096, deterministic, vision/audio not loaded | unconfirmed (no statement for any E4B package; see C2) | **failed C9**; retained for informational P1 |
 | M2-L | `gemma-4-E2B-it.litertlm` (stock) | `litert-community/gemma-4-E2B-it-litert-lm` @ `b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1` | 2,588,147,712 | `181938105e0eefd105961417e8da75903eacda102c4fce9ce90f50b97139a63c` | | control arm (D9) | confirmed QAT (E2B discussion #30) | optional |
 
 ## Frozen values
@@ -1056,8 +1066,9 @@ owner must adopt a new candidate/configuration with new run IDs; never erase C9'
 ### C10 — Promotion
 - Owner approval: 2026-09-27, "let's just get this model into the app and we can try the fine
   tuning for it after". Provenance label (D8): "Gemma 4 E4B (LiteRT Community)", not "QAT".
-- **Ordering decision:** the promotion work is done now, but it doesn't merge until C9 passes on
-  the phone (the plan's dependency). The phone GPU hasn't had a sustained run yet.
+- **Historical ordering decision:** the branch's promotion prework was completed before C9,
+  contingent on a C9 pass. C9 then failed, so this work cannot merge under the original plan.
+  The one cold phone trial is not the full sustained run.
 - Done on the branch:
   - The manifest points to `gemma-4-E4B-it.litertlm` (3,659,530,240 bytes, `0b2a8980…45bd52e0`),
     with a provenance comment.
@@ -1065,7 +1076,8 @@ owner must adopt a new candidate/configuration with new run IDs; never erase C9'
     bundled.
   - `visionBackend` comment updated (text-only; C12). `Model-Runtime.md` updated.
   - `MODEL-INTEGRATION.md` isn't edited: the Foundations repo has uncommitted owner changes.
-    The drafted edits are in `Gemma4-E4B-MODEL-INTEGRATION-Update.md`.
+    The draft in `Gemma4-E4B-MODEL-INTEGRATION-Update.md` now describes a failed evaluation,
+    not a promotion. Reconcile with the owner's changes before applying it.
   - The plan is marked executed only when C10 closes.
 - Rollback values: `gemma-4-E2B-it.litertlm`, 3,862,121,696 bytes, SHA-256
   `9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282`. The file has moved to the
@@ -1078,8 +1090,9 @@ owner must adopt a new candidate/configuration with new run IDs; never erase C9'
   it loaded `/private/var/containers/Bundle/Application/981F9234-…/Aquinas-iOS.app/gemma-4-E4B-it.litertlm`
   with computed SHA-256 = manifest `0b2a8980…45bd52e0`. The same session surfaced the load/unload race
   fixed in `2776cc9` (then reinstalled). Repeat under C9 on the final build.
-- Rollback check result: pending (phone).
-- Commits / PR URL: pending.
+- Rollback check result: not run after C9 failed (phone); B0 manifest values and root model
+  hash remain available for a future controlled rollback check.
+- Commits / PR URL: branch has local commits; no PR because C9 failed and the remote is public.
 
 ### C11 / C12 — Optional
 - M2-L control analysis:
@@ -1089,5 +1102,6 @@ owner must adopt a new candidate/configuration with new run IDs; never erase C9'
 
 **Rejected with evidence at C9** under the frozen provisional budgets: M4-Ls's first valid
 cold phone trial exceeded both the 12-second load and 4-second one-sentence answer limits.
-Main remains B0. No PR or merge. The owner is considering whether to plan a new candidate; no later gate is claimed. Keep the earlier C8 CPU
-quality result as evidence, but it does not override this physical-device gate.
+Main remains B0. No PR or merge. P1 is frozen but has no model runs; no later gate is claimed.
+The owner requested a stopping point for Claude's review. Keep the earlier C8 CPU quality
+result as evidence, but it does not override this physical-device gate.

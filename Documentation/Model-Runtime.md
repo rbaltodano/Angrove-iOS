@@ -34,11 +34,15 @@ grounding corpus, model conversion, and evaluation.
 
 ## Model package and device safety
 
-The deployed package is Gemma 4 E4B (LiteRT Community standard package, not fine-tuned),
-declared in `LiteRTModelManifest.aquinas` with its size and SHA-256, and loaded text-only on the
-GPU with a 4,096-token KV cache. The manifest comment records the rollback values for the
-previous fine-tuned E2B package. Evidence and measurements are in the
-[E4B migration ledger](Gemma4-E4B-QAT-Progress.md).
+On `feature/gemma4-e4b-qat`, `LiteRTModelManifest.aquinas` selects the standard LiteRT Community
+Gemma 4 E4B package, not a fine-tune. It runs text-only on the GPU with a 4,096-token KV cache.
+An earlier owner-approved build from this branch remains installed on Ry as a personal trial.
+**The migration is not promoted:** C9 failed the frozen physical-device latency gate, C10 is
+blocked, and `main` still selects the fine-tuned E2B package. Do not infer a release decision
+from the branch manifest or the phone installation. The manifest comment records B0 rollback
+values. Evidence, exact hashes, and the next diagnostic plan are in the
+[E4B migration ledger](Gemma4-E4B-QAT-Progress.md) and
+[post-C9 diagnostics](Gemma4-E4B-Post-C9-Diagnostics.md).
 
 Lifecycle rules the runtime enforces (see the C7 evidence):
 - The stall watchdog ignores time the process spent suspended.
