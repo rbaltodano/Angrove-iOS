@@ -84,13 +84,12 @@ The owner is handing this work to Codex. State as of commit `2776cc9` on `featur
 | C6 | Integration diagnostics | C5 | done | Claude Code (Opus 5.5) session | 2026-09-26 | M4-Ls: 12/12 contracts OK, no template/parsing failures (simulator CPU). Found and fixed 2 app bugs; found B0's JSON-wrapped system prompt |
 | C7 | Full-app functional + lifecycle stress | C6 | done | Claude Code (Opus 5.5) session | 2026-09-27 | **Pass** (simulator CPU). Fixed 3 lifecycle bugs: suspension read as a stall, two overlap paths. Final probe: all cases pass, 0 overlaps, memory within 1%. 199/200 tests (known baseline failure). Make Node has no UI entry (pre-existing) |
 | C8 | Quality A/B (40 dev + 40 held-out) | C7 | done | Claude Code (Opus 5.5) session | 2026-09-27 | **M4-Ls passes all held-out rows** after the owner-delegated review (accuracy 3.05 → 3.85; critical 9 → 1). Run before C7 by recorded decision; simulator CPU; confirm held-out on the phone GPU before C10 |
-| C9 | Physical-device sustained gate | C8 | in-progress | Codex takeover | 2026-09-27 | Owner resumed; Application Support backup successful in C9-preflight-3; completing backup and C9 harness |
-| C10 | Promotion | C9 + owner approval | in-progress | Claude Code (Opus 5.5) session | 2026-09-27 | Owner approved. Code, seed, and docs done on the branch; sim no-override smoke passes; 199/200 tests. **Merge held for C9**; phone smoke, rollback check, and PR pending |
+| C9 | Physical-device sustained gate | C8 | failed | Codex takeover | 2026-09-27 | M4-Ls failed cold-load and short-answer p95 gates; C9-M4Ls-2, early stop is decisive for nearest-rank p95 |
+| C10 | Promotion | C9 + owner approval | blocked | Claude Code + Codex takeover | 2026-09-27 | C9 failed; owner-approved branch prework retained, no merge/PR. Production phone still has E4B pending owner choice |
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
 | C12 | Optional: vision probe | C10 | todo | | | |
 
-**Next action:** See *Handoff*. C9 on the phone, then the C8 held-out set on the phone GPU, then
-finish C10 (rollback check and PR; merge only if C9 passes).
+**Next action:** C9 failed; follow its On failure branch. Do not promote. Owner decides whether to keep the earlier E4B phone install temporarily or roll it back, and whether a revised configuration becomes a new candidate. C8 phone GPU confirmation, C10 rollback check, and PR are held. Main still declares B0.
 
 ## Candidate registry
 
@@ -924,14 +923,46 @@ its committed protocol; amendments require a new version committed before affect
 
 | Metric | Budget | B0 | M4-Ls | Pass? |
 | --- | --- | --- | --- | --- |
-| Peak footprint | ≤ 0.85 × cap | | | |
-| Cold load p95 / max | ≤ 12 s | | | |
-| Cached load p95 / max | ≤ 3 s | | | |
-| One-sentence complete p95 | ≤ 4 s | | | |
-| Justice-and-mercy complete p95 | ≤ 60 s | | | |
-| Turn 20 ÷ turn 1 latency | ≤ 1.5× | | | |
-| Max thermal state | < critical | | | |
-| 5× background/foreground; warning; idle > 60 s | survive and recover | | | |
+| Peak footprint | ≤ 5,924,901,860 B | 1,974,162,320 B (`C9-B0-2`) | 1,087,706,216 B (`C9-M4Ls-2`) | yes in sampled trials; gate ended early |
+| Cold load p95 / max | ≤ 12 s | 7.916 s (1 valid trial) | **12.824 s** (1 valid trial) | **no**: 5-trial p95 must be at least 12.824 s |
+| Cached load p95 / max | ≤ 3 s | not run | not run | held after decisive failure |
+| One-sentence complete p95 | ≤ 4 s | 18.446 s (cold, 1 trial) | **21.910 s** (cold, 1 trial) | **no**: 5-trial p95 must be at least 21.910 s |
+| Justice-and-mercy complete p95 | ≤ 60 s | not run | not run | held after decisive failure |
+| Turn 20 ÷ turn 1 latency | ≤ 1.5× | not run | not run | held after decisive failure |
+| Max thermal state | < critical | nominal (0) | nominal (0) | yes in sampled trials |
+| 5× background/foreground; warning; idle > 60 s | survive and recover | not run | not run | held after decisive failure |
+
+**C9 gate decision — failed 2026-09-27 (run `C9-M4Ls-2`).** On physical iPhone 17 Ry,
+iOS 27.0 (24A5430a), DEBUG disposable bundle, GPU, 4,096 context, greedy sampler,
+exact M4-Ls SHA-256 `0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0`.
+Exact launch arguments: `LocalModels/e4b-eval/C9-M4Ls-2/run.txt`; settings/result:
+`litert-sustained-result.json`; monotonic load/retrieval/UI timestamps and thermal/memory
+samples: `litert-lifecycle.jsonl`; native settings: `litert-probe-stderr.log`; device logs:
+`new-crashlogs.txt` (one disk-writes report, no jetsam). Artifact/runtime/grounding hashes:
+`C9-preflight-3/artifact-manifest.json`; backup and Home counts in `backup-manifest.json`
+and `data-counts.json`. Build `C9-diagnostics-1/build.log` passed after hash-memory correction
+(`a4fd7c0`). Candidate response was coherent, 35 words. First visible answer equaled completed
+answer (LiteRT buffering); retrieval completed at 13.155 s and UI answer at 21.910 s after
+acceptance; metadata at 21.910 s. Native prefill boundaries unavailable, recorded null per
+frozen protocol. Peak footprint 1.088 GB, below cap, thermal nominal. Cold load **12.824 s >
+12 s** and cold short answer **21.910 s > 4 s**. The frozen nearest-rank p95 for five samples
+is their max, so even four perfect future samples cannot make either gate pass. We therefore
+stop the remaining trials without claiming a measured five-sample p95. No product budget was
+revised after seeing numbers.
+
+Valid B0 context: `C9-B0-2`, exact SHA-256 `9a6345f1…3365282`, same runtime/phone and corrected
+harness, cold load 7.916 s, short answer 18.446 s, peak 1.974 GB, nominal thermal. `C9-B0-1`
+is preserved as invalid/incomplete due to DEBUG hash memory overhead, fixed in `a4fd7c0`.
+`C9-M4Ls-1` was a preflight thermal refusal with no candidate load. All run folders immutable.
+
+**On failure branch:** do not promote M4-Ls. Main still has the B0 manifest (verified with
+`git show main:Aquinas-iOS/Services/LiteRTModelStore.swift`); no merge, push, or PR. The branch
+retains owner-approved E4B promotion prework for review, but C10 cannot close while C9 failed.
+The production phone app remains on the earlier E4B build pending the owner's choice about
+rollback. C8's held-out phone GPU repeat and the C10 scratch rollback are not run because they
+depend on a passing C9. The GitHub repository is public, so no PR can be opened under the owner's
+no-public-posting instruction in any case. New tuning or relaxed budgets require a new plan and
+candidate/run IDs; this failed result stays intact.
 
 ### C10 — Promotion
 - Owner approval: 2026-09-27, "let's just get this model into the app and we can try the fine
@@ -967,9 +998,11 @@ its committed protocol; amendments require a new version committed before affect
 
 ## Final summary
 
-_Fill this in at the end: promoted or rejected, which gate decided it, and follow-ups (for
-example a QAT-preserving fine-tune, reopening D7 if exporter support appears, raising the
-context, or vision)._
+**Rejected with evidence at C9** under the frozen provisional budgets: M4-Ls's first valid
+cold phone trial exceeded both the 12-second load and 4-second one-sentence answer limits.
+Main remains B0. No PR or merge. Production phone rollback preference and any new candidate
+configuration await the owner's decision; no later gate is claimed. Keep the earlier C8 CPU
+quality result as evidence, but it does not override this physical-device gate.
 
 ### C9 resumption — 2026-09-27
 
