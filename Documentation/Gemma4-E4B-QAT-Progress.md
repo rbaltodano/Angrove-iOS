@@ -84,7 +84,7 @@ The owner is handing this work to Codex. State as of commit `2776cc9` on `featur
 | C6 | Integration diagnostics | C5 | done | Claude Code (Opus 5.5) session | 2026-09-26 | M4-Ls: 12/12 contracts OK, no template/parsing failures (simulator CPU). Found and fixed 2 app bugs; found B0's JSON-wrapped system prompt |
 | C7 | Full-app functional + lifecycle stress | C6 | done | Claude Code (Opus 5.5) session | 2026-09-27 | **Pass** (simulator CPU). Fixed 3 lifecycle bugs: suspension read as a stall, two overlap paths. Final probe: all cases pass, 0 overlaps, memory within 1%. 199/200 tests (known baseline failure). Make Node has no UI entry (pre-existing) |
 | C8 | Quality A/B (40 dev + 40 held-out) | C7 | done | Claude Code (Opus 5.5) session | 2026-09-27 | **M4-Ls passes all held-out rows** after the owner-delegated review (accuracy 3.05 → 3.85; critical 9 → 1). Run before C7 by recorded decision; simulator CPU; confirm held-out on the phone GPU before C10 |
-| C9 | Physical-device sustained gate | C8 | in-progress | Codex takeover | 2026-09-27 | Protocol v1 frozen below; no device trials started |
+| C9 | Physical-device sustained gate | C8 | blocked | Codex takeover | 2026-09-27 | Protocol frozen in `87a5cc9`; production-data backup fails with protected-file EPERM; unlock Ry before resuming |
 | C10 | Promotion | C9 + owner approval | in-progress | Claude Code (Opus 5.5) session | 2026-09-27 | Owner approved. Code, seed, and docs done on the branch; sim no-override smoke passes; 199/200 tests. **Merge held for C9**; phone smoke, rollback check, and PR pending |
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
 | C12 | Optional: vision probe | C10 | todo | | | |
@@ -120,6 +120,16 @@ Record these **before** the candidate numbers they govern are seen.
 
 _Add a dated entry for anything that blocks progress. Say what the question is, why it blocks,
 and what options you recommend._
+
+- **2026-09-27: C9 backup prerequisite blocked.** Ry is reachable, but two read-only attempts
+  to copy production Application Support failed opening a CanvasState file (`openat` EPERM).
+  Documents also encountered a CoreDevice tunnel timeout. Preferences copied successfully;
+  this is not a complete backup. Owner asked to unlock Ry and leave it unlocked for a retry.
+  No experiment/install starts until the backup and data counts are verified (plan §4.2).
+- **2026-09-27: C10 PR destination conflicts with private-only instruction.** `gh repo view`
+  confirms `rbaltodano/Aquinas-iOS` is PUBLIC. Owner's current “don't post anything publicly”
+  instruction prevents a push/PR there. Asked for a private destination or to retain the PR
+  locally. Nothing was pushed or posted.
 
 - ~~**2026-09-26: Merge the backend removal before C6.**~~ **Resolved 2026-09-27:** merged (`b6903b4`). C6 may need
   E4B-specific adapter fixes in `LiteRTAquinasModel.swift`, and the owner's uncommitted work on
@@ -890,7 +900,27 @@ its committed protocol; amendments require a new version committed before affect
   No merge is authorized. Verify repository visibility before pushing/opening a PR: owner's
   “don't post anything publicly” restriction applies.
 
-- Device / iOS / backup / data counts:
+**Preflight evidence (no C9 model trials yet).**
+- Protocol commit: `87a5cc9`; source takeover commit: `be06935`, correct worktree/branch.
+- Device: Ry, iPhone17 hardware `iPhone18,3`, iOS 27.0 (24A5430a), paired and reachable.
+- `LocalModels/e4b-eval/C9-preflight-1/`: device metadata, production Library inventory,
+  exact commands, backup transfer logs, hashed preferences backup, preflight summary.
+  `C9-preflight-2/backup-appsupport.log`: retry failed with the same protected-file error.
+  **Backup incomplete.** Parsed preferences show 13 saved Insights, 1 study topic, 81 seen
+  Insight IDs. Conversation count is not yet verified. Earlier backup remains untouched.
+- `df -h /`: 5.5 GiB free; worktree `build/DerivedData` is 8.3 GB. No build or cleanup
+  performed yet; clear only verified stale build products before building.
+- Harness preparation still needed: existing quality probe preloads a separate runtime and
+  ignores UI updates; it cannot establish queue-to-visible-answer C9 timing. Existing lifecycle
+  probe simulates queue inactivity, not OS suspension, and waits for native drain before
+  enqueueing the post-cancel request. Add dedicated C9 instrumentation outside
+  `LiteRTAquinasModel.swift` before collecting results. The vendored conversation API has no
+  native prefill-boundary callbacks; benchmark metrics require benchmark mode, which changes
+  execution settings. Record this limitation explicitly; do not substitute inferred timestamps.
+  Device-interaction skill's session/synthesis tools are not available in this session.
+- **Status: blocked at backup prerequisite**, per plan §0 rule 6. No model trials, installs,
+  model changes, production-container writes, push, PR, or merge occurred. C8 GPU confirmation
+  and C10 rollback remain pending. Resume with a new preflight ID after Ry is unlocked.
 
 | Metric | Budget | B0 | M4-Ls | Pass? |
 | --- | --- | --- | --- | --- |
