@@ -1054,3 +1054,17 @@ proven diagnostic overhead; its incomplete result remains preserved and its exac
 remains unconfirmed. M4-Ls has not yet loaded in any C9 trial. Restart trial pair with new IDs
 on the rebuilt harness; keep the frozen budgets. This correction also makes installation hash
 verification bounded in memory. Phone repeat must confirm actual memory behavior.
+
+### C9 closeout — 2026-09-27
+
+The owner asked for pros and cons of restoring B0 versus retaining E4B on the phone after C9.
+Session recommendation: **retain the existing E4B production app temporarily as a personal
+trial**, because held-out CPU quality favored it and C9 memory was lower; warn that latency
+failed the frozen gate and sustained stability is unverified. This is not a promotion or a new
+candidate decision. No production install, data, model file, or app container was changed in
+this closeout. The disposable `com.ryanbaltodano.Aquinas-iOS.ModelProbe` app was uninstalled
+after evidence collection, removing its copied B0 model; `C9-diagnostics-1/probe-uninstall.log`
+and `probe-after-uninstall.log`. A separate app listing confirms the production
+`com.ryanbaltodano.Aquinas-iOS` remains installed. All raw evidence and the verified
+production-data backup remain gitignored in the worktree. To change the product decision, the
+owner must adopt a new candidate/configuration with new run IDs; never erase C9's failure.
