@@ -21,10 +21,14 @@
   app was uninstalled after the gate failed.
 - A bounded-memory SHA-256 fix (`a4fd7c0`) and DEBUG C9 timing harness (`7ac77a8`)
   are committed; the physical build passed. The system-prompt file was not edited.
-- The owner delegated the next step to the senior developer. P1 informational usability
-  diagnostics are frozen in `Gemma4-E4B-Post-C9-Diagnostics.md` before new phone runs.
-  C9 remains failed and immutable. P1 cannot promote E4B; any new product criteria need a
-  separate predeclared promotion plan. The C8 phone GPU repeat, C10 rollback check,
+- The owner delegated the next step to the senior developer, then asked for a stopping point.
+  P1 informational usability diagnostics are frozen in
+  `Gemma4-E4B-Post-C9-Diagnostics.md` and **no P1 model run has started**. Current backup:
+  `LocalModels/e4b-eval/P1-preflight-1/` (28 hashed/parsed files, Home counts 9 conversations,
+  13 saved Insights, 1 study topic, 81 seen Insight IDs). Updated DEBUG device build passed in
+  `build-instrumented.log`. The unused disposable probe was uninstalled; production E4B and
+  its data remain. Resume by reinstalling that build under the disposable ID and using new
+  `P1-M4Ls-*` run IDs. C9 stays failed. The C8 phone GPU repeat, C10 rollback check,
   Foundations update, and PR remain undone under the original plan.
 
 ## Prior handoff (2026-09-27; historical, superseded by the current handoff)

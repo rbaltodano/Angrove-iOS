@@ -64,3 +64,14 @@ from a detached task so synchronous retrieval/model calls do not pause its one-s
 Neither change alters the LiteRT model, sampler, prompt, queue, or runtime lifecycle policy.
 Commit the instrumented build and use it for **all** P1 runs; no P1 model run preceded this
 amendment.
+
+## Stopping point — 2026-09-27
+
+Protocol and instrumentation committed before trials. Fresh production-data backup verified:
+`LocalModels/e4b-eval/P1-preflight-1/backup-manifest.json` and `data-counts.json` (28 files,
+9 conversations, 13 saved Insights, 1 study topic, 81 seen Insight IDs). P1 DEBUG physical build
+passed (`build-instrumented.log`). The disposable probe was installed but never launched for a
+P1 model run, then uninstalled at the owner's request to reach a stopping point. Production E4B
+remains installed with its data untouched. No P1 run IDs exist. Resume by reinstalling the
+built disposable app, checking its new installed bundle path, then prime its E4B cache under
+`P1-M4Ls-1` with the frozen flags. Do not reuse old C9 IDs or results.
