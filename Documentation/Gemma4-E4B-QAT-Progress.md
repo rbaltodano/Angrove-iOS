@@ -84,7 +84,7 @@ The owner is handing this work to Codex. State as of commit `2776cc9` on `featur
 | C6 | Integration diagnostics | C5 | done | Claude Code (Opus 5.5) session | 2026-09-26 | M4-Ls: 12/12 contracts OK, no template/parsing failures (simulator CPU). Found and fixed 2 app bugs; found B0's JSON-wrapped system prompt |
 | C7 | Full-app functional + lifecycle stress | C6 | done | Claude Code (Opus 5.5) session | 2026-09-27 | **Pass** (simulator CPU). Fixed 3 lifecycle bugs: suspension read as a stall, two overlap paths. Final probe: all cases pass, 0 overlaps, memory within 1%. 199/200 tests (known baseline failure). Make Node has no UI entry (pre-existing) |
 | C8 | Quality A/B (40 dev + 40 held-out) | C7 | done | Claude Code (Opus 5.5) session | 2026-09-27 | **M4-Ls passes all held-out rows** after the owner-delegated review (accuracy 3.05 → 3.85; critical 9 → 1). Run before C7 by recorded decision; simulator CPU; confirm held-out on the phone GPU before C10 |
-| C9 | Physical-device sustained gate | C8 | blocked | Codex takeover | 2026-09-27 | Protocol frozen in `87a5cc9`; production-data backup fails with protected-file EPERM; unlock Ry before resuming |
+| C9 | Physical-device sustained gate | C8 | in-progress | Codex takeover | 2026-09-27 | Owner resumed; Application Support backup successful in C9-preflight-3; completing backup and C9 harness |
 | C10 | Promotion | C9 + owner approval | in-progress | Claude Code (Opus 5.5) session | 2026-09-27 | Owner approved. Code, seed, and docs done on the branch; sim no-override smoke passes; 199/200 tests. **Merge held for C9**; phone smoke, rollback check, and PR pending |
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
 | C12 | Optional: vision probe | C10 | todo | | | |
@@ -970,3 +970,12 @@ its committed protocol; amendments require a new version committed before affect
 _Fill this in at the end: promoted or rejected, which gate decided it, and follow-ups (for
 example a QAT-preserving fine-tune, reopening D7 if exporter support appears, raising the
 context, or vision)._
+
+### C9 resumption — 2026-09-27
+
+Owner authorized continuation. Protected Application Support now copies successfully under new
+run `C9-preflight-3` (9 persisted conversations); completing Documents/preferences backup before
+any install. Prepare DEBUG-only full-app queue timing instrumentation without editing
+`LiteRTAquinasModel.swift`. No production prompt, sampler, model, or vendor binary changes.
+Native prefill timestamps remain explicitly unavailable in production mode per frozen protocol.
+Stale worktree simulator products removed before device build; models/evidence preserved.
