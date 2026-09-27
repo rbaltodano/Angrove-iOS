@@ -85,6 +85,7 @@ nonisolated final class LiteRTLifecycleTrace: @unchecked Sendable {
         let memory = LiteRTProbeMemory.sample()
         var line = fields
         line["event"] = event
+        line["uptime"] = ProcessInfo.processInfo.systemUptime
         line["at"] = Date.now.ISO8601Format(.iso8601.time(includingFractionalSeconds: true))
         line["physFootprint"] = memory.physFootprintBytes ?? 0
         line["peakPhysFootprint"] = memory.peakPhysFootprintBytes ?? 0

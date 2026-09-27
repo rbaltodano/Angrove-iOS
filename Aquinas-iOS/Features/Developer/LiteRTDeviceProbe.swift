@@ -101,6 +101,13 @@ final class LiteRTDeviceProbeModel {
         }
 
 #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--litert-sustained-probe") {
+            phase = .generating
+            await LiteRTSustainedProbe.run { self.response = $0 }
+            phase = .completed
+            detail = "C9 collection finished; see litert-sustained-result.json."
+            return
+        }
         if ProcessInfo.processInfo.arguments.contains("--litert-lifecycle-probe") {
             phase = .generating
             detail = "Running the lifecycle stress cases through the app's runtime."

@@ -75,7 +75,7 @@ final class AquinasApplicationRuntime {
                 driver: runtime,
                 configuration: configuration
             )
-            let groundingProvider: any AquinasGroundingProviding
+            var groundingProvider: any AquinasGroundingProviding
             do {
                 groundingProvider = try MiniLMGroundingProvider()
             } catch {
@@ -83,6 +83,11 @@ final class AquinasApplicationRuntime {
                 // reference set rather than losing grounding entirely.
                 groundingProvider = LocalAquinasGroundingProvider()
             }
+#if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--litert-sustained-probe") {
+                groundingProvider = LiteRTC9GroundingObserver(base: groundingProvider)
+            }
+#endif
             model = LiteRTAquinasModel(runtime: runtime, groundingProvider: groundingProvider)
             modelTasks = ModelTaskQueue(runtimeLifecycle: lifecycle)
             isOnDevice = true

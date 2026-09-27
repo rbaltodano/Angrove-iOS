@@ -102,7 +102,14 @@ nonisolated struct LiteRTModelStore: Sendable {
         ).first else {
             throw LiteRTModelStoreError.cacheUnavailable
         }
-        let directory = root.appending(path: "LiteRTLM")
+        var directory = root.appending(path: "LiteRTLM")
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--litert-sustained-probe"),
+           Bundle.main.bundleIdentifier == "com.ryanbaltodano.Aquinas-iOS.ModelProbe" {
+            // Keep both arms' caches independent during alternating cold/cached C9 trials.
+            directory = root.appending(path: "LiteRTLM-C9").appending(path: manifest.fileName)
+        }
+#endif
         try FileManager.default.createDirectory(
             at: directory,
             withIntermediateDirectories: true
