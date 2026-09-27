@@ -564,7 +564,7 @@ behavior doesn't depend on the backend. Build `fb02847`, with `--litert-diagnost
   | Make Node (exactly 3) | pass | **fail: model** (malformed JSON) |
   | Question of the Day | pass | pass |
   | Compaction | pass | pass |
-  | Quote notability | not in this branch; run after the owner's backend-removal merge adds it | — |
+  | Quote notability (added after the merge; `C6-M4Ls-quote-1`, `C6-B0-quote-1`) | pass (synthesis → notable, with a reason; plain question → not notable) | **fail: model**. Both answers drop the closing `}`, so the app gets `invalidResponse`. The shipped Quote feature doesn't work on B0 |
 - Image-history and attachment behavior in text-only mode: before `d583c94`, any image failed
   that turn and every later turn (`C6prep-harness-1`). After the fix, both models answer the
   text and say they can't see the image (for example M4-Ls: "I'm sorry, but I can't see the
@@ -574,9 +574,6 @@ behavior doesn't depend on the backend. Build `fb02847`, with `--litert-diagnost
   (`initialMessageCount 2`), and both models answer on-topic.
 - E4B-specific adapter fixes (commit): none required. App fixes made in C6, not E4B-specific:
   `d583c94` (follow-up history, images).
-- Structured-schema results (per schema: pass / template / retrieval / model):
-- Image-history and attachment behavior in text-only mode:
-- E4B-specific adapter fixes (commit):
 
 ### C7 — Full-app functional and lifecycle stress
 Simulator (iPhone 17, iOS 27.0), **CPU executor** (M4-Ls can't run on the simulator GPU, C4),

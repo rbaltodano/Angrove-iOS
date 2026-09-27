@@ -195,6 +195,16 @@ enum LiteRTDiagnosticsProbe {
                     throw DiagnosticsError.emptyCompaction
                 }
                 return compacted
+            }),
+            ("structured: quote notability (original synthesis; expect notable)", {
+                let verdict = try await model.assessQuoteNotability(
+                    "Mercy doesn't cancel justice; it pays justice's debt from a surplus of love."
+                )
+                return "notable=\(verdict.isNotable) | reason=\(verdict.reason ?? "nil")"
+            }),
+            ("structured: quote notability (plain question; expect not notable)", {
+                let verdict = try await model.assessQuoteNotability("What is prudence?")
+                return "notable=\(verdict.isNotable) | reason=\(verdict.reason ?? "nil")"
             })
         ]
     }
