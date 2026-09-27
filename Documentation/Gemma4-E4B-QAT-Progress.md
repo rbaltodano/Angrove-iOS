@@ -237,6 +237,16 @@ package inspection in `peek.txt`, `tflite-histogram.json`, `tflite-metadata.txt`
   - **Consequence for C4:** a GPU-only artisan package probably **cannot run on the CPU backend**,
     so C4's `sim-gpu-fail` branch ("confirm coherent output with `--litert-probe-cpu`") may be
     impossible for M4-L. C4 records what actually happens.
+- **M4-Ls supporting evidence (added 2026-09-27, run `C2-M4Ls-1`).** Constant bytes by dtype:
+  - `tf_lite_prefill_decode`: INT4 1,945 MB, **INT2 168 MB**, INT8 83 MB, FP32 2 MB.
+  - `tf_lite_embedder` and `tf_lite_per_layer_embedder`: **all INT2** (168 MB and 705 MB).
+  - Vision encoder INT8/FP32.
+  - `tf_lite_mtp_drafter` (a speculative-decoding drafter; not used by the app): INT4/INT8.
+  - This is the int2/int4/int8 mix a maintainer described for the confirmed-QAT E2B package, and
+    the public exporter (`litert_torch`) can't emit int2. So it's **strongly consistent with
+    Google's QAT pipeline**, but it isn't an artifact-specific statement.
+  - Classification stays **unconfirmed** under D8. Accurate label: "Gemma 4 E4B (LiteRT
+    Community)". The owner may record a decision to say more.
 - Draft owner-approval question (if any): see *Open questions*, 2026-09-25 "E4B GPU package
   provenance". **Not posted.**
 
