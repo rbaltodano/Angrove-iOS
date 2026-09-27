@@ -37,7 +37,6 @@ struct StudyTopicDetailView: View {
     let modelTasksPopupState: ModelTasksPopupState
     let model: AquinasModel
     let embeddingProvider: EmbeddingProvider
-    let insightTreeService: InsightTreeService
 
     @State private var activeInsight: ConceptDefinition? = nil
     @State private var pickerActiveInsight: ConceptDefinition? = nil
@@ -74,7 +73,6 @@ struct StudyTopicDetailView: View {
         modelTasksPopupState: ModelTasksPopupState,
         model: AquinasModel,
         embeddingProvider: EmbeddingProvider,
-        insightTreeService: InsightTreeService,
         autoFocusTitle: Bool = false,
         onUpdateTopic: @escaping (StudyTopic) -> Void,
         onTopicTouched: @escaping () -> Void = {},
@@ -109,7 +107,6 @@ struct StudyTopicDetailView: View {
         self.modelTasksPopupState = modelTasksPopupState
         self.model = model
         self.embeddingProvider = embeddingProvider
-        self.insightTreeService = insightTreeService
         self.autoFocusTitle = autoFocusTitle
         self.onUpdateTopic = onUpdateTopic
         self.onTopicTouched = onTopicTouched
@@ -322,7 +319,8 @@ struct StudyTopicDetailView: View {
                     }
                 }
         )
-        .safeAreaInset(edge: .bottom) {
+        // Publishes to the shell's single Model Controls bar; renders nothing here.
+        .background {
             if canvasMode.isTopicCanvasVisible {
                 insightControlDock
             }
@@ -629,49 +627,10 @@ struct StudyTopicDetailView: View {
 
     private func removeTopicTreeInsight(_ concept: ConceptDefinition) {
         onRemoveTreeInsight(concept)
-        modelTasks.enqueue(
-            kind: .refreshInsightTree,
-            originPage: .studyTopics,
-            conversationID: topic.id,
-            priority: .background
-        ) {
-            guard AquinasBackendConfiguration.canRecoverFromCurrentDevice else { return }
-            do {
-                try await insightTreeService.remove(insightID: concept.id, from: topic.id)
-                guard !Task.isCancelled else { return }
-                persistedTreeRefreshRequest += 1
-                await Task.yield()
-            } catch {
-                // The accepted topic snapshot is durable and will reconcile on the next load.
-            }
-        }
     }
 
     private func restoreTopicTreeInsight(_ concept: ConceptDefinition) {
         onRestoreTreeInsight(concept)
-        modelTasks.enqueue(
-            kind: .refreshInsightTree,
-            originPage: .studyTopics,
-            conversationID: topic.id,
-            priority: .background
-        ) {
-            guard AquinasBackendConfiguration.canRecoverFromCurrentDevice else { return }
-            do {
-                let suggestedNodeLabel = try await model.labelSubject(
-                    forTitles: ["\(concept.word): \(concept.semanticDefinition)"]
-                )
-                _ = try await insightTreeService.save(
-                    concept,
-                    to: topic.id,
-                    suggestedNodeLabel: suggestedNodeLabel
-                )
-                guard !Task.isCancelled else { return }
-                persistedTreeRefreshRequest += 1
-                await Task.yield()
-            } catch {
-                // The accepted topic snapshot is durable and will reconcile on the next load.
-            }
-        }
     }
 
     @ViewBuilder
@@ -726,9 +685,7 @@ struct StudyTopicDetailView: View {
             modelTasks: modelTasks,
             modelTaskOriginPage: .studyTopics,
             model: model,
-            embeddingProvider: embeddingProvider,
-            insightTreeService: insightTreeService,
-            reconcilesPersistedSavedInsights: true
+            embeddingProvider: embeddingProvider
         )
         .transition(.move(edge: .trailing).combined(with: .opacity))
         .zIndex(5)
@@ -793,7 +750,8 @@ struct StudyTopicDetailView: View {
             onContextWillOpen: {
                 if canvasMode.isTopicCanvasVisible { canvasMode.canvasDismissHoverRequest += 1 }
             },
-            contextCard: insightContextCardState
+            contextCard: insightContextCardState,
+            surfaceID: "study-topic-tree"
         )
     }
 }

@@ -11,14 +11,27 @@ state that must survive changing pages belongs at the shell level and is passed 
 binding or durable store—not local `@State` in `CurrentConversationView`.
 
 `CurrentConversationView` owns active conversation and branch presentation, the visible model-task
-experience, conversation-scoped definition flow, slash-command handling, and durable retry of
-response-driven Insight Tree analysis. `ModelTaskQueue` serializes questions, contextual
+experience, conversation-scoped definition flow, slash-command handling, and on-device Insight Tree seeding
+after each completed response. `ModelTaskQueue` serializes questions, contextual
 definitions, tree updates, and Question of the Day consolidation. Cancellation must keep the
 visible pending/breathing state in sync.
 
-The global Insight Library canvas is an in-memory, client-side semantic experience. The
-conversation Insight Tree uses `InsightTreeService` and backend-owned MiniLM topology. Do not
-recompute its persisted topology with the client `NLEmbeddingProvider`.
+Submitting a question persists its response placeholder before enqueueing generation. Each job
+captures its model and original conversation/branch IDs. Navigation never cancels a question:
+a result from an unmounted column is written to its existing persisted slot by those IDs, without
+checking the newly displayed thread's message count. The currently mounted conversation reconciles
+completed slots from persistence while preserving composer drafts. Snapshot saves also preserve
+already completed answers when a stale page still holds an empty slot for the same question.
+Streaming, compaction, and
+cancellation callbacks may touch a view binding only while that column is visible and still has
+the original branch identity. Cleared/deleted response slots are not recreated by late results.
+
+
+Every Insight Tree is built on-device. The global Insight Library canvas is an in-memory semantic
+experience. The conversation tree asks the local model for each turn's subject
+(`insightTreeSeedCandidate`), stores accepted subjects in `LocalInsightTreeSeedStore`, and clusters
+saved Insights around them with the bundled MiniLM `EmbeddingProvider`. `NLEmbeddingProvider` is a
+degraded last resort only when the MiniLM assets fail to load.
 
 ## Persistence boundaries
 
@@ -30,12 +43,13 @@ process-facing boundary; `CurrentConversationsStore` is its compatibility name a
 sites. All snapshot I/O runs on one serial background queue (`SerializedInquiryStore`): saves
 return immediately, loads and imports wait behind queued writes, and the shell flushes the queue
 when the scene moves to the background. Saved Insights and identifiers-only coordination stores remain in `UserDefaults`, including
-conversation-to-global-Insight membership and pending tree-analysis IDs. See
+conversation-to-global-Insight membership. See
 [`PERSISTENT_MEMORY_IMPLEMENTATION_PLAN.md`](../../Aquinas-Foundations/PERSISTENT_MEMORY_IMPLEMENTATION_PLAN.md)
 for the planned SwiftData migration.
 
-The backend separately persists conversation-scoped definitions and Insight Tree content in
-SQLite. It is a development-time persistence boundary, not cloud sync.
+There is no server-side persistence. Conversations, Insights, and tree state live only on the
+device. (An earlier development topology mirrored tree content to a Mac-hosted SQLite backend; the
+app no longer contains that client.)
 
 ## Important seams
 
@@ -45,11 +59,12 @@ SQLite. It is a development-time persistence boundary, not cloud sync.
 | Conversation orchestration | `Features/Conversation/CurrentConversation.swift` |
 | Transcript and response lifecycle | `Features/Conversation/ConversationComponents.swift` |
 | Visible model tasks | `Features/Conversation/ModelTaskQueue.swift` |
-| Model status and context controls | `Features/Conversation/ModelControls/` (dock in `InquiryControlDock.swift`) |
+| Model status and context controls | `Features/Conversation/ModelControls/`: one app-wide bar (`ModelControlsHost.swift`, mounted by the shell). Pages publish their buttons to it (`InquiryControlDock`, `PageModelControls`, `LibraryModelControls`) and never render a bar of their own. |
 | Model boundary and local implementation | `Services/AquinasModel.swift`, `Services/LiteRTAquinasModel.swift` |
 | Runtime ownership | `Services/AquinasApplicationRuntime.swift`, `Services/LiteRTAquinasRuntime.swift` |
-| Backend tree boundary | `Services/InsightTreeService.swift` |
-| Durable tree-analysis retry IDs | `Persistence/InsightTreeAnalysisQueue.swift` |
+| On-device tree seeds | `Persistence/LocalInsightTreeSeedStore.swift` |
+| Home discovery cards | `Features/Home/HomeDiscoveryCards.swift`, `TodayInHistoryEntries.swift`, `Persistence/GlossedTermStore.swift`, `Persistence/FlaggedQuoteStore.swift` |
+| No-model fallback | `Services/UnavailableAquinasModel.swift` |
 
 ## Current product constraints
 

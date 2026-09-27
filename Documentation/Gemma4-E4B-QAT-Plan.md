@@ -237,8 +237,8 @@ Both continue; see D8.
    - load and generation seconds, and prefill and decode token counts, if available;
    - the peak physical footprint (`task_vm_info.phys_footprint`) and `os_proc_available_memory()`
      at launch, before load, and after generation.
-4. **DEBUG model override.** In `AquinasApplicationRuntime.init`, inside the same `#if DEBUG`
-   block as `--force-backend-model`, accept `--litert-model-path <abs>` or
+4. **DEBUG model override.** In `AquinasApplicationRuntime.init`, inside an `#if DEBUG` block,
+   accept `--litert-model-path <abs>` or
    `--litert-model-document <name>`.
    - Resolve the file with **one shared resolver** used by both the probe and the app.
    - Build `LiteRTModelStore(manifest: <derived name/size, sha "development-override">,
@@ -341,8 +341,8 @@ UI overhead. The output must be coherent.
 
 **Depends on:** C6.
 
-Run the full app with the C3 override. Stop the backend, or point recovery at
-`http://127.0.0.1:9`, so backend recovery cannot mask a local failure.
+Run the full app with the C3 override. The app has no backend recovery path, so a local failure
+surfaces directly.
 
 1. **Functional.** Run:
    - three questions plus one follow-up, and a topic-shift reset;

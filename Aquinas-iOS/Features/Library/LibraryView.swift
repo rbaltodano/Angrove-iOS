@@ -842,10 +842,10 @@ private struct LibraryDocumentDetail: View {
                         .padding(.horizontal, 24)
                         .padding(.bottom, 24)
                 }
-                // Keep the dock mounted while chapter text changes. Giving the ScrollView the
-                // outline ID recreated its safe-area inset on every chapter navigation, so the
-                // model controls lost the state that animates their resize and button entrance.
-                .safeAreaInset(edge: .bottom) {
+                // Keep the controls publisher mounted while chapter text changes (it publishes to
+                // the shell's single Model Controls bar and renders nothing here). Giving the
+                // ScrollView the outline ID would recreate it on every chapter navigation.
+                .background {
                         LibraryModelControls(
                             modelTasks: modelTasks,
                             modelTasksPopupState: modelTasksPopupState,
@@ -936,7 +936,7 @@ private struct LibraryTextSection: View {
     let passages: [LibraryPassage]
     let isVisible: Bool
     @AppStorage("aquinas.settings.conversationFontSize")
-    private var conversationFontSize: ConversationFontSizeOption = .small
+    private var conversationFontSize: ConversationFontSizeOption = .medium
     @AppStorage("aquinas.settings.responseFont")
     private var responseFont: ConversationFontOption = .sans
 

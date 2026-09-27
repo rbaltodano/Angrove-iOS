@@ -326,14 +326,14 @@ struct ModelStatusButton: View {
                         )
                         .transition(.opacity)
                     } else {
-                        Text(activeStatusText)
+                        BlurSwapText(activeStatusText)
                             .modifier(
                                 ThinkingShimmer(
                                     isActive: true,
                                     color: AquinasTheme.Colors.lightGreen
                                 )
                             )
-                            .transition(.opacity)
+                            .transition(.blurFade)
                     }
                 } else {
                     if activityDisplay == .compact {
@@ -348,7 +348,7 @@ struct ModelStatusButton: View {
                     } else {
                         Text("Idle")
                             .foregroundColor(AquinasTheme.Colors.paragraphText)
-                            .transition(.opacity)
+                            .transition(.blurFade)
                     }
                 }
             }

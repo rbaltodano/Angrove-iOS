@@ -513,7 +513,7 @@ private enum ConversationFilter: String, CaseIterable, Identifiable, Equatable {
         switch self {
         case .recent: return "Recent"
         case .pinned: return "Pinned"
-        case .date: return "Date"
+        case .date: return "Date Created"
         }
     }
 

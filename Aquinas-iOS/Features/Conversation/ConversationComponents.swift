@@ -12,6 +12,24 @@ import UIKit
 private let questionCanceledResponseText = "Question canceled"
 
 enum ConversationResponseStatePolicy {
+    enum CompletionDestination: Equatable {
+        case visible, detached, discarded
+    }
+
+    static func completionDestination(
+        isCancelled: Bool,
+        isViewVisible: Bool,
+        originalBranchID: UUID,
+        displayedBranchID: UUID,
+        responseIndex: Int,
+        displayedBlockCount: Int
+    ) -> CompletionDestination {
+        guard !isCancelled else { return .discarded }
+        // A different (or unmounted) thread says nothing about the original response slot.
+        guard isViewVisible, originalBranchID == displayedBranchID else { return .detached }
+        return (0..<displayedBlockCount).contains(responseIndex) ? .visible : .discarded
+    }
+
     static func isAwaitingResponse(
         hasResponseText: Bool,
         isLocallyPending: Bool,
@@ -26,7 +44,7 @@ enum ConversationResponseStatePolicy {
 }
 
 /// Keeps a model task current until its response actually begins revealing in the UI.
-/// Backend completion alone is not the user-visible completion boundary.
+/// Generation completion alone is not the user-visible completion boundary.
 @MainActor
 private final class ResponseRevealGate {
     private(set) var hasStarted = false
@@ -60,6 +78,11 @@ private final class ResponseRevealGate {
         continuation?.resume()
         continuation = nil
     }
+}
+
+@MainActor
+private final class ConversationResponseViewLifetime {
+    var isVisible = false
 }
 
 // MARK: - Chat Thread Column
@@ -135,6 +158,10 @@ struct ChatThreadColumn: View {
     var connectionConcepts: [ConceptDefinition]? = nil
     var onConnectionHandled: (() -> Void)? = nil
     var onResponseGenerated: (Int) -> Void = { _ in }
+    /// Called when a response finishes after its conversation left the screen. Arguments are the
+    /// originating conversation ID, branch ID, and response index.
+    var onDetachedResponseGenerated: (UUID, UUID, Int) -> Void = { _, _, _ in }
+    var onDetachedResponseCancelled: (UUID, UUID, Int) -> Void = { _, _, _ in }
     var onResponseCompleted: (Int) -> Void = { _ in }
     var onResponseStarted: () -> Void = {}
     var onResponseCancelled: () -> Void = {}
@@ -220,6 +247,7 @@ struct ChatThreadColumn: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.aquinasModel) private var aquinasModel
 
+    @State private var responseViewLifetime = ConversationResponseViewLifetime()
     @State private var animatedResponseIndices: Set<Int> = []
     @State private var pendingResponseIndices: Set<Int> = []
     @State private var streamingResponseIndices: Set<Int> = []
@@ -407,7 +435,7 @@ struct ChatThreadColumn: View {
         return words.joined(separator: " ")
     }
 
-    // Routes through BackendAquinasModel for structured prose and tappable key terms.
+    // Routes through the live AquinasModel for structured prose and tappable key terms.
     private func appendSimulatedResponse(
         replacingResponseAt replacementIndex: Int? = nil,
         connectionConcepts: [ConceptDefinition]? = nil,
@@ -431,6 +459,12 @@ struct ChatThreadColumn: View {
         }
         let thinkingEnabled = showsThinkingIntro
         let revealGate = ResponseRevealGate()
+        // `branchData` is a binding into the shell's active branches. If the user starts or opens
+        // another conversation while this job runs, the binding points at that other conversation's
+        // branch, so completion must verify identity before touching it.
+        let originalBranchID = branchData.id
+        let responseLifetime = responseViewLifetime
+        let model = aquinasModel
 
         animatedResponseIndices.insert(responseIndex)
         pendingResponseIndices.insert(responseIndex)
@@ -442,7 +476,6 @@ struct ChatThreadColumn: View {
         responseThinkingSummaryByIndex.removeValue(forKey: responseIndex)
         responseGroundingSourcesByIndex.removeValue(forKey: responseIndex)
         branchData.removeResponsePresentation(at: responseIndex)
-        onResponseStarted()
         withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
             if branchData.activeChatBlocks.indices.contains(responseIndex) {
                 branchData.activeChatBlocks[responseIndex] = .text("")
@@ -452,6 +485,8 @@ struct ChatThreadColumn: View {
             branchData.showBottomInput = false
         }
 
+        // Persist the exact placeholder before the queue can finish on an unmounted page.
+        onResponseStarted()
         modelTasks.enqueue(
             kind: .userQuestion(
                 branchID: branchData.id,
@@ -465,6 +500,23 @@ struct ChatThreadColumn: View {
                 }
             },
             onCancel: {
+                guard responseLifetime.isVisible, branchData.id == originalBranchID else {
+                    if let conversationID {
+                        InquiryPersistenceStore.completeDetachedResponse(
+                            branchID: originalBranchID,
+                            conversationID: conversationID,
+                            responseIndex: responseIndex,
+                            annotatedText: originalResponse ?? questionCanceledResponseText,
+                            presentation: originalPresentation ?? ResponsePresentationMetadata(
+                                responseIndex: responseIndex,
+                                showsThinking: false,
+                                thinkingSummary: []
+                            )
+                        )
+                        onDetachedResponseCancelled(conversationID, originalBranchID, responseIndex)
+                    }
+                    return
+                }
                 if let originalResponse {
                     cancelRegeneration(
                         at: responseIndex,
@@ -480,9 +532,11 @@ struct ChatThreadColumn: View {
             }
         ) {
             var responseContext = context
+            // Keep result metadata with the job; view-local State may be unmounted mid-generation.
+            var generatedGroundingSources: [GroundingSourceSummary] = []
             if AquinasContextBudget.shouldCompact(context),
                let split = AquinasContextBudget.historyAndLatestTurn(in: context) {
-                let summary = await aquinasModel.compact(split.history)
+                let summary = await model.compact(split.history)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 if !summary.isEmpty, !Task.isCancelled {
                     responseContext = ConversationContext(
@@ -492,18 +546,25 @@ struct ChatThreadColumn: View {
                     )
                     // The latest user question remains verbatim at `responseIndex - 1`; only the
                     // blocks before it are represented by the new checkpoint.
-                    branchData.compactedContext = summary
-                    branchData.compactedThroughBlockCount = max(
-                        branchData.compactedThroughBlockCount ?? 0,
-                        max(responseIndex - 1, 0)
-                    )
+                    if responseLifetime.isVisible, branchData.id == originalBranchID {
+                        branchData.compactedContext = summary
+                        branchData.compactedThroughBlockCount = max(
+                            branchData.compactedThroughBlockCount ?? 0,
+                            max(responseIndex - 1, 0)
+                        )
+                    }
                 }
             }
-            let response = await aquinasModel.respond(
+            let response = await model.respond(
                 to: responseContext,
                 thinkingEnabled: thinkingEnabled
             ) { update in
-                guard !Task.isCancelled,
+                guard !Task.isCancelled else { return }
+                if case .groundingSources(let sources) = update {
+                    generatedGroundingSources = sources
+                }
+                guard responseLifetime.isVisible,
+                      branchData.id == originalBranchID,
                       branchData.activeChatBlocks.indices.contains(responseIndex) else {
                     return
                 }
@@ -518,7 +579,7 @@ struct ChatThreadColumn: View {
                 case .groundingSources(let sources):
                     responseGroundingSourcesByIndex[responseIndex] = sources
                 case .responseText(let streamedText):
-                    // Keep the network stream buffered until the backend returns the
+                    // Keep the stream buffered until the model returns the
                     // fully annotated response. This prevents unannotated text from
                     // flashing before its Insight links are ready, while still letting
                     // the thinking UI transition to "Writing response...".
@@ -526,19 +587,46 @@ struct ChatThreadColumn: View {
                     streamingResponseIndices.insert(responseIndex)
                 }
             }
-            guard !Task.isCancelled,
-                  branchData.activeChatBlocks.indices.contains(responseIndex) else {
-                // The queue can cancel or preempt this job (Stop, backgrounding, thermal
-                // unload) or the branch's chat blocks can change shape underneath it (the
-                // conversation was switched, cleared, or reset) without this Task itself
-                // ever being cancelled. Either way, the Model Task Queue has already moved
-                // on — clear this index's local tracking too, or the response bubble keeps
-                // rendering its "awaiting"/"streaming" spinner forever even though Model
-                // Status has gone idle.
+            let destination = ConversationResponseStatePolicy.completionDestination(
+                isCancelled: Task.isCancelled,
+                isViewVisible: responseLifetime.isVisible,
+                originalBranchID: originalBranchID,
+                displayedBranchID: responseLifetime.isVisible ? branchData.id : originalBranchID,
+                responseIndex: responseIndex,
+                displayedBlockCount: responseLifetime.isVisible ? branchData.activeChatBlocks.count : 0
+            )
+            guard destination != .discarded else {
                 modelQueuedResponseIndices.remove(responseIndex)
                 pendingResponseIndices.remove(responseIndex)
                 streamingResponseIndices.remove(responseIndex)
                 responseRevealGatesByIndex.removeValue(forKey: responseIndex)
+                return
+            }
+            guard destination == .visible else {
+                // The originating conversation is no longer on screen. Write the answer into its
+                // persisted branch by ID and leave whatever branch the binding now shows alone.
+                modelQueuedResponseIndices.remove(responseIndex)
+                pendingResponseIndices.remove(responseIndex)
+                streamingResponseIndices.remove(responseIndex)
+                responseRevealGatesByIndex.removeValue(forKey: responseIndex)
+                if let conversationID {
+                    let summary = thinkingEnabled ? response.thinkingSummary : []
+                    let sources = thinkingEnabled ? generatedGroundingSources : []
+                    InquiryPersistenceStore.completeDetachedResponse(
+                        branchID: originalBranchID,
+                        conversationID: conversationID,
+                        responseIndex: responseIndex,
+                        annotatedText: response.annotatedText,
+                        presentation: ResponsePresentationMetadata(
+                            responseIndex: responseIndex,
+                            showsThinking: thinkingEnabled && !summary.isEmpty,
+                            thinkingSummary: summary,
+                            groundingSources: sources,
+                            evidenceBasis: response.evidenceBasis
+                        )
+                    )
+                    onDetachedResponseGenerated(conversationID, originalBranchID, responseIndex)
+                }
                 return
             }
             modelQueuedResponseIndices.remove(responseIndex)
@@ -546,9 +634,7 @@ struct ChatThreadColumn: View {
                 ? response.thinkingSummary
                 : []
             responseThinkingSummaryByIndex[responseIndex] = persistedThinkingSummary
-            let persistedGroundingSources = thinkingEnabled
-                ? responseGroundingSourcesByIndex[responseIndex] ?? []
-                : []
+            let persistedGroundingSources = thinkingEnabled ? generatedGroundingSources : []
             let completedPresentation = ResponsePresentationMetadata(
                 responseIndex: responseIndex,
                 showsThinking: thinkingEnabled && !persistedThinkingSummary.isEmpty,
@@ -587,7 +673,15 @@ struct ChatThreadColumn: View {
             if response.annotatedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 revealGate.markStarted()
             }
+            // The reveal is only ornamental pacing. If the card is off screen (another page or
+            // thread is showing) its animation never starts, and an unbounded wait would stall
+            // the whole shared queue, including Insight Tree work such as midpoints.
+            let revealTimeout = Task {
+                try? await Task.sleep(for: .seconds(2))
+                revealGate.markStarted()
+            }
             await revealGate.waitUntilStarted()
+            revealTimeout.cancel()
             responseRevealGatesByIndex.removeValue(forKey: responseIndex)
         }
     }
@@ -895,7 +989,10 @@ struct ChatThreadColumn: View {
         }
         switch conversationTitlePolicy {
         case .automatic:
+            // Title the conversation as soon as the question is asked, not after the answer:
+            // the title must not depend on this view still being mounted at completion.
             pendingGeneratedTitleQuestion = submittedQuestion
+            finalizePendingGeneratedTitleIfNeeded()
         case .firstQuestion:
             pendingGeneratedTitleQuestion = nil
             if branchData.pinnedHeaderQuestion == nil,
@@ -1440,6 +1537,7 @@ struct ChatThreadColumn: View {
         .padding(.bottom, 40)
         .coordinateSpace(name: "ColumnContent-\(branchData.id)")
         .onAppear {
+            responseViewLifetime.isVisible = true
             if let concept = branchData.startingConcept {
                 branchData.branchContextConcept = concept
             }
@@ -1502,6 +1600,7 @@ struct ChatThreadColumn: View {
             insertCommandIntoActiveField()
         }
         .onDisappear {
+            responseViewLifetime.isVisible = false
             // Navigating away removes the response renderer, so no reveal callback can arrive.
             // Release only the presentation gates; the shell-owned model task keeps running and
             // will still write its answer through `onResponseGenerated`.

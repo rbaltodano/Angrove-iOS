@@ -14,7 +14,7 @@ duplicate architecture specifications.
 | Model, API, retrieval, persistence, or privacy boundary | [`../Aquinas-Foundations/MODEL-INTEGRATION.md`](../Aquinas-Foundations/MODEL-INTEGRATION.md) |
 | Insight Tree | [`../Aquinas-Foundations/INSIGHT-TREE.md`](../Aquinas-Foundations/INSIGHT-TREE.md) |
 | iOS composition, ownership, and persistence | [`Documentation/App-Architecture.md`](Documentation/App-Architecture.md) |
-| LiteRT runtime or backend recovery | [`Documentation/Model-Runtime.md`](Documentation/Model-Runtime.md) |
+| LiteRT runtime or model recovery | [`Documentation/Model-Runtime.md`](Documentation/Model-Runtime.md) |
 | Builds, tests, device work, or Figma | [`Documentation/Development-Workflow.md`](Documentation/Development-Workflow.md) |
 | Study mode | [`Documentation/Study-Tool.md`](Documentation/Study-Tool.md) |
 | Gemma 4 E4B QAT migration | [`Documentation/Gemma4-E4B-QAT-Plan.md`](Documentation/Gemma4-E4B-QAT-Plan.md), then its [progress ledger](Documentation/Gemma4-E4B-QAT-Progress.md) |
@@ -33,8 +33,9 @@ duplicate architecture specifications.
   definition saves create Insights.
 - Treat API schemas and structured output as cross-repository contracts. Update iOS decoding and
   Foundation documentation in the same change.
-- Keep the Mac HTTP backend clearly labeled as a development topology, not a hosted production
-  service or a relaxation of the local-first product boundary.
+- The app has no network backend. Generation, retrieval, and Insight Tree work all run on-device;
+  do not add an HTTP model or data client. `Aquinas_Backend` is offline tooling only (corpus,
+  model conversion, evaluation).
 
 ## Working conventions
 

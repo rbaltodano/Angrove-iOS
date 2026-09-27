@@ -78,7 +78,6 @@ struct StudyTopicsView: View {
     let modelTasksPopupState: ModelTasksPopupState
     @Environment(\.aquinasModel) private var model
     @Environment(\.embeddingProvider) private var embeddingProvider
-    private let insightTreeService: InsightTreeService = BackendInsightTreeService()
     var onOpenMenu: () -> Void
     var onSelectConversation: (InquiryConversation) -> Void
     var onNewChat: () -> Void
@@ -166,7 +165,6 @@ struct StudyTopicsView: View {
                     modelTasksPopupState: modelTasksPopupState,
                     model: model,
                     embeddingProvider: embeddingProvider,
-                    insightTreeService: insightTreeService,
                     autoFocusTitle: topic.id == autoFocusTopicID,
                     onUpdateTopic: updateTopic,
                     onTopicTouched: {
@@ -219,7 +217,7 @@ struct StudyTopicsView: View {
                 HStack(spacing: 8) {
                     AquinasNavButton(onMenuTap: onOpenMenu)
                     if selectedTopicID != nil && !topicCanvasMode.isCanvasStudyMode {
-                        NavBackCapsuleButton(title: "Study Topics") {
+                        NavBackCapsuleButton(title: backButtonTitle) {
                             withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
                                 if topicCanvasMode.isTopicCanvasVisible {
                                     topicCanvasMode.isTopicCanvasVisible = false
@@ -256,7 +254,11 @@ struct StudyTopicsView: View {
                 discardNewTopicIfNeeded(oldValue)
             }
             modelTasksPopupState.reset()
-            pendingTreeUpdateTopicID = restoredTreeTopicID == newValue ? nil : newValue
+            // Only ask to update when the topic's conversations hold Insights the tree lacks
+            // (or the tree holds ones no longer bookmarked there).
+            pendingTreeUpdateTopicID = restoredTreeTopicID == newValue
+                ? nil
+                : newValue.flatMap { topicTreeNeedsUpdate($0) ? $0 : nil }
             if newValue == nil {
                 isExistingConversationPickerOpen = false
             }
@@ -571,6 +573,15 @@ struct StudyTopicsView: View {
         )
     }
 
+    /// Inside a topic's Insight Tree, Back returns to that topic, so it names the topic.
+    private var backButtonTitle: String {
+        guard topicCanvasMode.isTopicCanvasVisible,
+              let topic = topics.first(where: { $0.id == selectedTopicID }) else {
+            return "Study Topics"
+        }
+        return displayTitle(for: topic)
+    }
+
     private var treeUpdateConfirmationTitle: String? {
         guard let pendingTreeUpdateTopicID,
               pendingTreeUpdateTopicID == selectedTopicID,
@@ -586,11 +597,7 @@ struct StudyTopicsView: View {
             return
         }
 
-        let aggregatedInsights = StudyTopicInsightTreeBuilder.snapshot(
-            topicID: topicID,
-            conversations: reconciledConversations,
-            savedInsights: savedInsights
-        )
+        let aggregatedInsights = aggregatedTreeInsights(for: topicID)
 
         withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
             topicTreeSnapshots[topicID.uuidString] = aggregatedInsights
@@ -598,6 +605,19 @@ struct StudyTopicsView: View {
         }
         StudyTopicInsightTreeStore.save(topicTreeSnapshots)
         UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.7)
+    }
+
+    private func aggregatedTreeInsights(for topicID: UUID) -> [ConceptDefinition] {
+        StudyTopicInsightTreeBuilder.snapshot(
+            topicID: topicID,
+            conversations: reconciledConversations,
+            savedInsights: savedInsights
+        )
+    }
+
+    private func topicTreeNeedsUpdate(_ topicID: UUID) -> Bool {
+        let current = Set(topicTreeSnapshots[topicID.uuidString, default: []].map(\.id))
+        return Set(aggregatedTreeInsights(for: topicID).map(\.id)) != current
     }
 
     private func removeInsight(_ insight: ConceptDefinition, fromTreeFor topicID: UUID) {
@@ -785,7 +805,7 @@ private enum StudyTopicFilter: String, CaseIterable, Identifiable, Equatable {
     var label: String {
         switch self {
         case .recent: return "Recent"
-        case .date: return "Date"
+        case .date: return "Date Created"
         }
     }
 

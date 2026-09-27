@@ -64,14 +64,12 @@ struct InsightTreeView: View {
     /// Fires after a mutation-triggered persisted snapshot is fully reconciled and applied.
     var onPersistedTreeRefreshCompleted: (() -> Void)? = nil
     var inputFont: ConversationFontOption = .serif
-    var conversationFontSize: ConversationFontSizeOption = .small
+    var conversationFontSize: ConversationFontSizeOption = .medium
     var showQuestionBar: Bool = true
     let modelTasks: ModelTaskQueue?
     let modelTaskOriginPage: ModelTaskOriginPage
     let model: AquinasModel
     let embeddingProvider: EmbeddingProvider
-    let insightTreeService: InsightTreeService
-    let reconcilesPersistedSavedInsights: Bool
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.verticalSizeClass) private var verticalSizeClass
@@ -125,7 +123,7 @@ struct InsightTreeView: View {
     @State private var midpointPercentRequest: Int = 0
     @State private var searchResults: [CanvasSelectionTarget] = []
     @State private var searchResultIndex: Int = 0
-    /// Advances only after a backend snapshot has been fully reconciled and applied.
+    /// Advances each time the on-device tree snapshot has been applied.
     /// The canvas uses this—not its own appearance—to decide when a persisted update may animate.
     @State private var persistedTreePresentationRevision: Int = 0
     /// Equals `persistedTreePresentationRevision` only for refreshes caused by a completed
@@ -206,21 +204,17 @@ struct InsightTreeView: View {
         onUndiscoveredInsightCountChange: ((Int) -> Void)? = nil,
         onPersistedTreeRefreshCompleted: (() -> Void)? = nil,
         inputFont: ConversationFontOption = .serif,
-        conversationFontSize: ConversationFontSizeOption = .small,
+        conversationFontSize: ConversationFontSizeOption = .medium,
         showQuestionBar: Bool = true,
         modelTasks: ModelTaskQueue? = nil,
         modelTaskOriginPage: ModelTaskOriginPage = .insights,
         model: AquinasModel = MockAquinasModel(),
-        embeddingProvider: EmbeddingProvider = NLEmbeddingProvider(),
-        insightTreeService: InsightTreeService = BackendInsightTreeService(),
-        reconcilesPersistedSavedInsights: Bool = false
+        embeddingProvider: EmbeddingProvider = NLEmbeddingProvider()
     ) {
         self.insights              = insights
         self.conversationID        = conversationID
         self.model                 = model
         self.embeddingProvider     = embeddingProvider
-        self.insightTreeService    = insightTreeService
-        self.reconcilesPersistedSavedInsights = reconcilesPersistedSavedInsights
         self.selectionRequest      = selectionRequest
         self.persistedTreeRefreshRequest = persistedTreeRefreshRequest
         self.clearSelectionRequest = clearSelectionRequest
@@ -437,8 +431,9 @@ struct InsightTreeView: View {
             } action: { origin in
                 canvasOriginInStack = origin
             }
-            // A studied Node Concept stays in the canvas, which handles Study's gestures.
-            .allowsHitTesting(studySubject == nil || studiedNodeID != nil)
+            // A studied Node Concept or Insight selection stays in the canvas, which handles
+            // Study's gestures (including rotating the ring).
+            .allowsHitTesting(studySubject == nil || studiedNodeID != nil || studiedSelectionIDs != nil)
 
             if viewModel.nodes.isEmpty {
                 EmptyInsightTreeView()
@@ -843,7 +838,7 @@ struct InsightTreeView: View {
                 retry?()
             }
         } message: {
-            Text("The Insight Tree was left unchanged. Check that the Aquinas backend is available and try again.")
+            Text("The Insight Tree was left unchanged. The on-device model couldn’t finish; please try again.")
         }
         .sheet(item: $viewModel.selectedSuggestedNode) { node in
             SuggestedInsightSheet(node: node) {
@@ -1841,149 +1836,19 @@ struct InsightTreeView: View {
         persistedTreeLoadGeneration += 1
         let loadGeneration = persistedTreeLoadGeneration
 
-        // No point spending a 120s-timeout-capable network request on a URL that's loopback
-        // from the phone's own perspective — go straight to the local-seed path every other
-        // failure of this call already falls back to. Every duplicate `.refreshInsightTree` job
-        // that piled up from repeatedly opening the tree (see `enqueuePersistedTreeLoad`, now
-        // deduplicated) used to each pay that doomed request serially, which is what made the
-        // tree look permanently stuck rather than just briefly loading.
-        guard AquinasBackendConfiguration.canRecoverFromCurrentDevice else {
-            applyLocalSeedTreeIfAvailable(conversationID: conversationID)
-            persistedTreePresentationRevision += 1
-            if animateChanges {
-                onPersistedTreeRefreshCompleted?()
-            }
-            return
-        }
-
-        do {
-            var tree = try await insightTreeService.tree(for: conversationID)
-            guard !Task.isCancelled,
-                  loadGeneration == persistedTreeLoadGeneration else { return }
-
-            if reconcilesPersistedSavedInsights {
-                let staleInsightIDs = Set(
-                    tree.nodes
-                        .flatMap(\.insights)
-                        .filter {
-                            $0.sourceType == "saved_definition"
-                                && !savedConceptIDs.contains($0.id)
-                        }
-                        .map(\.id)
-                )
-                for insightID in staleInsightIDs {
-                    try await insightTreeService.remove(
-                        insightID: insightID,
-                        from: conversationID
-                    )
-                }
-                if !staleInsightIDs.isEmpty {
-                    tree = try await insightTreeService.tree(for: conversationID)
-                    guard !Task.isCancelled,
-                          loadGeneration == persistedTreeLoadGeneration else { return }
-                }
-            }
-
-            var didRepairNodeLabel = false
-            for node in tree.nodes where node.needsGeneratedLabel {
-                let descriptions = node.insights.map {
-                    "\($0.title): \($0.definition)"
-                }
-                let label: String
-                do {
-                    label = try await model.labelSubject(forTitles: descriptions)
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                } catch {
-                    continue
-                }
-                let labelKey = canonicalTreeTitle(label)
-                let duplicatesInsightTitle = node.insights.contains {
-                    canonicalTreeTitle($0.title) == labelKey
-                }
-                guard !label.isEmpty, !duplicatesInsightTitle else { continue }
-                do {
-                    try await insightTreeService.labelNode(
-                        nodeID: node.id,
-                        in: conversationID,
-                        label: label
-                    )
-                    didRepairNodeLabel = true
-                } catch {
-                    continue
-                }
-            }
-            if didRepairNodeLabel {
-                tree = try await insightTreeService.tree(for: conversationID)
-                guard !Task.isCancelled,
-                      loadGeneration == persistedTreeLoadGeneration else { return }
-            }
-
-            // One-time/back-online reconciliation for saved concepts already associated with
-            // this conversation before persistent tree consumption was introduced.
-            let storedIDs = Set(tree.nodes.flatMap(\.insights).map(\.id))
-            let missingSavedInsights = insights.filter {
-                savedConceptIDs.contains($0.id) && !storedIDs.contains($0.id)
-            }
-            var didSaveMissingInsight = false
-            for concept in missingSavedInsights {
-                do {
-                    let suggestedNodeLabel = try await model.labelSubject(
-                        forTitles: ["\(concept.word): \(concept.semanticDefinition)"]
-                    )
-                    let assignment = try await insightTreeService.save(
-                        concept,
-                        to: conversationID,
-                        suggestedNodeLabel: suggestedNodeLabel
-                    )
-                    let addedNodeIDs = assignment.didCreateNode ? [assignment.nodeID] : []
-                    InsightDiscoveryStore.markUndiscovered([concept.id])
-                    InsightDiscoveryStore.markNodesUndiscovered(addedNodeIDs)
-                    InsightDiscoveryStore.markPendingTreePresentation(
-                        insightIDs: [concept.id],
-                        nodeIDs: addedNodeIDs
-                    )
-                    didSaveMissingInsight = true
-                } catch {
-                    continue
-                }
-            }
-            if didSaveMissingInsight {
-                tree = try await insightTreeService.tree(for: conversationID)
-                guard !Task.isCancelled,
-                      loadGeneration == persistedTreeLoadGeneration else { return }
-            }
-
-            // Apply exactly one fully reconciled snapshot. Publishing an intermediate tree here
-            // used to let the canvas consume its entrance animation before the real update landed.
-            guard loadGeneration == persistedTreeLoadGeneration else { return }
-            viewModel.applyPersistedTree(tree)
-            persistedTreePresentationRevision += 1
-            if animateChanges {
-                animatedPersistedTreePresentationRevision =
-                    persistedTreePresentationRevision
-                onPersistedTreeRefreshCompleted?()
-            }
-        } catch {
-            // The backend is optional during local-only use. Release the entrance gate so the
-            // already-built in-memory tree is visible instead of leaving a blank star field.
-            guard loadGeneration == persistedTreeLoadGeneration else { return }
-            applyLocalSeedTreeIfAvailable(conversationID: conversationID)
-            persistedTreePresentationRevision += 1
-            if animateChanges {
-                onPersistedTreeRefreshCompleted?()
-            }
+        guard loadGeneration == persistedTreeLoadGeneration else { return }
+        applyLocalSeedTreeIfAvailable(conversationID: conversationID)
+        persistedTreePresentationRevision += 1
+        if animateChanges {
+            onPersistedTreeRefreshCompleted?()
         }
     }
 
-    /// Not MiniLM parity — on-device-labeled Nodes, one per turn the model judged as seeding or
-    /// materially extending the subject (see `insightTreeSeedCandidate`), fed into the view
-    /// model's own on-device clustering pass as pre-existing anchor clusters (see
-    /// `InsightTreeViewModel.setLocalSeedAnchors`) rather than a separate `applyPersistedTree`
-    /// snapshot. That earlier approach put the seed and the clustering fallback in two mutually
-    /// exclusive rendering modes — whichever last wrote to the view model won, so saving an
-    /// Insight would make the seeded Node disappear rather than the two coexisting. Feeding both
-    /// into the same clustering pass lets a saved Insight attach under the seeded subject when
-    /// related, exactly like a real backend Node would.
+    /// On-device-labeled Nodes, one per turn the model judged as seeding or materially extending
+    /// the subject (see `insightTreeSeedCandidate`), fed into the view model's own clustering pass
+    /// as pre-existing anchor clusters (see `InsightTreeViewModel.setLocalSeedAnchors`). Feeding
+    /// seeds and saved Insights into the same clustering pass lets a saved Insight attach under
+    /// the seeded subject when related, instead of one replacing the other.
     private func applyLocalSeedTreeIfAvailable(conversationID: UUID) {
         let localSeeds = LocalInsightTreeSeedStore.seeds(for: conversationID)
 #if DEBUG
@@ -1992,15 +1857,10 @@ struct InsightTreeView: View {
         viewModel.setLocalSeedAnchors(localSeeds)
     }
 
-    /// Persisted-tree fetches may also repair labels or reconcile saved Insights, so they are
-    /// model work rather than an untracked view refresh. Keeping them in the shared queue prevents
-    /// the status control from returning to Idle before the fully reconciled snapshot is applied.
-    ///
-    /// Deduplicated: without this guard, every appearance of the tree canvas (and every
-    /// `persistedTreeRefreshRequest` bump) queued a brand-new `.refreshInsightTree` job with no
-    /// check for one already pending — repeatedly opening the tree piled up duplicate jobs, each
-    /// serially paying the same (120s-timeout-capable, on-device always-unreachable) network
-    /// request, which is what made the tree look permanently stuck rather than briefly loading.
+    /// Tree refreshes run through the shared queue so they are ordered after the foreground model
+    /// work that produced their seeds. Deduplicated: every appearance of the tree canvas (and
+    /// every `persistedTreeRefreshRequest` bump) would otherwise queue another
+    /// `.refreshInsightTree` job while one is already pending.
     private func enqueuePersistedTreeLoad(animateChanges: Bool) {
         guard conversationID != nil else { return }
         guard let modelTasks else {
@@ -2022,14 +1882,6 @@ struct InsightTreeView: View {
         ) {
             await loadPersistedTree(animateChanges: animateChanges)
         }
-    }
-
-    private func canonicalTreeTitle(_ title: String) -> String {
-        title
-            .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
-            .lowercased()
-            .split(whereSeparator: \.isWhitespace)
-            .joined(separator: " ")
     }
 
     private func quoteTarget(for node: NodeModel) -> ConceptDefinition? {

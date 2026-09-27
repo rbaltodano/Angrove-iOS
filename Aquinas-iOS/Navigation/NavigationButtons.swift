@@ -73,11 +73,11 @@ struct NavBackCapsuleButton: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(AquinasTheme.Colors.darkGreen)
                     .frame(width: 14, height: 14)
-                Text(title)
+                BlurSwapText(title)
                     .font(AquinasTheme.Typography.uiSubheading)
                     .foregroundColor(AquinasTheme.Colors.paragraphText)
                     .lineLimit(1)
-                    .fixedSize()
+                    .truncationMode(.tail)
             }
             .padding(.horizontal, 19)
             .frame(height: 48)
@@ -87,8 +87,11 @@ struct NavBackCapsuleButton: View {
                 Capsule()
                     .stroke(AquinasTheme.Colors.controlBorder, lineWidth: 1)
             )
+            .animation(.spring(response: 0.42, dampingFraction: 0.84), value: title)
         }
         .buttonStyle(.plain)
+        // Pulses from its leading edge so it doesn't overlap the side-menu button beside it.
+        .pulsesOnChange(of: title, anchor: .leading)
         .accessibilityLabel("Back to \(title)")
     }
 }
@@ -184,6 +187,7 @@ struct CanvasModeToggleButton: View {
         }
         .onChange(of: isActive) { _, _ in
             updateButtonLayout(animated: true)
+            triggerPulse()
         }
         .onChange(of: updateSignal) { oldValue, newValue in
             guard newValue > oldValue, !isActive else { return }
@@ -267,7 +271,7 @@ struct CanvasModeToggleButton: View {
     }
 
     private func handleTap() {
-        triggerPulse()
+        // The label change that follows pulses the button.
         action()
     }
 

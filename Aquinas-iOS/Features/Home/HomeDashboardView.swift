@@ -133,7 +133,7 @@ struct HomeDashboardView: View {
                         if let glossedTerm {
                             HomeGlossedTermSection(
                                 card: glossedTerm,
-                                onOpen: { activeInsight = glossedTerm.asConceptDefinition }
+                                onOpen: { activeInsight = glossedTerm.concept }
                             )
 
                             HomeFigmaDivider()
@@ -458,6 +458,17 @@ private struct HomeLooseThreadSection: View {
     let card: LooseThreadCard
     var onOpen: () -> Void
 
+    private var looseThreadDescription: String {
+        switch card.insightCount {
+        case 0:
+            "You explored this subject, but nothing else in your tree has connected to it yet."
+        case 1:
+            "One Insight lives here, but it hasn't connected to anything else in your tree yet."
+        default:
+            "\(card.insightCount) Insights live here, but nothing has connected to them yet."
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             HomeFigmaSectionTitle("Loose Thread")
@@ -468,11 +479,7 @@ private struct HomeLooseThreadSection: View {
                         .font(AquinasTheme.Typography.uiHeading)
                         .foregroundColor(AquinasTheme.Colors.primaryReadable)
 
-                    Text(
-                        card.insightCount == 1
-                            ? "One Insight lives here, but it hasn't connected to anything else in your tree yet."
-                            : "\(card.insightCount) Insights live here, but nothing has connected to them yet."
-                    )
+                    Text(looseThreadDescription)
                     .font(AquinasTheme.Typography.body)
                     .foregroundColor(AquinasTheme.Colors.paragraphText)
                     .lineSpacing(7)
@@ -582,20 +589,6 @@ private struct HomeYourQuoteSection: View {
                 .lineSpacing(7)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private extension GlossedTermCard {
-    var asConceptDefinition: ConceptDefinition {
-        ConceptDefinition(
-            id: ConceptDefinition.stableID(forTerm: title),
-            word: title,
-            partOfSpeech: partOfSpeech,
-            pronunciation: pronunciation,
-            meaning: definition,
-            example: example,
-            context: context
-        )
     }
 }
 

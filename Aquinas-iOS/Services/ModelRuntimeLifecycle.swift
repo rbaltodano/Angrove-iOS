@@ -43,7 +43,7 @@ nonisolated struct ModelRuntimeLifecycleConfiguration: Sendable, Equatable {
     let normalIdleTimeout: TimeInterval
     let seriousThermalIdleTimeout: TimeInterval
 
-    static let backendResident = ModelRuntimeLifecycleConfiguration(
+    static let alwaysResident = ModelRuntimeLifecycleConfiguration(
         retentionPolicy: .alwaysResident,
         normalIdleTimeout: normalIdleTimeout,
         seriousThermalIdleTimeout: seriousThermalIdleTimeout
@@ -71,9 +71,9 @@ nonisolated protocol ModelRuntimeDriver: Sendable {
     func unloadModelWeights() async
 }
 
-/// The development backend owns its process-scoped MLX model, so the iOS client must never try
-/// to unload it. This keeps today's behavior unchanged while exercising the same lease boundary.
-nonisolated struct BackendResidentModelRuntimeDriver: ModelRuntimeDriver {
+/// A driver with no weights to manage — used when no on-device model is installed and by previews
+/// and tests — so queued work still passes through the same lease boundary.
+nonisolated struct ResidentModelRuntimeDriver: ModelRuntimeDriver {
     let supportsUnloading = false
 
     func loadModelWeights() async throws {}
@@ -105,8 +105,8 @@ actor ModelRuntimeLifecycleManager {
     private var transitionWaiters: [CheckedContinuation<Void, Never>] = []
 
     init(
-        driver: any ModelRuntimeDriver = BackendResidentModelRuntimeDriver(),
-        configuration: ModelRuntimeLifecycleConfiguration = .backendResident
+        driver: any ModelRuntimeDriver = ResidentModelRuntimeDriver(),
+        configuration: ModelRuntimeLifecycleConfiguration = .alwaysResident
     ) {
         self.driver = driver
         self.configuration = configuration

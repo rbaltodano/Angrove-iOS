@@ -39,10 +39,10 @@ struct InsightTreeCanvasView: View {
     var nodeDepths: [UUID: Double] = [:]
     /// Global Insights renders every member in each cluster. Conversation trees remain compact.
     var showsAllClusterInsights: Bool = false
-    /// Conversation trees begin with an in-memory fallback and replace it asynchronously with
-    /// backend-owned topology. Their entrance must wait for that persisted snapshot.
+    /// Conversation trees begin with an in-memory build and apply their on-device seeds
+    /// asynchronously. Their entrance must wait for that seeded snapshot.
     var defersEntranceUntilPersistedTree: Bool = false
-    /// Advances after a fully reconciled persisted snapshot is applied.
+    /// Advances after the seeded snapshot is applied.
     var persistedTreePresentationRevision: Int = 0
     /// Matches the presentation revision only when that snapshot follows a real mutation.
     var animatedPersistedTreePresentationRevision: Int = 0
@@ -216,6 +216,10 @@ struct InsightTreeCanvasView: View {
     private static let studyTapSlop: CGFloat = 6
     @State private var studyLink: DisplayLinkDriver?
     @State private var studyToolZoomLink: DisplayLinkDriver?
+    /// Where the floor ring sits while it glides to a new spot after the canvas resizes (a card
+    /// docking or leaving); nil when it's settled at the canvas's own spot.
+    @State private var studyRingCenterY: CGFloat?
+    @State private var studyRingLink: DisplayLinkDriver?
     /// Measured label footprints by title. A reference type so filling it never invalidates the
     /// view; the simulation reads every chip's footprint on every frame.
     @State private var collisionSizeCache = InsightCollisionSizeCache()
@@ -481,7 +485,10 @@ struct InsightTreeCanvasView: View {
             // Always available for precision zooming, except in Study, which has its own pinch.
             .simultaneousGesture(zoomGesture(in: size), including: isInStudy ? .none : .all)
             .simultaneousGesture(studyDragGesture(ring: studyRing, chips: studyChipTargets, nodeFrame: studyNodeTarget, size: size), including: studyReady ? .all : .none)
-            .onChange(of: size, initial: true) { _, newSize in lastCanvasSize = newSize }
+            .onChange(of: size, initial: true) { oldSize, newSize in
+                lastCanvasSize = newSize
+                glideStudyRing(from: oldSize, to: newSize)
+            }
             .simultaneousGesture(studyPinchGesture, including: studyReady ? .all : .none)
             .onTapGesture {
                 guard !isInStudy else { return }
@@ -552,8 +559,8 @@ struct InsightTreeCanvasView: View {
                 observedLiveInsightIDs = visibleInsightIDs(in: nodes)
                 observedLiveNodeIDs = Set(nodes.map(\.id))
                 if defersEntranceUntilPersistedTree {
-                    // Show the fallback tree without moving the camera or marking it as the
-                    // persisted baseline. A completed backend load will do both.
+                    // Show the in-memory tree without moving the camera or marking it as the
+                    // baseline. The completed seeded load will do both.
                     revealedInsightIDs = visibleInsightIDs(in: nodes)
                     revealedInsightConnectorIDs = visibleInsightIDs(in: nodes)
                     revealedGraphEdgeIDs = Set(displayGraphEdges().map(\.id))
@@ -2589,9 +2596,41 @@ struct InsightTreeCanvasView: View {
             nodeCenter: SIMD3(Double(position.x), Double(position.y), 0),
             radius: studyRadius,
             slot: slot,
-            // The ring is 42 pt tall, so its center is 21 pt above its bottom edge.
-            ringCenterY: size.height - Self.studyRingBottomMargin - 21
+            ringCenterY: studyRingCenterY ?? Self.studyRingCenterY(in: size)
         )
+    }
+
+    /// The ring is 42 pt tall, so its center is 21 pt above its bottom edge.
+    private static func studyRingCenterY(in size: CGSize) -> CGFloat {
+        size.height - studyRingBottomMargin - 21
+    }
+
+    /// Docking or dismissing a card resizes the canvas at once; in Study the ring (and the
+    /// camera framed around it) follows on the cards' own spring instead of jumping.
+    private func glideStudyRing(from oldSize: CGSize, to newSize: CGSize) {
+        let target = Self.studyRingCenterY(in: newSize)
+        guard isInStudy, oldSize.height > 0, oldSize.height != newSize.height else {
+            if !isInStudy { studyRingLink?.stop(); studyRingCenterY = nil }
+            return
+        }
+        let from = studyRingCenterY ?? Self.studyRingCenterY(in: oldSize)
+        let spring = Spring(response: 0.42, dampingRatio: 0.86)
+        studyRingLink?.stop()
+        studyRingCenterY = from
+        let start = CACurrentMediaTime()
+        let driver = DisplayLinkDriver()
+        driver.onTick = { now in
+            let elapsed = now - start
+            guard elapsed < spring.settlingDuration else {
+                studyRingCenterY = nil
+                studyRingLink?.stop()
+                studyRingLink = nil
+                return
+            }
+            studyRingCenterY = from + (target - from) * CGFloat(spring.value(target: 1.0, time: elapsed))
+        }
+        driver.start()
+        studyRingLink = driver
     }
 
     /// The Study camera starts from the tree's live camera, not a snapshot: the canvas can
@@ -3864,9 +3903,9 @@ struct InsightTreeCanvasView: View {
         }
     }
 
-    /// Establishes the first backend snapshot as the camera baseline, then tours only content
-    /// introduced by later successful persisted mutations. This prevents the temporary
-    /// in-memory fallback from consuming the update animation while the backend is still working.
+    /// Establishes the first seeded snapshot as the camera baseline, then tours only content
+    /// introduced by later mutations. This prevents the temporary in-memory build from
+    /// consuming the update animation before the seeded load finishes.
     private func presentPersistedTree(animated: Bool, in size: CGSize) {
         entranceTask?.cancel()
 
@@ -3885,7 +3924,7 @@ struct InsightTreeCanvasView: View {
             currentNodeIDs.subtracting(confirmedPersistedNodeIDs)
         // In-app mutations record their exact presentation targets. Intersecting those with
         // the snapshot diff prevents a first-load race from touring older content. Keep the
-        // raw diff as a fallback for tree changes made by another client or backend process.
+        // raw diff as a fallback for tree changes that recorded no presentation targets.
         let newInsightIDs = animated
             ? (pendingInsightIDs.isEmpty
                 ? changedInsightIDs
@@ -3945,7 +3984,7 @@ struct InsightTreeCanvasView: View {
     }
 
     /// Camera/reveal sequence for one fully loaded persisted mutation. Node Concepts participate
-    /// even when the backend correctly adds no automatic Insights.
+    /// even when analysis correctly adds no automatic Insights.
     private func runPersistedUpdateSequence(
         newInsights: [InsightModel],
         newNodeIDs: Set<UUID>,
@@ -4014,9 +4053,6 @@ struct InsightTreeCanvasView: View {
             guard let position = position(for: target) else { return nil }
             return (target, position)
         }
-#if DEBUG
-        print("Aquinas updateSequence: new insights \(newInsights.count), new nodes \(newNodeIDs.count), targets \(targets.count), positioned \(positionedTargets.count), hovering \(isHoveringTarget)")
-#endif
         guard !positionedTargets.isEmpty else {
             revealedInsightIDs = allInsightIDs
             revealedInsightConnectorIDs = allInsightIDs

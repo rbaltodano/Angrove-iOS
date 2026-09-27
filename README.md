@@ -59,9 +59,8 @@ a short [demo video](Documentation/Screenshots/study-3d-demo.mp4)).
 ## A note on privacy and current development
 
 Aquinas is a local-first project, not a hosted chat service. The iOS app is designed to use an
-on-device language model and local source retrieval. A Mac-hosted backend remains part of the
-development workflow for integration, validation, and some advanced tree features; it is not the
-intended production data boundary.
+on-device language model and local source retrieval. It makes no network requests for model or
+Insight Tree work.
 
 This repository is an active development project. The local model and grounding assets are large
 and intentionally excluded from source control, so a full on-device experience requires the
@@ -69,13 +68,13 @@ corresponding development assets.
 
 ## For contributors
 
-The app is one part of a three-repository project. The backend supports development-time model,
-retrieval, and Insight Tree integration; the Foundations repository holds the shared product and
-architecture contracts.
+The app is one part of a three-repository project. The backend repository holds offline tooling
+for the grounding corpus, model conversion, and evaluation; the app does not call it at runtime.
+The Foundations repository holds the shared product and architecture contracts.
 
 | Repository | Role |
 | --- | --- |
-| [Aquinas Backend](https://github.com/rbaltodano/Aquinas_Backend) | Local FastAPI/MLX development service, corpus tooling, evaluation, and persistent conversation-tree data. |
+| [Aquinas Backend](https://github.com/rbaltodano/Aquinas_Backend) | Corpus tooling, model conversion, and evaluation. Its FastAPI service is no longer used by the app. |
 | [Aquinas Foundations](https://github.com/rbaltodano/Aquinas-Foundations) | Shared product, design, model-integration, and Insight Tree documentation. |
 
 Before contributing, read [`AGENTS.md`](AGENTS.md). It routes implementation work to the focused
@@ -89,7 +88,7 @@ internal development detail.
 | `Aquinas-iOS/App` | App entry point and overall navigation shell |
 | `Aquinas-iOS/Features` | Conversation, Home, Insight Tree, Library, and settings experiences |
 | `Aquinas-iOS/DesignSystem` | Typography, colors, and shared interface elements |
-| `Aquinas-iOS/Services` | Model runtime, local grounding, and development-backend boundaries |
+| `Aquinas-iOS/Services` | Model runtime and local grounding |
 | `Aquinas-iOS/Persistence` | Local conversation and Insight state |
 | `Aquinas-iOSTests` | Focused behavior and regression coverage |
 
@@ -121,4 +120,4 @@ and a recent Xcode installation.
 ## Related repositories
 
 - [Aquinas Foundations](https://github.com/rbaltodano/Aquinas-Foundations) — product, design, and architecture contracts.
-- [Aquinas Backend](https://github.com/rbaltodano/Aquinas_Backend) — development-time generation, retrieval, and persistence service.
+- [Aquinas Backend](https://github.com/rbaltodano/Aquinas_Backend) — offline corpus, conversion, and evaluation tooling.

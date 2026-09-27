@@ -39,7 +39,6 @@ final class InsightTreeViewModel: ObservableObject {
 
     let scene: InsightTreeScene
     private var insights: [InsightModel]
-    private var persistedTree: PersistedInsightTree?
     private var promotedInsightIDs: [UUID]
     private var renderedNodeIDs: Set<UUID> = []
     private var placedMidpoints: [PlacedMidpoint] = []
@@ -50,8 +49,8 @@ final class InsightTreeViewModel: ObservableObject {
     private let model: AquinasModel
     /// The source of insight embedding vectors. See `EmbeddingProvider`'s doc comment.
     private let embeddingProvider: EmbeddingProvider
-    /// Global Insights graphs every cluster member. Persisted conversation trees retain their
-    /// intentionally compact six-member presentation.
+    /// Global Insights graphs every cluster member. Conversation trees retain their intentionally
+    /// compact six-member presentation.
     private let showsAllClusterInsights: Bool
     /// Real Make Node children once generated, keyed by the promoted node's id — checked before
     /// the synchronous placeholder in `appendPromotedNodes`. Populated by `requestChildren`, which
@@ -85,15 +84,13 @@ final class InsightTreeViewModel: ObservableObject {
     private var insightClusterAssignments: [UUID: UUID] = [:]
     private static let insightClusterAssignmentStoreKey = "aquinas.insight-tree.insight-cluster-assignments.v1"
     /// Minimum cosine similarity for an Insight to attach to an existing local Node. The bundled
-    /// provider is MiniLM, matching the backend embedding space. This value is centralized as a
+    /// provider is MiniLM, matching the grounding corpus's embedding space. This value is centralized as a
     /// calibration constant so real-conversation evaluation can change it without touching layout.
     private let localMembershipThreshold = InsightTreeSemanticPolicy.membershipSimilarity
     /// On-device Node Concepts seeded from a conversation's questions (see
-    /// `LocalInsightTreeSeedStore`), used only when the backend-owned persisted tree is
-    /// unreachable. Fed into `makeClusteredTree` as pre-existing anchor clusters rather than a
-    /// separate `persistedTree` snapshot, so a saved Insight that's semantically related attaches
-    /// under the seeded subject instead of the seed and the clustering fallback fighting over
-    /// which one owns the tree (see `setLocalSeedAnchors`'s doc comment for the history here).
+    /// `LocalInsightTreeSeedStore`). Fed into `makeClusteredTree` as pre-existing anchor clusters,
+    /// so a saved Insight that's semantically related attaches under the seeded subject (see
+    /// `setLocalSeedAnchors`'s doc comment).
     private var localSeedAnchors: [LocalInsightTreeSeed] = []
 
     /// A user-placed "midpoint" insight: a permanent node pinned at an explicit world
@@ -167,11 +164,9 @@ final class InsightTreeViewModel: ObservableObject {
 
     func updateInsights(_ concepts: [ConceptDefinition], promotedInsightIDs: [UUID]? = nil) {
 #if DEBUG
-        print("Aquinas updateInsights: incoming \(concepts.count) concept(s) \(concepts.map(\.word)), persistedTree=\(persistedTree == nil ? "nil" : "set")")
+        print("Aquinas updateInsights: incoming \(concepts.count) concept(s) \(concepts.map(\.word))")
 #endif
-        if persistedTree == nil {
-            insights = Self.deduplicated(concepts.map { InsightModel(concept: $0) })
-        }
+        insights = Self.deduplicated(concepts.map { InsightModel(concept: $0) })
         if let promotedInsightIDs {
             self.promotedInsightIDs = promotedInsightIDs
             let retainedNodeIDs = Set(promotedInsightIDs.map {
@@ -189,54 +184,19 @@ final class InsightTreeViewModel: ObservableObject {
             generatedMakeNodeChildIDs.formIntersection(retainedChildIDs)
         }
         rebuildTree()
-        if persistedTree == nil {
-            refreshEmbeddingsIfNeeded()
-        }
+        refreshEmbeddingsIfNeeded()
     }
 
-    /// Replaces the on-device Node-seed anchors and rebuilds. A no-op when a real `persistedTree`
-    /// is active — the backend-owned tree always wins when it's reachable.
-    ///
-    /// Earlier this session, on-device seeding instead called `applyPersistedTree` with a bare
-    /// snapshot built purely from the seed labels (`insights: []` on every node). That worked
-    /// for the very first render, but every later call — including the routine ones triggered by
-    /// simply reopening the tree — replaced whatever richer state existed with that same bare
-    /// snapshot again, silently discarding any Insight the user had saved in between. Gating that
-    /// call on "only when nothing else exists yet" stopped the data loss, but then the seed and
-    /// the clustering fallback became two separate, mutually exclusive trees: whichever last
-    /// wrote to `persistedTree`/`insights` won, and the other's content vanished outright — so
-    /// saving your first Insight would make the seeded Node itself disappear instead of the two
-    /// coexisting. Feeding the seeds into the SAME clustering pass as regular Insights (below)
-    /// removes the two-systems problem at the root: the seed renders as its own Node with zero
-    /// Insights when none are saved yet, and a saved Insight that's semantically close attaches
-    /// under it exactly like a real backend Node would, rather than either side overwriting the
-    /// other.
+    /// Replaces the on-device Node-seed anchors and rebuilds. Seeds go through the SAME clustering
+    /// pass as regular Insights rather than a separate snapshot: the seed renders as its own Node
+    /// with zero Insights when none are saved yet, and a saved Insight that's semantically close
+    /// attaches under it, rather than either side overwriting the other.
     func setLocalSeedAnchors(_ seeds: [LocalInsightTreeSeed]) {
 #if DEBUG
-        print("Aquinas setLocalSeedAnchors: incoming \(seeds.map { "\($0.label)[emb=\($0.embedding?.count.description ?? "nil")]" }), persistedTree=\(persistedTree == nil ? "nil" : "set"), unchanged=\(localSeedAnchors == seeds)")
+        print("Aquinas setLocalSeedAnchors: incoming \(seeds.map { "\($0.label)[emb=\($0.embedding?.count.description ?? "nil")]" }), unchanged=\(localSeedAnchors == seeds)")
 #endif
-        guard persistedTree == nil, localSeedAnchors != seeds else { return }
+        guard localSeedAnchors != seeds else { return }
         localSeedAnchors = seeds
-        rebuildTree()
-    }
-
-    func applyPersistedTree(_ tree: PersistedInsightTree) {
-#if DEBUG
-        print("Aquinas InsightTreeViewModel: applyPersistedTree called with \(tree.nodes.count) node(s)")
-#endif
-        persistedTree = tree
-        insights = tree.nodes.flatMap { node in
-            node.insights.map { insight in
-                return InsightModel(
-                    id: insight.id,
-                    title: insight.title.capitalized,
-                    definition: insight.definition,
-                    conversationID: tree.conversationID,
-                    relatednessToNode: insight.relatedness,
-                    distanceToNode: insight.distance
-                )
-            }
-        }
         rebuildTree()
     }
 
@@ -251,8 +211,7 @@ final class InsightTreeViewModel: ObservableObject {
         return insights.filter { seen.insert($0.id).inserted }
     }
 
-    /// Legacy in-memory save entry point. Conversation-scoped saves now flow through
-    /// `InsightTreeService`; this remains available to non-persisted canvas variants.
+    /// In-memory save entry point for canvas variants that don't rebuild from `updateInsights`.
     func onInsightSaved(_ insight: InsightModel) {
         var savedInsight = insight
         savedInsight.embedding = savedInsight.embedding ?? computeEmbedding(for: "\(insight.title). \(insight.definition)")
@@ -451,11 +410,6 @@ final class InsightTreeViewModel: ObservableObject {
     }
 
     private func rebuildTree() {
-        if let persistedTree {
-            rebuildPersistedTree(persistedTree)
-            return
-        }
-
         // Synchronous same-provider fallback: keeps the tree usable immediately (including
         // during `init`, which can't await). `refreshEmbeddingsIfNeeded`/`ensureEmbeddings` is
         // the versioned, async-capable path layered on top (see its doc comment).
@@ -538,127 +492,7 @@ final class InsightTreeViewModel: ObservableObject {
         insightBondLengths = lengths
     }
 
-    private func rebuildPersistedTree(_ tree: PersistedInsightTree) {
-        makeNodeChildIDs = Set(promotedInsightIDs.flatMap { insightID -> [UUID] in
-            let nodeID = promotedNodeID(for: insightID)
-            return (0..<3).map { makeNodeChildID(for: nodeID, index: $0) }
-        })
-
-        var builtNodes: [NodeModel] = []
-        var builtEdges: [EdgeModel] = []
-        for storedNode in tree.nodes {
-            let nodeInsights = storedNode.insights.compactMap { insight -> InsightModel? in
-                guard !activeMakeNodeBookmarkIDs.contains(insight.id) else { return nil }
-                return InsightModel(
-                    id: insight.id,
-                    title: insight.title.capitalized,
-                    definition: insight.definition,
-                    conversationID: tree.conversationID,
-                    embeddingVersion: "\(tree.embeddingModel).v\(tree.embeddingVersion)",
-                    relatednessToNode: insight.relatedness,
-                    distanceToNode: insight.distance
-                )
-            }
-            // A backend refresh may already have clustered a newly bookmarked Make Node child.
-            // While that child is still visually attached to its promoted node, don't leave its
-            // now-empty backend container behind as a ghost Node.
-            if !storedNode.insights.isEmpty && nodeInsights.isEmpty {
-                continue
-            }
-            let position: CGPoint
-            if let restored = restoredPosition(for: storedNode.id) {
-                position = restored
-            } else if let neighbor = nearestPersistedNeighbor(
-                for: storedNode.id,
-                in: tree.edges,
-                builtNodes: builtNodes
-            ) {
-                let angleSeed = stableUUID(from: "node-placement:\(storedNode.id)").uuid.0
-                let angle = CGFloat(angleSeed) / 255 * (.pi * 2)
-                let length = mapDistanceToLength(neighbor.edge.distance)
-                position = CGPoint(
-                    x: neighbor.node.position.x + cos(angle) * length,
-                    y: neighbor.node.position.y + sin(angle) * length
-                )
-            } else if let previousNode = builtNodes.last {
-                position = chainExtensionPosition(
-                    from: previousNode,
-                    nodes: builtNodes,
-                    edges: builtEdges
-                )
-            } else {
-                position = .zero
-            }
-            let node = NodeModel(
-                id: storedNode.id,
-                conceptLabel: storedNode.label,
-                definition: storedNode.summary,
-                insights: nodeInsights,
-                embedding: [],
-                position: position,
-                isSuggested: false,
-                suggestedInsights: nil
-            )
-            builtNodes.append(node)
-        }
-
-        let persistedNodeIDs = Set(builtNodes.map(\.id))
-        builtEdges = tree.edges.compactMap { edge in
-            guard persistedNodeIDs.contains(edge.fromNodeID),
-                  persistedNodeIDs.contains(edge.toNodeID) else {
-                return nil
-            }
-            return EdgeModel(
-                id: edge.id,
-                fromNodeID: edge.fromNodeID,
-                toNodeID: edge.toNodeID,
-                distance: edge.distance,
-                isSuggested: false,
-                showSuggestButton: false
-            )
-        }
-
-        appendPromotedNodes(to: &builtNodes, edges: &builtEdges, from: insights)
-        appendPlacedMidpointNodes(to: &builtNodes, edges: &builtEdges)
-        adoptSpawnTargets(for: builtNodes)
-        builtNodes = separateOverlaps(nodes: builtNodes)
-        persistPositions(builtNodes)
-        recomputeBondLengths(for: builtNodes)
-
-        let nextIDs = Set(builtNodes.map(\.id))
-        let hasNew = !nextIDs.isSubset(of: renderedNodeIDs)
-        renderedNodeIDs = nextIDs
-        withAnimation(.spring(response: 0.55, dampingFraction: 0.78)) {
-            nodes = builtNodes
-            edges = builtEdges
-        }
-        scene.render(nodes: nodes, edges: edges, animated: hasNew)
-#if DEBUG
-        print("Aquinas InsightTreeViewModel: rebuildPersistedTree applied \(builtNodes.count) node(s), \(builtEdges.count) edge(s), hasNew=\(hasNew)")
-#endif
-    }
-
-    private func nearestPersistedNeighbor(
-        for nodeID: UUID,
-        in edges: [PersistedInsightTreeEdge],
-        builtNodes: [NodeModel]
-    ) -> (node: NodeModel, edge: PersistedInsightTreeEdge)? {
-        let builtByID = Dictionary(uniqueKeysWithValues: builtNodes.map { ($0.id, $0) })
-        return edges
-            .compactMap { edge -> (NodeModel, PersistedInsightTreeEdge)? in
-                if edge.fromNodeID == nodeID, let node = builtByID[edge.toNodeID] {
-                    return (node, edge)
-                }
-                if edge.toNodeID == nodeID, let node = builtByID[edge.fromNodeID] {
-                    return (node, edge)
-                }
-                return nil
-            }
-            .min { $0.1.distance < $1.1.distance }
-    }
-
-    /// Groups global-library bookmarks around semantic subject Nodes. Conversation trees use
-    /// backend MiniLM membership; this offline/global fallback stays in the local embedding space.
+    /// Groups Insights around semantic subject Nodes in the on-device embedding space.
     /// `localSeedAnchors` (on-device Node-seed labels — see `setLocalSeedAnchors`) seed this
     /// clustering as pre-existing, always-rendered clusters: an Insight within the same
     /// similarity threshold attaches under the seeded subject instead of spawning its own
@@ -800,8 +634,7 @@ final class InsightTreeViewModel: ObservableObject {
                     distance: distance,
                     isSuggested: false,
                     // Suggest Connection (generates a suggested midpoint node between two Nodes)
-                    // is disabled here for now, matching the persisted per-conversation tree's
-                    // edges (rebuildPersistedTree), which already set this false.
+                    // is disabled for now.
                     showSuggestButton: false
                 )
             )

@@ -89,8 +89,8 @@ struct ModelRuntimeLifecycleTests {
         await manager.releaseLease(secondLease)
     }
 
-    @Test("The development backend remains resident")
-    func backendRuntimeIgnoresUnloadRequests() async {
+    @Test("A runtime without unloadable weights remains resident")
+    func residentRuntimeIgnoresUnloadRequests() async {
         let manager = ModelRuntimeLifecycleManager()
 
         await manager.unloadAsSoonAsIdle(reason: .memoryPressure)
@@ -145,6 +145,78 @@ struct ModelRuntimeLifecycleTests {
         // Completed rows clear 0.7 s after finishing; wait for that rather than a fixed sleep.
         try await waitUntil { await queue.completedTasks.isEmpty }
         #expect(queue.latestCompletedTask?.id == taskID)
+    }
+
+    @MainActor
+    @Test("A midpoint queued behind questions runs last and cancels nothing")
+    func midpointJoinsBottomOfQueueWithoutCancelling() async throws {
+        let queue = ModelTaskQueue(runtimeLifecycle: makeManager(driver: TestModelRuntimeDriver()))
+        let log = TestEventLog()
+        let gate = TestGate()
+
+        queue.enqueue(
+            kind: .userQuestion(branchID: UUID(), responseIndex: 1),
+            onCancel: { Task { await log.record("cancel first") } }
+        ) {
+            await gate.wait()
+            await log.record("first")
+        }
+        queue.enqueue(
+            kind: .userQuestion(branchID: UUID(), responseIndex: 1),
+            onCancel: { Task { await log.record("cancel second") } }
+        ) { await log.record("second") }
+        queue.enqueue(
+            kind: .createMidpoint,
+            onCancel: { Task { await log.record("cancel midpoint") } }
+        ) { await log.record("midpoint") }
+
+        await gate.open()
+        try await waitUntil { await log.events.count == 3 }
+        #expect(await log.events == ["first", "second", "midpoint"])
+    }
+
+    @MainActor
+    @Test("A midpoint placed during background tree work leaves that work queued, not lost")
+    func midpointDuringBackgroundWorkKeepsBackgroundWork() async throws {
+        let queue = ModelTaskQueue(runtimeLifecycle: makeManager(driver: TestModelRuntimeDriver()))
+        let log = TestEventLog()
+        let attempts = TestAttemptCounter()
+
+        queue.enqueue(kind: .updateInsightTree, priority: .background) {
+            if await attempts.started() == 1 {
+                try? await Task.sleep(for: .seconds(30))
+            }
+            guard !Task.isCancelled else { return }
+            await log.record("tree")
+        }
+        try await waitUntil { await attempts.startCount == 1 }
+
+        queue.enqueue(kind: .createMidpoint) { await log.record("midpoint") }
+        try await waitUntil { await log.events.count == 2 }
+        #expect(await log.events == ["midpoint", "tree"])
+    }
+
+    @MainActor
+    @Test("Follow-up tree work runs before questions that were already waiting")
+    func runsNextPlacesTreeWorkAheadOfWaitingQuestions() async throws {
+        let queue = ModelTaskQueue(runtimeLifecycle: makeManager(driver: TestModelRuntimeDriver()))
+        let log = TestEventLog()
+        let gate = TestGate()
+
+        queue.enqueue(kind: .userQuestion(branchID: UUID(), responseIndex: 1)) {
+            await gate.wait()
+            await log.record("first")
+        }
+        queue.enqueue(kind: .userQuestion(branchID: UUID(), responseIndex: 1)) {
+            await log.record("second")
+        }
+        queue.enqueue(kind: .updateInsightTree, priority: .foreground, runsNext: true) {
+            await log.record("tree")
+        }
+
+        await gate.open()
+        try await waitUntil { await log.events.count == 3 }
+        #expect(await log.events == ["first", "tree", "second"])
     }
 
     private func makeManager(
@@ -204,5 +276,29 @@ private actor TestAttemptCounter {
 
     func completed() {
         completionCount += 1
+    }
+}
+
+private actor TestEventLog {
+    private(set) var events: [String] = []
+
+    func record(_ event: String) {
+        events.append(event)
+    }
+}
+
+private actor TestGate {
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        guard !isOpen else { return }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    func open() {
+        isOpen = true
+        waiters.forEach { $0.resume() }
+        waiters.removeAll()
     }
 }

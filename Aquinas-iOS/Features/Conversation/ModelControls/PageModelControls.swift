@@ -6,7 +6,7 @@
 import SwiftUI
 import UIKit
 
-/// Compact global controls for non-conversation pages. Idle model status stays out of the way
+/// Publishes compact controls for non-conversation pages to the shared `ModelControlsHost`. Idle model status stays out of the way
 /// here; it returns whenever the shared queue becomes active. Page-specific actions remain.
 struct PageModelControls: View {
     let modelTasks: ModelTaskQueue
@@ -19,6 +19,9 @@ struct PageModelControls: View {
     var onConfirm: () -> Void = {}
     var onDecline: () -> Void = {}
     var action: () -> Void = {}
+    /// Identifies the page publishing these controls to the shared bar.
+    var surfaceID: String = "page"
+    var extraFade: (height: CGFloat, opacity: Double)? = nil
 
     @State private var isControlButtonPressed = false
     @AppStorage(SettingsStorageKey.modelActivityDisplay)
@@ -40,72 +43,62 @@ struct PageModelControls: View {
     }
 
     var body: some View {
-        ModelControlsStack(
+        Color.clear
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+            .modelControls(configuration)
+            .onChange(of: modelTasks.isBusy) { _, isBusy in
+                guard !isBusy else { return }
+                popupState.reset()
+            }
+    }
+
+    private var configuration: ModelControlsConfiguration {
+        ModelControlsConfiguration(
+            id: surfaceID,
             modelTasksPopupState: popupState,
             modelTasks: modelTasks,
             confirmationTitle: confirmationTitle,
             onConfirm: onConfirm,
             onDecline: onDecline,
-            controlsUpdateKey: controlLayoutKey
+            controlsUpdateKey: controlLayoutKey,
+            buttons: showsControlPill ? AnyView(buttons) : nil,
+            pillHorizontalPadding: secondaryActionTitle == nil ? 32 : 24,
+            isControlButtonPressed: isControlButtonPressed,
+            extraFade: extraFade
+        )
+    }
+
+    private var buttons: some View {
+        HStack(
+            alignment: .center,
+            spacing: secondaryActionTitle == nil ? 24 : 16
         ) {
-            if showsControlPill {
-                HStack(
-                    alignment: .center,
-                    spacing: secondaryActionTitle == nil ? 24 : 16
-                ) {
-                    if showsModelStatus {
-                        ModelStatusButton(
-                            modelTasks: modelTasks,
-                            action: toggleModelTasksPopup,
-                            controlIsPressed: $isControlButtonPressed
-                        )
-                        .transition(.scale(scale: 0.4).combined(with: .opacity))
-                    }
-
-                    if let actionTitle {
-                        PageModelControlActionButton(
-                            title: actionTitle,
-                            controlIsPressed: $isControlButtonPressed,
-                            action: action
-                        )
-                    }
-
-                    if let secondaryActionTitle {
-                        PageModelControlActionButton(
-                            title: secondaryActionTitle,
-                            controlIsPressed: $isControlButtonPressed,
-                            action: secondaryAction
-                        )
-                        .transition(.scale(scale: 0.4).combined(with: .opacity))
-                    }
-                }
-                .padding(.horizontal, secondaryActionTitle == nil ? 32 : 24)
-                .padding(.vertical, 24)
-                .fixedSize(horizontal: true, vertical: true)
-                .background(AquinasTheme.Colors.canvasSecondary)
-                .clipShape(Capsule())
-                .overlay(Capsule().stroke(AquinasTheme.Colors.controlBorder, lineWidth: 1))
-                .modifier(FloatingControlPressFeedback(isButtonPressed: isControlButtonPressed))
+            if showsModelStatus {
+                ModelStatusButton(
+                    modelTasks: modelTasks,
+                    action: toggleModelTasksPopup,
+                    controlIsPressed: $isControlButtonPressed
+                )
                 .transition(.scale(scale: 0.4).combined(with: .opacity))
-                .animation(.spring(response: 0.38, dampingFraction: 0.78), value: controlLayoutKey)
             }
-        }
-        .padding(.bottom, 24)
-        .background(alignment: .bottom) {
-            LinearGradient(
-                stops: [
-                    .init(color: AquinasTheme.Colors.canvas.opacity(0.95), location: 0),
-                    .init(color: AquinasTheme.Colors.canvas.opacity(0), location: 1)
-                ],
-                startPoint: UnitPoint(x: 0.5, y: 0.52),
-                endPoint: UnitPoint(x: 0.5, y: 0)
-            )
-            .ignoresSafeArea(edges: .bottom)
-            .allowsHitTesting(false)
-        }
-        .onChange(of: modelTasks.isBusy) { _, isBusy in
-            guard !isBusy else { return }
-            popupState.reset()
+
+            if let actionTitle {
+                PageModelControlActionButton(
+                    title: actionTitle,
+                    controlIsPressed: $isControlButtonPressed,
+                    action: action
+                )
+            }
+
+            if let secondaryActionTitle {
+                PageModelControlActionButton(
+                    title: secondaryActionTitle,
+                    controlIsPressed: $isControlButtonPressed,
+                    action: secondaryAction
+                )
+                .transition(.scale(scale: 0.4).combined(with: .opacity))
+            }
         }
     }
 
@@ -121,7 +114,7 @@ struct PageModelControls: View {
     }
 }
 
-/// Reader-specific controls surface the shared Model Status button only while work is active,
+/// Reader-specific controls (published to the shared `ModelControlsHost`) surface the shared Model Status button only while work is active,
 /// allowing a document table of contents to occupy the same expanding dock position.
 struct LibraryModelControls<Contents: View>: View {
     let modelTasks: ModelTaskQueue
@@ -155,79 +148,74 @@ struct LibraryModelControls<Contents: View>: View {
     }
 
     var body: some View {
-        ModelControlsStack(
-            modelTasksPopupState: modelTasksPopupState,
-            modelTasks: modelTasks,
-            supplementalPopupIsOpen: isContentsOpen,
-            supplementalPopup: AnyView(contents),
-            controlsUpdateKey: controlLayoutKey
-        ) {
-            HStack(spacing: 24) {
-                if let previousChapterTitle {
-                    ReaderChapterControlButton(
-                        title: previousChapterTitle,
-                        icon: "chevron.left",
-                        iconFirst: true,
-                        action: onPreviousChapter
-                    )
-                    .id(previousChapterTitle)
-                        .transition(.blurFade)
-                }
-
-                if modelTasks.isBusy {
-                    ModelStatusButton(
-                        modelTasks: modelTasks,
-                        action: toggleModelTasks,
-                        controlIsPressed: $isControlButtonPressed
-                    )
-                    .transition(.scale(scale: 0.4).combined(with: .opacity))
-                }
-
-                Button(action: toggleContents) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "list.bullet")
-                            .font(.system(size: 14, weight: .semibold))
-                        Text("Contents")
-                            .font(.custom("Figtree-SemiBold", size: 14))
-                    }
-                    .foregroundStyle(AquinasTheme.Colors.paragraphText)
-                    .frame(minHeight: 21)
-                }
-                .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
-
-                if let nextChapterTitle {
-                    ReaderChapterControlButton(
-                        title: nextChapterTitle,
-                        icon: "chevron.right",
-                        iconFirst: false,
-                        action: onNextChapter
-                    )
-                    .id(nextChapterTitle)
-                        .transition(.blurFade)
+        Color.clear
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+            .modelControls(
+                ModelControlsConfiguration(
+                    id: "library-reader",
+                    priority: 1,
+                    modelTasksPopupState: modelTasksPopupState,
+                    modelTasks: modelTasks,
+                    supplementalPopupIsOpen: isContentsOpen,
+                    supplementalPopup: AnyView(contents),
+                    controlsUpdateKey: controlLayoutKey,
+                    buttons: AnyView(buttons),
+                    isControlButtonPressed: isControlButtonPressed,
+                    showsStandardFade: false,
+                    extraFade: (height: 300, opacity: 0.95)
+                )
+            )
+            .onChange(of: modelTasks.isBusy) { _, isBusy in
+                if !isBusy {
+                    modelTasksPopupState.reset()
                 }
             }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 24)
-            .fixedSize(horizontal: true, vertical: true)
-            .background(AquinasTheme.Colors.canvasSecondary)
-            .clipShape(Capsule())
-            .overlay(Capsule().stroke(AquinasTheme.Colors.controlBorder, lineWidth: 1))
-            .animation(.spring(response: 0.38, dampingFraction: 0.78), value: controlLayoutKey)
-        }
-        .padding(.bottom, 24)
-        .frame(maxWidth: .infinity)
-        .background(alignment: .bottom) {
-            LinearGradient(
-                colors: [AquinasTheme.Colors.canvas.opacity(0.95), AquinasTheme.Colors.canvas.opacity(0)],
-                startPoint: .bottom,
-                endPoint: .top
-            )
-            .frame(height: 300)
-                .allowsHitTesting(false)
-        }
-        .onChange(of: modelTasks.isBusy) { _, isBusy in
-            if !isBusy {
-                modelTasksPopupState.reset()
+    }
+
+    private var buttons: some View {
+        HStack(spacing: 24) {
+            if let previousChapterTitle {
+                ReaderChapterControlButton(
+                    title: previousChapterTitle,
+                    icon: "chevron.left",
+                    iconFirst: true,
+                    action: onPreviousChapter
+                )
+                .id(previousChapterTitle)
+                    .transition(.blurFade)
+            }
+
+            if modelTasks.isBusy {
+                ModelStatusButton(
+                    modelTasks: modelTasks,
+                    action: toggleModelTasks,
+                    controlIsPressed: $isControlButtonPressed
+                )
+                .transition(.scale(scale: 0.4).combined(with: .opacity))
+            }
+
+            Button(action: toggleContents) {
+                HStack(spacing: 8) {
+                    Image(systemName: "list.bullet")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("Contents")
+                        .font(.custom("Figtree-SemiBold", size: 14))
+                }
+                .foregroundStyle(AquinasTheme.Colors.paragraphText)
+                .frame(minHeight: 21)
+            }
+            .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
+
+            if let nextChapterTitle {
+                ReaderChapterControlButton(
+                    title: nextChapterTitle,
+                    icon: "chevron.right",
+                    iconFirst: false,
+                    action: onNextChapter
+                )
+                .id(nextChapterTitle)
+                    .transition(.blurFade)
             }
         }
     }
@@ -295,9 +283,8 @@ private struct PageModelControlActionButton: View {
                     .font(.system(size: 12, weight: .semibold))
                     .frame(width: 16, height: 16)
 
-                Text(title)
+                BlurSwapText(title)
                     .font(.custom("Figtree-SemiBold", size: 14))
-                    .contentTransition(.opacity)
             }
             .foregroundColor(AquinasTheme.Colors.lightGreen)
             .frame(minHeight: 21)

@@ -6,7 +6,7 @@
 import Foundation
 
 /// Deterministic preview and test behavior. Live generation never substitutes this content when
-/// the backend is unavailable.
+/// the on-device model is unavailable.
 struct MockAquinasModel: AquinasModel {
     func respond(to context: ConversationContext) async -> ModelResponse {
         Self.simulatedResponse
@@ -136,7 +136,7 @@ struct MockAquinasModel: AquinasModel {
     }
 
     // simulatedResponse is temporary prototype content; replace this when the real model is
-    // connected. keyTerms mirrors the backend's key_terms shape (MODEL-INTEGRATION.md §3) — plain
+    // connected. keyTerms mirrors the structured-output key_terms shape (MODEL-INTEGRATION.md §3) — plain
     // prose plus the terms to highlight, spliced into `aq://` markup by `ModelResponse.annotatedText`.
     static let simulatedResponse = ModelResponse(
         text: "Thomas Aquinas is one of the most influential figures in western thought. Often referred to as the Doctor Angelicus, he is the primary architect of Thomism THE DIDACHE: THE TEACHING OF THE TWELVE APOSTLES The Didache (pronounced DID-ah-kay) is essentially the first-century 'user manual' for the early Christian church. Derived from the Greek word for 'teaching,' this document was written between 50 AD and 100 AD, providing a rare look at how the earliest Christian communities organized their lives. I. THE TWO WAYS The document opens with a moral framework called 'The Two Ways,' contrasting the Way of Life with the Way of Death. It outlines a strict ethical code, covering everything from communal love to specific social prohibitions. II. RITUAL AND LITURGY The Didache provides the earliest 'how-to' instructions for Christian rituals: • Baptism: Prefers 'living' (running) water, but allows for pouring if necessary. • Fasting: Suggests specific days of the week (Wednesdays and Fridays). • THE Eucharist: Contains some of the oldest recorded prayers for communion. III. CHURCH STRUCTURE It outlines the qualifications for bishops and deacons and provides a fascinating guide on how to distinguish between genuine traveling prophets and those seeking personal gain. HISTORICAL IMPACT Lost for centuries and rediscovered in 1873, the Didache serves as a vital bridge between the New Testament era and the formalized Church of later centuries.",

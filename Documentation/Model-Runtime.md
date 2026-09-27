@@ -7,21 +7,29 @@ first. This document records iOS-specific runtime boundaries and validation rule
 
 `AquinasApplicationRuntime` selects `LiteRTAquinasModel` when a verified local package is
 available and injects the same `LiteRTAquinasRuntime` into `ModelTaskQueue`. There must be one
-process-scoped live engine and queue. `BackendAquinasModel` is a development recovery path when
-local generation is unavailable; `MockAquinasModel` is restricted to previews and tests.
+process-scoped live engine and queue. When no verified package is installed, the runtime uses
+`UnavailableAquinasModel`, which fails every action explicitly. There is no network fallback:
+a failed local generation surfaces as a failure and offers retry. `MockAquinasModel` is restricted
+to previews and tests.
 
 On-device conversation decoding is deterministic because sampled decoding corrupts the current
 4-bit checkpoint. Local decoding currently yields completed text rather than reliable token
 deltas. The app may present a safe, question-specific approach summary, but it must never expose
 provider scratch work or chain-of-thought.
 
-## Development backend and tree fallback
+## Insight Tree runtime
 
-The FastAPI/MLX backend is useful for development integration, structured generation, and
-MiniLM-backed conversation topology. A physical phone must not attempt a loopback backend URL.
-When a backend is unreachable, iOS must clear unreachable tree-analysis work and show its limited
-local fallback rather than remain indefinitely in a mapping state. That fallback is not MiniLM
-parity.
+Conversation trees are seeded on-device: after a completed answer, a background
+`.updateInsightTree` task asks the local model for the turn's subject, and bundled MiniLM
+similarity decides whether it becomes a new Node Concept. Saved Insights cluster around those
+seeds in the same pass.
+
+## History: the development backend
+
+Earlier builds could call a Mac-hosted FastAPI/MLX service (`Aquinas_Backend`) for generation,
+Insight Tree persistence, and Home discovery cards. That client code has been removed; the app
+makes no network requests for model or tree work. `Aquinas_Backend` remains offline tooling for the
+grounding corpus, model conversion, and evaluation.
 
 ## Model package and device safety
 
@@ -31,6 +39,4 @@ memory, thermal, lifecycle, latency, or quality validation. The bundled framewor
 simulators only; use a concrete arm64 destination.
 
 Before device model experiments, back up the app's data. Do not use `devicectl` with
-`--remove-existing-content true` against the production bundle. For an intentional backend quality
-comparison, a Debug build may use `--force-backend-model`; release builds must ignore that
-diagnostic override.
+`--remove-existing-content true` against the production bundle.

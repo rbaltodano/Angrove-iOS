@@ -2,34 +2,10 @@ import Foundation
 import Testing
 @testable import Aquinas_iOS
 
-private final class FailingModelActionURLProtocol: URLProtocol {
-    override class func canInit(with request: URLRequest) -> Bool {
-        true
-    }
-
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
-        request
-    }
-
-    override func startLoading() {
-        client?.urlProtocol(
-            self,
-            didFailWithError: URLError(.cannotConnectToHost)
-        )
-    }
-
-    override func stopLoading() {}
-}
-
 @Suite("Live model action availability")
 struct ModelActionAvailabilityTests {
-    private func model() -> BackendAquinasModel {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [FailingModelActionURLProtocol.self]
-        return BackendAquinasModel(
-            baseURL: URL(string: "http://127.0.0.1:9")!,
-            session: URLSession(configuration: configuration)
-        )
+    private func model() -> UnavailableAquinasModel {
+        UnavailableAquinasModel()
     }
 
     private var context: ConversationContext {
@@ -48,11 +24,18 @@ struct ModelActionAvailabilityTests {
         )
     }
 
+    @Test("Responses explain the missing model instead of inventing an answer")
+    func responseFailsExplicitly() async {
+        let response = await model().respond(to: context)
+        #expect(response.text == UnavailableAquinasModel.unavailableMessage)
+        #expect(response.keyTerms.isEmpty)
+    }
+
     @Test("Definitions fail instead of returning a mock Insight")
     func definitionFailsExplicitly() async {
         do {
             _ = try await model().defineTerm("prudence", in: context)
-            Issue.record("Expected the unavailable backend to throw.")
+            Issue.record("Expected the unavailable model to throw.")
         } catch {
             #expect(error is AquinasModelActionError)
         }

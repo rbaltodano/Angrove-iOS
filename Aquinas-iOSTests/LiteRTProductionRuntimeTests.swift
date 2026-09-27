@@ -933,20 +933,6 @@ struct LiteRTProductionRuntimeTests {
         )
     }
 
-    @Test("Loopback backend addresses are not physical-device recovery targets")
-    func loopbackBackendDetection() {
-        #expect(
-            AquinasBackendConfiguration.isLoopback(
-                URL(string: "http://127.0.0.1:8000")!
-            )
-        )
-        #expect(
-            !AquinasBackendConfiguration.isLoopback(
-                URL(string: "http://192.168.1.50:8000")!
-            )
-        )
-    }
-
     @MainActor
     private func definitionTerm(in request: String) -> String? {
         LiteRTAquinasModel.definitionRequestTerm(

@@ -85,7 +85,7 @@ struct AquinasNavButton: View {
 
     private func triggerPulse() {
         withAnimation(.spring(response: 0.28, dampingFraction: 0.42)) {
-            pulseScale = 1.14
+            pulseScale = 1.05
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
             withAnimation(.spring(response: 0.42, dampingFraction: 0.58)) {

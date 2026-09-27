@@ -68,6 +68,34 @@ struct StudyTopicInsightTreeTests {
         #expect(snapshot.map(\.word) == ["Beatitude", "Grace"])
     }
 
+    @Test("Snapshot includes bookmarked Insights that appear in topic transcripts")
+    func snapshotIncludesTranscriptInsights() {
+        let topicID = UUID()
+        let grace = concept("Grace")
+        let chipCharity = concept("Charity")
+        let savedCharity = concept("charity")
+        let unsaved = concept("Prudence")
+        let unrelated = concept("Justice")
+
+        var branch = ChatBranch(startingConcept: grace)
+        branch.activeChatBlocks = [
+            .user("What is charity?", chipCharity, []),
+            .user("And prudence?", unsaved, [])
+        ]
+
+        let snapshot = StudyTopicInsightTreeBuilder.snapshot(
+            topicID: topicID,
+            conversations: [
+                InquiryConversation(studyTopicID: topicID, branches: [branch])
+            ],
+            savedInsights: [unrelated, savedCharity, grace],
+            insightIDs: { _ in [] }
+        )
+
+        // Bookmarked only (Prudence is not saved); matched by id or by term.
+        #expect(snapshot.map(\.word) == ["charity", "Grace"])
+    }
+
     private func concept(_ word: String) -> ConceptDefinition {
         ConceptDefinition(
             word: word,

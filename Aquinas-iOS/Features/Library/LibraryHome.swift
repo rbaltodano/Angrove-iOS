@@ -381,13 +381,10 @@ private struct LibraryHomeHeader: View {
                 .foregroundStyle(AquinasTheme.Colors.lightGreen)
                 .contentTransition(.numericText())
 
-            VStack(alignment: .leading, spacing: 0) {
-                Text("The")
-                    .font(AquinasTheme.Typography.titleHome)
-                Text("Library")
-                    .font(.custom("LibreBaskerville-Italic", size: 36))
-            }
-            .foregroundStyle(AquinasTheme.Colors.primaryReadable)
+            Text("\(Text("The ").font(.custom("LibreBaskerville-Regular", size: 30)))\(Text("Library").font(.custom("LibreBaskerville-Italic", size: 30)))")
+                .foregroundStyle(AquinasTheme.Colors.primaryReadable)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
 
             Text("The primary sources Aquinas draws on when it grounds an answer.")
                 .font(AquinasTheme.Typography.body)

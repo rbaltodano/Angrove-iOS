@@ -29,14 +29,7 @@ final class AquinasApplicationRuntime {
             // losing Insight clustering entirely — degraded (noisy) rather than broken.
             embeddingProvider = NLEmbeddingProvider()
         }
-#if DEBUG
-        let forcesMacBackend = ProcessInfo.processInfo.arguments.contains(
-            "--force-backend-model"
-        )
-#else
-        let forcesMacBackend = false
-#endif
-        if !forcesMacBackend, modelStore.hasInstalledModel() {
+        if modelStore.hasInstalledModel() {
             let runtime = LiteRTAquinasRuntime(modelStore: modelStore)
             let lifecycle = ModelRuntimeLifecycleManager(
                 driver: runtime,
@@ -54,7 +47,7 @@ final class AquinasApplicationRuntime {
             modelTasks = ModelTaskQueue(runtimeLifecycle: lifecycle)
             isOnDevice = true
         } else {
-            model = BackendAquinasModel()
+            model = UnavailableAquinasModel()
             modelTasks = ModelTaskQueue()
             isOnDevice = false
         }
