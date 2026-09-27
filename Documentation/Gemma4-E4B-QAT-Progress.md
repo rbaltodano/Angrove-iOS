@@ -8,7 +8,25 @@
 > Status values: `todo` · `in-progress` · `done` · `failed` · `blocked` · `skipped` (with reason)
 > Selection and invalidation rules: plan §0.
 
-## Handoff (2026-09-27): read this first
+## Current handoff — after C9 (2026-09-27)
+
+- Worktree `~/Developer/Aquinas-iOS-e4b-qat`, branch `feature/gemma4-e4b-qat`.
+  All takeover commits are local and unpushed; `main` still declares B0.
+- C0–C8 remain done. **C9 failed** on the physical iPhone under the frozen protocol:
+  E4B cold load 12.824 s versus ≤12 s, and cold short answer 21.910 s versus ≤4 s.
+  See `C9-M4Ls-2` below; no five-trial p95 was claimed. C10 is blocked. Do not relabel or
+  rerun C9 as a pass, merge E4B, or open a PR in the public GitHub repository.
+- The owner-approved earlier E4B production build remains installed on Ry as a temporary
+  personal trial; production app data was backed up and untouched. The disposable probe
+  app was uninstalled after the gate failed.
+- A bounded-memory SHA-256 fix (`a4fd7c0`) and DEBUG C9 timing harness (`7ac77a8`)
+  are committed; the physical build passed. The system-prompt file was not edited.
+- A question is pending: whether the owner wants a **new candidate plan and phone tests**
+  or to pause model testing. Any new configuration or product criteria need a fresh plan,
+  frozen values, and new run IDs; C9's failed evidence is immutable. The C8 phone GPU
+  repeat, C10 rollback check, Foundations update, and PR remain undone under this plan.
+
+## Prior handoff (2026-09-27; historical, superseded by the current handoff)
 
 The owner is handing this work to Codex. State as of commit `2776cc9` on `feature/gemma4-e4b-qat`
 (worktree `~/Developer/Aquinas-iOS-e4b-qat`; not pushed; `main` is at `047245e`).
