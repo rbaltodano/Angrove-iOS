@@ -958,51 +958,11 @@ is preserved as invalid/incomplete due to DEBUG hash memory overhead, fixed in `
 **On failure branch:** do not promote M4-Ls. Main still has the B0 manifest (verified with
 `git show main:Aquinas-iOS/Services/LiteRTModelStore.swift`); no merge, push, or PR. The branch
 retains owner-approved E4B promotion prework for review, but C10 cannot close while C9 failed.
-The production phone app remains on the earlier E4B build pending the owner's choice about
-rollback. C8's held-out phone GPU repeat and the C10 scratch rollback are not run because they
+The production phone app remains on the earlier E4B build as a temporary personal trial,
+per the C9 closeout recommendation. C8's held-out phone GPU repeat and the C10 scratch rollback are not run because they
 depend on a passing C9. The GitHub repository is public, so no PR can be opened under the owner's
 no-public-posting instruction in any case. New tuning or relaxed budgets require a new plan and
 candidate/run IDs; this failed result stays intact.
-
-### C10 — Promotion
-- Owner approval: 2026-09-27, "let's just get this model into the app and we can try the fine
-  tuning for it after". Provenance label (D8): "Gemma 4 E4B (LiteRT Community)", not "QAT".
-- **Ordering decision:** the promotion work is done now, but it doesn't merge until C9 passes on
-  the phone (the plan's dependency). The phone GPU hasn't had a sustained run yet.
-- Done on the branch:
-  - The manifest points to `gemma-4-E4B-it.litertlm` (3,659,530,240 bytes, `0b2a8980…45bd52e0`),
-    with a provenance comment.
-  - The seed is at `Aquinas-iOS/LocalModels/gemma-4-E4B-it.litertlm` (APFS clone); only E4B is
-    bundled.
-  - `visionBackend` comment updated (text-only; C12). `Model-Runtime.md` updated.
-  - `MODEL-INTEGRATION.md` isn't edited: the Foundations repo has uncommitted owner changes.
-    The drafted edits are in `Gemma4-E4B-MODEL-INTEGRATION-Update.md`.
-  - The plan is marked executed only when C10 closes.
-- Rollback values: `gemma-4-E2B-it.litertlm`, 3,862,121,696 bytes, SHA-256
-  `9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282`. The file has moved to the
-  root `LocalModels/`; the values are also in the manifest comment.
-- Simulator no-override smoke (`C10-sim-nooverride-1`, CPU): the app loaded
-  `…/Aquinas-iOS.app/gemma-4-E4B-it.litertlm` with computed SHA-256 = manifest `0b2a8980…45bd52e0`.
-  The full lifecycle probe passed (all cases, 0 overlaps).
-- Build: pass. Tests: 199/200 (the known baseline failure).
-- No-override phone smoke (production app, Debug build of `2776cc9`'s parent `21479f3`, 2026-09-27):
-  it loaded `/private/var/containers/Bundle/Application/981F9234-…/Aquinas-iOS.app/gemma-4-E4B-it.litertlm`
-  with computed SHA-256 = manifest `0b2a8980…45bd52e0`. The same session surfaced the load/unload race
-  fixed in `2776cc9` (then reinstalled). Repeat under C9 on the final build.
-- Rollback check result: pending (phone).
-- Commits / PR URL: pending.
-
-### C11 / C12 — Optional
-- M2-L control analysis:
-- Vision probe:
-
-## Final summary
-
-**Rejected with evidence at C9** under the frozen provisional budgets: M4-Ls's first valid
-cold phone trial exceeded both the 12-second load and 4-second one-sentence answer limits.
-Main remains B0. No PR or merge. Production phone rollback preference and any new candidate
-configuration await the owner's decision; no later gate is claimed. Keep the earlier C8 CPU
-quality result as evidence, but it does not override this physical-device gate.
 
 ### C9 resumption — 2026-09-27
 
@@ -1068,3 +1028,43 @@ and `probe-after-uninstall.log`. A separate app listing confirms the production
 `com.ryanbaltodano.Aquinas-iOS` remains installed. All raw evidence and the verified
 production-data backup remain gitignored in the worktree. To change the product decision, the
 owner must adopt a new candidate/configuration with new run IDs; never erase C9's failure.
+
+
+### C10 — Promotion
+- Owner approval: 2026-09-27, "let's just get this model into the app and we can try the fine
+  tuning for it after". Provenance label (D8): "Gemma 4 E4B (LiteRT Community)", not "QAT".
+- **Ordering decision:** the promotion work is done now, but it doesn't merge until C9 passes on
+  the phone (the plan's dependency). The phone GPU hasn't had a sustained run yet.
+- Done on the branch:
+  - The manifest points to `gemma-4-E4B-it.litertlm` (3,659,530,240 bytes, `0b2a8980…45bd52e0`),
+    with a provenance comment.
+  - The seed is at `Aquinas-iOS/LocalModels/gemma-4-E4B-it.litertlm` (APFS clone); only E4B is
+    bundled.
+  - `visionBackend` comment updated (text-only; C12). `Model-Runtime.md` updated.
+  - `MODEL-INTEGRATION.md` isn't edited: the Foundations repo has uncommitted owner changes.
+    The drafted edits are in `Gemma4-E4B-MODEL-INTEGRATION-Update.md`.
+  - The plan is marked executed only when C10 closes.
+- Rollback values: `gemma-4-E2B-it.litertlm`, 3,862,121,696 bytes, SHA-256
+  `9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282`. The file has moved to the
+  root `LocalModels/`; the values are also in the manifest comment.
+- Simulator no-override smoke (`C10-sim-nooverride-1`, CPU): the app loaded
+  `…/Aquinas-iOS.app/gemma-4-E4B-it.litertlm` with computed SHA-256 = manifest `0b2a8980…45bd52e0`.
+  The full lifecycle probe passed (all cases, 0 overlaps).
+- Build: pass. Tests: 199/200 (the known baseline failure).
+- No-override phone smoke (production app, Debug build of `2776cc9`'s parent `21479f3`, 2026-09-27):
+  it loaded `/private/var/containers/Bundle/Application/981F9234-…/Aquinas-iOS.app/gemma-4-E4B-it.litertlm`
+  with computed SHA-256 = manifest `0b2a8980…45bd52e0`. The same session surfaced the load/unload race
+  fixed in `2776cc9` (then reinstalled). Repeat under C9 on the final build.
+- Rollback check result: pending (phone).
+- Commits / PR URL: pending.
+
+### C11 / C12 — Optional
+- M2-L control analysis:
+- Vision probe:
+
+## Final summary
+
+**Rejected with evidence at C9** under the frozen provisional budgets: M4-Ls's first valid
+cold phone trial exceeded both the 12-second load and 4-second one-sentence answer limits.
+Main remains B0. No PR or merge. The owner is considering whether to plan a new candidate; no later gate is claimed. Keep the earlier C8 CPU
+quality result as evidence, but it does not override this physical-device gate.
