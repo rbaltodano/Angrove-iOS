@@ -6,14 +6,16 @@
 import Foundation
 
 nonisolated struct LiteRTModelManifest: Sendable, Equatable {
-    // dynamic_wi8_emb4_afp32 candidate: 8-bit decoder weights, 4-bit embeddings.
-    // Fixes the 4-bit checkpoint's repetition/looping without the memory failure the
-    // straight-8-bit export hit. Vision is intentionally disabled for this package
-    // (see LiteRTAquinasRuntime) pending a fix for its STABLEHLO_COMPOSITE load failure.
+    // Gemma 4 E4B instruction-tuned, LiteRT Community standard package (M4-Ls in the E4B
+    // migration ledger). Mixed INT4/INT2/INT8 weights, consistent with QAT, but Google hasn't
+    // confirmed its provenance, so it's labelled "LiteRT Community" rather than "QAT" (plan D8).
+    // Not fine-tuned. Text-only here (see LiteRTAquinasRuntime).
+    // Rollback: the fine-tuned E2B package, "gemma-4-E2B-it.litertlm",
+    // 3_862_121_696 bytes, SHA-256 9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282.
     static let aquinas = LiteRTModelManifest(
-        fileName: "gemma-4-E2B-it.litertlm",
-        byteCount: 3_862_121_696,
-        sha256: "9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282"
+        fileName: "gemma-4-E4B-it.litertlm",
+        byteCount: 3_659_530_240,
+        sha256: "0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0"
     )
 
     let fileName: String

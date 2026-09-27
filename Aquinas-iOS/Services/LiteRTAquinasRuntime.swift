@@ -337,9 +337,9 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
         }
     }
 
-    // The dynamic_wi8_emb4_afp32 package's vision tower fails to load (STABLEHLO_COMPOSITE
-    // prepare failure). Text generation is unaffected. Ship text-only until that's fixed;
-    // re-enable (.gpu) once a vision-capable package passes the same load gate.
+    // Text-only. The E4B package ships a vision encoder, but it hasn't passed a load and memory
+    // gate on the phone (optional plan step C12). Re-enable (.gpu) only once it has; until then
+    // image turns become text notes (`supportsVision`).
     private static let visionBackend: Backend? = nil
     /// Whether image content may be sent to the engine. Without a vision executor LiteRT-LM
     /// rejects the whole request ("Vision executor should not be null").

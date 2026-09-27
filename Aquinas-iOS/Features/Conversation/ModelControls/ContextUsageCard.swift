@@ -6,7 +6,7 @@
 import SwiftUI
 import UIKit
 
-/// Full shared input-and-output KV-cache of the deployed Gemma 4 E2B LiteRT checkpoint.
+/// Full shared input-and-output KV-cache of the deployed Gemma 4 E4B LiteRT checkpoint.
 let aquinasContextWindowLimit = AquinasContextBudget.totalTokenLimit
 
 /// Shared open/animation state for the Context row in the model-controls stack.

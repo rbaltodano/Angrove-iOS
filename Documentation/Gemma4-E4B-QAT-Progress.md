@@ -22,12 +22,13 @@
 | C7 | Full-app functional + lifecycle stress | C6 | done | Claude Code (Opus 5.5) session | 2026-09-27 | **Pass** (simulator CPU). Fixed 3 lifecycle bugs: suspension read as a stall, two overlap paths. Final probe: all cases pass, 0 overlaps, memory within 1%. 199/200 tests (known baseline failure). Make Node has no UI entry (pre-existing) |
 | C8 | Quality A/B (40 dev + 40 held-out) | C7 | done | Claude Code (Opus 5.5) session | 2026-09-27 | **M4-Ls passes all held-out rows** after the owner-delegated review (accuracy 3.05 → 3.85; critical 9 → 1). Run before C7 by recorded decision; simulator CPU; confirm held-out on the phone GPU before C10 |
 | C9 | Physical-device sustained gate | C8 | todo | | | |
-| C10 | Promotion | C9 + owner approval | todo | | | |
+| C10 | Promotion | C9 + owner approval | in-progress | Claude Code (Opus 5.5) session | 2026-09-27 | Owner approved. Code, seed, and docs done on the branch; sim no-override smoke passes; 199/200 tests. **Merge held for C9**; phone smoke, rollback check, and PR pending |
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
 | C12 | Optional: vision probe | C10 | todo | | | |
 
-**Next action:** Needs the phone: C9 (include C7's device carry-overs) and the C8 held-out
-confirmation on the phone GPU. Then C10 with owner approval.
+**Next action:** Needs the phone. Run C9 (include C7's device carry-overs) and the C8 held-out
+confirmation on the phone GPU, then finish C10: phone smoke, rollback check, and PR. Merge only
+if C9 passes.
 
 ## Candidate registry
 
@@ -776,11 +777,29 @@ Gate computed by `c8_gate.py` (first pass, before owner review):
 | 5× background/foreground; warning; idle > 60 s | survive and recover | | | |
 
 ### C10 — Promotion
-- Owner approval (date and quote) and provenance label (D8):
-- Rollback values (old manifest file · bytes · SHA-256; old file location):
-- No-override phone smoke (loaded URL and SHA-256):
-- Rollback check result:
-- Commits / PR URL:
+- Owner approval: 2026-09-27, "let's just get this model into the app and we can try the fine
+  tuning for it after". Provenance label (D8): "Gemma 4 E4B (LiteRT Community)", not "QAT".
+- **Ordering decision:** the promotion work is done now, but it doesn't merge until C9 passes on
+  the phone (the plan's dependency). The phone GPU hasn't had a sustained run yet.
+- Done on the branch:
+  - The manifest points to `gemma-4-E4B-it.litertlm` (3,659,530,240 bytes, `0b2a8980…45bd52e0`),
+    with a provenance comment.
+  - The seed is at `Aquinas-iOS/LocalModels/gemma-4-E4B-it.litertlm` (APFS clone); only E4B is
+    bundled.
+  - `visionBackend` comment updated (text-only; C12). `Model-Runtime.md` updated.
+  - `MODEL-INTEGRATION.md` isn't edited: the Foundations repo has uncommitted owner changes.
+    The drafted edits are in `Gemma4-E4B-MODEL-INTEGRATION-Update.md`.
+  - The plan is marked executed only when C10 closes.
+- Rollback values: `gemma-4-E2B-it.litertlm`, 3,862,121,696 bytes, SHA-256
+  `9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282`. The file has moved to the
+  root `LocalModels/`; the values are also in the manifest comment.
+- Simulator no-override smoke (`C10-sim-nooverride-1`, CPU): the app loaded
+  `…/Aquinas-iOS.app/gemma-4-E4B-it.litertlm` with computed SHA-256 = manifest `0b2a8980…45bd52e0`.
+  The full lifecycle probe passed (all cases, 0 overlaps).
+- Build: pass. Tests: 199/200 (the known baseline failure).
+- No-override phone smoke (loaded URL and SHA-256): pending (phone).
+- Rollback check result: pending (phone).
+- Commits / PR URL: pending.
 
 ### C11 / C12 — Optional
 - M2-L control analysis:
