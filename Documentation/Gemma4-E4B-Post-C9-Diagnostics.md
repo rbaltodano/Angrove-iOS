@@ -104,3 +104,30 @@ app (its bundle path changes on every install).
 cached comparison yet. Most of the answer time after loading is spent on prefill and decode
 of the grounded prompt, and C9's valid samples show it for both models (E4B about 9 s vs B0
 about 10.5 s). Reducing prompt size is a model-independent latency lever.
+
+## Owner report: memory pressure in daily use — 2026-09-28
+
+The owner reports that the production E4B build on Ry is unusable in daily use: answers never
+load, and background music stops (iOS is killing other apps to reclaim memory).
+
+**Likely cause (hypothesis, not yet verified on the phone): the installed build predates the
+SHA-256 fix.**
+- The production app on Ry is a Debug build of `2776cc9`, installed 2026-09-27.
+- DEBUG builds hash the loaded model once per process (`LiteRTAquinasRuntime.logLoadedModelOnce`
+  → `LiteRTModelInstaller.sha256`).
+- Before `a4fd7c0`, that hash kept the file's 8 MiB read buffers alive for the whole task. Codex
+  reproduced a 3.87 GB peak (`C9-diagnostics-1`) and saw it on the phone (`C9-B0-1`, invalid).
+- Model plus hash therefore approaches the whole phone's memory budget, which fits the report.
+- P1 ran the fixed build: peak 1.13–1.24 GB, no pressure kills. In C5, E2B's `phys_footprint`
+  agreed with jetsam's resident count (2.04 GB) on the same standard GPU delegate, so the P1
+  number is plausibly complete. Unlike the artisan package (M4-L), there is no evidence that it
+  under-reports for M4-Ls.
+
+**Next time the phone is connected:**
+1. Install a build that includes `a4fd7c0` into production, keeping data (the current branch
+   HEAD, or a Release build, which skips the DEBUG hash entirely). Back up first.
+2. Verify with the owner's scenario: music playing, ask a question, and pull any JetsamEvent
+   reports. Record the jetsam resident count for the Aquinas process next to `phys_footprint`.
+3. If pressure persists with the fixed build, the model itself is too large for daily use. Then
+   try a 2,048-token KV cache and a faster idle unload as a new candidate configuration, or
+   revert the phone to `main`'s E2B build.
