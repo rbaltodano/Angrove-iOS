@@ -1,60 +1,22 @@
 <p align="center">
-  <img src="design_assets/logo-1.svg" alt="Aquinas" width="193" height="54">
+  <img src="Documentation/Screenshots/home-light.jpg" alt="Aquinas Home in light mode" width="19%">
+  <img src="Documentation/Screenshots/conv-light.jpg" alt="Aquinas conversation with annotated Insights in light mode" width="19%">
+  <img src="Documentation/Screenshots/library-light.jpg" alt="Aquinas Library of primary sources in light mode" width="19%">
+  <img src="Documentation/Screenshots/menu-light.jpg" alt="Aquinas side menu in light mode" width="19%">
+  <img src="Documentation/Screenshots/insight-tree-church-doctrine-authority.jpg" alt="Aquinas Insight Tree" width="19%">
 </p>
-
-# Aquinas
-
-**A private, local-first space for serious questions.**
-
-Aquinas is an iOS study and conversation app for exploring philosophy, theology, Scripture, and
-the questions that deserve more than a quick answer. Inspired by the Thomistic tradition, it pairs
-thoughtful conversation with source-grounded study and a visual map of the ideas a person is
-developing over time.
-
-It is being built for people who want room to think: students, seekers, teachers, and anyone
-working through questions of faith, meaning, truth, or human flourishing.
-
-> **Project status:** active development. Aquinas is not a hosted chat product or a finished
-> consumer release. The app is being refined as a private, local-first study environment.
-
-## What it does
-
-- **Supports sustained inquiry.** Start a conversation, follow an idea into a branch, and return
-  to the thread later without losing the shape of the question.
-- **Keeps study close to sources.** Aquinas can retrieve relevant passages from a bundled local
-  library—including Scripture, Aquinas, patristic writing, creeds, and conciliar texts—so
-  source-dependent answers are tied to available evidence.
-- **Builds an Insight Tree.** Save contextual definitions and important concepts, then explore the
-  relationships between them in a spatial, evolving map.
-- **Explores ideas in semantic space.** Aquinas uses local embedding and relatedness tools to
-  compare concepts, find meaningful neighborhoods, and turn relationships between ideas into a
-  visual map rather than leaving them buried in a linear transcript.
-- **Stays local by design.** The intended product keeps conversations, retrieval, and model work
-  under the user's control rather than requiring an account or a cloud conversation history.
-
-## Highlights
-
-| Area | Experience |
-| --- | --- |
-| Conversation | Branch a line of inquiry, return to it later, compact older context, and keep the visible transcript intact. |
-| Study | Open contextual definitions, save durable Insights, and explore relationships in the Insight Tree. |
-| Semantic map | Compare concept vectors, surface related ideas, and render their relationships as a spatial graph. |
-| Sources | Retrieve relevant passages from a bundled local library for source-dependent questions. |
-| Reflection | Return to a Question of the Day, loose threads, historical prompts, and other optional study cues. |
-| Privacy | Keep the intended production experience local-first, with no account or cloud conversation history requirement. |
-
-## Screenshots
-
 <p align="center">
-  <img src="Documentation/Screenshots/home-dashboard.jpg" alt="Aquinas Home dashboard" width="23%">
-  <img src="Documentation/Screenshots/conversation-ecumenical-councils.jpg" alt="Aquinas conversation with annotated Insights" width="23%">
-  <img src="Documentation/Screenshots/insight-tree-church-doctrine-authority.jpg" alt="Aquinas Insight Tree" width="23%">
-  <a href="Documentation/Screenshots/study-3d-demo.mp4"><img src="Documentation/Screenshots/study-3d.jpg" alt="Aquinas Study mode showing a Node Concept and its Insights in 3D" width="23%"></a>
+  <img src="Documentation/Screenshots/home-dark.jpg" alt="Aquinas Home in dark mode" width="19%">
+  <img src="Documentation/Screenshots/conv-dark.jpg" alt="Aquinas conversation with annotated Insights in dark mode" width="19%">
+  <img src="Documentation/Screenshots/library-dark.jpg" alt="Aquinas Library of primary sources in dark mode" width="19%">
+  <img src="Documentation/Screenshots/menu-dark.jpg" alt="Aquinas side menu in dark mode" width="19%">
+  <a href="Documentation/Screenshots/study-3d-demo.mp4"><img src="Documentation/Screenshots/study-3d.jpg" alt="Aquinas Study mode showing a Node Concept and its Insights in 3D" width="19%"></a>
 </p>
 
-From left to right: the Home dashboard, a source-oriented conversation with contextual Insights,
-the Insight Tree, and Study mode, which shows a Node Concept and its Insights in 3D (select it for
-a short [demo video](Documentation/Screenshots/study-3d-demo.mp4)).
+The top row is light mode and the bottom row is dark mode. From left to right: the Home dashboard,
+a source-oriented conversation with contextual Insights, the Library of primary sources, the side
+menu, and the Insight Tree and Study mode (which shows a Node Concept and its Insights in 3D;
+select it for a short [demo video](Documentation/Screenshots/study-3d-demo.mp4)).
 
 ## A note on privacy and current development
 

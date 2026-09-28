@@ -33,6 +33,8 @@ struct FlowLayout: Layout {
 
     var spacing: CGFloat = 4.5
     var alignment: TextAlignment = .center
+    /// Stretches every wrapped row except the last to the full width by widening the word gaps.
+    var justified = false
 
     // MARK: - Cache
     //
@@ -73,11 +75,11 @@ struct FlowLayout: Layout {
     }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
-        FlowResult(in: proposal.width ?? 0, subviews: subviews, spacing: spacing, alignment: alignment, cache: &cache).size
+        FlowResult(in: proposal.width ?? 0, subviews: subviews, spacing: spacing, alignment: alignment, justified: justified, cache: &cache).size
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) {
-        let result = FlowResult(in: bounds.width, subviews: subviews, spacing: spacing, alignment: alignment, cache: &cache)
+        let result = FlowResult(in: bounds.width, subviews: subviews, spacing: spacing, alignment: alignment, justified: justified, cache: &cache)
         for (index, subview) in subviews.enumerated() {
             subview.place(
                 at: CGPoint(x: bounds.minX + result.points[index].x,
@@ -96,6 +98,7 @@ struct FlowLayout: Layout {
             subviews: Subviews,
             spacing: CGFloat,
             alignment: TextAlignment,
+            justified: Bool,
             cache: inout Cache
         ) {
             var currentX: CGFloat = 0
@@ -134,7 +137,14 @@ struct FlowLayout: Layout {
             rowRanges.append((rowStart..<subviews.count, max(0, currentX - spacing)))
 
             // Position each completed row using the user's response alignment.
-            for (range, width) in rowRanges {
+            for (rowIndex, (range, width)) in rowRanges.enumerated() {
+                if justified, rowIndex < rowRanges.count - 1, range.count > 1 {
+                    let extraPerGap = max(0, maxWidth - width) / CGFloat(range.count - 1)
+                    for i in range {
+                        points[i].x += extraPerGap * CGFloat(i - range.lowerBound)
+                    }
+                    continue
+                }
                 let offset: CGFloat
                 switch alignment {
                 case .center:
@@ -638,7 +648,7 @@ struct StreamingMessageView: View {
         visibleCount: Int,
         globalWordStart: Int
     ) -> some View {
-        FlowLayout(alignment: responseTextAlignment.textAlignment) {
+        FlowLayout(alignment: responseTextAlignment.textAlignment, justified: responseTextAlignment == .center) {
             ForEach(Array(words.enumerated()), id: \.offset) { idx, word in
                 let globalWordIndex = globalWordStart + idx
                 let underlineDelay = insightLinkSequenceByWordStart[globalWordIndex]
@@ -1284,7 +1294,11 @@ private struct LiveTokenFlow: View {
     }
 
     var body: some View {
-        FlowLayout(spacing: spacing, alignment: responseTextAlignment.textAlignment) {
+        FlowLayout(
+            spacing: spacing,
+            alignment: responseTextAlignment.textAlignment,
+            justified: allowsInlineMarkdown && responseTextAlignment == .center
+        ) {
             ForEach(tokens) { token in
                 tokenView(token)
                     .opacity(token.id < visibleTokenCount ? 1 : 0)
