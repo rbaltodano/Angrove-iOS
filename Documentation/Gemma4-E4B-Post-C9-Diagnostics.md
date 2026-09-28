@@ -152,3 +152,24 @@ latency lever, and it's model-independent. It belongs to the owner's system-prom
 Release build of `ee3d5e2` for production is ready at
 `build/DerivedData/Build/Products/Release-iphoneos/Aquinas-iOS.app` (bundled model SHA-256
 `0b2a8980…`). Not installed yet: the phone was unreachable.
+
+## MTP (speculative decoding) — 2026-09-28, simulator CPU
+
+The runtime now enables LiteRT-LM speculative decoding (`ExperimentalFlags.enableSpeculativeDecoding`)
+by default; `--litert-no-mtp` turns it off in DEBUG. The E4B package's `tf_lite_mtp_drafter`
+section loads (stderr: `llm_litert_mtp_drafter.cc`).
+
+| Run | MTP | 14-case diagnostics total | Outputs |
+| --- | --- | --- | --- |
+| S0-mtp-on-1 | on | 157.8 s | 14/14 ok |
+| S0-mtp-off-1 | off | 144.5 s | 14/14 ok; 13/14 identical to on |
+
+- Draft acceptance: 0.33–0.52. On the simulator CPU, MTP is about 9% **slower**: verifying
+  drafts costs more than it saves on CPU.
+- Google's published gain (about 2.2× decode for E4B) is on mobile GPUs, so **the phone
+  decides**.
+- The one difference (Midpoint candidates) is a greedy near-tie flipped by batched
+  verification. Both outputs pass the contract. "Identical output" therefore holds only up to
+  numerical ties.
+- **Ship rule:** keep MTP on only if the phone GPU shows a clear decode gain with no stability
+  or memory regression. Otherwise set `usesSpeculativeDecoding` to false.

@@ -131,6 +131,16 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
     private static let nativeDeleteWait: Duration = .seconds(10)
     /// The production KV-cache size, shared by prompt, history, references, and answer.
     static let maxNumTokens = 4_096
+    /// Gemma 4's multi-token-prediction drafter (a section of the E4B package) proposes several
+    /// tokens that the main model verifies in one pass. Output is unchanged; Google reports about
+    /// 2.2× decode for E4B. `--litert-no-mtp` turns it off in DEBUG builds, for A/B checks.
+    static var usesSpeculativeDecoding: Bool {
+#if DEBUG
+        !ProcessInfo.processInfo.arguments.contains("--litert-no-mtp")
+#else
+        true
+#endif
+    }
 
     init(modelStore: LiteRTModelStore = LiteRTModelStore()) {
         self.modelStore = modelStore
@@ -437,6 +447,8 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
             cacheDir: cacheURL.path
         )
         await waitForPendingNativeDeletes()
+        ExperimentalFlags.optIntoExperimentalAPIs()
+        ExperimentalFlags.enableSpeculativeDecoding = Self.usesSpeculativeDecoding
         let newEngine = Engine(engineConfig: config)
         LiteRTLifecycleTrace.shared.record(
             "load-begin",
