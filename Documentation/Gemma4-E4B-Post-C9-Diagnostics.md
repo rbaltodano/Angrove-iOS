@@ -196,3 +196,40 @@ section loads (stderr: `llm_litert_mtp_drafter.cc`).
   roughly **1–1.5 s** of the 8.2 s, not half. That's useful but modest, and it carries quality
   risk, so it's deferred until after launch. MTP (decode) and the unattributed overhead are the
   bigger levers; measure both on the phone first.
+
+## Phone session S1 — 2026-09-28 (Ry, E4B on GPU, DEBUG disposable app)
+
+Production data backed up first: `S1-preflight-1` (28 files). The production app process was
+closed before the runs.
+
+**MTP on vs off** (cached, alternating; answer = request → answer complete, including a fresh
+load; generation = native generate only):
+
+| Run | MTP | Load (s) | Answer (s) | Generation (s) |
+| --- | --- | --- | --- | --- |
+| S1-on-1 / 2 / 3 | on | 7.10 / 7.94 / 6.75 | 14.57 / 19.53 / 13.51 | 7.14 / 11.39 / 6.51 |
+| S1-off-1 / 2 / 3 | off | 6.91 / 7.33 / 6.98 | 14.47 / 16.57 / 14.83 | 7.15 / 8.58 / 7.51 |
+
+MTP was active (`enable_speculative_decoding: true`, drafter loaded). The median generation
+gain was about 0.4 s, with more variance and changed greedy wording. **Decision: MTP off for
+launch** (`--litert-mtp` enables it in DEBUG). Answers here are short, about 50 tokens, so
+prefill dominates; MTP speeds up only decode.
+
+**Timeline of one cached answer** (S1-off-1..3): accepted → model load 6.9–7.3 s → retrieval
+about 0.35 s → generate 7.2–8.6 s. At C5's rates, generation is about 3 s of prefill
+(~2,400 tokens), about 3.5 s of decode (with Insight markers), and about 1 s of overhead. With
+the model already resident (within the 5-minute idle window), an answer takes about 7–8 s.
+- **Post-launch lever:** start loading the model when the user opens a conversation or starts
+  typing, which hides most of the 7 s load.
+
+**Lifecycle probe on the phone GPU** (`S1-lifecycle-1`, idle timeout 10 s): 0 native overlaps;
+warm-up, idle unload and reload, cancel, foreground preemption, background during generation,
+and memory warning (idle and during generation) all passed.
+- `forced-stall-timeout` reports `false` only because no stall occurred. On the GPU the answer
+  streamed before the 5 s watchdog poll, so the 1 s override never fired. This is a limit of
+  the test, not an app failure; the stall path is verified in simulator C7.
+- Footprint right after each engine delete: 159–665 MB, fluctuating rather than rising
+  steadily, against about 1.1–1.3 GB loaded. It doesn't return to the pre-load level within
+  10%, likely because Metal/driver memory is released lazily. Watch it; it isn't a jetsam risk.
+- iOS logged `Aquinas-iOS.diskwrites_resource` (a disk-write resource report, not a crash),
+  most likely from DEBUG lifecycle-trace writes. Release builds don't write the trace.

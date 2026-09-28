@@ -132,13 +132,15 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
     /// The production KV-cache size, shared by prompt, history, references, and answer.
     static let maxNumTokens = 4_096
     /// Gemma 4's multi-token-prediction drafter (a section of the E4B package) proposes several
-    /// tokens that the main model verifies in one pass. Output is unchanged; Google reports about
-    /// 2.2× decode for E4B. `--litert-no-mtp` turns it off in DEBUG builds, for A/B checks.
+    /// tokens for the main model to verify in one pass. Off for launch: on the phone GPU it saved
+    /// under half a second on our short answers (median 7.1 s vs 7.5 s of generation), added
+    /// variance (one 11.4 s run), and changed greedy wording (runs S1-on/off-*). Answers here are
+    /// dominated by prefill, which MTP doesn't speed up. `--litert-mtp` turns it on in DEBUG.
     static var usesSpeculativeDecoding: Bool {
 #if DEBUG
-        !ProcessInfo.processInfo.arguments.contains("--litert-no-mtp")
+        ProcessInfo.processInfo.arguments.contains("--litert-mtp")
 #else
-        true
+        false
 #endif
     }
 
