@@ -131,3 +131,24 @@ SHA-256 fix.**
 3. If pressure persists with the fixed build, the model itself is too large for daily use. Then
    try a 2,048-token KV cache and a faster idle unload as a new candidate configuration, or
    revert the phone to `main`'s E2B build.
+
+## Prompt size per question — 2026-09-28 (from existing C8 records, no new runs)
+
+`C8-M4Ls-held-2/litert-generations.jsonl`, 35 conversation prompts rendered by LiteRT-LM's own
+template:
+- Median 19,138 characters, maximum 24,020. That is roughly 4,000+ tokens at about 4.5
+  characters per token (an estimate; the exact count needs the tokenizer).
+- Example split: system preface about 8,100 characters, per-turn message about 9,000. The
+  per-turn message is mostly standing instructions (revisability rules, register examples,
+  naming rules) repeated on every turn, with the question itself about 100 characters.
+
+At C5's measured prefill rate (about 830 tokens/s on the phone GPU), prefill alone is about
+4–5 s per answer, before any decoding. That explains most of the ~9 s answer time after load,
+for both models. It also leaves little of the 4,096-token window for history and the answer
+(C6's thin compaction margin). Trimming the standing instructions is the single biggest
+latency lever, and it's model-independent. It belongs to the owner's system-prompt work on
+`main` (`LiteRTAquinasModel.swift`).
+
+Release build of `ee3d5e2` for production is ready at
+`build/DerivedData/Build/Products/Release-iphoneos/Aquinas-iOS.app` (bundled model SHA-256
+`0b2a8980…`). Not installed yet: the phone was unreachable.
