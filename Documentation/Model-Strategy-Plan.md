@@ -10,9 +10,10 @@
 1. **Biggest win available today, no model change:** turn on Gemma 4's built-in multi-token
    prediction (MTP). Our E4B file already contains the drafter. Google reports up to **2.2×
    decode on E4B**; we ship it switched off (`enable_speculative_decoding: false`).
-2. **Second biggest win:** our prompt is about **4,000 tokens per question**, nearly the whole
-   4,096 window. Cutting it to about 1,500 would roughly halve time-to-answer on *any* model
-   and free context for conversation history.
+2. **Prompt size:** about **2,300 tokens per question** (corrected; an earlier draft
+   double-counted and said about 4,000). About 1,500 of that is standing instructions. Trimming
+   them saves roughly 1–1.5 s of an 8.2 s answer on the phone, so it's worth doing after launch
+   rather than before.
 3. **Pin down memory before choosing models.** Google's own card lists E4B on an iPhone 17 Pro
    GPU at **3.38 GB**; we measured 1.1–1.2 GB with `phys_footprint`. The truth decides whether
    a bigger model can fit at all. Measure it with the system's jetsam counters on a release
@@ -86,7 +87,9 @@ speed: a 4 GB model decodes about half as fast as a 2 GB one on the same engine.
    - A text-only repackage (drop audio and vision, about 340 MB), if a container rewrite tool
      exists.
 
-Expected result: short answers drop from about 16 s to about 5 s warm, with no quality change.
+Expected result (revised): MTP could cut decode time roughly in half on the phone GPU. The
+prompt trim saves about 1–1.5 s. About 2.8 s of each answer is still unattributed and needs a
+phone benchmark run before promising a number.
 
 ### Phase 1: model bake-off on the Mac (about 3–4 days, no app changes)
 

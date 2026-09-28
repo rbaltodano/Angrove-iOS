@@ -134,6 +134,10 @@ SHA-256 fix.**
 
 ## Prompt size per question — 2026-09-28 (from existing C8 records, no new runs)
 
+> **Correction (same day):** the figures directly below double-count. LiteRT-LM's
+> `renderedMessage` already contains the system preface, so adding `renderedPreface` counted
+> it twice. Corrected values follow this section. The original text is kept for the record.
+
 `C8-M4Ls-held-2/litert-generations.jsonl`, 35 conversation prompts rendered by LiteRT-LM's own
 template:
 - Median 19,138 characters, maximum 24,020. That is roughly 4,000+ tokens at about 4.5
@@ -173,3 +177,22 @@ section loads (stderr: `llm_litert_mtp_drafter.cc`).
   numerical ties.
 - **Ship rule:** keep MTP on only if the phone GPU shows a clear decode gain with no stability
   or memory regression. Otherwise set `usesSpeculativeDecoding` to false.
+
+
+### Corrected prompt size and time split — 2026-09-28
+
+- `renderedMessage` alone (system + user turn): median **10,042 characters**, range 6,898–12,489.
+  That's roughly **2,300 tokens**, not 4,000+.
+- A typical prompt: about 3,300 characters of retrieved passages (about 800 tokens), about
+  6,700 characters of standing instructions (about 1,500 tokens), and about 950 characters for
+  the user turn.
+- Phone runs `P1-M4Ls-2/3`: exactly **one** generation per short answer, **8.2 s** (native
+  generate interval, from the recorder).
+- Estimated split at C5's phone rates: prefill of about 2,400 tokens ≈ 2.9 s; decode of about
+  50 tokens ≈ 2.5 s. The remaining ≈ 2.8 s is unattributed engine overhead. LiteRT-LM exposes no
+  prefill boundary and delivers the text only at the end, so a benchmark-mode phone run is
+  needed to split it.
+- **Revised expectation:** trimming the standing instructions (about 1,500 tokens) would save
+  roughly **1–1.5 s** of the 8.2 s, not half. That's useful but modest, and it carries quality
+  risk, so it's deferred until after launch. MTP (decode) and the unattributed overhead are the
+  bigger levers; measure both on the phone first.
