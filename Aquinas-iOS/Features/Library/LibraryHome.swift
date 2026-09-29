@@ -309,7 +309,7 @@ struct LibraryHomeView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Color.clear.frame(height: 72)
 
-                    LibraryHomeHeader(catalog: catalog)
+                    LibraryHomeHeader()
                         .padding(.top, 24)
                         .padding(.horizontal, 24)
 
@@ -372,16 +372,9 @@ struct LibraryHomeView: View {
 }
 
 private struct LibraryHomeHeader: View {
-    let catalog: LibraryCatalog?
-
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(statsLine)
-                .font(AquinasTheme.Typography.uiLabel)
-                .foregroundStyle(AquinasTheme.Colors.lightGreen)
-                .contentTransition(.numericText())
-
-            Text("\(Text("The ").font(.custom("LibreBaskerville-Regular", size: 30)))\(Text("Library").font(.custom("LibreBaskerville-Italic", size: 30)))")
+            Text("\(Text("The ").font(.custom("LibreBaskerville-Regular", size: 40)))\(Text("Library").font(.custom("LibreBaskerville-Italic", size: 40)))")
                 .foregroundStyle(AquinasTheme.Colors.primaryReadable)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -394,12 +387,6 @@ private struct LibraryHomeHeader: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
-    }
-
-    private var statsLine: String {
-        guard let catalog, !catalog.works.isEmpty else { return "PRIMARY SOURCES" }
-        let passages = catalog.passageCount.formatted(.number)
-        return "\(catalog.works.count) WORKS · \(passages) PASSAGES"
     }
 }
 
