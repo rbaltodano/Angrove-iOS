@@ -85,15 +85,15 @@ struct StudyBranchDockControls: View {
             .allowsHitTesting(showsPlaceAction)
             .accessibilityLabel("Place \(count) new Insights")
         }
-        .animation(.spring(response: 0.42, dampingFraction: 0.82), value: showsPlaceAction)
+        .animation(.springStandard, value: showsPlaceAction)
         .onAppear {
             showsPlaceAction = false
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.82).delay(0.18)) {
+            withAnimation(.springStandard.delay(0.18)) {
                 showsPlaceAction = true
             }
         }
         .onChange(of: isLeaving) { _, leaving in
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
+            withAnimation(.springQuick) {
                 showsPlaceAction = !leaving
             }
         }

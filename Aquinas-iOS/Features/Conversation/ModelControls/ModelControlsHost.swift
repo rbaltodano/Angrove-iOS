@@ -5,6 +5,17 @@
 
 import SwiftUI
 
+private struct ModelControlsReservedHeightKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 0
+}
+
+extension EnvironmentValues {
+    var modelControlsReservedHeight: CGFloat {
+        get { self[ModelControlsReservedHeightKey.self] }
+        set { self[ModelControlsReservedHeightKey.self] = newValue }
+    }
+}
+
 /// What the visible page wants the app's single Model Controls bar to show.
 ///
 /// Pages never render their own bar. A page-specific controls view (`InquiryControlDock`,
@@ -78,6 +89,8 @@ extension View {
 /// their identity across every page while the published buttons change inside them.
 struct ModelControlsHost: View {
     let configuration: ModelControlsConfiguration?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var measuredHeight: CGFloat?
 
     private static let empty = ModelControlsConfiguration(id: "none")
 
@@ -120,7 +133,7 @@ struct ModelControlsHost: View {
                         )
                     )
                     .modifier(FloatingControlPressFeedback(isButtonPressed: c.isControlButtonPressed))
-                    .animation(.spring(response: 0.38, dampingFraction: 0.78), value: c.controlsUpdateKey)
+                    .animation(.springLively, value: c.controlsUpdateKey)
                     .opacity(c.pillReplacement == nil ? 1 : 0)
                     .allowsHitTesting(c.pillReplacement == nil)
                     .transition(.scale(scale: 0.4).combined(with: .opacity))
@@ -133,13 +146,31 @@ struct ModelControlsHost: View {
                 }
             }
         }
+        .fixedSize(horizontal: false, vertical: true)
+        .background {
+            GeometryReader { geometry in
+                Color.clear.preference(
+                    key: ModelControlsHeightPreferenceKey.self,
+                    value: geometry.size.height
+                )
+            }
+        }
+        .onPreferenceChange(ModelControlsHeightPreferenceKey.self) { height in
+            guard measuredHeight == nil || abs((measuredHeight ?? 0) - height) > 0.5 else {
+                return
+            }
+            withAnimation(measuredHeight == nil || reduceMotion ? nil : .smooth(duration: 0.3)) {
+                measuredHeight = height
+            }
+        }
+        .frame(height: measuredHeight, alignment: .bottom)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.bottom, c.bottomPadding)
         .frame(maxWidth: c.maxWidth ?? .infinity)
         .frame(maxWidth: .infinity, alignment: c.alignment)
         .animation(.easeInOut(duration: 0.22), value: c.id)
-        .animation(.spring(response: 0.42, dampingFraction: 0.86), value: c.bottomPadding)
-        .animation(.spring(response: 0.38, dampingFraction: 0.78), value: c.buttons == nil)
+        .animation(.springStandard, value: c.bottomPadding)
+        .animation(.springLively, value: c.buttons == nil)
         .animation(.easeInOut(duration: 0.24), value: c.pillReplacement == nil)
         .background(alignment: .bottom) {
             if c.showsStandardFade {
@@ -169,5 +200,13 @@ struct ModelControlsHost: View {
                 .allowsHitTesting(false)
             }
         }
+    }
+}
+
+private struct ModelControlsHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }

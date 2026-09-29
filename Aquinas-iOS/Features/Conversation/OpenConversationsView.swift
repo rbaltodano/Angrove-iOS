@@ -86,7 +86,7 @@ struct OpenConversationsView: View {
                             HStack(spacing: 24) {
                                 ForEach(ConversationFilter.allCases) { filter in
                                     Button(action: {
-                                        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                                        withAnimation(.springQuick) {
                                             activeFilter = filter
                                         }
                                     }) {
@@ -107,7 +107,7 @@ struct OpenConversationsView: View {
 
                         if !studyTopics.isEmpty {
                             Button(action: {
-                                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                                withAnimation(.springQuick) {
                                     isGrouped.toggle()
                                 }
                             }) {
@@ -146,9 +146,9 @@ struct OpenConversationsView: View {
                         }
                     }
                     .padding(.top, 48)
-                    .animation(.spring(response: 0.34, dampingFraction: 0.86), value: normalizedSearchText)
-                    .animation(.spring(response: 0.34, dampingFraction: 0.86), value: activeFilter)
-                    .animation(.spring(response: 0.34, dampingFraction: 0.86), value: isGrouped)
+                    .animation(.springQuick, value: normalizedSearchText)
+                    .animation(.springQuick, value: activeFilter)
+                    .animation(.springQuick, value: isGrouped)
 
                     Color.clear.frame(height: 120)
                 }
@@ -387,7 +387,7 @@ struct OpenConversationsView: View {
         deletingConversationIDs.insert(conversation.id)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-            withAnimation(.spring(response: 0.34, dampingFraction: 0.88)) {
+            withAnimation(.springQuick) {
                 onDeleteConversation(conversation)
             }
             deletingConversationIDs.remove(conversation.id)
@@ -558,7 +558,7 @@ private struct OpenConversationsSearchField: View {
                 .frame(width: 16, height: 16)
 
             TextField("Search Conversations", text: $searchText)
-                .font(AquinasTheme.Typography.body)
+                .paragraphFont()
                 .foregroundColor(AquinasTheme.Colors.paragraphText)
                 .tint(AquinasTheme.Colors.secondaryMuted)
                 .submitLabel(.search)
@@ -676,7 +676,7 @@ struct OpenConversationCard: View {
 
                     if insights.count > 3 {
                         Button(action: {
-                            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                            withAnimation(.springQuick) {
                                 isExpanded.toggle()
                             }
                         }) {

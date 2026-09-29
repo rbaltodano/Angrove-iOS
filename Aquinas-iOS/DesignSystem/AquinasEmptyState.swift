@@ -28,7 +28,7 @@ struct AquinasEmptyState: View {
                 .foregroundColor(AquinasTheme.Colors.primaryReadable)
 
             Text(message)
-                .font(.figtreeParagraph)
+                .paragraphFont()
                 .lineSpacing(6)
                 .multilineTextAlignment(.center)
                 .foregroundColor(AquinasTheme.Colors.paragraphText)

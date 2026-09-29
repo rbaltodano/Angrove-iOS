@@ -149,7 +149,7 @@ private struct InsightLibraryScopeTabs: View {
 
     private func tabButton(title: String, scope: InsightLibraryScope) -> some View {
         Button {
-            withAnimation(.spring(response: 0.38, dampingFraction: 0.72)) {
+            withAnimation(.springLively) {
                 selectedScope = scope
             }
         } label: {
@@ -224,7 +224,7 @@ struct InsightLibraryCard: View {
                 .stroke(AquinasTheme.Colors.brownBorder, lineWidth: 1)
         )
         .shadow(
-            color: Color(red: 0.13, green: 0.06, blue: 0)
+            color: AquinasTheme.Colors.cardGlowBase
                 .opacity(shadowOpacity),
             radius: 24,
             x: 0,
@@ -320,7 +320,7 @@ private struct InsightLibraryEmptyState: View {
                 .multilineTextAlignment(.center)
 
             Text(scope == .currentConversation ? "Tap an insight link in a response, then save it to collect it here." : "Saved insights will appear here across conversations.")
-                .font(.figtreeParagraph)
+                .paragraphFont()
                 .foregroundColor(AquinasTheme.Colors.bodyText)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 300)

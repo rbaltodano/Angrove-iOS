@@ -63,12 +63,12 @@ struct ContextControlsStackCard: View {
                 let height = value.translation.height
                 let predicted = value.predictedEndTranslation.height
                 if height > 100 || predicted > 180 {
-                    withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                    withAnimation(.springStandard) {
                         contextCard.isOpen = false
                         contextCard.dragY = 0
                     }
                 } else {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
+                    withAnimation(.springLively) {
                         contextCard.dragY = 0
                     }
                 }
@@ -78,7 +78,7 @@ struct ContextControlsStackCard: View {
     private func beginContextCompaction() {
         guard canCompact, !contextCard.isCompacting else { return }
         UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.65)
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.springStandard) {
             contextCard.isCompacting = true
             contextCard.isCompactionComplete = false
         }
@@ -88,7 +88,7 @@ struct ContextControlsStackCard: View {
             guard !Task.isCancelled else { return }
             guard didCompact else {
                 await MainActor.run {
-                    withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                    withAnimation(.springStandard) {
                         contextCard.isCompacting = false
                     }
                 }
@@ -102,7 +102,7 @@ struct ContextControlsStackCard: View {
             }
             do { try await Task.sleep(for: .seconds(1)) } catch { return }
             await MainActor.run {
-                withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                withAnimation(.springStandard) {
                     contextCard.isOpen = false
                 }
             }
@@ -133,7 +133,7 @@ struct ContextControlsStackCard: View {
         contextCard.compactTask?.cancel()
         UIImpactFeedbackGenerator(style: .medium).impactOccurred(intensity: 0.75)
         onClearConversation()
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.springStandard) {
             contextCard.isOpen = false
             contextCard.isCompacting = false
             contextCard.isCompactionComplete = false
@@ -159,8 +159,10 @@ struct ContextUsageIcon: View {
 
     var body: some View {
         ZStack {
+            // At rest this is a fill gauge: a full-width track and square ends keep a low reading
+            // (a short arc) from looking like a frozen loading spinner.
             Circle()
-                .stroke(color.opacity(0.35), lineWidth: 1.5)
+                .stroke(color.opacity(0.2), lineWidth: 3)
             TimelineView(.animation(paused: phase == .idle)) { timeline in
                 let angle = phase == .spinning
                     ? timeline.date.timeIntervalSince(startDate) * 360.0 / revDuration
@@ -168,7 +170,10 @@ struct ContextUsageIcon: View {
                 let trimEnd = 0.25 * arc + Double(min(max(progress, 0), 1)) * (1 - arc)
                 Circle()
                     .trim(from: 0, to: trimEnd)
-                    .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .stroke(
+                        color,
+                        style: StrokeStyle(lineWidth: 3, lineCap: phase == .idle ? .butt : .round)
+                    )
                     .rotationEffect(.degrees(-90 + angle))
                     .animation(.easeInOut(duration: 0.65), value: progress)
             }
@@ -226,21 +231,15 @@ private struct ContextUsageCard: View {
     }
 
     private var progressTrackColor: Color {
-        colorScheme == .dark
-            ? Color(hex: 0x130F0C)
-            : .white
+        AquinasTheme.Colors.gaugeTrack
     }
 
     private var progressTrackBorderColor: Color {
-        colorScheme == .dark
-            ? Color(hex: 0xFFFAF0, alpha: 0.08)
-            : AquinasTheme.Colors.darkBrown.opacity(0.15)
+        AquinasTheme.Colors.gaugeTrackBorder
     }
 
     private var progressFillColor: Color {
-        colorScheme == .dark
-            ? Color(hex: 0xFFFAF0, alpha: 0.55)
-            : AquinasTheme.Colors.paragraphText.opacity(0.5)
+        AquinasTheme.Colors.gaugeFill
     }
 
     var body: some View {
@@ -318,11 +317,11 @@ private struct ContextUsageCard: View {
         )
         .scaleEffect(hasAppeared ? 1 : 0.35, anchor: .bottom)
         .opacity(hasAppeared ? 1 : 0)
-        .animation(.spring(response: 0.42, dampingFraction: 0.86), value: isCompacting)
+        .animation(.springStandard, value: isCompacting)
         .onAppear {
             hasAppeared = false
             DispatchQueue.main.async {
-                withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                withAnimation(.springStandard) {
                     hasAppeared = true
                 }
             }

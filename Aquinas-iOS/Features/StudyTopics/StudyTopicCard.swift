@@ -88,7 +88,7 @@ struct StudyTopicCard: View {
 
                     if subItems.count > 3 {
                         Button(action: {
-                            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                            withAnimation(.springQuick) {
                                 isExpanded.toggle()
                             }
                         }) {

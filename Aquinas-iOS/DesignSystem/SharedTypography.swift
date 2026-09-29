@@ -102,6 +102,29 @@ enum AquinasTheme {
         )
         static let dropShadow = floatingShadow
         static let mediaShadow = dropShadow
+
+        // Floating-card glow: one warm brown in both modes, used by `cardGlow()`.
+        static let cardGlowBase = Color(hex: 0x220F00)
+        static let cardGlow = cardGlowBase.opacity(0.15)
+        static let scrim = Color.black
+        static let onAccent = Color(hex: 0xFFFAF0)
+        static let pulse = Color(hex: 0x877D4F)
+        static let deepSurface = Color(light: 0x201C18, dark: 0x130F0C)
+        static let insightNodeFill = Color(light: 0xFFFAF0, dark: 0x0A0602)
+        static let chipFill = Color(light: 0xFBF4E7, dark: 0x1B1714)
+        static let menuFade = Color(light: 0xFAF5E8, dark: 0x141210)
+        static let gaugeTrack = Color(light: 0xFFFFFF, dark: 0x130F0C)
+        static let gaugeTrackBorder = Color(light: 0x220F01, lightAlpha: 0.15, dark: 0xFFFAF0, darkAlpha: 0.08)
+        static let gaugeFill = Color(light: 0x4A321C, lightAlpha: 0.375, dark: 0xFFFAF0, darkAlpha: 0.55)
+        static let hairline = Color(light: 0x220F00, lightAlpha: 0.18, dark: 0xFFFAF0, darkAlpha: 0.18)
+
+        /// Scheme-resolved for UIViewRepresentable-hosted text, where dynamic colors can freeze.
+        static func placeholder(for scheme: ColorScheme) -> Color {
+            scheme == .dark ? Color(hex: 0xFFFAF0, alpha: 0.50) : Color(hex: 0x4A321C, alpha: 0.50)
+        }
+        static func dotGrid(for scheme: ColorScheme) -> Color {
+            scheme == .dark ? Color(hex: 0xB7AE78) : Color(hex: 0x4A321C)
+        }
     }
 
     // MARK: Typography
@@ -131,7 +154,7 @@ enum AquinasTheme {
         static let unit: CGFloat = 8
         static let screenPadding: CGFloat = 16
         static let cardPadding: CGFloat = 24
-        static let cardRadius: CGFloat = 24
+        static let cardRadius: CGFloat = 28
         static let smallCardRadius: CGFloat = 16
         static let controlHeight: CGFloat = 44
         static let iconButtonSize: CGFloat = 44
@@ -141,7 +164,7 @@ enum AquinasTheme {
 extension Animation {
     /// Gentle spring shared by the Insight card's height changes (bars → definition) and
     /// swiping between saved insights, keeping the motion soft with only a subtle bounce.
-    static let insightCardBounce = Animation.spring(response: 0.28, dampingFraction: 0.86)
+    static let insightCardBounce = Animation.springQuick
 }
 
 extension AnyTransition {
@@ -155,8 +178,8 @@ extension AnyTransition {
             .combined(with: .opacity)
 
         return .asymmetric(
-            insertion: cardTransform.animation(.spring(response: 0.42, dampingFraction: 0.86)),
-            removal: cardTransform.animation(.spring(response: 0.34, dampingFraction: 0.86))
+            insertion: cardTransform.animation(.springStandard),
+            removal: cardTransform.animation(.springQuick)
         )
     }
 }
@@ -498,4 +521,47 @@ func createEditorialTitle(
     }
 
     return attributedString
+}
+
+// MARK: - User paragraph font
+
+/// Applies the user's response font and size settings to app-wide paragraph text.
+/// Sans/Medium reproduces the design-system body (14) and bodyLarge (16) exactly.
+struct ParagraphFontModifier: ViewModifier {
+    enum Role {
+        case regular
+        case large
+
+        var baseSize: CGFloat {
+            switch self {
+            case .regular: 14
+            case .large: 16
+            }
+        }
+    }
+
+    let role: Role
+    @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .sans
+    @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .medium
+
+    func body(content: Content) -> some View {
+        let size = role.baseSize + (fontSize.pointSize - ConversationFontSizeOption.medium.pointSize)
+        switch responseFont {
+        case .sans: content.font(.custom("Figtree-Regular", size: size))
+        case .serif: content.font(.custom("LibreBaskerville-Regular", size: size))
+        }
+    }
+}
+
+extension View {
+    func paragraphFont(_ role: ParagraphFontModifier.Role = .regular) -> some View {
+        modifier(ParagraphFontModifier(role: role))
+    }
+}
+
+extension View {
+    /// Shared soft glow for cards that float over the canvas.
+    func cardGlow(yOffset: CGFloat = 0) -> some View {
+        shadow(color: AquinasTheme.Colors.cardGlow, radius: 24, x: 0, y: yOffset)
+    }
 }

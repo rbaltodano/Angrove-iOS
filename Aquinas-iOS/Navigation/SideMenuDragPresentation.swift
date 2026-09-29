@@ -25,7 +25,7 @@ private struct SideMenuDragPresentation: ViewModifier {
             content.simultaneousGesture(dragGesture)
 
             let progress = isPresented ? 1.0 : min(1.0, Double(dragOffset / 345))
-            Color.black.opacity(0.16 * progress)
+            AquinasTheme.Colors.scrim.opacity(0.16 * progress)
                 .ignoresSafeArea()
                 .allowsHitTesting(progress > 0.02)
                 .onTapGesture(perform: onDismiss)
@@ -39,7 +39,7 @@ private struct SideMenuDragPresentation: ViewModifier {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .allowsHitTesting(isPresented || isDragging)
                 .zIndex(1000)
-                .animation(.spring(response: 0.42, dampingFraction: 0.84), value: isPresented)
+                .animation(.springStandard, value: isPresented)
         }
     }
 
@@ -78,7 +78,7 @@ private struct SideMenuDragPresentation: ViewModifier {
                     dragOffset = 0
                     isPresented = true
                 } else {
-                    withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+                    withAnimation(.springStandard) {
                         isDragging = false
                         dragOffset = 0
                     }

@@ -13,6 +13,8 @@ enum ModelTaskKind: Hashable {
     case makeNode
     case updateInsightTree
     case refreshInsightTree
+    /// Separate identity so labels do not suppress response seeding or persisted refresh jobs.
+    case labelInsightTree
     case refreshQuestionOfTheDay
 
     var title: String {
@@ -25,7 +27,7 @@ enum ModelTaskKind: Hashable {
             return String(localized: "Create Midpoint")
         case .makeNode:
             return String(localized: "Make Node")
-        case .updateInsightTree, .refreshInsightTree:
+        case .updateInsightTree, .refreshInsightTree, .labelInsightTree:
             return String(localized: "Update Insight Tree")
         case .refreshQuestionOfTheDay:
             return String(localized: "Consolidate information")
@@ -44,7 +46,7 @@ enum ModelTaskKind: Hashable {
 
     var isInsightTreeTask: Bool {
         switch self {
-        case .updateInsightTree, .refreshInsightTree:
+        case .updateInsightTree, .refreshInsightTree, .labelInsightTree:
             return true
         default:
             return false
@@ -59,7 +61,7 @@ enum ModelTaskKind: Hashable {
             return String(localized: "Parsing...")
         case .createMidpoint:
             return String(localized: "Plotting...")
-        case .updateInsightTree, .refreshInsightTree:
+        case .updateInsightTree, .refreshInsightTree, .labelInsightTree:
             return String(localized: "Mapping...")
         case .refreshQuestionOfTheDay:
             return String(localized: "Consolidating...")
@@ -70,7 +72,7 @@ enum ModelTaskKind: Hashable {
         switch self {
         case .userQuestion, .defineInsight:
             return .conversation
-        case .createMidpoint, .makeNode, .updateInsightTree, .refreshInsightTree:
+        case .createMidpoint, .makeNode, .updateInsightTree, .refreshInsightTree, .labelInsightTree:
             return .insights
         case .refreshQuestionOfTheDay:
             return .home
@@ -130,7 +132,7 @@ enum FunModelStatusCopy {
             return ["Defining...", "Naming..."]
         case .createMidpoint:
             return ["Watch this...", "Connecting...", "Graphing..."]
-        case .updateInsightTree, .refreshInsightTree:
+        case .updateInsightTree, .refreshInsightTree, .labelInsightTree:
             return ["Scribbling...", "Jotting...", "Planting...", "Trimming...", "Prunning..."]
         case .refreshQuestionOfTheDay:
             return ["Packin up..."]

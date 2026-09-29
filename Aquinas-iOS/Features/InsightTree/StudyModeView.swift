@@ -114,7 +114,7 @@ struct StudyModeView: View {
             guard animatesCenterIconEntrance else { return }
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.72)) {
+            withAnimation(.springLively) {
                 showsCenterIcon = true
             }
         }
@@ -294,7 +294,7 @@ private struct StudyDotMatrix: View {
                         y: 0
                     )
                     .animation(
-                        .spring(response: 0.28, dampingFraction: 0.72),
+                        .springLively,
                         value: showsCenterIcon
                     )
                     .position(center)
@@ -531,7 +531,7 @@ private struct StudyMatrixDotView: View {
             .animation(
                 usesInstantHighlightTransition
                     ? nil
-                    : .spring(response: 0.28, dampingFraction: 0.76),
+                    : .springLively,
                 value: isHighlightVisible
             )
             .task(id: BaseDotAnimationID(insightID: insightID, isExiting: isExiting)) {
@@ -574,7 +574,7 @@ private struct StudyMatrixDotView: View {
                 if highlightBehavior == .deconstructTransfer, !isExiting {
                     isVisible = true
                     hasSettled = true
-                    withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
+                    withAnimation(.springBouncy) {
                         isHighlightVisible = true
                     }
                     return
@@ -603,7 +603,7 @@ private struct StudyMatrixDotView: View {
                 if usesInstantHighlightTransition {
                     isHighlightVisible = true
                 } else {
-                    withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
+                    withAnimation(.springBouncy) {
                         isHighlightVisible = true
                     }
                 }
@@ -747,7 +747,7 @@ private struct StudyToolCarousel: View {
     @State private var pageWidth: CGFloat = 280
 
     private var displayed: StudyTool { shownTool ?? tool }
-    private static let settle = Animation.spring(response: 0.42, dampingFraction: 0.86)
+    private static let settle = Animation.springStandard
 
     var body: some View {
         VStack(spacing: 16) {

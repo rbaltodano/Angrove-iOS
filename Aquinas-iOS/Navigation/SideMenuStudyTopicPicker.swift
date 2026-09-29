@@ -39,7 +39,7 @@ struct SideMenuStudyTopicPickerSheet: View {
                     .padding(.top, 56)
 
                 Text(conversation.title)
-                    .font(.custom("Figtree-Regular", size: 14))
+                    .paragraphFont()
                     .foregroundColor(AquinasTheme.Colors.paragraphText.opacity(0.5))
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -52,13 +52,13 @@ struct SideMenuStudyTopicPickerSheet: View {
                 if topics.isEmpty {
                     // No topics exist at all — the dashed "Add New Study Topic" button below covers it.
                     Text("No study topics yet.")
-                        .font(.custom("Figtree-Regular", size: 14))
+                        .paragraphFont()
                         .foregroundColor(AquinasTheme.Colors.paragraphText.opacity(0.5))
                         .frame(maxWidth: .infinity)
                         .padding(.top, 48)
                 } else if filteredTopics.isEmpty {
                     Text("No matching study topics.")
-                        .font(.custom("Figtree-Regular", size: 14))
+                        .paragraphFont()
                         .foregroundColor(AquinasTheme.Colors.paragraphText.opacity(0.5))
                         .frame(maxWidth: .infinity)
                         .padding(.top, 48)
@@ -81,7 +81,7 @@ struct SideMenuStudyTopicPickerSheet: View {
                             .font(.system(size: 10, weight: .bold))
                             .sfSymbolDrawOn()
                         Text("Add New Study Topic")
-                            .font(.custom("Figtree-Regular", size: 14))
+                            .paragraphFont()
                     }
                     .foregroundColor(AquinasTheme.Colors.paragraphText.opacity(0.5))
                     .frame(maxWidth: .infinity)
@@ -112,7 +112,7 @@ struct SideMenuStudyTopicPickerSheet: View {
     }
 
     private func toggleSelection(of topic: StudyTopic) {
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) {
+        withAnimation(.springLively) {
             if selectedTopicID == topic.id {
                 selectedTopicID = nil
                 onRemoveTopic()
@@ -127,7 +127,7 @@ struct SideMenuStudyTopicPickerSheet: View {
         let topic = StudyTopic(title: title, description: description)
         topics.insert(topic, at: 0)
         StudyTopicStore.save(topics)
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) {
+        withAnimation(.springLively) {
             selectedTopicID = topic.id
         }
         onSelectTopic(topic)
@@ -163,7 +163,7 @@ private struct SideMenuStudyTopicPickerCard: View {
 
             if !displayDescription.isEmpty {
                 Text(displayDescription)
-                    .font(.custom("Figtree-Regular", size: 14))
+                    .paragraphFont()
                     .foregroundColor(AquinasTheme.Colors.paragraphText.opacity(0.75))
                     .lineSpacing(4)
                     .lineLimit(3)

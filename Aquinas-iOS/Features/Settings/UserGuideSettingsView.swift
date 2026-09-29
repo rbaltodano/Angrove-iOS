@@ -48,6 +48,9 @@ struct UserGuideTopicView: View {
                 UserGuideParagraph(title: "How to use it", text: topic.instructions)
                 UserGuideParagraph(title: "When it helps", text: topic.example)
             }
+            if let laterDemo = topic.laterDemo {
+                UserGuideExampleView(example: laterDemo, collectedDefinitions: $collectedDefinitions)
+            }
         }
     }
 }
@@ -204,6 +207,8 @@ struct UserGuideTopic: Identifiable, Hashable {
     let example: String
     /// A hands-on example, for the few tools that are hidden or hard to picture from text.
     var demo: UserGuideExample? = nil
+    /// A second example shown after the explanation, further down the page.
+    var laterDemo: UserGuideExample? = nil
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
@@ -215,7 +220,7 @@ struct UserGuideTopic: Identifiable, Hashable {
             id: "conversation", title: "Starting a Conversation", icon: "bubble.left.and.bubble.right",
             intro: "A conversation is where you ask Aquinas a question and talk it through. Tap {plus|New Conversation} on Home or at the bottom of the menu to begin. Think of it as a patient study partner: you can ask anything, push back, and keep going.",
             overview: "Aquinas answers your question in plain prose, and you can keep the discussion going with follow-ups for as long as you like.",
-            instructions: "Type your question and send it. Beneath each answer, {doc.on.doc|Copy} copies the text and {arrow.trianglehead.2.clockwise|Regenerate} asks for a fresh answer. Follow up by asking for a clarification, an example, or an objection. In a very long conversation, type /compact to summarize older parts so Aquinas can keep going (you still see everything), or /clear to start the conversation over.",
+            instructions: "Type your question and send it. Beneath each answer, {doc.on.doc|Copy} copies the text and {arrow.trianglehead.2.clockwise|Regenerate} asks for a fresh answer. Follow up by asking for a clarification, an example, or an objection. Type /rename to name this conversation, or /rename followed by a name to set it immediately. In a very long conversation, type /compact to summarize older parts so Aquinas can keep going (you still see everything), or /clear to start the conversation over.",
             example: "Ask “How does habit shape character?”, then ask for an everyday example. Answers can make mistakes, so check important claims against their sources."
         ),
         .init(
@@ -239,7 +244,8 @@ struct UserGuideTopic: Identifiable, Hashable {
             overview: "Midpoint finds a concept between the ideas you select, leaning toward the ones you give more weight.",
             instructions: "In the tree, tap {circle.dashed|Select}, choose two to eight Insights or Node Concepts, then tap {graph.2d|Midpoint}. Change the percentages to lean toward the ideas that matter most, then tap {arrow.down|Place} to add the result to your tree.",
             example: "Try a Midpoint between “justice” and “mercy” to see how they meet. The result depends on the ideas you choose and how you balance them.",
-            demo: .midpoint
+            demo: .midpoint,
+            laterDemo: .midpointThree
         ),
         .init(
             id: "study", title: "Studying a Concept in 3D", icon: "graph.3d",

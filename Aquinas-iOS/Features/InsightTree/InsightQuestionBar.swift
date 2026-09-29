@@ -52,7 +52,7 @@ final class InsightQuestionBarViewModel: ObservableObject {
         guard !text.isEmpty, !isThinking else { return }
         inputText = ""
 
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+        withAnimation(.springStandard) {
             messages.append(EphemeralMessage(role: .user, text: text, isComplete: true, contextInsight: contextInsight))
         }
         isThinking = true
@@ -66,7 +66,7 @@ final class InsightQuestionBarViewModel: ObservableObject {
                 : nil
         )
         pendingAssistantID = assistantMsg.id
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+        withAnimation(.springStandard) {
             messages.append(assistantMsg)
         }
 
@@ -139,9 +139,9 @@ struct InsightQuestionBar: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(.spring(response: 0.42, dampingFraction: 0.82), value: isExpanded)
+        .animation(.springStandard, value: isExpanded)
         .onChange(of: expandTrigger) { _, _ in
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+            withAnimation(.springStandard) {
                 isExpanded = true
             }
         }
@@ -205,11 +205,11 @@ struct InsightQuestionBar: View {
             RoundedRectangle(cornerRadius: 36, style: .continuous)
                 .stroke(AquinasTheme.Colors.brownBorder, lineWidth: 1)
         )
-        .animation(.spring(response: 0.38, dampingFraction: 0.78), value: isBarOpen)
-        .animation(.spring(response: 0.38, dampingFraction: 0.78), value: contextInsight?.id)
+        .animation(.springLively, value: isBarOpen)
+        .animation(.springLively, value: contextInsight?.id)
         // Focus state drives isBarOpen — TextField handles taps natively
         .onChange(of: isInputFocused) { _, focused in
-            withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) {
+            withAnimation(.springLively) {
                 isBarOpen = focused
             }
             if focused { onOpen?() }
@@ -218,7 +218,7 @@ struct InsightQuestionBar: View {
         // Tap while thinking (TextField is disabled) → re-expand drawer
         .onTapGesture {
             if viewModel.isThinking && !isBarOpen {
-                withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) { isExpanded = true }
+                withAnimation(.springStandard) { isExpanded = true }
             }
         }
         // External focus request from card swipe-down gesture
@@ -246,7 +246,7 @@ struct InsightQuestionBar: View {
                 .onEnded { value in
                     let isVertical = abs(value.translation.width) < abs(value.translation.height)
                     defer {
-                        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) { swipeUpDrag = 0 }
+                        withAnimation(.springStandard) { swipeUpDrag = 0 }
                         swipeHapticFired = false
                     }
                     guard isVertical else { return }
@@ -255,7 +255,7 @@ struct InsightQuestionBar: View {
                     } else if swipeHapticFired {
                         // Past threshold — open conversation thread
                         isInputFocused = false
-                        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+                        withAnimation(.springStandard) {
                             isExpanded = true
                         }
                     }
@@ -319,7 +319,7 @@ struct InsightQuestionBar: View {
                     }
                     .onChange(of: viewModel.messages.count) { _, _ in
                         isScrolledToBottom = true
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        withAnimation(.springLively) {
                             proxy.scrollTo("q-bar-bottom", anchor: .bottom)
                         }
                     }
@@ -328,7 +328,7 @@ struct InsightQuestionBar: View {
                     }
                     .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
                         if isFollowUpFocused {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            withAnimation(.springLively) {
                                 proxy.scrollTo("q-bar-bottom", anchor: .bottom)
                             }
                         }
@@ -338,13 +338,13 @@ struct InsightQuestionBar: View {
                     if !isScrolledToBottom {
                         Button {
                             isScrolledToBottom = true
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            withAnimation(.springLively) {
                                 proxy.scrollTo("q-bar-bottom", anchor: .bottom)
                             }
                         } label: {
                             Image(systemName: "arrow.down")
                                 .font(.system(size: 8, weight: .semibold))
-                                .foregroundColor(Color(hex: 0xFFFAF0))
+                                .foregroundColor(AquinasTheme.Colors.onAccent)
                                 .frame(width: 24, height: 24)
                                 .background(AquinasTheme.Colors.lightBrown)
                                 .clipShape(Circle())
@@ -369,7 +369,7 @@ struct InsightQuestionBar: View {
         .frame(maxWidth: .infinity)
         .offset(y: max(0, dragOffset))
         .gesture(collapseGesture)
-        .animation(.spring(response: 0.38, dampingFraction: 0.78), value: viewModel.hasResponse)
+        .animation(.springLively, value: viewModel.hasResponse)
     }
 
     // MARK: - Message Row
@@ -444,7 +444,7 @@ struct InsightQuestionBar: View {
                     // "Thinking…" shimmer → "Show Thinking >" when done
                     HStack(spacing: 6) {
                         Text(message.funStatusText ?? "Thinking...")
-                            .font(.figtreeParagraphLarge)
+                            .paragraphFont(.large)
                             .fontWeight(.bold)
                             .modifier(ThinkingShimmer(isActive: !message.isComplete, color: brandBrown))
                             .accessibilityLabel("Thinking")
@@ -476,7 +476,7 @@ struct InsightQuestionBar: View {
                     RoundedRectangle(cornerRadius: message.isComplete ? 24 : 40, style: .continuous)
                         .stroke(AquinasTheme.Colors.quietBorder, lineWidth: 1)
                 )
-                .animation(.spring(response: 0.55, dampingFraction: 0.72), value: message.isComplete)
+                .animation(.springRelaxed, value: message.isComplete)
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
@@ -498,7 +498,7 @@ struct InsightQuestionBar: View {
                     title: insight.title,
                     icon: "text.bubble.fill",
                     isFilled: true,
-                    fillColor: Color(light: 0xFBF4E7, dark: 0x1B1714),
+                    fillColor: AquinasTheme.Colors.chipFill,
                     animatesAppearance: true
                 )
                 .padding(.bottom, 12)
@@ -572,7 +572,7 @@ struct InsightQuestionBar: View {
                 if value.translation.height > 60 || value.predictedEndTranslation.height > 120 {
                     collapse()
                 } else {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
+                    withAnimation(.springLively) {
                         dragOffset = 0
                     }
                 }
@@ -584,7 +584,7 @@ struct InsightQuestionBar: View {
         isInputFocused = false
         isFollowUpFocused = false
         isBarOpen = false
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+        withAnimation(.springStandard) {
             isExpanded = true
             dragOffset = 0
         }
@@ -597,7 +597,7 @@ struct InsightQuestionBar: View {
     }
 
     private func collapse() {
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.84)) {
+        withAnimation(.springStandard) {
             isExpanded = false
             dragOffset = 0
         }

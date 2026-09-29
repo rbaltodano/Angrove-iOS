@@ -69,7 +69,7 @@ struct ModelResponseFooter: View {
     private func copyResponse() {
         UIPasteboard.general.string = copyText
 
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+        withAnimation(.springBouncy) {
             showsCopiedConfirmation = true
         }
 
@@ -179,7 +179,7 @@ struct ResponseButtons: View {
                 UIPasteboard.general.string = copyText
             }
             onCopy?()
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+            withAnimation(.springBouncy) {
                 showCopied = true
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {

@@ -87,7 +87,7 @@ struct NavBackCapsuleButton: View {
                 Capsule()
                     .stroke(AquinasTheme.Colors.controlBorder, lineWidth: 1)
             )
-            .animation(.spring(response: 0.42, dampingFraction: 0.84), value: title)
+            .animation(.springStandard, value: title)
         }
         .buttonStyle(.plain)
         // Pulses from its leading edge so it doesn't overlap the side-menu button beside it.
@@ -175,7 +175,7 @@ struct CanvasModeToggleButton: View {
                 Capsule()
                     .stroke(AquinasTheme.Colors.controlBorder, lineWidth: 1)
             )
-            .animation(.spring(response: 0.42, dampingFraction: 0.84), value: isActive)
+            .animation(.springStandard, value: isActive)
         }
         .background(updatedTextMeasurement)
         .buttonStyle(.plain)
@@ -298,7 +298,7 @@ struct CanvasModeToggleButton: View {
             pulseScale = 1.05
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.68)) {
+            withAnimation(.springBouncy) {
                 pulseScale = 1.0
             }
         }

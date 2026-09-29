@@ -158,7 +158,7 @@ struct SettingsChoiceRow<Option: SettingsChoice>: View {
                 }
                 .font(.custom("Figtree-Bold", size: 12))
                 .foregroundStyle(AquinasTheme.Colors.primaryReadable)
-                .animation(.spring(response: 0.42, dampingFraction: 0.84), value: selection)
+                .animation(.springStandard, value: selection)
             }
             .buttonStyle(.plain)
             .pulsesOnChange(of: selection, anchor: .trailing)
@@ -301,7 +301,7 @@ struct AppearanceButton: View {
                 .frame(width: 28, height: 28)
                 .background(
                     isSelected
-                        ? Color(red: 0.13, green: 0.11, blue: 0.09)
+                        ? AquinasTheme.Colors.deepSurface
                         : Color.clear
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
@@ -322,7 +322,7 @@ struct PersonalitySegmentedControl: View {
                 Button {
                     guard selection != option else { return }
                     SettingsHaptics.playSelection()
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.84)) {
+                    withAnimation(.springQuick) {
                         selection = option
                     }
                 } label: {
@@ -369,7 +369,7 @@ struct ConversationAlignmentSegmentedControl: View {
                 Button {
                     guard selection != option else { return }
                     SettingsHaptics.playSelection()
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.84)) {
+                    withAnimation(.springQuick) {
                         selection = option
                     }
                 } label: {
@@ -409,7 +409,7 @@ struct FontSizeSegmentedControl: View {
                 Button {
                     guard selection != option else { return }
                     SettingsHaptics.playSelection()
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.84)) {
+                    withAnimation(.springQuick) {
                         selection = option
                     }
                 } label: {
@@ -448,7 +448,7 @@ struct FontSegmentedControl: View {
                 Button {
                     guard selection != option else { return }
                     SettingsHaptics.playSelection()
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.84)) {
+                    withAnimation(.springQuick) {
                         selection = option
                     }
                 } label: {

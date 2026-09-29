@@ -270,15 +270,11 @@ struct AquinasSideMenu: View, Equatable {
                 LinearGradient(
                     stops: [
                         Gradient.Stop(
-                            color: colorScheme == .dark
-                                ? Color(red: 0.08, green: 0.07, blue: 0.06)
-                                : Color(red: 0.98, green: 0.96, blue: 0.91),
+                            color: AquinasTheme.Colors.menuFade,
                             location: 0.00
                         ),
                         Gradient.Stop(
-                            color: colorScheme == .dark
-                                ? Color(red: 0.08, green: 0.07, blue: 0.06).opacity(0)
-                                : Color(red: 0.98, green: 0.96, blue: 0.91).opacity(0),
+                            color: AquinasTheme.Colors.menuFade.opacity(0),
                             location: 1.00
                         ),
                     ],
@@ -436,7 +432,7 @@ struct AquinasSideMenu: View, Equatable {
     }
 
     private func deleteTopic(_ topic: StudyTopic) {
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+        withAnimation(.springQuick) {
             sideMenuStudyTopics.removeAll { $0.id == topic.id }
         }
         var stored = StudyTopicStore.load()

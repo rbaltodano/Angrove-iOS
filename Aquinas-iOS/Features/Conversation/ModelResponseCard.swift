@@ -193,7 +193,7 @@ struct ModelResponseCard: View {
                                 isThinkingBasisVisible = false
                                 isThinkingDescriptionVisible = false
                                 visibleThinkingLineCount = 0
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.82)) {
+                                withAnimation(.springStandard) {
                                     isThinkingExpanded = true
                                 }
                             }
@@ -286,7 +286,7 @@ struct ModelResponseCard: View {
                         }) {
                             HStack(spacing: 6) {
                                 Text("Hide Thinking")
-                                    .font(.figtreeParagraphLarge)
+                                    .paragraphFont(.large)
                                     .fontWeight(.bold)
 
                                 Image(systemName: "chevron.right")
@@ -397,8 +397,8 @@ struct ModelResponseCard: View {
                     identity: BlurFadeModifier(isActive: false)
                 )
             ))
-            .animation(.spring(response: 0.55, dampingFraction: 0.72), value: isThinking)
-            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isThinkingDocked)
+            .animation(.springRelaxed, value: isThinking)
+            .animation(.springRelaxed, value: isThinkingDocked)
         }
         .frame(maxWidth: .infinity, alignment: .center)
         .task {
@@ -429,14 +429,14 @@ struct ModelResponseCard: View {
         }
         .onChange(of: isReceivingStream) { _, isReceiving in
             guard isReceiving, isThinking else { return }
-            withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+            withAnimation(.springStandard) {
                 isShowingWritingStatus = true
                 isThinkingDocked = true
             }
         }
         .onChange(of: thinkingSummary.count) { _, count in
             guard count > 0, isThinking else { return }
-            withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+            withAnimation(.springStandard) {
                 isThinkingDocked = true
             }
         }
@@ -459,7 +459,7 @@ struct ModelResponseCard: View {
         isThinkingCollapsing = false
         revealedResponseWordCount = 0
         isResponseFullyRevealed = false
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+        withAnimation(.springRelaxed) {
             isThinking = true
             isThinkingDocked = false
             isShowingWritingStatus = isReceivingStream
@@ -497,11 +497,11 @@ struct ModelResponseCard: View {
             try? await Task.sleep(for: .milliseconds(Int((minimumVisibleDuration - elapsed) * 1_000)))
             guard !Task.isCancelled else { return }
         }
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+        withAnimation(.springRelaxed) {
             isThinkingDocked = true
         }
 
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+        withAnimation(.springStandard) {
             isThinking = false
         }
 
@@ -527,7 +527,7 @@ struct ModelResponseCard: View {
         Task {
             try? await Task.sleep(for: .milliseconds(110))
             guard !Task.isCancelled else { return }
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.82)) {
+            withAnimation(.springStandard) {
                 isThinkingExpanded = false
             }
         }
@@ -700,13 +700,13 @@ private struct GroundingSourceRow: View {
                 // Revealing always restarts from nothing, so collapsing and reopening a source
                 // plays the same staged entrance rather than snapping straight to full text.
                 visiblePassageSegmentCount = 0
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.82)) {
+                withAnimation(.springStandard) {
                     isExpanded.toggle()
                 }
             } label: {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(source.title)
-                        .font(.figtreeParagraph)
+                        .paragraphFont()
                         .lineSpacing(6)
                         .multilineTextAlignment(responseTextAlignment.textAlignment)
                         .fixedSize(horizontal: false, vertical: true)
@@ -739,7 +739,7 @@ private struct GroundingSourceRow: View {
 
                     ForEach(Array(passageSegments.enumerated()), id: \.offset) { index, segment in
                         Text(segment)
-                            .font(.figtreeParagraph)
+                            .paragraphFont()
                             .lineSpacing(6)
                             .foregroundColor(AquinasTheme.Colors.paragraphText)
                             .multilineTextAlignment(responseTextAlignment.textAlignment)
@@ -754,7 +754,7 @@ private struct GroundingSourceRow: View {
                         )
                     } label: {
                         Label("Read More", systemImage: "arrow.up.right")
-                            .font(.figtreeParagraph)
+                            .paragraphFont()
                             .foregroundStyle(AquinasTheme.Colors.lightGreen)
                     }
                     .buttonStyle(.plain)
@@ -784,7 +784,7 @@ private struct GroundingSourceRow: View {
         .frame(maxWidth: .infinity, alignment: responseTextAlignment.frameAlignment)
         .padding(isExpanded ? 16 : 0)
         .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(
                     isExpanded
                         ? AquinasTheme.Colors.canvasSecondary
@@ -792,7 +792,7 @@ private struct GroundingSourceRow: View {
                 )
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .stroke(
                     isExpanded ? AquinasTheme.Colors.border : Color.clear,
                     lineWidth: 1

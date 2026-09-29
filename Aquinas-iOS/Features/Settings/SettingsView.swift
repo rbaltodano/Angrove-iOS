@@ -62,7 +62,7 @@ struct SettingsView: View {
                     .transition(.studyExitGrow)
                 }
             }
-            .animation(.spring(response: 0.42, dampingFraction: 0.84), value: path.isEmpty)
+            .animation(.springStandard, value: path.isEmpty)
             .padding(.top, 24)
             .padding(.leading, 24)
             .zIndex(2)
@@ -141,10 +141,10 @@ private struct SettingsHubView: View {
                 SettingsHubSection(
                     title: "General",
                     rows: [
-                        SettingsHubItem(title: "Appearance", iconName: "paintpalette", route: .appearance),
+                        SettingsHubItem(title: "Appearance", iconName: "paintpalette.fill", route: .appearance),
                         SettingsHubItem(title: "App Experience", iconName: "sparkles", route: .appExperience),
-                        SettingsHubItem(title: "Notifications", iconName: "bell", route: .notifications),
-                        SettingsHubItem(title: "Privacy & Data", iconName: "lock.shield", route: .privacyAndData)
+                        SettingsHubItem(title: "Notifications", iconName: "bell.fill", route: .notifications),
+                        SettingsHubItem(title: "Privacy & Data", iconName: "lock.shield.fill", route: .privacyAndData)
                     ],
                     onSelect: onSelect
                 )
@@ -152,8 +152,8 @@ private struct SettingsHubView: View {
                 SettingsHubSection(
                     title: "Model",
                     rows: [
-                        SettingsHubItem(title: "Model Behavior", iconName: "brain", route: .modelBehavior),
-                        SettingsHubItem(title: "Model Activity", iconName: "waveform", route: .modelActivity)
+                        SettingsHubItem(title: "Model Behavior", iconName: "brain.fill", route: .modelBehavior),
+                        SettingsHubItem(title: "Model Activity", iconName: "waveform.circle.fill", route: .modelActivity)
                     ],
                     onSelect: onSelect
                 )
@@ -162,7 +162,7 @@ private struct SettingsHubView: View {
                     title: "Conversations",
                     rows: [
                         SettingsHubItem(title: "Text & Display", iconName: "textformat.size", route: .textAndDisplay),
-                        SettingsHubItem(title: "Conversation Defaults", iconName: "bubble.left.and.bubble.right", route: .conversationDefaults)
+                        SettingsHubItem(title: "Conversation Defaults", iconName: "bubble.left.and.bubble.right.fill", route: .conversationDefaults)
                     ],
                     onSelect: onSelect
                 )
@@ -170,8 +170,8 @@ private struct SettingsHubView: View {
                 SettingsHubSection(
                     title: "Support",
                     rows: [
-                        SettingsHubItem(title: "User Guide", iconName: "book", route: .userGuide),
-                        SettingsHubItem(title: "Report a Bug", iconName: "ladybug", route: .reportBug)
+                        SettingsHubItem(title: "User Guide", iconName: "book.fill", route: .userGuide),
+                        SettingsHubItem(title: "Report a Bug", iconName: "ladybug.fill", route: .reportBug)
                     ],
                     onSelect: onSelect
                 )

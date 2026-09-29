@@ -73,7 +73,7 @@ struct TruncatableParagraph: View {
     }
 
     private func toggleExpanded() {
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+        withAnimation(.springQuick) {
             isExpanded.toggle()
         }
     }

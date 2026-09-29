@@ -734,7 +734,7 @@ struct LibraryView: View {
                     }
                     Spacer()
                 }
-                .animation(.spring(response: 0.42, dampingFraction: 0.84), value: selectedWorkID)
+                .animation(.springStandard, value: selectedWorkID)
                 .padding(.horizontal, 24)
                 .padding(.top, 24)
                 Spacer()
@@ -742,7 +742,7 @@ struct LibraryView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .zIndex(20)
         }
-        .animation(.spring(response: 0.42, dampingFraction: 0.84), value: selectedWorkID)
+        .animation(.springStandard, value: selectedWorkID)
         .onChange(of: selectedWorkID) { _, id in
             modelTasksPopupState.reset()
             onReaderVisibilityChange(id != nil)
@@ -760,9 +760,11 @@ struct LibraryView: View {
                 LibraryCatalog.loadBundled()
             }.value
             withAnimation(.easeOut(duration: 0.25)) { catalog = loaded }
-            if let pendingNavigationRequest {
-                self.pendingNavigationRequest = nil
-                applyNavigationRequest(pendingNavigationRequest)
+            // A request that opened the Library arrives as the initial value, which `onChange`
+            // never reports; one that arrived while the catalog loaded is held as pending.
+            if let request = pendingNavigationRequest ?? navigationRequest {
+                pendingNavigationRequest = nil
+                applyNavigationRequest(request)
             }
         }
         .onChange(of: navigationRequest) { _, request in
@@ -785,14 +787,14 @@ struct LibraryView: View {
     }
 
     private func openWork(id: String, atChunk chunkIndex: Int? = nil) {
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+        withAnimation(.springStandard) {
             targetChunkIndex = chunkIndex
             selectedWorkID = id
         }
     }
 
     private func closeDocument() {
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+        withAnimation(.springStandard) {
             selectedWorkID = nil
             targetChunkIndex = nil
         }
@@ -828,7 +830,7 @@ private struct LibraryDocumentDetail: View {
                                     .font(.custom("LibreBaskerville-Regular", size: 28))
                                     .foregroundStyle(AquinasTheme.Colors.lightGreen)
                                 Text(document.context)
-                                    .font(.figtreeParagraph)
+                                    .paragraphFont()
                                     .foregroundStyle(AquinasTheme.Colors.paragraphText)
                             }
                             LibraryTextSection(
@@ -872,7 +874,7 @@ private struct LibraryDocumentDetail: View {
                                     let sectionID = document.sections.first(where: { $0.id == outlineID })?.id
                                         ?? selectedSectionID
                                     transitionToPage(sectionID: sectionID, outlineID: outlineID)
-                                    withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                                    withAnimation(.springStandard) {
                                         isContentsOpen = true
                                     }
                                 }
@@ -1025,7 +1027,7 @@ private struct ContentsRow: View {
                     }
                     Text(title).font(.custom(isSelected ? "Figtree-SemiBold" : "Figtree-Regular", size: 14)).foregroundStyle(isSelected ? AquinasTheme.Colors.lightGreen : AquinasTheme.Colors.paragraphText)
                 }
-                .fixedSize().animation(.spring(response: 0.32, dampingFraction: 0.78), value: isSelected)
+                .fixedSize().animation(.springLively, value: isSelected)
                 Spacer()
             }
         }

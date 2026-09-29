@@ -280,12 +280,7 @@ enum ConversationTitlePolicy {
 
         switch option {
         case .automatic:
-            let words = cleaned
-                .replacingOccurrences(of: "[^A-Za-z0-9'’\\s-]", with: " ", options: .regularExpression)
-                .split(whereSeparator: \.isWhitespace)
-                .prefix(5)
-                .map { String($0).capitalized }
-            return words.isEmpty ? "New Inquiry" : words.joined(separator: " ")
+            return headline(for: cleaned)
         case .firstQuestion:
             let questionWithoutTrailingPunctuation = cleaned
                 .trimmingCharacters(in: .punctuationCharacters)
@@ -296,6 +291,70 @@ enum ConversationTitlePolicy {
         case .manual:
             return nil
         }
+    }
+
+    /// Longest automatic title that still fits the conversation header and side menu rows.
+    static let headlineCharacterBudget = 32
+
+    /// Question scaffolding that carries no subject. Stripping it keeps the subject inside the
+    /// character budget: "What does Aquinas say about the virtue of justice?" becomes
+    /// "Virtue of Justice" rather than "What Does Aquinas Say About".
+    private static let scaffoldingPatterns: [String] = [
+        #"^(?:can|could|would) you (?:please )?"#,
+        #"^please "#,
+        #"^according to [a-z. ]+?,\s*"#,
+        #"^(?:what|how|why|where|when) (?:does|did|do|would) (?:st\.? |saint )?[a-z.]+(?: [a-z.]+)? (?:say|teach|think|write|mean|believe|argue|hold|prove|show|explain|define|understand|describe|distinguish|mean by)(?: about| on| regarding| concerning| by| that)?\s+"#,
+        #"^(?:explain|describe|summarize|define|tell me about|tell me)\s+"#,
+        #"^(?:what|who)(?: is|'s|’s| are| was| were) "#,
+        #"^(?:the|a|an|that) "#
+    ]
+    private static let minorTitleWords: Set<String> = [
+        "a", "an", "and", "as", "at", "but", "by", "for", "in", "nor", "of", "on", "or",
+        "the", "to", "vs", "with"
+    ]
+
+    static func headline(for question: String) -> String {
+        var subject = question
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        for pattern in scaffoldingPatterns {
+            let stripped = subject.replacingOccurrences(
+                of: pattern,
+                with: "",
+                options: [.regularExpression, .caseInsensitive]
+            )
+            // Never strip a question down to nothing; the scaffolding may be the whole question.
+            if !stripped.trimmingCharacters(in: .whitespaces).isEmpty {
+                subject = stripped
+            }
+        }
+        subject = subject.replacingOccurrences(
+            of: #",?\s+(?:according to|in the view of|for) (?:st\.? |saint )?aquinas$"#,
+            with: "",
+            options: [.regularExpression, .caseInsensitive]
+        )
+
+        let words = subject
+            .replacingOccurrences(of: "[^A-Za-z0-9'’\\s-]", with: " ", options: .regularExpression)
+            .split(whereSeparator: \.isWhitespace)
+            .map(String.init)
+        guard !words.isEmpty else { return "New Inquiry" }
+
+        var title: [String] = []
+        var length = 0
+        for (index, word) in words.enumerated() {
+            let cased = index > 0 && minorTitleWords.contains(word.lowercased())
+                ? word.lowercased()
+                : word.prefix(1).uppercased() + word.dropFirst()
+            let added = length == 0 ? cased.count : length + 1 + cased.count
+            if !title.isEmpty && added > headlineCharacterBudget { break }
+            title.append(cased)
+            length = added
+        }
+        // A title ending on "of" or "the" reads as cut off; drop trailing minor words.
+        while title.count > 1, let last = title.last, minorTitleWords.contains(last.lowercased()) {
+            title.removeLast()
+        }
+        return title.joined(separator: " ")
     }
 }
 

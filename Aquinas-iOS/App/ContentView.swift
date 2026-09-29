@@ -208,7 +208,7 @@ struct ContentView: View {
 
     private func presentGlobalSideMenu() {
         dismissKeyboard()
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+        withAnimation(.springStandard) {
             isGlobalSideMenuOpen = true
         }
     }
@@ -369,7 +369,7 @@ struct ContentView: View {
                 onInquireConnection: { globalInsightInquireConnectionRequest += 1 },
                 onQuoteCanvasItem: {
                     guard globalInsightQuoteTarget != nil else { return }
-                    withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
+                    withAnimation(.springQuick) {
                         isGlobalInsightAskMode = true
                     }
                 },
@@ -381,7 +381,7 @@ struct ContentView: View {
                     globalInsightExistingConversationTarget = target
                 },
                 onCancelCanvasAsk: {
-                    withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
+                    withAnimation(.springQuick) {
                         isGlobalInsightAskMode = false
                     }
                 },
@@ -427,7 +427,7 @@ struct ContentView: View {
     /// Kept out of `body`'s modifier chain, which is at the type checker's limit.
     private func handleGlobalInsightHoverChange(_ isHoveringInsight: Bool) {
         guard isHoveringInsight else { return }
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.springStandard) {
             modelTasksPopupState.reset()
         }
     }
@@ -437,7 +437,7 @@ struct ContentView: View {
         HStack(spacing: 8) {
             SideMenuTriggerButton {
                 dismissKeyboard()
-                withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+                withAnimation(.springStandard) {
                     isGlobalSideMenuOpen = true
                 }
             }
@@ -446,7 +446,7 @@ struct ContentView: View {
                     .transition(.studyExitGrow)
             }
         }
-        .animation(.spring(response: 0.42, dampingFraction: 0.84), value: globalInsightIsStudyMode)
+        .animation(.springStandard, value: globalInsightIsStudyMode)
     }
 
     @ViewBuilder private var insightTreePage: some View {
@@ -485,7 +485,7 @@ struct ContentView: View {
             },
             onForkInsight: { def in
                 requestedForkConcept = def
-                withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                withAnimation(.springStandard) {
                     activePage = .conversation
                 }
             },
@@ -505,7 +505,7 @@ struct ContentView: View {
             // collected-definition cache, which can also contain pending updates.
             savedConceptIDs: Set(globalTreeInsights.map(\.id)),
             onToggleSavedConcept: { concept in
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                withAnimation(.springBouncy) {
                     collectedDefinitions.removeAll { $0.id == concept.id }
                     // Un-saving must disappear from the global tree's persisted snapshot too;
                     // otherwise relaunching reloads the stale insight and the bookmark returns.
@@ -514,7 +514,7 @@ struct ContentView: View {
                 GlobalInsightTreeStore.save(globalTreeInsights)
             },
             onBookmarkConcepts: { concepts in
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                withAnimation(.springBouncy) {
                     for concept in concepts {
                         if !collectedDefinitions.contains(where: { $0.id == concept.id }) {
                             collectedDefinitions.append(concept)
@@ -530,7 +530,7 @@ struct ContentView: View {
             onInquireConnectionConcepts: { concepts in
                 guard let first = concepts.first else { return }
                 requestedForkConcept = first
-                withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                withAnimation(.springStandard) {
                     activePage = .conversation
                 }
             },
@@ -632,7 +632,6 @@ struct ContentView: View {
             responseFont: responseFont,
             conversationTitlePolicy: conversationTitlePolicy,
             conversationPersonality: $conversationPersonality,
-            userName: userName,
             isPageVisible: activePage == .conversation,
             modelTasks: modelTasks,
             modelTasksPopupState: modelTasksPopupState,
@@ -931,6 +930,7 @@ struct ContentView: View {
                     .background {
                         globalModelControlsBar(usesLandscapeInsightSplit: usesLandscapeInsightSplit)
                     }
+                    .environment(\.modelControlsReservedHeight, modelControlsHeight)
                     // The app's one Model Controls bar. It lives here — outside every page and the
                     // fade/offset applied to them — so it never swaps out; only the buttons the
                     // visible page publishes change inside it. The inset reserves its measured
@@ -965,7 +965,7 @@ struct ContentView: View {
                 ) { result in
                     switch result {
                     case .success(let urls):
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                        withAnimation(.springLively) {
                             for url in urls {
                                 let hasAccess = url.startAccessingSecurityScopedResource()
                                 defer {
@@ -1005,7 +1005,7 @@ struct ContentView: View {
                             if let data = try? await item.loadTransferable(type: Data.self),
                                UploadedFile.isImageData(data) {
                                 await MainActor.run {
-                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                                    withAnimation(.springLively) {
                                         uploadedFiles.append(
                                             UploadedFile(
                                                 name: "Photo",
@@ -1027,7 +1027,7 @@ struct ContentView: View {
                 .fullScreenCover(isPresented: $showCamera) {
                     CameraCaptureView { image in
                         if let data = image.jpegData(compressionQuality: 0.86) {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                            withAnimation(.springLively) {
                                 uploadedFiles.append(
                                     UploadedFile(
                                         name: "Camera Photo",
@@ -1145,7 +1145,7 @@ struct ContentView: View {
         }
 
         withAnimation(
-            .spring(response: 0.42, dampingFraction: 0.84),
+            .springStandard,
             completionCriteria: .logicallyComplete
         ) {
             isGlobalSideMenuOpen = false
@@ -1351,6 +1351,10 @@ struct ContentView: View {
 
     private func handleActivePageChange(from oldValue: AppPage, to newValue: AppPage) {
         modelTasksPopupState.reset()
+        if oldValue == .library, newValue != .library {
+            // Consumed: reopening the Library from the menu should land on its home page.
+            libraryNavigationRequest = nil
+        }
         if oldValue == .insights, newValue != .insights {
             isGlobalTreeUpdatePromptVisible = false
             globalInsightIsSearchActive = false
@@ -1507,7 +1511,7 @@ struct ContentView: View {
 
         // Reconciliation calls into NaturalLanguage for every unique Insight. Keep that CPU work
         // outside the main actor so the canvas remains responsive to panning and zooming.
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.springStandard) {
             isGlobalTreeUpdatePromptVisible = false
             suppressGlobalTreePromptUntilExternalModelCompletion = true
             isGlobalTreeReconciling = true
@@ -1530,7 +1534,7 @@ struct ContentView: View {
                 return
             }
 
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+            withAnimation(.springStandard) {
                 globalTreeInsights = reconciledInsights
                 isGlobalTreeReconciling = false
             }
@@ -1542,7 +1546,7 @@ struct ContentView: View {
     }
 
     private func dismissGlobalInsightTreeUpdate() {
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.springStandard) {
             isGlobalTreeUpdatePromptVisible = false
         }
     }

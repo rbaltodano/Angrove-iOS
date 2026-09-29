@@ -55,6 +55,9 @@ struct ListAwareTextField: UIViewRepresentable {
     var onTextChange: ((String) -> Void)? = nil
     /// Called when Return should submit the current question instead of inserting a newline.
     var onSubmit: (() -> Void)? = nil
+    /// Shrinks the reported width to the laid-out text (up to the proposal), so locked
+    /// questions can render as content-hugging chat bubbles.
+    var hugsContentWidth: Bool = false
 
     // MARK: - UIViewRepresentable
 
@@ -119,8 +122,16 @@ struct ListAwareTextField: UIViewRepresentable {
     /// Tell SwiftUI exactly how tall the view needs to be for the available width.
     /// Without this, SwiftUI never constrains the width and the text never wraps.
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
-        let width = proposal.width ?? uiView.bounds.width
+        var width = proposal.width ?? uiView.bounds.width
         guard width > 0 else { return nil }
+        if hugsContentWidth, let attributedText = uiView.attributedText, attributedText.length > 0 {
+            let textRect = attributedText.boundingRect(
+                with: CGSize(width: width, height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                context: nil
+            )
+            width = min(width, ceil(textRect.width))
+        }
         let fittingSize = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
         return CGSize(width: width, height: max(fittingSize.height, uiView.font?.lineHeight ?? 20))
     }

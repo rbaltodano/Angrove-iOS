@@ -70,11 +70,11 @@ struct InsightTreeInsightCard: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
         .background(AquinasTheme.Colors.canvas)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .stroke(AquinasTheme.Colors.brownBorder, lineWidth: 1)
         )
-        .shadow(color: Color(red: 0.13, green: 0.06, blue: 0).opacity(0.15), radius: 24, x: 0, y: 16)
+        .cardGlow(yOffset: 16)
     }
 }

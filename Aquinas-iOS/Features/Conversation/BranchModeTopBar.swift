@@ -114,7 +114,7 @@ struct BranchModeTopBar: View {
                 }
                 Spacer()
             }
-            .animation(.spring(response: 0.42, dampingFraction: 0.84), value: isStudyMode)
+            .animation(.springStandard, value: isStudyMode)
             .padding(.horizontal, 24)
             .padding(.top, 24)
             .allowsHitTesting(isCanvasMode)

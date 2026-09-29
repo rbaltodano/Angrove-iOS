@@ -201,7 +201,7 @@ struct StudyTopicsView: View {
                         restoreInsight(insight, toTreeFor: topic.id)
                     },
                     onBack: {
-                        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+                        withAnimation(.springStandard) {
                             selectedTopicID = nil
                         }
                     },
@@ -218,7 +218,7 @@ struct StudyTopicsView: View {
                     AquinasNavButton(onMenuTap: onOpenMenu)
                     if selectedTopicID != nil && !topicCanvasMode.isCanvasStudyMode {
                         NavBackCapsuleButton(title: backButtonTitle) {
-                            withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+                            withAnimation(.springStandard) {
                                 if topicCanvasMode.isTopicCanvasVisible {
                                     topicCanvasMode.isTopicCanvasVisible = false
                                 } else {
@@ -230,7 +230,7 @@ struct StudyTopicsView: View {
                     }
                     if topicCanvasMode.isCanvasStudyMode {
                         StudyExitButton {
-                            withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+                            withAnimation(.springStandard) {
                                 topicCanvasMode.canvasStudyExitRequest += 1
                             }
                         }
@@ -238,8 +238,8 @@ struct StudyTopicsView: View {
                     }
                     Spacer()
                 }
-                .animation(.spring(response: 0.42, dampingFraction: 0.84), value: topicCanvasMode.isCanvasStudyMode)
-                .animation(.spring(response: 0.42, dampingFraction: 0.84), value: selectedTopicID)
+                .animation(.springStandard, value: topicCanvasMode.isCanvasStudyMode)
+                .animation(.springStandard, value: selectedTopicID)
                 .padding(.horizontal, 24)
                 .padding(.top, 24)
                 Spacer()
@@ -248,7 +248,7 @@ struct StudyTopicsView: View {
             .allowsHitTesting(true)
             .zIndex(20)
         }
-        .animation(.spring(response: 0.42, dampingFraction: 0.84), value: selectedTopicID)
+        .animation(.springStandard, value: selectedTopicID)
         .onChange(of: selectedTopicID) { oldValue, newValue in
             if oldValue != newValue {
                 discardNewTopicIfNeeded(oldValue)
@@ -284,7 +284,7 @@ struct StudyTopicsView: View {
             }
             // Brief delay so the page-in transition finishes before the detail slides in.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+                withAnimation(.springStandard) {
                     selectedTopicID = id
                     if selectionRequest != nil {
                         topicCanvasMode.isTopicCanvasVisible = true
@@ -412,7 +412,7 @@ struct StudyTopicsView: View {
                     HStack(spacing: 24) {
                         ForEach(StudyTopicFilter.allCases) { filter in
                             Button(action: {
-                                withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                                withAnimation(.springQuick) {
                                     activeFilter = filter
                                 }
                             }) {
@@ -449,8 +449,8 @@ struct StudyTopicsView: View {
                     }
                     .padding(.top, 48)
                     .padding(.bottom, 120)
-                    .animation(.spring(response: 0.34, dampingFraction: 0.86), value: normalizedSearchText)
-                    .animation(.spring(response: 0.34, dampingFraction: 0.86), value: activeFilter)
+                    .animation(.springQuick, value: normalizedSearchText)
+                    .animation(.springQuick, value: activeFilter)
                 }
                 .padding(.horizontal, 24)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -469,7 +469,7 @@ struct StudyTopicsView: View {
             subItems: topicSubItems(for: topic),
             subItemTitle: { conversationTitle($0) },
             onSelect: {
-                withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+                withAnimation(.springStandard) {
                     selectedTopicID = topic.id
                 }
             },
@@ -539,7 +539,7 @@ struct StudyTopicsView: View {
         StudyTopicStore.save(topics)
         autoFocusTopicID = topic.id
         discardableNewTopicID = topic.id
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+        withAnimation(.springStandard) {
             selectedTopicID = topic.id
         }
     }
@@ -599,7 +599,7 @@ struct StudyTopicsView: View {
 
         let aggregatedInsights = aggregatedTreeInsights(for: topicID)
 
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.springStandard) {
             topicTreeSnapshots[topicID.uuidString] = aggregatedInsights
             pendingTreeUpdateTopicID = nil
         }
@@ -637,7 +637,7 @@ struct StudyTopicsView: View {
     }
 
     private func dismissTreeUpdateConfirmation() {
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.springStandard) {
             pendingTreeUpdateTopicID = nil
         }
     }
@@ -696,7 +696,7 @@ struct StudyTopicsView: View {
     }
 
     private func deleteTopic(_ topic: StudyTopic) {
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+        withAnimation(.springQuick) {
             topics.removeAll { $0.id == topic.id }
         }
         StudyTopicStore.save(topics)
@@ -707,7 +707,7 @@ struct StudyTopicsView: View {
         StudyTopicInsightTreeStore.save(topicTreeSnapshots)
         // If the deleted topic was selected, close the detail view.
         if selectedTopicID == topic.id {
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+            withAnimation(.springStandard) {
                 selectedTopicID = nil
             }
         }
@@ -771,7 +771,7 @@ struct StudyTopicsSearchField: View {
                 .frame(width: 16, height: 16)
 
             TextField("", text: $searchText, prompt: prompt)
-                .font(AquinasTheme.Typography.body)
+                .paragraphFont()
                 .foregroundColor(AquinasTheme.Colors.paragraphText)
                 .tint(AquinasTheme.Colors.secondaryMuted)
                 .submitLabel(.search)

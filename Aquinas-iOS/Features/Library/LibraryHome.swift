@@ -387,7 +387,7 @@ private struct LibraryHomeHeader: View {
                 .minimumScaleFactor(0.8)
 
             Text("The primary sources Aquinas draws on when it grounds an answer.")
-                .font(AquinasTheme.Typography.body)
+                .paragraphFont()
                 .foregroundStyle(AquinasTheme.Colors.paragraphText)
                 .lineSpacing(4)
                 .padding(.top, 8)
@@ -556,7 +556,7 @@ private struct LibraryPressableStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(.spring(response: 0.28, dampingFraction: 0.8), value: configuration.isPressed)
+            .animation(.springLively, value: configuration.isPressed)
     }
 }
 
@@ -601,7 +601,7 @@ private struct LibraryIndexRow: View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Text(work.title)
-                    .font(AquinasTheme.Typography.bodyLarge)
+                    .paragraphFont(.large)
                     .foregroundStyle(AquinasTheme.Colors.paragraphText)
                     .multilineTextAlignment(.leading)
                 Spacer(minLength: 8)
@@ -671,7 +671,7 @@ private struct LibrarySearchResultCard: View {
                     .multilineTextAlignment(.leading)
 
                 Text("\(work.passageCount.formatted(.number)) passages")
-                    .font(AquinasTheme.Typography.body)
+                    .paragraphFont()
                     .foregroundStyle(AquinasTheme.Colors.paragraphText)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

@@ -105,7 +105,7 @@ extension View {
                 RoundedRectangle(cornerRadius: 36, style: .continuous)
                     .stroke(AquinasTheme.Colors.brownBorder, lineWidth: 1)
             )
-            .shadow(color: Color(red: 0.13, green: 0.06, blue: 0).opacity(0.15), radius: 24, x: 0, y: 0)
+            .cardGlow()
     }
 }
 
@@ -192,7 +192,7 @@ struct DockedNodeTreeCard: View {
             RoundedRectangle(cornerRadius: 36, style: .continuous)
                 .stroke(AquinasTheme.Colors.brownBorder, lineWidth: 1)
         )
-        .shadow(color: Color(red: 0.13, green: 0.06, blue: 0).opacity(0.15), radius: 24, x: 0, y: 0)
+        .cardGlow()
     }
 }
 
@@ -214,7 +214,7 @@ private struct DockedInsightLinkRow: View {
                 // locks later-inserted rows at a slightly reduced scale. Fixed size + truncation
                 // keeps every link identical.
                 Text(insight.title)
-                    .font(.figtreeParagraph)
+                    .paragraphFont()
                     .bold()
                     .foregroundColor(AquinasTheme.Colors.secondaryMuted)
                     .lineLimit(1)
@@ -299,9 +299,9 @@ struct MidpointPercentCard: View {
         .padding(24)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(insightTreeInsightColor)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .stroke(AquinasTheme.Colors.brownBorder, lineWidth: 1)
         )
     }
@@ -485,7 +485,7 @@ private struct DockedCardTextBubbleIcon: View {
             .onAppear {
                 isVisible = false
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.76)) {
+                    withAnimation(.springLively) {
                         isVisible = true
                     }
                 }

@@ -22,7 +22,7 @@ struct SuggestedInsightSheet: View {
                             .foregroundColor(AquinasTheme.Colors.primaryReadable)
 
                         Text("Suggested connection")
-                            .font(.figtreeParagraph)
+                            .paragraphFont()
                             .foregroundColor(AquinasTheme.Colors.paragraphText)
                     }
 
