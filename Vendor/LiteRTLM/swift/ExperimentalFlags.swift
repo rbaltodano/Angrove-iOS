@@ -124,6 +124,21 @@ public struct ExperimentalFlags {
     }
   }
 
+  private static var _activationDataType: Int32? = nil
+
+  /// Aquinas addition: overrides the executor's activation data type (0 = F32, 1 = F16).
+  /// Read only when a new [Engine] is created.
+  public static var activationDataType: Int32? {
+    get { return _activationDataType }
+    set {
+      guard optedIn else {
+        logger.error("LiteRTLM: Must opt into experimental APIs before setting this flag.")
+        return
+      }
+      _activationDataType = newValue
+    }
+  }
+
   private static var _enableSpeculativeDecoding: Bool? = nil
 
   /// Whether to enable speculative decoding.

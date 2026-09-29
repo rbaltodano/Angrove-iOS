@@ -136,6 +136,19 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
     /// under half a second on our short answers (median 7.1 s vs 7.5 s of generation), added
     /// variance (one 11.4 s run), and changed greedy wording (runs S1-on/off-*). Answers here are
     /// dominated by prefill, which MTP doesn't speed up. `--litert-mtp` turns it on in DEBUG.
+    /// Executor activation precision (0 = F32). The E4B package prefers F16 on the GPU, but F16
+    /// misreads multi-digit numbers on the phone: "John 14", "Psalm 23" and "John 11" were answered
+    /// as John 4, Psalm 3 and John 1 from correct references, and the old E2B model did the same.
+    /// F32 answered all three correctly at about 20% lower decode speed (runs S2-*).
+    /// `--litert-f16` restores the package default in DEBUG builds, for comparison.
+    static var activationDataTypeOverride: Int32? {
+#if DEBUG
+        ProcessInfo.processInfo.arguments.contains("--litert-f16") ? nil : 0
+#else
+        0
+#endif
+    }
+
     static var usesSpeculativeDecoding: Bool {
 #if DEBUG
         ProcessInfo.processInfo.arguments.contains("--litert-mtp")
@@ -451,6 +464,7 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
         await waitForPendingNativeDeletes()
         ExperimentalFlags.optIntoExperimentalAPIs()
         ExperimentalFlags.enableSpeculativeDecoding = Self.usesSpeculativeDecoding
+        ExperimentalFlags.activationDataType = Self.activationDataTypeOverride
         let newEngine = Engine(engineConfig: config)
         LiteRTLifecycleTrace.shared.record(
             "load-begin",

@@ -233,3 +233,25 @@ and memory warning (idle and during generation) all passed.
   10%, likely because Metal/driver memory is released lazily. Watch it; it isn't a jetsam risk.
 - iOS logged `Aquinas-iOS.diskwrites_resource` (a disk-write resource report, not a crash),
   most likely from DEBUG lifecycle-trace writes. Release builds don't write the trace.
+
+## GPU F16 misreads multi-digit numbers — 2026-09-29 (phone S2/S3)
+
+The owner's phone answered "Tell me about John 14" with an essay on John 4, even though retrieval
+was correct (Show Thinking listed the John 14 note and two John 14 WEB chunks).
+- Reproduced deterministically on the phone GPU: 3/3 John 4. The phone CPU and the simulator CPU
+  answered John 14 from the **identical** rendered prompt.
+- Same failure elsewhere: Psalm 23 → Psalm 3, John 11 → John 1. Single-digit chapters are fine.
+- **B0 (current production E2B) fails the same way** on the GPU, so this isn't an E4B regression.
+- Restating or spelling out the chapter next to the question didn't help, and output was also
+  garbled elsewhere ("John 1111").
+- **Fix:** force F32 activations on the GPU (`litert_lm_engine_settings_set_activation_data_type`,
+  exposed through a small addition to the vendored Swift wrapper). S3-f32-1..8: 8/8 chapter
+  questions answered correctly, including John 14, Psalm 23, John 11, 1 Corinthians 13 and
+  Romans 12.
+- Cost (S3-mem-*): peak footprint 1.29–1.33 GB vs 1.13–1.24 GB; same load time (7–10 s); a short
+  answer takes about 0.5 s longer; long answers decode about 20% slower (about 9.5 vs 12.5
+  words/s).
+- `--litert-f16` restores the package default in DEBUG.
+- **Consequence:** C8's quality evidence came from simulator CPU (F32-like) runs, so it described
+  F32 behavior. The phone was shipping F16, which C8 never measured. Rerun the held-out set on the
+  phone GPU with F32 as the P2 quality check.

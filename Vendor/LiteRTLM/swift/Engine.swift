@@ -174,6 +174,10 @@ public actor Engine {
     } else if ExperimentalFlags.enableBenchmark {
       litert_lm_engine_settings_enable_benchmark(settings)
     }
+    if let activationDataType = ExperimentalFlags.activationDataType {
+      // Aquinas addition: 0 = F32, 1 = F16 (see `ActivationDataType` in the C header).
+      litert_lm_engine_settings_set_activation_data_type(settings, activationDataType)
+    }
     if let enableSpeculativeDecoding = ExperimentalFlags.enableSpeculativeDecoding {
       litert_lm_engine_settings_set_enable_speculative_decoding(settings, enableSpeculativeDecoding)
     }
