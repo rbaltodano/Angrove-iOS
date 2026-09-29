@@ -255,3 +255,22 @@ was correct (Show Thinking listed the John 14 note and two John 14 WEB chunks).
 - **Consequence:** C8's quality evidence came from simulator CPU (F32-like) runs, so it described
   F32 behavior. The phone was shipping F16, which C8 never measured. Rerun the held-out set on the
   phone GPU with F32 as the P2 quality check.
+
+## Held-out quality on the phone GPU (F32) — 2026-09-29, run P2-phone-held-f32-1
+
+The same 40 held-out cases as C8, run through the production path on Ry's GPU with F32
+activations, scored with `score_objective.py`:
+
+| Run | Where | Objective pass | Link validity | Median s |
+| --- | --- | --- | --- | --- |
+| C8-M4Ls-held-2 | simulator CPU | 28/40 | 0.865 | 23.5 |
+| **P2-phone-held-f32-1** | **phone GPU, F32** | **26/40** | 0.869 | 24.5 |
+| C8-B0-held-2 (current model) | simulator CPU | 26/40 | — | — |
+
+- Only two cases changed, both phone losses on keyword checks: held-B1 (missing
+  "bind/obligation") and held-E5 (missing "Sentences"). There were no rejects and no crashes;
+  iOS logged only `diskwrites_resource` reports.
+- On the objective checks, E4B on the phone ties B0's simulator score. E4B's larger C8 advantage
+  came from the blind rubric review, which this run doesn't repeat.
+- The phone run should have been a like-for-like comparison with B0 on the phone. B0 on the phone
+  at F32 wasn't run.
