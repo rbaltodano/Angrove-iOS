@@ -822,27 +822,34 @@ private struct LibraryDocumentDetail: View {
                 let selectedSection = document.sections[selectedIndex]
                 let selectedOutline = document.sections.node(withID: selectedOutlineID) ?? selectedSection
                 let visibleChunks = selectedOutline.chunks
-                ScrollView(showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: 24) {
-                            Color.clear.frame(height: 72)
-                            VStack(alignment: .leading, spacing: 16) {
-                                Text(document.title)
-                                    .font(.custom("LibreBaskerville-Regular", size: 28))
-                                    .foregroundStyle(AquinasTheme.Colors.lightGreen)
-                                Text(document.context)
-                                    .paragraphFont()
-                                    .foregroundStyle(AquinasTheme.Colors.paragraphText)
-                            }
+                ScrollViewReader { proxy in
+                    ScrollView(showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 32) {
+                            LibraryReaderHeader(
+                                subject: LibrarySubject.of(workID: work.id).title,
+                                title: document.title,
+                                context: document.context
+                            )
                             LibraryTextSection(
                                 title: selectedOutline.title,
                                 passages: document.passages.filter { visibleChunks.contains($0.chunkIndex) },
+                                highlightedChunkIndex: targetChunkIndex,
                                 isVisible: isPageTextVisible
                             )
                             .id(selectedOutline.id)
                             .transition(.opacity.combined(with: .move(edge: .trailing)))
                         }
                         .padding(.horizontal, 24)
-                        .padding(.bottom, 24)
+                        .padding(.bottom, 140)
+                    }
+                    // Clears the floating menu and back buttons, including for scroll-to-passage.
+                    .safeAreaPadding(.top, 88)
+                    .onChange(of: isPageTextVisible) { _, visible in
+                        guard visible, let targetChunkIndex, visibleChunks.contains(targetChunkIndex) else { return }
+                        withAnimation(.springStandard) {
+                            proxy.scrollTo(targetChunkIndex, anchor: .top)
+                        }
+                    }
                 }
                 // Keep the controls publisher mounted while chapter text changes (it publishes to
                 // the shell's single Model Controls bar and renders nothing here). Giving the
@@ -933,28 +940,130 @@ private struct LibraryDocumentDetail: View {
     }
 }
 
+private struct LibraryReaderHeader: View {
+    let subject: String
+    let title: String
+    let context: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(subject.uppercased())
+                .font(AquinasTheme.Typography.uiLabel)
+                .foregroundStyle(AquinasTheme.Colors.lightGreen)
+            Text(title)
+                .font(.custom("LibreBaskerville-Regular", size: 34))
+                .foregroundStyle(AquinasTheme.Colors.primaryReadable)
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(context)
+                .font(.custom("LibreBaskerville-Italic", size: 16))
+                .foregroundStyle(AquinasTheme.Colors.paragraphText)
+                .lineSpacing(6)
+            LibraryOrnamentRule()
+                .padding(.top, 8)
+        }
+    }
+}
+
+/// A hairline broken by the Jerusalem cross, echoing the side menu's footer divider.
+private struct LibraryOrnamentRule: View {
+    var body: some View {
+        HStack(spacing: 16) {
+            Rectangle().fill(AquinasTheme.Colors.controlBorder).frame(height: 1)
+            Image("cross-1")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 16, height: 16)
+                .foregroundStyle(AquinasTheme.Colors.lightGreen)
+            Rectangle().fill(AquinasTheme.Colors.controlBorder).frame(height: 1)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 private struct LibraryTextSection: View {
     let title: String
     let passages: [LibraryPassage]
+    var highlightedChunkIndex: Int?
     let isVisible: Bool
     @AppStorage("aquinas.settings.conversationFontSize")
     private var conversationFontSize: ConversationFontSizeOption = .medium
     @AppStorage("aquinas.settings.responseFont")
     private var responseFont: ConversationFontOption = .sans
 
-    private var documentText: String {
-        passages.map(\.text).joined(separator: "\n\n")
+    /// "Book II: Nature of Stock" reads as a small-caps kicker over a serif chapter title.
+    private var titleParts: (kicker: String?, heading: String) {
+        guard let range = title.range(of: ": ") else { return (nil, title) }
+        return (String(title[..<range.lowerBound]), String(title[range.upperBound...]))
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(title).font(.custom("Figtree-Bold", size: 18)).foregroundStyle(AquinasTheme.Colors.headingText)
-            Text(documentText)
-                .font(responseFont.textFont(size: conversationFontSize))
-                .lineSpacing(8)
-                .foregroundStyle(AquinasTheme.Colors.paragraphText)
+        VStack(alignment: .leading, spacing: 32) {
+            VStack(spacing: 8) {
+                if let kicker = titleParts.kicker {
+                    Text(kicker.uppercased())
+                        .font(AquinasTheme.Typography.uiLabel)
+                        .tracking(1.5)
+                        .foregroundStyle(AquinasTheme.Colors.placeholderText)
+                }
+                Text(titleParts.heading)
+                    .font(.custom("LibreBaskerville-Italic", size: 24))
+                    .foregroundStyle(AquinasTheme.Colors.headingText)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+            }
+            .frame(maxWidth: .infinity)
+
+            LazyVStack(alignment: .leading, spacing: 20) {
+                ForEach(passages) { passage in
+                    LibraryParagraph(
+                        text: passage.text,
+                        font: responseFont.textFont(size: conversationFontSize),
+                        isHighlighted: passage.chunkIndex == highlightedChunkIndex
+                    )
+                    .id(passage.chunkIndex)
+                }
+            }
+            .textSelection(.enabled)
+
+            Image("cross-1")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 14, height: 14)
+                .foregroundStyle(AquinasTheme.Colors.lightGreen)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 8)
+                .accessibilityHidden(true)
         }
         .opacity(isVisible ? 1 : 0)
+    }
+}
+
+/// One corpus chunk. Rendering chunks separately keeps long sections within `Text`'s limits
+/// and lets the reader scroll straight to a featured passage.
+private struct LibraryParagraph: View {
+    let text: String
+    let font: Font
+    let isHighlighted: Bool
+
+    var body: some View {
+        Text(text)
+            .font(font)
+            .lineSpacing(8)
+            .foregroundStyle(isHighlighted ? AquinasTheme.Colors.primaryReadable : AquinasTheme.Colors.paragraphText)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(isHighlighted ? 24 : 0)
+            .background {
+                if isHighlighted {
+                    let shape = RoundedRectangle(cornerRadius: AquinasTheme.Spacing.cardRadius, style: .continuous)
+                    shape
+                        .fill(AquinasTheme.Colors.canvasSecondary)
+                        .overlay(shape.stroke(AquinasTheme.Colors.quietBorder, lineWidth: 1))
+                }
+            }
     }
 }
 
