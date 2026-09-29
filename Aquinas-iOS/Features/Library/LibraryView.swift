@@ -826,7 +826,7 @@ private struct LibraryDocumentDetail: View {
                     ScrollView(showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 32) {
                             LibraryReaderHeader(
-                                subject: LibrarySubject.of(workID: work.id).title,
+                                subject: LibrarySubject.of(workID: work.id).generalTitle,
                                 title: document.title,
                                 context: document.context
                             )

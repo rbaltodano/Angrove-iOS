@@ -33,6 +33,17 @@ nonisolated enum LibrarySubject: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// The broad discipline shown above a work's title in the reader.
+    var generalTitle: String {
+        switch self {
+        case .scripture: "Scripture"
+        case .thomisticTheology, .earlyChristianity, .councilsAndCreeds, .catechismsAndConfessions: "Theology"
+        case .philosophy: "Philosophy"
+        case .history: "History"
+        case .politicalThought: "Political Thought"
+        }
+    }
+
     var systemImage: String {
         switch self {
         case .scripture: "book.closed"
