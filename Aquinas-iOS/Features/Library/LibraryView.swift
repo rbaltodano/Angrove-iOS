@@ -643,6 +643,10 @@ private struct LibraryDocument {
         return (title, level)
     }
 
+    static func bibleBookTitle(forCode code: String) -> String? {
+        bibleBooks.first { $0.marker == code + (code == "PSA" ? "001" : "01") }?.title
+    }
+
     private static let bibleBooks: [(marker: String, title: String)] = [
         ("1CH01", "1 Chronicles"), ("1CO01", "1 Corinthians"),
         ("1ES01", "1 Esdras"), ("1JN01", "1 John"),
@@ -694,6 +698,7 @@ struct LibraryView: View {
     @State private var searchText = ""
     @State private var selectedWorkID: String?
     @State private var targetChunkIndex: Int?
+    @State private var targetScripture: LibraryTextFormatter.ScriptureTarget?
     @State private var pendingNavigationRequest: LibraryNavigationRequest?
     @AppStorage(LibraryRecents.storageKey) private var recentWorkIDsRaw = ""
 
@@ -718,8 +723,10 @@ struct LibraryView: View {
                     work: selectedWork,
                     targetTitle: navigationRequest?.sourceTitle,
                     targetChunkIndex: targetChunkIndex,
+                    targetScripture: targetScripture,
                     modelTasks: modelTasks,
-                    modelTasksPopupState: modelTasksPopupState
+                    modelTasksPopupState: modelTasksPopupState,
+                    onOpenScripture: openScripture
                 )
                 .transition(.move(edge: .trailing))
                 .zIndex(1)
@@ -786,8 +793,17 @@ struct LibraryView: View {
         selectedWorkID = work.id
     }
 
+    private func openScripture(_ target: LibraryTextFormatter.ScriptureTarget) {
+        withAnimation(.springStandard) {
+            targetChunkIndex = nil
+            targetScripture = target
+            selectedWorkID = "web-bible"
+        }
+    }
+
     private func openWork(id: String, atChunk chunkIndex: Int? = nil) {
         withAnimation(.springStandard) {
+            targetScripture = nil
             targetChunkIndex = chunkIndex
             selectedWorkID = id
         }
@@ -797,16 +813,20 @@ struct LibraryView: View {
         withAnimation(.springStandard) {
             selectedWorkID = nil
             targetChunkIndex = nil
+            targetScripture = nil
         }
     }
 }
 
 private struct LibraryDocumentDetail: View {
+    private static let readerTopID = "reader-top"
     let work: LibraryWork
     let targetTitle: String?
     var targetChunkIndex: Int?
+    var targetScripture: LibraryTextFormatter.ScriptureTarget?
     let modelTasks: ModelTaskQueue
     let modelTasksPopupState: ModelTasksPopupState
+    let onOpenScripture: (LibraryTextFormatter.ScriptureTarget) -> Void
     @State private var document: LibraryDocument?
     @State private var selectedSectionID = "chapter-1"
     @State private var selectedOutlineID = "chapter-1"
@@ -830,11 +850,16 @@ private struct LibraryDocumentDetail: View {
                                 title: document.title,
                                 context: document.context
                             )
+                            .id(Self.readerTopID)
                             LibraryTextSection(
-                                title: selectedOutline.title,
+                                title: selectedOutline.id == selectedSection.id || selectedOutline.title.contains(": ")
+                                    ? selectedOutline.title
+                                    : "\(selectedSection.title): \(selectedOutline.title)",
                                 passages: document.passages.filter { visibleChunks.contains($0.chunkIndex) },
+                                sourceID: work.id,
                                 highlightedChunkIndex: targetChunkIndex,
-                                isVisible: isPageTextVisible
+                                isVisible: isPageTextVisible,
+                                onOpenScripture: onOpenScripture
                             )
                             .id(selectedOutline.id)
                             .transition(.opacity.combined(with: .move(edge: .trailing)))
@@ -845,9 +870,14 @@ private struct LibraryDocumentDetail: View {
                     // Clears the floating menu and back buttons, including for scroll-to-passage.
                     .safeAreaPadding(.top, 88)
                     .onChange(of: isPageTextVisible) { _, visible in
-                        guard visible, let targetChunkIndex, visibleChunks.contains(targetChunkIndex) else { return }
-                        withAnimation(.springStandard) {
-                            proxy.scrollTo(targetChunkIndex, anchor: .top)
+                        guard visible else { return }
+                        if let targetChunkIndex, visibleChunks.contains(targetChunkIndex) {
+                            withAnimation(.springStandard) {
+                                proxy.scrollTo(targetChunkIndex, anchor: .top)
+                            }
+                        } else {
+                            // A new page or work starts at its heading, not the prior scroll offset.
+                            proxy.scrollTo(Self.readerTopID, anchor: .top)
                         }
                     }
                 }
@@ -904,6 +934,13 @@ private struct LibraryDocumentDetail: View {
                let match = document?.sections.first(where: { $0.title.caseInsensitiveCompare(targetTitle) == .orderedSame }) {
                 selectedSectionID = match.id
                 selectedOutlineID = match.firstReadableDescendant.id
+            }
+            if let targetScripture,
+               let bookTitle = LibraryDocument.bibleBookTitle(forCode: targetScripture.bookCode),
+               let book = document?.sections.first(where: { $0.title == bookTitle }) {
+                selectedSectionID = book.id
+                selectedOutlineID = book.children.first(where: { $0.title == "Chapter \(targetScripture.chapter)" })?.id
+                    ?? book.firstReadableDescendant.id
             }
             if let targetChunkIndex,
                let path = document?.sections.path(containingChunk: targetChunkIndex),
@@ -985,8 +1022,10 @@ private struct LibraryOrnamentRule: View {
 private struct LibraryTextSection: View {
     let title: String
     let passages: [LibraryPassage]
+    let sourceID: String
     var highlightedChunkIndex: Int?
     let isVisible: Bool
+    let onOpenScripture: (LibraryTextFormatter.ScriptureTarget) -> Void
     @AppStorage("aquinas.settings.conversationFontSize")
     private var conversationFontSize: ConversationFontSizeOption = .medium
     @AppStorage("aquinas.settings.responseFont")
@@ -1018,7 +1057,13 @@ private struct LibraryTextSection: View {
             LazyVStack(alignment: .leading, spacing: 20) {
                 ForEach(passages) { passage in
                     LibraryParagraph(
-                        text: passage.text,
+                        text: LibraryTextFormatter.attributed(
+                            passage.text,
+                            sourceID: sourceID,
+                            linkColor: AquinasTheme.Colors.lightGreen,
+                            verseColor: AquinasTheme.Colors.lightGreen,
+                            verseFont: .custom("Figtree-Bold", size: max(9, conversationFontSize.pointSize - 4))
+                        ),
                         font: responseFont.textFont(size: conversationFontSize),
                         isHighlighted: passage.chunkIndex == highlightedChunkIndex
                     )
@@ -1026,6 +1071,11 @@ private struct LibraryTextSection: View {
                 }
             }
             .textSelection(.enabled)
+            .environment(\.openURL, OpenURLAction { url in
+                guard let target = LibraryTextFormatter.ScriptureTarget(url: url) else { return .discarded }
+                onOpenScripture(target)
+                return .handled
+            })
 
             Image("cross-1")
                 .renderingMode(.template)
@@ -1044,7 +1094,7 @@ private struct LibraryTextSection: View {
 /// One corpus chunk. Rendering chunks separately keeps long sections within `Text`'s limits
 /// and lets the reader scroll straight to a featured passage.
 private struct LibraryParagraph: View {
-    let text: String
+    let text: AttributedString
     let font: Font
     let isHighlighted: Bool
 
