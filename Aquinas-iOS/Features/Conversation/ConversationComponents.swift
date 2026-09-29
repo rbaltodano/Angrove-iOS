@@ -174,12 +174,17 @@ struct ChatThreadColumn: View {
         return ceil(font.lineHeight + 8)
     }
 
+    /// Chat-bubble questions follow the paragraph size setting; the centered field stays fixed.
+    private var questionFontSize: CGFloat {
+        conversationTextAlignment == .left ? conversationFontSize.pointSize : QuestionInputField.fontSize
+    }
+
     private var inputLineHeight: CGFloat {
         let fontName = inputFont == .sans
             ? "Figtree-Regular"
             : "LibreBaskerville-Regular"
-        let font = UIFont(name: fontName, size: QuestionInputField.fontSize)
-            ?? .systemFont(ofSize: QuestionInputField.fontSize)
+        let font = UIFont(name: fontName, size: questionFontSize)
+            ?? .systemFont(ofSize: questionFontSize)
         return ceil(font.lineHeight + 8)
     }
 
@@ -1169,6 +1174,7 @@ struct ChatThreadColumn: View {
                 isLocked: branchData.topQuestionSubmitted,
                 isEmpty: topFieldIsEmpty && !branchData.topQuestionSubmitted,
                 lineHeight: inputLineHeight,
+                fontSize: questionFontSize,
                 textAlignment: conversationTextAlignment,
                 fontOption: inputFont,
                 relay: topFieldRelay,
@@ -1307,6 +1313,7 @@ struct ChatThreadColumn: View {
                                 isLocked: branchData.topQuestionSubmitted,
                                 isEmpty: topFieldIsEmpty && !branchData.topQuestionSubmitted,
                                 lineHeight: inputLineHeight,
+                                fontSize: questionFontSize,
                                 textAlignment: conversationTextAlignment,
                                 fontOption: inputFont,
                                 placeholderColor: placeholderColor,
@@ -1440,6 +1447,7 @@ struct ChatThreadColumn: View {
                             isLocked: true,
                             isEmpty: false,
                             lineHeight: inputLineHeight,
+                            fontSize: questionFontSize,
                             textAlignment: conversationTextAlignment,
                             fontOption: inputFont,
                             relay: TextInputRelay(),
@@ -1506,6 +1514,7 @@ struct ChatThreadColumn: View {
                                 text: $branchData.bottomQuestionText,
                                 isEmpty: bottomFieldIsEmpty,
                                 lineHeight: inputLineHeight,
+                                fontSize: questionFontSize,
                                 textAlignment: conversationTextAlignment,
                                 fontOption: inputFont,
                                 placeholderColor: placeholderColor,
@@ -1676,6 +1685,7 @@ private struct QuestionInputField: View {
     var isLocked: Bool = false
     let isEmpty: Bool
     let lineHeight: CGFloat
+    var fontSize: CGFloat = QuestionInputField.fontSize
     let textAlignment: InputTextAlignmentOption
     let fontOption: ConversationFontOption
     var placeholderColor: Color = AquinasTheme.Colors.placeholderText
@@ -1691,14 +1701,14 @@ private struct QuestionInputField: View {
         let fontName = fontOption == .sans
             ? "Figtree-Regular"
             : "LibreBaskerville-Regular"
-        return UIFont(name: fontName, size: Self.fontSize) ?? .systemFont(ofSize: Self.fontSize)
+        return UIFont(name: fontName, size: fontSize) ?? .systemFont(ofSize: fontSize)
     }
 
     private var placeholderFont: Font {
         let fontName = fontOption == .sans
             ? "Figtree-Regular"
             : "LibreBaskerville-Regular"
-        return .custom(fontName, size: Self.fontSize)
+        return .custom(fontName, size: fontSize)
     }
 
     private var uiTextAlignment: NSTextAlignment {
