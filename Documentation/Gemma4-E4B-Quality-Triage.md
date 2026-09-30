@@ -178,3 +178,42 @@ Insight card. Code has done this since `2524f6e` (September 12), and
 After these changes, the remaining simulator failures are retrieval-floor and scorer-strictness
 issues, not behavior the model gets wrong with the right context in front of it. That leaves no
 case here that justifies training yet. Revisit after the phone run and a fresh sealed set.
+
+## Sealed set 1 — September 30, 2026 (simulator CPU)
+
+A new 40-case set was written and frozen before any run
+(`LocalModels/e4b-eval/eval-set/sealed-1.jsonl`, SHA-256 `17c60724…`, frozen 14:19 UTC). No case
+repeats a dev or held-out question, and none touches a subject that got a curated note or route.
+Scored with scorer v2.
+
+| Run | Build | Pass | Failed |
+| --- | --- | --- | --- |
+| `A1-sealed-main-sim-1` | `origin/main` (`805356b`), before the fixes | 37/40 | seal-R1, seal-D5, seal-E1 |
+| `A1-sealed-fixed-sim-2` | `fix/e4b-quality-triage` (`082470d`) | 36/40 | seal-R1, seal-C2, seal-D5, seal-E1 |
+
+**The fixes show no measurable gain on unseen questions.** The held-out improvement (28 → 34)
+came from repairing the specific failures that were inspected; this set's questions mostly passed
+already.
+
+- **seal-C2** (evil and God's goodness) is not a real regression. The fixed build's answer is
+  faithful to I q.48 a.2 (evil as privation; a universe with things that can fail). The check
+  wanted "permit" or "bring good out of", the wording of a different article. Both answers are
+  accurate.
+- The keyword checks are lenient, so they can't show whether answers got better or worse in
+  substance. A blind side-by-side review of the 40 answer pairs would; it hasn't been done.
+- Median answer time: 25.3 s on main, 27.6 s fixed.
+
+**Three defects both builds share** (now development material, no longer sealed):
+- **seal-R1, "What is justice?":** the answer is assembled from passages on distributive and
+  commutative justice and never gives the definition (rendering each his due). The defining
+  article, II–II q.58 a.1, isn't retrieved.
+- **seal-D5, "Which pope canonized Aquinas, and in what year?":** a confident false answer ("wasn't
+  canonized by a single pope"), labeled corpus-grounded. The evidence guard only checks that some
+  passage was retrieved, not that it bears on the question.
+- **seal-E1, "Which one governs the others?"** after a turn on the cardinal virtues: treated as a
+  new topic, history dropped, answered about forms of government from Herodotus.
+
+`A1-sealed-fixed-sim-1` is an incomplete run (16 cases): another tool started an Xcode test
+session, which clones the "iPhone 17" simulator and shuts it down. Probes now run on a dedicated
+"Aquinas Probe" simulator (`PROBE_DEVICE`). The same cause explains the earlier unexplained exits
+(`V1-vision-sim-2`, `Q2-held-sim-1`).
