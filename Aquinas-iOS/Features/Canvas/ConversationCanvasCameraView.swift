@@ -451,7 +451,7 @@ private struct BranchMapPreviewView: View {
             .font(.custom("LibreBaskerville-Regular", size: 16))
             .foregroundColor(submitted
                              ? AquinasTheme.Colors.primaryReadable
-                             : (colorScheme == .dark ? Color(hex: 0xFFFAF0, alpha: 0.50) : Color(hex: 0x4A321C, alpha: 0.50)))
+                             : AquinasTheme.Colors.placeholder(for: colorScheme))
             .lineLimit(lineLimit).multilineTextAlignment(.center).padding(.horizontal, 26)
     }
 
@@ -467,9 +467,9 @@ private struct BranchMapPreviewView: View {
 
     private func responseShell(title: String) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(AquinasTheme.Colors.card)
-                .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .overlay { RoundedRectangle(cornerRadius: 28, style: .continuous)
                             .stroke(AquinasTheme.Colors.border, lineWidth: 1) }
             Image(systemName: "book.pages")
                 .font(.system(size: 38, weight: .semibold))
@@ -590,9 +590,9 @@ private struct BranchIconPreviewView: View {
 
     private func iconShell(height: CGFloat) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(AquinasTheme.Colors.card.opacity(0.86))
-                .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .overlay { RoundedRectangle(cornerRadius: 28, style: .continuous)
                             .stroke(AquinasTheme.Colors.border, lineWidth: 1) }
             Image(systemName: "book.pages")
                 .font(.system(size: 42, weight: .semibold))

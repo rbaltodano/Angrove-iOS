@@ -33,6 +33,21 @@ experience. The conversation tree asks the local model for each turn's subject
 saved Insights around them with the bundled MiniLM `EmbeddingProvider`. `NLEmbeddingProvider` is a
 degraded last resort only when the MiniLM assets fail to load.
 
+Both canvases pass the app's shared `ModelTaskQueue` into `InsightTreeViewModel`. Cluster and
+suggestion labels use background `labelInsightTree` jobs (displayed as `Update Insight Tree`),
+separate from response-seeding and persisted-refresh deduplication. A cluster's generated
+definition stays inside its label job. Blank title/definition placeholders are excluded from
+label input; an entirely blank cluster queues nothing. In-flight cluster deduplication survives
+foreground preemption, while explicit cancellation releases it and discards late output.
+
+Automatically named Nodes use the nearest useful broader concept, including single-Insight
+clusters. `NodeConceptLabelPolicy` rejects normalized member-title copies, superficial wrappers,
+and vague catch-all labels; the live model gets one corrective attempt. Conversation seed
+prompts use the same broader-concept relationship. On rebuild, an existing cached or seeded Node
+whose name repeats a member is relabelled through the queue with its ID, membership, and position
+preserved. The new label overrides the seed's presentation and receives a fresh definition.
+Explicit Make Node promotions and placed Midpoints retain their intentional titles.
+
 ## Persistence boundaries
 
 Conversation branches and chat blocks are persisted as one Codable snapshot in
@@ -68,7 +83,7 @@ app no longer contains that client.)
 
 ## Current product constraints
 
-Only `/compact` and `/clear` are supported slash commands. A cached contextual definition must
+`/compact`, `/clear`, and `/rename` are supported slash commands. A cached contextual definition must
 open immediately even while model work is active; queue a definition only on cache miss. The
 context control is a non-spinning gauge, while Model Status describes active work. Question of the
 Day generation is background consolidation work and remains queued when an active conversation is

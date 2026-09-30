@@ -115,14 +115,10 @@ struct ChatThreadColumn: View {
     /// Prevents a restored queued draft from focusing its hidden UIKit editor while the user
     /// is browsing another page. The draft remains ready when they return.
     var isPageVisible: Bool = true
-    var emptyStateUserName: String = "Ryan"
     var emptyStateEyebrow: String = ""
     /// Height available above the bottom model controls. The pristine new-conversation
     /// prompt uses this to center its heading and composer as one unit.
     var newConversationViewportHeight: CGFloat = 0
-    /// A landscape phone has far less vertical space. Keep the first prompt comfortably
-    /// readable without forcing its heading and composer into opposite ends of the screen.
-    var usesCompactVerticalLayout: Bool = false
     /// The conversation's study topic name, if it belongs to one — takes priority over
     /// `emptyStateEyebrow` in the header eyebrow, and makes it tappable to change the topic.
     var studyTopicTitle: String? = nil
@@ -178,12 +174,17 @@ struct ChatThreadColumn: View {
         return ceil(font.lineHeight + 8)
     }
 
+    /// Chat-bubble questions follow the paragraph size setting; the centered field stays fixed.
+    private var questionFontSize: CGFloat {
+        conversationTextAlignment == .left ? conversationFontSize.pointSize : QuestionInputField.fontSize
+    }
+
     private var inputLineHeight: CGFloat {
         let fontName = inputFont == .sans
             ? "Figtree-Regular"
             : "LibreBaskerville-Regular"
-        let font = UIFont(name: fontName, size: QuestionInputField.fontSize)
-            ?? .systemFont(ofSize: QuestionInputField.fontSize)
+        let font = UIFont(name: fontName, size: questionFontSize)
+            ?? .systemFont(ofSize: questionFontSize)
         return ceil(font.lineHeight + 8)
     }
 
@@ -287,9 +288,7 @@ struct ChatThreadColumn: View {
     /// bypassing the Color(UIColor(dynamicProvider:)) conversion which can freeze to the
     /// light-mode value inside UIViewRepresentable-hosted view hierarchies.
     private var placeholderColor: Color {
-        colorScheme == .dark
-            ? Color(hex: 0xFFFAF0, alpha: 0.50)
-            : Color(hex: 0x4A321C, alpha: 0.50)
+        AquinasTheme.Colors.placeholder(for: colorScheme)
     }
 
     @ViewBuilder
@@ -359,11 +358,6 @@ struct ChatThreadColumn: View {
             && localConnectionConcepts == nil
     }
 
-    private var emptyPromptName: String {
-        let trimmedName = emptyStateUserName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedName.isEmpty ? "Ryan" : trimmedName
-    }
-
     private var trimmedEmptyStateEyebrow: String {
         emptyStateEyebrow.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -384,11 +378,12 @@ struct ChatThreadColumn: View {
 
     private var emptyPromptQuestion: String {
         let trimmedQuestion = emptyStatePromptQuestion.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedQuestion.isEmpty ? "What Should We Study Today \(emptyPromptName)?" : trimmedQuestion
+        return trimmedQuestion.isEmpty ? "What Should We Study?" : trimmedQuestion
     }
 
     private var isQuestionOfTheDayPrompt: Bool {
         trimmedEmptyStateEyebrow.caseInsensitiveCompare("QUESTION OF THE DAY") == .orderedSame
+            || branchData.hiddenPromptContext?.localizedCaseInsensitiveContains("<question of the day>") == true
     }
 
     /// The permanent record that this branch started from a Question of the Day — persisted on
@@ -402,7 +397,18 @@ struct ChatThreadColumn: View {
         return pinned
     }
 
+    private var todayInHistoryEntry: TodayInHistoryEntry? {
+        guard let context = branchData.hiddenPromptContext else { return nil }
+        return TodayInHistoryCatalog.entry(matchingPromptContext: context)
+    }
+
     private var newConversationHeaderTitle: String {
+        if isQuestionOfTheDayPrompt, pinnedHeaderQuestion != nil {
+            return String(localized: "Question of the Day")
+        }
+        if pinnedHeaderQuestion != nil, let todayInHistoryEntry {
+            return todayInHistoryEntry.title
+        }
         if let pinnedHeaderQuestion {
             return pinnedHeaderQuestion
         }
@@ -410,6 +416,16 @@ struct ChatThreadColumn: View {
             return displayBranchTitle
         }
         return emptyPromptQuestion
+    }
+
+    private var newConversationHeaderSubtitle: String {
+        if isQuestionOfTheDayPrompt, let pinnedHeaderQuestion {
+            return pinnedHeaderQuestion
+        }
+        if let todayInHistoryEntry {
+            return todayInHistoryEntry.description
+        }
+        return trimmedEmptyStatePromptSubtitle
     }
 
     private func generatedTitle(from question: String) -> String {
@@ -476,7 +492,7 @@ struct ChatThreadColumn: View {
         responseThinkingSummaryByIndex.removeValue(forKey: responseIndex)
         responseGroundingSourcesByIndex.removeValue(forKey: responseIndex)
         branchData.removeResponsePresentation(at: responseIndex)
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+        withAnimation(.springRelaxed) {
             if branchData.activeChatBlocks.indices.contains(responseIndex) {
                 branchData.activeChatBlocks[responseIndex] = .text("")
             } else {
@@ -643,7 +659,7 @@ struct ChatThreadColumn: View {
                 evidenceBasis: response.evidenceBasis
             )
             branchData.setResponsePresentation(completedPresentation)
-            withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+            withAnimation(.springRelaxed) {
                 branchData.activeChatBlocks[responseIndex] = .text(response.annotatedText)
                 pendingResponseIndices.remove(responseIndex)
                 streamingResponseIndices.remove(responseIndex)
@@ -705,7 +721,7 @@ struct ChatThreadColumn: View {
             return
         }
 
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.84)) {
+        withAnimation(.springStandard) {
             branchData.activeChatBlocks[responseIndex] = .text(response)
             branchData.showBottomInput = true
         }
@@ -741,7 +757,7 @@ struct ChatThreadColumn: View {
             return
         }
 
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.84)) {
+        withAnimation(.springStandard) {
             if wasStillQueued {
                 if responseIndex == branchData.activeChatBlocks.count - 1 {
                     branchData.activeChatBlocks.removeLast()
@@ -782,7 +798,7 @@ struct ChatThreadColumn: View {
             uploadedFiles = uploads
         }
 
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.84)) {
+        withAnimation(.springStandard) {
             branchData.topQuestionText = question
             branchData.topQuestionUploads = []
             branchData.topQuestionSubmitted = false
@@ -811,7 +827,7 @@ struct ChatThreadColumn: View {
         }
         bottomFieldIsEmpty = question.isEmpty
 
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.84)) {
+        withAnimation(.springStandard) {
             if case .user(let text, _, _) = branchData.activeChatBlocks.last,
                text == question {
                 branchData.activeChatBlocks.removeLast()
@@ -953,7 +969,7 @@ struct ChatThreadColumn: View {
               let pendingQuestion = pendingGeneratedTitleQuestion else { return }
         let title = generatedTitle(from: pendingQuestion)
         pendingGeneratedTitleQuestion = nil
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+        withAnimation(.springRelaxed) {
             branchData.generatedBranchTitle = title
         }
         if branchData.parentBranchID == nil {
@@ -1009,7 +1025,7 @@ struct ChatThreadColumn: View {
         case .manual:
             pendingGeneratedTitleQuestion = nil
         }
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+        withAnimation(.springLively) {
             branchData.topQuestionSubmitted = true
         }
         onTopQuestionSubmitted()
@@ -1042,7 +1058,7 @@ struct ChatThreadColumn: View {
         let quotedConcept = branchData.attachedConcept
         let submittedUploads = visibleUploads
         let submittedConnectionConcepts = localConnectionConcepts
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+        withAnimation(.springQuick) {
             branchData.showBottomInput = false
             branchData.activeChatBlocks.append(.user(submittedQuestion, quotedConcept, submittedUploads))
         }
@@ -1065,8 +1081,15 @@ struct ChatThreadColumn: View {
         }
     }
 
+    /// Headline-to-body rhythm shared with Home's Today in History card: 8pt from eyebrow to
+    /// title, 14pt from title to the subtitle and the question field.
+    static let promptHeadlineSpacing: CGFloat = 14
+
     private var newConversationPromptHeader: some View {
-        VStack(alignment: conversationTextAlignment.horizontalAlignment, spacing: 48) {
+        VStack(
+            alignment: conversationTextAlignment.horizontalAlignment,
+            spacing: Self.promptHeadlineSpacing
+        ) {
             VStack(alignment: conversationTextAlignment.horizontalAlignment, spacing: 8) {
                 Button(action: onTapEyebrow) {
                     HStack(spacing: 4) {
@@ -1091,7 +1114,7 @@ struct ChatThreadColumn: View {
                         // Animate the text swap together with the reveal, so the icon
                         // (repositioned by the HStack re-centering on the new width)
                         // glides into place instead of snapping.
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        withAnimation(.springLively) {
                             displayedEyebrowText = newValue
                             isEyebrowTextHidden = false
                         }
@@ -1100,7 +1123,7 @@ struct ChatThreadColumn: View {
 
                 if isEditingBigTitle {
                     TextField("Conversation title", text: $bigTitleDraft)
-                        .font(.custom("LibreBaskerville-Regular", size: 28))
+                        .font(AquinasTheme.Typography.titleXLarge)
                         .foregroundColor(AquinasTheme.Colors.headingText)
                         .lineSpacing(14)
                         .multilineTextAlignment(conversationTextAlignment.textAlignment)
@@ -1113,7 +1136,7 @@ struct ChatThreadColumn: View {
                         }
                 } else {
                     Text(newConversationHeaderTitle)
-                        .font(.custom("LibreBaskerville-Regular", size: pinnedHeaderQuestion != nil ? 18 : 28))
+                        .font(AquinasTheme.Typography.titleXLarge)
                         .foregroundColor(AquinasTheme.Colors.headingText)
                         .lineSpacing(14)
                         .multilineTextAlignment(conversationTextAlignment.textAlignment)
@@ -1129,17 +1152,16 @@ struct ChatThreadColumn: View {
                             isBigTitleFocused = true
                         }
                 }
-
-                if !isEditingBigTitle, !trimmedEmptyStatePromptSubtitle.isEmpty {
-                    Text(trimmedEmptyStatePromptSubtitle)
-                        .font(AquinasTheme.Typography.body)
-                        .foregroundColor(AquinasTheme.Colors.paragraphText)
-                        .lineSpacing(7)
-                        .multilineTextAlignment(conversationTextAlignment.textAlignment)
-                        .frame(maxWidth: .infinity, alignment: conversationTextAlignment.frameAlignment)
-                }
             }
 
+            if !isEditingBigTitle, !newConversationHeaderSubtitle.isEmpty {
+                Text(newConversationHeaderSubtitle)
+                    .paragraphFont()
+                    .foregroundColor(AquinasTheme.Colors.paragraphText)
+                    .lineSpacing(7)
+                    .multilineTextAlignment(conversationTextAlignment.textAlignment)
+                    .frame(maxWidth: .infinity, alignment: conversationTextAlignment.frameAlignment)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .top)
     }
@@ -1152,6 +1174,7 @@ struct ChatThreadColumn: View {
                 isLocked: branchData.topQuestionSubmitted,
                 isEmpty: topFieldIsEmpty && !branchData.topQuestionSubmitted,
                 lineHeight: inputLineHeight,
+                fontSize: questionFontSize,
                 textAlignment: conversationTextAlignment,
                 fontOption: inputFont,
                 relay: topFieldRelay,
@@ -1192,7 +1215,7 @@ struct ChatThreadColumn: View {
                         .frame(height: 1)
                         .id(branchAnchor)
 
-                    VStack(alignment: .center, spacing: usesCompactVerticalLayout ? 28 : 48) {
+                    VStack(alignment: .center, spacing: Self.promptHeadlineSpacing) {
                         newConversationPromptHeader
 
                         newConversationQuestionField
@@ -1290,6 +1313,7 @@ struct ChatThreadColumn: View {
                                 isLocked: branchData.topQuestionSubmitted,
                                 isEmpty: topFieldIsEmpty && !branchData.topQuestionSubmitted,
                                 lineHeight: inputLineHeight,
+                                fontSize: questionFontSize,
                                 textAlignment: conversationTextAlignment,
                                 fontOption: inputFont,
                                 placeholderColor: placeholderColor,
@@ -1377,7 +1401,7 @@ struct ChatThreadColumn: View {
                                 },
                                 onFinish: {
                                     animatedResponseIndices.remove(index)
-                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { branchData.showBottomInput = true }
+                                    withAnimation(.springLively) { branchData.showBottomInput = true }
                                     onResponseCompleted(index)
                                 }
                     )
@@ -1423,6 +1447,7 @@ struct ChatThreadColumn: View {
                             isLocked: true,
                             isEmpty: false,
                             lineHeight: inputLineHeight,
+                            fontSize: questionFontSize,
                             textAlignment: conversationTextAlignment,
                             fontOption: inputFont,
                             relay: TextInputRelay(),
@@ -1475,7 +1500,7 @@ struct ChatThreadColumn: View {
                             ConnectionContextChip(
                                 concepts: concepts,
                                 onRemove: {
-                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                    withAnimation(.springLively) {
                                         localConnectionConcepts = nil
                                     }
                                 }
@@ -1489,6 +1514,7 @@ struct ChatThreadColumn: View {
                                 text: $branchData.bottomQuestionText,
                                 isEmpty: bottomFieldIsEmpty,
                                 lineHeight: inputLineHeight,
+                                fontSize: questionFontSize,
                                 textAlignment: conversationTextAlignment,
                                 fontOption: inputFont,
                                 placeholderColor: placeholderColor,
@@ -1568,7 +1594,7 @@ struct ChatThreadColumn: View {
         }
         .onChange(of: quotedConcept) { oldValue, newValue in
             if let concept = newValue {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                withAnimation(.springLively) {
                     branchData.attachedConcept = concept
                     branchData.showBottomInput = true
                 }
@@ -1577,7 +1603,7 @@ struct ChatThreadColumn: View {
         }
         .onChange(of: connectionConcepts?.map(\.id)) { _, _ in
             guard let concepts = connectionConcepts else { return }
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            withAnimation(.springLively) {
                 localConnectionConcepts = concepts
                 branchData.showBottomInput = true
             }
@@ -1635,7 +1661,7 @@ private struct ConversationSeparator: View {
             .scaleEffect(x: isExpanded ? 1 : 0.5, y: 1, anchor: .center)
             .padding(.vertical, verticalPadding)
             .onAppear {
-                withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                withAnimation(.springStandard) {
                     isExpanded = true
                 }
             }
@@ -1648,6 +1674,10 @@ private struct ConversationSeparator: View {
 /// container chrome.
 private struct QuestionInputField: View {
     static let plainMaxWidth: CGFloat = 321
+    static let bubbleMaxWidth: CGFloat = 285
+    static let bubbleCornerRadius: CGFloat = 28
+    static let bubblePadding: CGFloat = 24
+    static let bubblePressedScale: CGFloat = 1.05
     static let fontSize: CGFloat = 14
 
     let placeholder: String
@@ -1655,6 +1685,7 @@ private struct QuestionInputField: View {
     var isLocked: Bool = false
     let isEmpty: Bool
     let lineHeight: CGFloat
+    var fontSize: CGFloat = QuestionInputField.fontSize
     let textAlignment: InputTextAlignmentOption
     let fontOption: ConversationFontOption
     var placeholderColor: Color = AquinasTheme.Colors.placeholderText
@@ -1664,18 +1695,20 @@ private struct QuestionInputField: View {
     var onSubmit: (() -> Void)? = nil
     var onTapToFocus: (() -> Void)? = nil
 
+    @State private var isBubblePressed = false
+
     private var inputFont: UIFont {
         let fontName = fontOption == .sans
             ? "Figtree-Regular"
             : "LibreBaskerville-Regular"
-        return UIFont(name: fontName, size: Self.fontSize) ?? .systemFont(ofSize: Self.fontSize)
+        return UIFont(name: fontName, size: fontSize) ?? .systemFont(ofSize: fontSize)
     }
 
     private var placeholderFont: Font {
         let fontName = fontOption == .sans
             ? "Figtree-Regular"
             : "LibreBaskerville-Regular"
-        return .custom(fontName, size: Self.fontSize)
+        return .custom(fontName, size: fontSize)
     }
 
     private var uiTextAlignment: NSTextAlignment {
@@ -1688,7 +1721,9 @@ private struct QuestionInputField: View {
     }
 
     private var questionEditor: some View {
-        ZStack(alignment: textAlignment.frameAlignment) {
+        // Left-aligned bubbles trim the first line's top leading, so the placeholder sits on
+        // the text view's bottom edge to line up with typed glyphs.
+        ZStack(alignment: textAlignment == .left ? .bottomLeading : textAlignment.frameAlignment) {
             if isEmpty {
                 Text(placeholder)
                     .font(placeholderFont)
@@ -1708,19 +1743,62 @@ private struct QuestionInputField: View {
                 onFocusChange: onFocusChange,
                 relay: relay,
                 onTextChange: onTextChange,
-                onSubmit: onSubmit
+                onSubmit: onSubmit,
+                hugsContentWidth: hugsText
             )
-            .frame(maxWidth: .infinity, minHeight: 22, alignment: textAlignment.frameAlignment)
+            .frame(maxWidth: hugsText ? nil : .infinity, minHeight: 22, alignment: textAlignment.frameAlignment)
         }
-        .frame(maxWidth: .infinity, minHeight: 22, alignment: textAlignment.frameAlignment)
+        .frame(maxWidth: hugsText ? nil : .infinity, minHeight: 22, alignment: textAlignment.frameAlignment)
+    }
+
+    /// The fixed line height adds its extra leading above the first line's glyphs;
+    /// the bubble trims that from its top padding so the text sits visually centered.
+    private var firstLineLeading: CGFloat {
+        max(0, lineHeight - inputFont.lineHeight)
+    }
+
+    /// Submitted questions in the left-aligned chat layout shrink their bubble to the text.
+    private var hugsText: Bool {
+        isLocked && textAlignment == .left
     }
 
     var body: some View {
-        questionEditor
-            .frame(maxWidth: Self.plainMaxWidth, alignment: textAlignment.frameAlignment)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .contentShape(Rectangle())
+        switch textAlignment {
+        case .center:
+            questionEditor
+                .frame(maxWidth: Self.plainMaxWidth, alignment: textAlignment.frameAlignment)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .contentShape(Rectangle())
+                .onTapGesture { onTapToFocus?() }
+        case .left:
+            chatBubble
+        }
+    }
+
+    /// Left alignment reads as a chat: the question sits in a trailing card-style bubble
+    /// inline with the thread. Locked questions hug their text; live fields keep full width.
+    private var chatBubble: some View {
+        let shape = RoundedRectangle(cornerRadius: Self.bubbleCornerRadius, style: .continuous)
+        return questionEditor
+            .padding(.horizontal, Self.bubblePadding)
+            .padding(.bottom, Self.bubblePadding)
+            .padding(.top, max(0, Self.bubblePadding - firstLineLeading))
+            // Like the context chips: outlined while drafting, filled once submitted.
+            .background(isLocked ? AquinasTheme.Colors.canvasSecondary : Color.clear, in: shape)
+            .overlay(shape.stroke(AquinasTheme.Colors.controlBorder, lineWidth: 1))
+            .contentShape(shape)
             .onTapGesture { onTapToFocus?() }
+            // Draft bubbles swell slightly under the finger; submitted ones stay still.
+            .onLongPressGesture(
+                minimumDuration: .infinity,
+                maximumDistance: 12,
+                perform: {},
+                onPressingChanged: { pressing in isBubblePressed = pressing && !isLocked }
+            )
+            .scaleEffect(isBubblePressed ? Self.bubblePressedScale : 1)
+            .animation(.springBouncy, value: isBubblePressed)
+            .frame(maxWidth: Self.bubbleMaxWidth, alignment: .trailing)
+            .frame(maxWidth: .infinity, alignment: .trailing)
     }
 }
 
@@ -1870,7 +1948,7 @@ struct ConceptSheetContent: View {
                 dismiss()
             },
             onToggleSaved: {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                withAnimation(.springBouncy) {
                     if isSaved { collectedDefinitions.removeAll(where: { $0.word == concept.word }) }
                     else { collectedDefinitions.append(concept) }
                 }

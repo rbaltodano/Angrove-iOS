@@ -569,34 +569,19 @@ struct LiteRTAquinasModel: AquinasModel {
     }
 
     func labelSubject(forTitles titles: [String]) async throws -> String {
-        guard !titles.isEmpty else {
-            throw AquinasModelActionError.invalidRequest
-        }
-        let prompt = """
-        <TASK:NODE_CONCEPT_LABEL>
-        Name the single elementary subject shared by the Insights below. Use 1-5 words and as few
-        words as possible. The label must be more foundational than the clustered Insights, cover
-        all of them, contain letters or numbers, and return no punctuation-only placeholder.
-        Return JSON only: {"label":"..."}
+        try await labelSubject(forTitles: titles, excludingInsightTitles: titles)
+    }
 
-        Insights:
-        \(Self.jsonString(titles))
-        </TASK:NODE_CONCEPT_LABEL>
-        """
-        do {
+    func labelSubject(forTitles titles: [String], excludingInsightTitles: [String]) async throws -> String {
+        try await NodeConceptLabelPolicy.generate(
+            descriptions: titles,
+            insightTitles: excludingInsightTitles
+        ) { prompt in
             let raw = try await generateStructured(prompt)
             let response: LabelPayload = try Self.decodeJSON(raw)
-            let label = Self.spaceSeparatedLabel(
+            return Self.spaceSeparatedLabel(
                 from: response.label.trimmingCharacters(in: .whitespacesAndNewlines)
             )
-            guard (1...5).contains(label.split(whereSeparator: \.isWhitespace).count),
-                  label.rangeOfCharacter(from: .alphanumerics) != nil else {
-                throw AquinasModelActionError.invalidResponse
-            }
-            return label
-        } catch {
-            if Task.isCancelled { throw CancellationError() }
-            throw error
         }
     }
 
@@ -638,10 +623,15 @@ struct LiteRTAquinasModel: AquinasModel {
     ) async throws -> (label: String, summary: String)? {
         let prompt = """
         <TASK:INSIGHT_TREE_SEED>
-        Perform a neutral application task, not persona conversation. Identify the single
-        elementary subject this exchange is centrally about — the label is that subject in 1-5
-        words, as few words as possible. The summary is a concise 1-2 sentence definition of that
-        subject as it relates to this exchange, suitable as a Node's own definition text. Return
+        Perform a neutral application task, not persona conversation. Name the nearest useful
+        broader concept that organizes the central subject of this exchange. Use a 1-5 word noun
+        phrase. The central subject should be a specific instance, kind, part, or application of
+        that concept. Do not simply repeat the term being defined or substitute a synonym. Avoid
+        vague catch-all categories such as "Knowledge", "Philosophy", "Concepts", or "Ideas".
+        Stay close to this exchange rather than jumping to an unrelated discipline. For example,
+        an exchange about Prudence can be organized by Moral Virtues. The summary is a concise
+        1-2 sentence definition of the broader concept explaining its relation to this exchange,
+        suitable as the Node's own definition text. Return
         JSON only, in exactly this shape: {"label":"...","summary":"..."}.
 
         Question:
@@ -715,9 +705,7 @@ struct LiteRTAquinasModel: AquinasModel {
             from: (label ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         )
         let summary = (summary ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !label.isEmpty,
-              label.rangeOfCharacter(from: .alphanumerics) != nil,
-              (1...5).contains(label.split(whereSeparator: \.isWhitespace).count) else {
+        guard NodeConceptLabelPolicy.isValid(label, insightTitles: []) else {
             return nil
         }
         return (label, summary)

@@ -63,7 +63,7 @@ struct AquinasNavButton: View {
                 Capsule()
                     .stroke(AquinasTheme.Colors.controlBorder, lineWidth: 1)
             )
-            .animation(.spring(response: 0.42, dampingFraction: 0.84), value: isDetailVisible)
+            .animation(.springStandard, value: isDetailVisible)
         }
         .buttonStyle(.plain)
         .scaleEffect(pulseScale)

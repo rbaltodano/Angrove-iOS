@@ -11,6 +11,7 @@ import SwiftUI
 enum UserGuideExample {
     case definitions
     case midpoint
+    case midpointThree
     case study
     case modelTasks
 }
@@ -32,6 +33,8 @@ struct UserGuideExampleView: View {
                 UserGuideDefinitionsExample(collectedDefinitions: $collectedDefinitions)
             case .midpoint:
                 UserGuideMidpointExample()
+            case .midpointThree:
+                UserGuideMidpointExample(preselected: ["Justice", "Mercy", "Prudence"])
             case .study:
                 UserGuideStudyExample()
             case .modelTasks:
@@ -47,7 +50,7 @@ private struct UserGuideExampleCaption: View {
 
     var body: some View {
         UserGuideText.text(text)
-            .font(AquinasTheme.Typography.body)
+            .paragraphFont()
             .foregroundStyle(AquinasTheme.Colors.paragraphText)
             .lineSpacing(FlowLayout.rowSpacing)
             .fixedSize(horizontal: false, vertical: true)
@@ -140,71 +143,264 @@ private struct UserGuideDefinitionsExample: View {
 
 // MARK: - Midpoint
 
-/// The real Midpoint balance card over two preset Insights. The real feature asks the model for
-/// candidates; here the result switches between three results written ahead of time.
+/// The real tree canvas with four preset Insights. Tapping an Insight selects it, and Midpoint
+/// opens the real balance controls. The real feature asks the model for a concept; here the result
+/// is written ahead of time.
 private struct UserGuideMidpointExample: View {
-    @State private var justicePercent = 50
+    /// Titles selected when the example appears; three of them show a multi-Insight Midpoint.
+    let preselected: [String]
 
-    private static let justice = ConceptDefinition(
-        word: "Justice",
-        partOfSpeech: "",
-        pronunciation: "",
-        meaning: "The constant will to give each person what is owed.",
-        example: ""
+    @State private var selected: [CanvasSelectionTarget] = []
+    @State private var isMidpointMode = false
+    @State private var weights: [Double] = []
+    @State private var targetIndex = 0
+    @State private var targetWeight = 0.5
+    @State private var percentRequest = 0
+    @State private var selectionPulse = 0
+    @State private var canvasID = UUID()
+    @State private var isSelecting = false
+    @State private var dockedInsight: InsightModel?
+
+    private static let conversationID = UUID(uuidString: "6F1C2A9E-2D0B-4B8E-9C7A-1E5F3A0B7C21")!
+    private static let node = NodeModel(
+        id: UUID(uuidString: "B1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C01")!,
+        conceptLabel: "Virtue",
+        definition: "A good habit of mind or will that disposes a person to act well.",
+        insights: [
+            insight("Justice", "The constant will to give each person what is owed.", "B1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C02"),
+            insight("Mercy", "Compassion for another's distress that moves us to relieve it, giving more than is owed.", "B1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C03"),
+            insight("Prudence", "Practical wisdom that judges what the good requires here and now.", "B1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C04"),
+            insight("Courage", "Firmness of mind in facing danger or hardship for the sake of the good.", "B1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C05"),
+        ],
+        embedding: [],
+        position: .zero,
+        isSuggested: false,
+        suggestedInsights: nil
     )
-    private static let mercy = ConceptDefinition(
-        word: "Mercy",
-        partOfSpeech: "",
-        pronunciation: "",
-        meaning: "Compassion for another's distress that moves us to relieve it, giving more than is owed.",
-        example: ""
-    )
+
+    private static func insight(_ title: String, _ definition: String, _ id: String) -> InsightModel {
+        InsightModel(id: UUID(uuidString: id)!, title: title, definition: definition, conversationID: conversationID)
+    }
+
+    init(preselected: [String] = []) {
+        self.preselected = preselected
+        let exampleIDs = Set(Self.node.insights.map(\.id))
+        InsightDiscoveryStore.saveSeenInsightIDs(
+            Array(InsightDiscoveryStore.loadSeenInsightIDs().union(exampleIDs))
+        )
+        InsightDiscoveryStore.saveUndiscoveredInsightIDs(
+            InsightDiscoveryStore.loadUndiscoveredInsightIDs().subtracting(exampleIDs)
+        )
+    }
+
+    private func concept(for target: CanvasSelectionTarget) -> ConceptDefinition? {
+        switch target {
+        case .insight(let id):
+            guard let insight = Self.node.insights.first(where: { $0.id == id }) else { return nil }
+            return ConceptDefinition(id: insight.id, word: insight.title, partOfSpeech: "",
+                                     pronunciation: "", meaning: insight.definition, example: "")
+        case .node:
+            return ConceptDefinition(id: Self.node.id, word: Self.node.conceptLabel, partOfSpeech: "",
+                                     pronunciation: "", meaning: Self.node.definition, example: "")
+        }
+    }
+
+    private var concepts: [ConceptDefinition] { selected.compactMap(concept(for:)) }
+    private var titles: Set<String> { Set(concepts.map(\.word)) }
 
     private var result: (title: String, definition: String) {
-        switch justicePercent {
-        case 60...:
-            ("Restorative Justice", "Giving what is owed in a way that aims to heal the wrong and restore the offender, not only to punish.")
-        case ...40:
-            ("Forgiveness", "Freely releasing a debt one could justly claim, while still naming the wrong as a wrong.")
-        default:
-            ("Equity", "Applying a just rule with mercy when its strict letter would defeat its purpose in a particular case.")
+        if titles == ["Justice", "Mercy"], weights.count == 2 {
+            let justice = weights[selected.firstIndex { concept(for: $0)?.word == "Justice" } ?? 0]
+            if justice >= 0.6 {
+                return ("Restorative Justice", "Giving what is owed in a way that aims to heal the wrong and restore the offender, not only to punish.")
+            } else if justice <= 0.4 {
+                return ("Forgiveness", "Freely releasing a debt one could justly claim, while still naming the wrong as a wrong.")
+            }
+            return ("Equity", "Applying a just rule with mercy when its strict letter would defeat its purpose in a particular case.")
         }
+        if titles == ["Justice", "Mercy", "Prudence"] {
+            return ("Discernment", "Judging wisely when a wrong calls for firmness and when it calls for relief, so that both justice and mercy are served.")
+        }
+        let names = concepts.map(\.word).joined(separator: ", ")
+        return ("A new concept", "In the app, Aquinas proposes a concept that sits between \(names), leaning toward the ideas you weight most.")
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            UserGuideExampleCaption(text: "Change the balance between Justice and Mercy. Drag a percentage or tap its arrows, and watch the midpoint shift.")
+            UserGuideExampleCaption(text: preselected.isEmpty
+                ? "Tap an Insight to read it. Tap Select, choose two or more Insights, then tap Midpoint. Drag on the tree, or use the percentages, to shift the balance."
+                : "Three Insights are selected here. Drag on the tree, or use the percentages, to see how the balance changes.")
 
-            MidpointPercentCard(
-                concepts: [Self.justice, Self.mercy],
-                weights: [Double(justicePercent) / 100, Double(100 - justicePercent) / 100],
-                onSetPercent: { index, percent in
-                    let clamped = min(100, max(0, percent))
-                    justicePercent = index == 0 ? clamped : 100 - clamped
+            canvas
+                .frame(height: 620)
+                .background(AquinasTheme.Colors.canvas)
+                .overlay(alignment: .bottom) {
+                    if let insight = dockedInsight {
+                        DockedInsightTreeCard(insight: insight)
+                            .id(insight.id)
+                            .transition(.bottomDockCard)
+                            .padding(.horizontal, 10)
+                            .padding(.bottom, Self.dockBottomInset)
+                    }
                 }
-            )
+                .clipShape(RoundedRectangle(cornerRadius: 38, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 38, style: .continuous)
+                        .stroke(AquinasTheme.Colors.divider, lineWidth: 1)
+                )
+                .padding(.horizontal, -12)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("EXAMPLE RESULT")
-                    .font(AquinasTheme.Typography.uiLabel)
-                    .foregroundStyle(AquinasTheme.Colors.lightGreen)
-                Text(result.title)
-                    .font(AquinasTheme.Typography.uiHeading)
-                    .foregroundStyle(AquinasTheme.Colors.headingText)
-                Text(result.definition)
-                    .font(AquinasTheme.Typography.body)
-                    .foregroundStyle(AquinasTheme.Colors.paragraphText)
-                    .lineSpacing(FlowLayout.rowSpacing)
-                    .fixedSize(horizontal: false, vertical: true)
+            if isMidpointMode {
+                MidpointPercentCard(
+                    concepts: concepts,
+                    weights: weights,
+                    onSetPercent: { index, percent in
+                        targetIndex = index
+                        targetWeight = Double(min(100, max(0, percent))) / 100
+                        percentRequest += 1
+                    }
+                )
+                .transition(.opacity)
             }
-            .id(result.title)
-            .transition(.opacity)
-            .padding(24)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(AquinasTheme.Colors.canvasSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-            .animation(.easeInOut(duration: 0.25), value: result.title)
+
+            HStack(spacing: 12) {
+                controlButton(isSelecting ? "Done" : "Select", icon: "circle.dashed",
+                              enabled: !isMidpointMode) {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        isSelecting.toggle()
+                        dockedInsight = nil
+                    }
+                }
+                controlButton(isMidpointMode ? "Back" : "Midpoint", icon: "graph.2d",
+                              enabled: isMidpointMode || selected.count >= 2) {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        isMidpointMode.toggle()
+                        dockedInsight = nil
+                    }
+                }
+                controlButton("Reset", icon: "arrow.counterclockwise", enabled: true) {
+                    reset()
+                }
+            }
+
+            if isMidpointMode {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("EXAMPLE RESULT")
+                        .font(AquinasTheme.Typography.uiLabel)
+                        .foregroundStyle(AquinasTheme.Colors.lightGreen)
+                    Text(result.title)
+                        .font(AquinasTheme.Typography.uiHeading)
+                        .foregroundStyle(AquinasTheme.Colors.headingText)
+                    Text(result.definition)
+                        .paragraphFont()
+                        .foregroundStyle(AquinasTheme.Colors.paragraphText)
+                        .lineSpacing(FlowLayout.rowSpacing)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .id(result.title)
+                .transition(.opacity)
+                .padding(24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(AquinasTheme.Colors.canvasSecondary)
+                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .animation(.easeInOut(duration: 0.25), value: result.title)
+            }
         }
+        .task { await applyPreselection() }
+    }
+
+    private var canvas: some View {
+        InsightTreeCanvasView(
+            nodes: [Self.node],
+            edges: [],
+            restoreFocusedCameraRequest: 0,
+            focusedInsightID: nil,
+            focusedSearchNodeID: nil,
+            pulsingInsightID: nil,
+            pulsingNodeID: nil,
+            selectedCanvasTargets: selected,
+            selectionPulseRequest: selectionPulse,
+            insightBondLengths: Dictionary(uniqueKeysWithValues: Self.node.insights.map { ($0.id, CGFloat(135)) }),
+            isMidpointMode: isMidpointMode,
+            midpointTargetIndex: targetIndex,
+            midpointTargetWeight: targetWeight,
+            midpointPercentRequest: percentRequest,
+            onMidpointWeightsChange: { weights = $0 },
+            onNodeTapped: { tapped(.node($0.id)) },
+            onInsightTapped: { tapped(.insight($0.id), insight: $0) },
+            onCanvasMoved: {},
+            onSuggestConnection: { _ in },
+            onDismissSuggestedNode: { _ in }
+        )
+        .id(canvasID)
+    }
+
+    private static let dockBottomInset: CGFloat = 10
+
+    private func tapped(_ target: CanvasSelectionTarget, insight: InsightModel? = nil) {
+        guard !isMidpointMode else { return }
+        if isSelecting {
+            toggle(target)
+        } else {
+            withAnimation(.springStandard) {
+                dockedInsight = (insight == nil || dockedInsight?.id == insight?.id) ? nil : insight
+            }
+            SettingsHaptics.playSelection()
+        }
+    }
+
+    private func toggle(_ target: CanvasSelectionTarget) {
+        guard !isMidpointMode else { return }
+        if let index = selected.firstIndex(of: target) {
+            selected.remove(at: index)
+        } else if selected.count < CanvasSelectionPolicy.maximumCount {
+            selected.append(target)
+            if selected.count > 1 { selectionPulse += 1 }
+        }
+        SettingsHaptics.playSelection()
+    }
+
+    private func applyPreselection() async {
+        guard !preselected.isEmpty, selected.isEmpty else { return }
+        try? await Task.sleep(for: .milliseconds(900))
+        selected = preselected.compactMap { title in
+            Self.node.insights.first { $0.title == title }.map { .insight($0.id) }
+        }
+        selectionPulse += 1
+        try? await Task.sleep(for: .milliseconds(500))
+        withAnimation(.easeInOut(duration: 0.25)) { isMidpointMode = true }
+    }
+
+    private func reset() {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            isMidpointMode = false
+            isSelecting = false
+            dockedInsight = nil
+            selected = []
+            weights = []
+        }
+        canvasID = UUID()
+    }
+
+    private func controlButton(_ title: String, icon: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            SettingsHaptics.playSelection()
+            action()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(title)
+                    .font(.custom("Figtree-Bold", size: 14))
+            }
+            .foregroundStyle(AquinasTheme.Colors.lightGreen)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .background(AquinasTheme.Colors.canvasSecondary)
+            .clipShape(Capsule())
+            .opacity(enabled ? 1 : 0.4)
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
     }
 }
 
@@ -279,34 +475,32 @@ private struct UserGuideStudyExample: View {
                     )
                 )
             }
-            .frame(height: 480)
+            .frame(height: 640)
             .task {
                 try? await Task.sleep(for: .milliseconds(900))
                 studyNodeID = Self.node.id
             }
             .background(AquinasTheme.Colors.canvas)
-            .clipped()
-            // Full screen width, like the real Study view, instead of inset by the page margins.
-            .padding(.horizontal, -24)
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text(hoveredInsight?.title ?? Self.node.conceptLabel)
-                    .font(AquinasTheme.Typography.uiHeading)
-                    .foregroundStyle(AquinasTheme.Colors.headingText)
-                Text(hoveredInsight?.definition ?? Self.node.definition)
-                    .font(AquinasTheme.Typography.body)
-                    .foregroundStyle(AquinasTheme.Colors.paragraphText)
-                    .lineSpacing(FlowLayout.rowSpacing)
-                    .fixedSize(horizontal: false, vertical: true)
+            .overlay(alignment: .bottom) {
+                if let insight = hoveredInsight {
+                    DockedInsightTreeCard(insight: insight)
+                        .id(insight.id)
+                        .transition(.bottomDockCard)
+                        .padding(.horizontal, 10)
+                        .padding(.bottom, 10)
+                }
             }
-            .padding(24)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(AquinasTheme.Colors.canvasSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-            .animation(.easeInOut(duration: 0.2), value: hoveredInsight?.id)
+            .animation(.springStandard, value: hoveredInsight?.id)
+            .clipShape(RoundedRectangle(cornerRadius: 38, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 38, style: .continuous)
+                    .stroke(AquinasTheme.Colors.divider, lineWidth: 1)
+            )
+            .padding(.horizontal, -12)
         }
     }
 }
+
 
 // MARK: - Model Tasks
 

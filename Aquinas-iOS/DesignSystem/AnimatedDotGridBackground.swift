@@ -67,9 +67,7 @@ struct AnimatedDotGridBackground: View, Animatable {
 
     /// Shared with other dot fields (the Study floor) so they match this grid exactly.
     static func dotColor(for colorScheme: ColorScheme) -> Color {
-        colorScheme == .dark
-            ? Color(hex: 0xB7AE78)
-            : Color(hex: 0x4A321C)
+        AquinasTheme.Colors.dotGrid(for: colorScheme)
     }
 
     static func dotOpacityScale(for colorScheme: ColorScheme) -> Double {

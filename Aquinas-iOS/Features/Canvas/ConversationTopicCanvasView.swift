@@ -369,9 +369,7 @@ private struct ConnectorLineView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     private var connectorColor: Color {
-        colorScheme == .dark
-            ? Color(red: 1,    green: 0.98, blue: 0.94).opacity(0.18)
-            : Color(red: 0.13, green: 0.06, blue: 0   ).opacity(0.18)
+        AquinasTheme.Colors.hairline
     }
 
     var body: some View {
@@ -397,12 +395,10 @@ private struct TravelingPulseLine: View {
     @Environment(\.colorScheme) private var colorScheme
 
     private var baseColor: Color {
-        colorScheme == .dark
-            ? Color(red: 1,    green: 0.98, blue: 0.94).opacity(0.18)
-            : Color(red: 0.13, green: 0.06, blue: 0   ).opacity(0.18)
+        AquinasTheme.Colors.hairline
     }
 
-    private var pulseColor: Color { Color(red: 0.53, green: 0.49, blue: 0.31) }
+    private var pulseColor: Color { AquinasTheme.Colors.pulse }
 
     var body: some View {
         let segmentWidth = 0.22
@@ -539,7 +535,7 @@ struct ConversationTopicCanvasView: View {
                                 worldOrigin: conn.midWorld,
                                 startTime: Date().timeIntervalSinceReferenceDate
                             )
-                            withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                            withAnimation(.springStandard) {
                                 dockedBridgeInsight = insight
                             }
                         } label: {
@@ -602,14 +598,14 @@ struct ConversationTopicCanvasView: View {
                                 guard value.translation.height > 80
                                     || value.predictedEndTranslation.height > 140 else { return }
                                 playTopicBubbleHaptic()
-                                withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                                withAnimation(.springQuick) {
                                     self.dockedBridgeInsight = nil
                                 }
                             }
                     )
             }
         }
-        .animation(.spring(response: 0.42, dampingFraction: 0.86), value: dockedBridgeInsight?.id)
+        .animation(.springStandard, value: dockedBridgeInsight?.id)
         .sheet(item: $activeInsight) { insight in
             ConceptSheetContent(
                 concept: insight,
@@ -663,7 +659,7 @@ struct ConversationTopicCanvasView: View {
                     return
                 }
 
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.82)) {
+                withAnimation(.springStandard) {
                     if isExpanded {
                         expandedNodeIDs.remove(node.id)
                         insightChipExpandedIDs.remove(node.id)
@@ -673,7 +669,7 @@ struct ConversationTopicCanvasView: View {
                 }
             },
             onTapInsightChip: {
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                withAnimation(.springQuick) {
                     if insightsExpanded {
                         insightChipExpandedIDs.remove(node.id)
                     } else {
@@ -771,7 +767,7 @@ struct ConversationTopicCanvasView: View {
                     isDraggingCanvas = true
                     if dockedBridgeInsight != nil {
                         playTopicBubbleHaptic()
-                        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                        withAnimation(.springQuick) {
                             dockedBridgeInsight = nil
                         }
                     }
@@ -784,7 +780,7 @@ struct ConversationTopicCanvasView: View {
                     lastDragEndedAt = Date()
                 }
                 let decay: CGFloat = 0.13
-                withAnimation(.spring(response: 0.65, dampingFraction: 0.88)) {
+                withAnimation(.springStandard) {
                     offset.width  += value.velocity.width  * decay
                     offset.height += value.velocity.height * decay
                 }
@@ -992,7 +988,7 @@ struct TopicBubbleView: View {
             radius: 16, x: 0, y: 4
         )
         .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .animation(.spring(response: 0.38, dampingFraction: 0.82), value: isExpanded)
-        .animation(.spring(response: 0.32, dampingFraction: 0.82), value: insightsExpanded)
+        .animation(.springStandard, value: isExpanded)
+        .animation(.springQuick, value: insightsExpanded)
     }
 }

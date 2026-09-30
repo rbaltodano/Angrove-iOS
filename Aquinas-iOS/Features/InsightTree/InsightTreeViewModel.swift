@@ -47,6 +47,8 @@ final class InsightTreeViewModel: ObservableObject {
     /// The model boundary for every generative call (subject labels, concept blends). See
     /// `AquinasModel`'s doc comment — swapping in the real model is one conforming type.
     private let model: AquinasModel
+    private let modelTasks: ModelTaskQueue?
+    private let modelTaskOriginPage: ModelTaskOriginPage
     /// The source of insight embedding vectors. See `EmbeddingProvider`'s doc comment.
     private let embeddingProvider: EmbeddingProvider
     /// Global Insights graphs every cluster member. Conversation trees retain their intentionally
@@ -123,6 +125,8 @@ final class InsightTreeViewModel: ObservableObject {
         promotedInsightIDs: [UUID] = [],
         showsAllClusterInsights: Bool = false,
         model: AquinasModel = MockAquinasModel(),
+        modelTasks: ModelTaskQueue? = nil,
+        modelTaskOriginPage: ModelTaskOriginPage = .insights,
         embeddingProvider: EmbeddingProvider = NLEmbeddingProvider(),
         localSeedAnchors: [LocalInsightTreeSeed] = [],
         midpointStoreScope: UUID? = nil
@@ -131,6 +135,8 @@ final class InsightTreeViewModel: ObservableObject {
         self.promotedInsightIDs = promotedInsightIDs
         self.showsAllClusterInsights = showsAllClusterInsights
         self.model = model
+        self.modelTasks = modelTasks
+        self.modelTaskOriginPage = modelTaskOriginPage
         self.embeddingProvider = embeddingProvider
         self.localSeedAnchors = localSeedAnchors
         self.midpointStoreScope = midpointStoreScope
@@ -156,7 +162,7 @@ final class InsightTreeViewModel: ObservableObject {
             Task { @MainActor in self?.handleTappedNode(node) }
         }
         scene.onSuggestConnection = { [weak self] edge in
-            Task { @MainActor in await self?.generateSuggestedNode(for: edge) }
+            self?.generateSuggestedNode(for: edge)
         }
 
         rebuildTree()
@@ -334,11 +340,11 @@ final class InsightTreeViewModel: ObservableObject {
             isSuggested: false,
             showSuggestButton: true
         )
-        Task { @MainActor in await generateSuggestedNode(for: temporaryEdge) }
+        generateSuggestedNode(for: temporaryEdge)
     }
 
     func dismissSuggestedNode(_ node: NodeModel) {
-        withAnimation(.spring(response: 0.55, dampingFraction: 0.78)) {
+        withAnimation(.springRelaxed) {
             nodes.removeAll { $0.id == node.id }
             edges.removeAll { $0.fromNodeID == node.id || $0.toNodeID == node.id }
         }
@@ -350,7 +356,7 @@ final class InsightTreeViewModel: ObservableObject {
     }
 
     func suggestConnection(for edge: EdgeModel) {
-        Task { @MainActor in await generateSuggestedNode(for: edge) }
+        generateSuggestedNode(for: edge)
     }
 
     private func handleTappedNode(_ node: NodeModel) {
@@ -361,7 +367,8 @@ final class InsightTreeViewModel: ObservableObject {
         }
     }
 
-    private func generateSuggestedNode(for edge: EdgeModel) async {
+    private func generateSuggestedNode(for edge: EdgeModel) {
+        guard let modelTasks else { return }
         guard let from = nodes.first(where: { $0.id == edge.fromNodeID }),
               let to = nodes.first(where: { $0.id == edge.toNodeID }) else {
             return
@@ -369,7 +376,7 @@ final class InsightTreeViewModel: ObservableObject {
 
         let midpointEmbedding = centroid([from.embedding, to.embedding])
         let suggestions = insights
-            .filter { $0.embedding != nil }
+            .filter { $0.embedding != nil && !Self.labelDescriptions(for: [$0]).isEmpty }
             .sorted { lhs, rhs in
                 semanticDistance(lhs.embedding ?? [], midpointEmbedding) < semanticDistance(rhs.embedding ?? [], midpointEmbedding)
             }
@@ -378,35 +385,41 @@ final class InsightTreeViewModel: ObservableObject {
         let suggestionInsights = Array(suggestions)
         guard !suggestionInsights.isEmpty else { return }
 
-        let descriptions = suggestionInsights.map {
-            "\($0.title): \($0.definition)"
-        }
-        guard let label = try? await model.labelSubject(
-            forTitles: descriptions
-        ) else {
-            return
-        }
-        let suggestedNode = NodeModel(
-            id: UUID(),
-            conceptLabel: label,
-            insights: suggestionInsights,
-            embedding: centroid(suggestionInsights.compactMap(\.embedding)),
-            position: CGPoint(
-                x: (from.position.x + to.position.x) / 2,
-                y: (from.position.y + to.position.y) / 2
-            ),
-            isSuggested: true,
-            suggestedInsights: suggestionInsights
-        )
+        let descriptions = Self.labelDescriptions(for: suggestionInsights)
+        modelTasks.enqueue(
+            kind: .labelInsightTree,
+            originPage: modelTaskOriginPage,
+            conversationID: midpointStoreScope,
+            priority: .background
+        ) { [weak self] in
+            guard let self,
+                  let label = try? await model.labelSubject(forTitles: descriptions, excludingInsightTitles: suggestionInsights.map(\.title))
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !Task.isCancelled, !label.isEmpty,
+                  nodes.contains(where: { $0.id == from.id }),
+                  nodes.contains(where: { $0.id == to.id }) else { return }
+            let suggestedNode = NodeModel(
+                id: UUID(),
+                conceptLabel: label,
+                insights: suggestionInsights,
+                embedding: centroid(suggestionInsights.compactMap(\.embedding)),
+                position: CGPoint(
+                    x: (from.position.x + to.position.x) / 2,
+                    y: (from.position.y + to.position.y) / 2
+                ),
+                isSuggested: true,
+                suggestedInsights: suggestionInsights
+            )
 
-        withAnimation(.spring(response: 0.55, dampingFraction: 0.78)) {
-            nodes.removeAll { $0.isSuggested }
-            edges.removeAll { $0.isSuggested }
-            nodes.append(suggestedNode)
-            edges.append(EdgeModel(id: UUID(), fromNodeID: from.id, toNodeID: suggestedNode.id, distance: 0.18, isSuggested: true, showSuggestButton: false))
-            edges.append(EdgeModel(id: UUID(), fromNodeID: suggestedNode.id, toNodeID: to.id, distance: 0.18, isSuggested: true, showSuggestButton: false))
+            withAnimation(.springRelaxed) {
+                self.nodes.removeAll { $0.isSuggested }
+                self.edges.removeAll { $0.isSuggested }
+                self.nodes.append(suggestedNode)
+                self.edges.append(EdgeModel(id: UUID(), fromNodeID: from.id, toNodeID: suggestedNode.id, distance: 0.18, isSuggested: true, showSuggestButton: false))
+                self.edges.append(EdgeModel(id: UUID(), fromNodeID: suggestedNode.id, toNodeID: to.id, distance: 0.18, isSuggested: true, showSuggestButton: false))
+            }
+            scene.render(nodes: nodes, edges: edges, animated: true)
         }
-        scene.render(nodes: nodes, edges: edges, animated: true)
     }
 
     private func rebuildTree() {
@@ -452,7 +465,7 @@ final class InsightTreeViewModel: ObservableObject {
         let nextIDs = Set(nextNodes.map(\.id))
         let hasNew = !nextIDs.isSubset(of: renderedNodeIDs)
         renderedNodeIDs = nextIDs
-        withAnimation(.spring(response: 0.55, dampingFraction: 0.78)) {
+        withAnimation(.springRelaxed) {
             nodes = nextNodes
             edges = nextEdges
         }
@@ -569,14 +582,18 @@ final class InsightTreeViewModel: ObservableObject {
         // Bare nodes first — position filled in below by the same pass that decides edges, so
         // the two can never disagree (see the comment on that loop for why that matters).
         var builtNodes: [NodeModel] = clusters.map { cluster in
-            NodeModel(
+            let label = generatedClusterLabels[cluster.id] ?? cluster.seedLabel
+            let repeatsMember = label.map {
+                NodeConceptLabelPolicy.repeatsInsightTitle($0, insightTitles: cluster.insights.map(\.title))
+            } ?? false
+            let definition = generatedClusterLabels[cluster.id] != nil
+                ? (generatedClusterDefinitions[cluster.id] ?? "")
+                : (cluster.seedSummary ?? "")
+            return NodeModel(
                 id: cluster.id,
-                conceptLabel: cluster.seedLabel
-                    ?? generatedClusterLabels[cluster.id]
-                    ?? provisionalClusterLabel(for: cluster.insights),
-                definition: cluster.seedLabel != nil
-                    ? (cluster.seedSummary ?? "")
-                    : (generatedClusterDefinitions[cluster.id] ?? ""),
+                conceptLabel: repeatsMember ? provisionalClusterLabel(for: cluster.insights)
+                    : (label ?? provisionalClusterLabel(for: cluster.insights)),
+                definition: repeatsMember ? "" : definition,
                 insights: cluster.insights,
                 embedding: cluster.embedding,
                 position: .zero,
@@ -648,55 +665,100 @@ final class InsightTreeViewModel: ObservableObject {
         return insights.count > 1 ? "Related Insights" : "Exploring \(first.title)"
     }
 
+    /// Empty placeholders must never become model input such as ": ".
+    private static func labelDescriptions(for insights: [InsightModel]) -> [String] {
+        insights.compactMap { insight in
+            let title = insight.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let definition = insight.definition.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty || !definition.isEmpty else { return nil }
+            return [title, definition].filter { !$0.isEmpty }.joined(separator: ": ")
+        }
+    }
+
     private func requestClusterLabels(for clusters: [NodeModel]) {
-        let seedAnchorIDs = Set(localSeedAnchors.map(\.id))
-        for cluster in clusters
-        where !seedAnchorIDs.contains(cluster.id)
-            && generatedClusterLabels[cluster.id] == nil
-            && clusterLabelGenerationInFlight.insert(cluster.id).inserted {
+        // Previews without the shared queue remain static; never create a competing queue.
+        guard let modelTasks else { return }
+        let seedLabels = Dictionary(localSeedAnchors.map { ($0.id, $0.label) }, uniquingKeysWith: { first, _ in first })
+        // Make Node is an explicit promotion; its chosen title is intentional. Midpoints are
+        // single Insights rendered without a parent circle, not automatically named clusters.
+        let explicitNodeIDs = Set(promotedInsightIDs.map { promotedNodeID(for: $0) }).union(promotedInsightIDs).union(placedMidpointNodeIDs)
+        for cluster in clusters where !explicitNodeIDs.contains(cluster.id) {
+            let subjects = Self.labelDescriptions(for: cluster.insights)
+            let existingLabel = generatedClusterLabels[cluster.id] ?? seedLabels[cluster.id]
+            let needsLabel = existingLabel.map {
+                NodeConceptLabelPolicy.repeatsInsightTitle($0, insightTitles: cluster.insights.map(\.title))
+            } ?? true
+            guard !subjects.isEmpty, needsLabel,
+                  clusterLabelGenerationInFlight.insert(cluster.id).inserted else { continue }
             let nodeID = cluster.id
-            let subjects = cluster.insights.map { "\($0.title): \($0.definition)" }
-            Task { @MainActor in
-                let label: String
+            modelTasks.enqueue(
+                kind: .labelInsightTree,
+                originPage: modelTaskOriginPage,
+                conversationID: midpointStoreScope,
+                priority: .background,
+                onCancel: { [weak self] in
+                    self?.clusterLabelGenerationInFlight.remove(nodeID)
+                }
+            ) { [weak self] in
+                guard let self else { return }
+                // Preemption preserves the job for retry. Only explicit cancellation (above)
+                // or a finished attempt releases the dedupe reservation.
+                defer {
+                    if !Task.isCancelled { clusterLabelGenerationInFlight.remove(nodeID) }
+                }
+                guard nodes.contains(where: { $0.id == nodeID }) else { return }
                 do {
-                    label = try await model.labelSubject(forTitles: subjects)
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    let label: String
+                    let currentInsights = nodes.first(where: { $0.id == nodeID })?.insights ?? []
+                    let currentSubjects = Self.labelDescriptions(for: currentInsights)
+                    guard !currentSubjects.isEmpty else { return }
+                    if let cached = generatedClusterLabels[nodeID],
+                       NodeConceptLabelPolicy.isValid(cached, insightTitles: currentInsights.map(\.title)) {
+                        label = cached
+                    } else {
+                        label = try await model.labelSubject(
+                            forTitles: currentSubjects,
+                            excludingInsightTitles: currentInsights.map(\.title)
+                        )
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                    try Task.checkCancellation()
+                    guard !label.isEmpty,
+                          let index = nodes.firstIndex(where: { $0.id == nodeID }) else { return }
+                    guard NodeConceptLabelPolicy.isValid(label, insightTitles: nodes[index].insights.map(\.title)) else { return }
+                    if generatedClusterLabels[nodeID] != label {
+                        generatedClusterDefinitions.removeValue(forKey: nodeID)
+                        persistClusterDefinitions()
+                        nodes[index].definition = ""
+                    }
+                    generatedClusterLabels[nodeID] = label
+                    persistClusterLabels()
+                    nodes[index].conceptLabel = label
+                    if selectedNode?.id == nodeID {
+                        selectedNode?.conceptLabel = label
+                        selectedNode?.definition = nodes[index].definition
+                    }
+                    scene.render(nodes: nodes, edges: edges, animated: false)
+                    // Keep the definition inside the same queue job and runtime lease.
+                    try await generateClusterDefinition(for: nodeID, label: label)
                 } catch {
-                    clusterLabelGenerationInFlight.remove(nodeID)
-                    return
+                    // Failed labels can be retried on the next rebuild.
                 }
-                clusterLabelGenerationInFlight.remove(nodeID)
-                guard !label.isEmpty else { return }
-                generatedClusterLabels[nodeID] = label
-                persistClusterLabels()
-                guard let index = nodes.firstIndex(where: { $0.id == nodeID }) else {
-                    return
-                }
-                nodes[index].conceptLabel = label
-                scene.render(nodes: nodes, edges: edges, animated: false)
-                requestClusterDefinition(for: nodeID, label: label)
             }
         }
     }
 
-    /// Follows a successful label with a real generated definition of that label (the same
-    /// per-term definition call used elsewhere, e.g. tapped highlighted terms), replacing
-    /// `DockedNodeTreeCard`'s canned "gathers related insights around..." fallback with an
-    /// actual description of the subject.
-    private func requestClusterDefinition(for nodeID: UUID, label: String) {
+    private func generateClusterDefinition(for nodeID: UUID, label: String) async throws {
         guard generatedClusterDefinitions[nodeID] == nil else { return }
-        Task { @MainActor in
-            guard let concept = try? await model.defineTerm(label, in: ConversationContext()),
-                  !concept.meaning.isEmpty else {
-                return
-            }
-            generatedClusterDefinitions[nodeID] = concept.meaning
-            persistClusterDefinitions()
-            guard let index = nodes.firstIndex(where: { $0.id == nodeID }) else { return }
-            nodes[index].definition = concept.meaning
-            if selectedNode?.id == nodeID {
-                selectedNode?.definition = concept.meaning
-            }
+        let concept = try await model.defineTerm(label, in: ConversationContext())
+        try Task.checkCancellation()
+        guard !concept.meaning.isEmpty,
+              let index = nodes.firstIndex(where: { $0.id == nodeID }) else { return }
+        generatedClusterDefinitions[nodeID] = concept.meaning
+        persistClusterDefinitions()
+        nodes[index].definition = concept.meaning
+        if selectedNode?.id == nodeID {
+            selectedNode?.definition = concept.meaning
         }
     }
 

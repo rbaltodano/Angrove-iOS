@@ -73,6 +73,8 @@ struct InsightTreeView: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    /// The shell overlays Model Controls outside this view, so its inset is not always inherited.
+    @Environment(\.modelControlsReservedHeight) private var modelControlsReservedHeight
 
     /// On a landscape phone the tree becomes a true left-hand workspace. The detail dock and
     /// shared model controls use the matching right-hand pane instead of floating over the map.
@@ -274,6 +276,8 @@ struct InsightTreeView: View {
             promotedInsightIDs: promotedInsightIDs,
             showsAllClusterInsights: conversationID == nil,
             model: model,
+            modelTasks: modelTasks,
+            modelTaskOriginPage: modelTaskOriginPage,
             embeddingProvider: embeddingProvider,
             localSeedAnchors: initialLocalSeedAnchors,
             midpointStoreScope: conversationID
@@ -281,9 +285,7 @@ struct InsightTreeView: View {
     }
 
     private var canvasTertiary: Color {
-        colorScheme == .dark
-            ? Color(hex: 0x130F0C)
-            : Color(red: 32/255, green: 28/255, blue: 24/255)   // #201C18
+        AquinasTheme.Colors.deepSurface
     }
 
     @ViewBuilder
@@ -292,7 +294,7 @@ struct InsightTreeView: View {
             guard let concept = undoInsight else { return }
             undoTask?.cancel()
             onRestoreInsight?(concept)
-            withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+            withAnimation(.springQuick) {
                 undoInsight = nil
             }
         } label: {
@@ -302,7 +304,7 @@ struct InsightTreeView: View {
                 Image(systemName: "arrow.uturn.backward")
                     .font(.system(size: 14, weight: .semibold))
             }
-            .foregroundColor(.white)
+            .foregroundColor(AquinasTheme.Colors.onAccent)
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
             .background(canvasTertiary)
@@ -499,6 +501,7 @@ struct InsightTreeView: View {
                     .simultaneousGesture(studyToolCardDismissGesture)
                     .transition(.bottomDockCard)
                     .padding(.horizontal, 10)
+                    .padding(.bottom, modelControlsReservedHeight)
                 } else if isMidpointMode {
                     MidpointPercentCard(
                         concepts: selectedCanvasTargets.compactMap { concept(for: $0) },
@@ -511,6 +514,7 @@ struct InsightTreeView: View {
                     )
                     .transition(.scale(scale: 0.35, anchor: .bottom).combined(with: .opacity))
                     .padding(.horizontal, 10)
+                    .padding(.bottom, modelControlsReservedHeight)
                 } else if !cardShouldHide {
                     if !showQuestionBar, showsDockedCardAfterStudy, let concept = hoveredConcept {
                         DockedConceptCard(
@@ -528,6 +532,7 @@ struct InsightTreeView: View {
                         .gesture(dockedCardDismissGesture)
                         .transition(.bottomDockCard)
                         .padding(.horizontal, 10)
+                        .padding(.bottom, modelControlsReservedHeight)
                     } else if showsDockedCardAfterStudy, let selectedInsight {
                         DockedInsightTreeCard(
                             insight: selectedInsight,
@@ -550,6 +555,7 @@ struct InsightTreeView: View {
                         .gesture(dockedCardDismissGesture)
                         .transition(.bottomDockCard)
                         .padding(.horizontal, 10)
+                        .padding(.bottom, modelControlsReservedHeight)
                     } else if showsDockedCardAfterStudy, let selectedNode {
                         let makeNodeSourceID = viewModel.promotedSourceInsightID(
                             forNodeID: selectedNode.id
@@ -572,6 +578,7 @@ struct InsightTreeView: View {
                         .gesture(dockedCardDismissGesture)
                         .transition(.bottomDockCard)
                         .padding(.horizontal, 10)
+                        .padding(.bottom, modelControlsReservedHeight)
                     }
                 }
 
@@ -585,7 +592,7 @@ struct InsightTreeView: View {
                         animatesAppearance: false,
                         showRemove: true,
                         onRemove: {
-                            withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) {
+                            withAnimation(.springLively) {
                                 chipShouldShow = false
                                 questionBarContextInsight = nil
                             }
@@ -618,24 +625,24 @@ struct InsightTreeView: View {
                             questionBarKeyboardActive = active
                             if active {
                                 if let insight = selectedInsight {
-                                    withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) {
+                                    withAnimation(.springLively) {
                                         questionBarContextInsight = insight
                                     }
                                 }
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                                     guard questionBarKeyboardActive else { return }
-                                    withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) {
+                                    withAnimation(.springLively) {
                                         cardShouldHide = true
                                         chipShouldShow = true
                                     }
                                 }
                             } else {
-                                withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) {
+                                withAnimation(.springLively) {
                                     chipShouldShow = false
                                 }
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                                     guard !questionBarKeyboardActive else { return }
-                                    withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+                                    withAnimation(.springStandard) {
                                         cardShouldHide = false
                                     }
                                 }
@@ -643,7 +650,7 @@ struct InsightTreeView: View {
                         },
                         onCollapse: {
                             questionBarKeyboardActive = false
-                            withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+                            withAnimation(.springStandard) {
                                 cardShouldHide = false
                                 chipShouldShow = false
                             }
@@ -657,13 +664,13 @@ struct InsightTreeView: View {
             .padding(.bottom, 16)
             .frame(maxWidth: usesLandscapeSplitLayout ? 420 : .infinity)
             .frame(maxWidth: .infinity, alignment: usesLandscapeSplitLayout ? .trailing : .center)
-            .animation(.spring(response: 0.42, dampingFraction: 0.86), value: selectedInsight?.id)
-            .animation(.spring(response: 0.42, dampingFraction: 0.86), value: selectedNode?.id)
-            .animation(.spring(response: 0.42, dampingFraction: 0.86), value: hoveredConcept?.id)
-            .animation(.spring(response: 0.42, dampingFraction: 0.86), value: isMidpointMode)
-            .animation(.spring(response: 0.34, dampingFraction: 0.86), value: undoInsight != nil)
-            .animation(.spring(response: 0.42, dampingFraction: 0.86), value: showsStudyToolCard)
-            .animation(.spring(response: 0.42, dampingFraction: 0.86), value: showsDockedCardAfterStudy)
+            .animation(.springStandard, value: selectedInsight?.id)
+            .animation(.springStandard, value: selectedNode?.id)
+            .animation(.springStandard, value: hoveredConcept?.id)
+            .animation(.springStandard, value: isMidpointMode)
+            .animation(.springQuick, value: undoInsight != nil)
+            .animation(.springStandard, value: showsStudyToolCard)
+            .animation(.springStandard, value: showsDockedCardAfterStudy)
         }
     }
 
@@ -879,7 +886,7 @@ struct InsightTreeView: View {
         animateMidpointCardText = animateText
         // Keyboard is open — update the chip and ensure it's visible
         if questionBarKeyboardActive {
-            withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) {
+            withAnimation(.springLively) {
                 questionBarContextInsight = insight
                 chipShouldShow = true
             }
@@ -896,7 +903,7 @@ struct InsightTreeView: View {
         }
         onQuoteInsight?(concept(for: insight))
 
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.springStandard) {
             dockedCardDragY = 0
             selectedNode = nil
             selectedInsight = insight
@@ -912,7 +919,7 @@ struct InsightTreeView: View {
     private func selectStudyTool(_ tool: StudyTool, direction: Int) {
         guard tool != studyTool else { return }
         studyToolDirection = direction
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+        withAnimation(.springQuick) {
             studyToolRawValue = tool.rawValue
         }
     }
@@ -977,7 +984,7 @@ struct InsightTreeView: View {
 
     private func exitStudy() {
         guard studySubject != nil, !isExitingStudy else { return }
-        withAnimation(.spring(response: 0.58, dampingFraction: 0.82)) {
+        withAnimation(.springStandard) {
             isExitingStudy = true
         }
         // Tell the host now, so the dock and Exit change back while the camera moves.
@@ -989,7 +996,7 @@ struct InsightTreeView: View {
         Task {
             try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+            withAnimation(.springStandard) {
                 showsDockedCardAfterStudy = true
             }
             try? await Task.sleep(for: .milliseconds(700))
@@ -1008,7 +1015,7 @@ struct InsightTreeView: View {
         onInsightSelectionStateChange?(false)
         onQuoteInsight?(quoteTarget(for: node))
 
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.springStandard) {
             dockedCardDragY = 0
             selectedInsight = nil
             selectedNode = node
@@ -1019,7 +1026,7 @@ struct InsightTreeView: View {
 
     private func setStudyToolsOpen(_ isOpen: Bool) {
         studyToolCardDragY = 0
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.springStandard) {
             showsStudyToolCard = isOpen
         }
     }
@@ -1037,7 +1044,7 @@ struct InsightTreeView: View {
                 if value.translation.height > 100 || value.predictedEndTranslation.height > 180 {
                     setStudyToolsOpen(false)
                 } else {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
+                    withAnimation(.springLively) {
                         studyToolCardDragY = 0
                     }
                 }
@@ -1057,12 +1064,12 @@ struct InsightTreeView: View {
                     dismissDockedInsight()
                 } else if h > 28 {
                     // Small swipe down → collapse to chip (focus question bar)
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
+                    withAnimation(.springLively) {
                         dockedCardDragY = 0
                     }
                     questionBarFocusTrigger += 1
                 } else {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
+                    withAnimation(.springLively) {
                         dockedCardDragY = 0
                     }
                 }
@@ -1073,13 +1080,13 @@ struct InsightTreeView: View {
         let concept = concept(for: insight)
         onRemoveInsight?(concept)   // triggers onChange → dismissDockedInsight
         undoTask?.cancel()
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.springStandard) {
             undoInsight = concept
         }
         undoTask = Task {
             try? await Task.sleep(nanoseconds: 4_000_000_000)
             guard !Task.isCancelled else { return }
-            withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+            withAnimation(.springQuick) {
                 undoInsight = nil
             }
         }
@@ -1115,7 +1122,7 @@ struct InsightTreeView: View {
         onInsightSelectionStateChange?(false)
         onQuoteInsight?(nil)
 
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+        withAnimation(.springQuick) {
             dockedCardDragY = 0
             selectedInsight = nil
             selectedNode = nil
@@ -1136,7 +1143,7 @@ struct InsightTreeView: View {
         onInsightSelectionStateChange?(false)
         onQuoteInsight?(nil)
 
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+        withAnimation(.springQuick) {
             dockedCardDragY = 0
             selectedInsight = nil
             selectedNode = nil
@@ -1152,7 +1159,7 @@ struct InsightTreeView: View {
         onInsightSelectionStateChange?(false)
         onQuoteInsight?(nil)
 
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+        withAnimation(.springQuick) {
             dockedCardDragY = 0
             selectedInsight = nil
             selectedNode = nil
@@ -1537,7 +1544,7 @@ struct InsightTreeView: View {
         guard let parentID = makeNodeParentInsightID,
               selectedInsight?.id == parentID,
               !makeNodeLinkInsightIDs.contains(childID) else { return }
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+        withAnimation(.springRelaxed) {
             makeNodeLinkInsightIDs.append(childID)
         }
     }

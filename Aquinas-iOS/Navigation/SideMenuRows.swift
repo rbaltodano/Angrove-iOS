@@ -36,7 +36,7 @@ struct SideMenuRow: View {
                 }
 
                 Text(title)
-                    .font(.custom("LibreBaskerville-Regular", size: 14))
+                    .paragraphFont()
                     .lineSpacing(7)
                     .foregroundColor(AquinasTheme.Colors.paragraphText)
                     .opacity(showsText ? 1 : 0)
@@ -140,7 +140,7 @@ private struct ConversationActivityIndicator: View {
                 .transition(.opacity)
             case .completed:
                 Circle()
-                    .fill(Color(red: 0.25, green: 0.55, blue: 1.0))
+                    .fill(AquinasTheme.Colors.accentRed)
                     .frame(width: 9, height: 9)
                     .overlay(
                         Circle()
@@ -192,7 +192,7 @@ struct ConversationMenuRow: View {
                     ))
                 }
                 Text(conversation.title)
-                    .font(.custom("LibreBaskerville-Regular", size: 14))
+                    .paragraphFont()
                     .lineSpacing(7)
                     .foregroundColor(AquinasTheme.Colors.paragraphText)
                     .lineLimit(1)
@@ -200,7 +200,7 @@ struct ConversationMenuRow: View {
                     .multilineTextAlignment(.leading)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .animation(.spring(response: 0.40, dampingFraction: 0.78), value: isPinRevealed)
+            .animation(.springLively, value: isPinRevealed)
 
             if modelActivity != .idle {
                 ConversationActivityIndicator(activity: modelActivity)
@@ -275,7 +275,7 @@ struct ConversationMenuRow: View {
             }
         }
         .onChange(of: conversation.isPinned) { _, newValue in
-            withAnimation(.spring(response: 0.40, dampingFraction: 0.78)) {
+            withAnimation(.springLively) {
                 isPinRevealed = newValue
             }
         }
@@ -335,7 +335,7 @@ struct StudyTopicMenuRow: View {
                     .sfSymbolDrawOn()
 
                 Text(displayTitle)
-                    .font(.custom("LibreBaskerville-Regular", size: 14))
+                    .paragraphFont()
                     .lineSpacing(7)
                     .foregroundColor(AquinasTheme.Colors.paragraphText)
                     .lineLimit(1)
@@ -371,7 +371,7 @@ struct StudyTopicMenuRow: View {
                 if isExpanded || conversations.isEmpty {
                     onSelect()
                 } else {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                    withAnimation(.springQuick) {
                         isExpanded = true
                     }
                 }
@@ -461,7 +461,7 @@ private struct TopicConversationRow: View {
                     .frame(width: 14, height: 14)
                     .sfSymbolDrawOn(delay: Double(index) * 0.15 + 0.05)
                 Text(conversation.title.isEmpty ? "Untitled" : conversation.title)
-                    .font(.custom("LibreBaskerville-Regular", size: 13))
+                    .paragraphFont()
                     .foregroundColor(AquinasTheme.Colors.paragraphText)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -480,7 +480,7 @@ private struct TopicConversationRow: View {
         .opacity(appeared ? 1 : 0)
         .offset(x: appeared ? 0 : -8)
         .onAppear {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)
+            withAnimation(.springQuick
                 .delay(Double(index) * 0.15)) {
                 appeared = true
             }

@@ -43,7 +43,7 @@ final class ModelCompletionNotificationCenter {
         kind: ModelCompletionNotificationKind = .question,
         openAction: @escaping @MainActor () -> Void
     ) {
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.springStandard) {
             notifications.insert(
                 ModelCompletionNotification(
                     title: title,
@@ -60,7 +60,7 @@ final class ModelCompletionNotificationCenter {
     }
 
     func dismiss(id: UUID) {
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.springStandard) {
             notifications.removeAll { $0.id == id }
         }
     }

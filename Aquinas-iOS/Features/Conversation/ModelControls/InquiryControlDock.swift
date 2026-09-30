@@ -417,6 +417,7 @@ struct InquiryControlDock: View {
 
                 Text("Search")
                     .font(.custom("Figtree-SemiBold", size: 14))
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .foregroundColor(AquinasTheme.Colors.paragraphText.opacity(0.75))
             .frame(minHeight: 21)
@@ -536,7 +537,7 @@ struct InquiryControlDock: View {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred(intensity: 0.7)
             contextCard.dragY = 0
             if contextCard.isOpen {
-                withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                withAnimation(.springStandard) {
                     contextCard.isOpen = false
                 }
                 return
@@ -563,7 +564,7 @@ struct InquiryControlDock: View {
     private func handleModelStatusTap() {
         guard !contextCard.isCompacting, let modelTasksPopupState else { return }
         if modelTasksPopupState.isOpen {
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+            withAnimation(.springStandard) {
                 modelTasksPopupState.isOpen = false
             }
             return
@@ -590,16 +591,16 @@ struct InquiryControlDock: View {
         openThis: @escaping () -> Void
     ) {
         guard otherIsOpen else {
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+            withAnimation(.springStandard) {
                 openThis()
             }
             return
         }
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+        withAnimation(.springQuick) {
             closeOther()
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.34) {
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+            withAnimation(.springStandard) {
                 openThis()
             }
         }
@@ -612,7 +613,7 @@ struct InquiryControlDock: View {
 
     private func dismissContextPopup() {
         guard contextCard.isOpen else { return }
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.springStandard) {
             contextCard.reset()
         }
     }

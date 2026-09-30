@@ -231,7 +231,7 @@ struct UploadedFileThumbnail: View {
 
             if let onRemove {
                 Button(action: {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                    withAnimation(.springLively) {
                         onRemove()
                     }
                 }) {

@@ -211,7 +211,7 @@ struct StudyTopicDetailView: View {
                                 StudyTopicFilesSection(
                                     files: localFiles,
                                     onRemove: { file in
-                                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                                        withAnimation(.springQuick) {
                                             localFiles.removeAll { $0.id == file.id }
                                         }
                                         persistDrafts()
@@ -257,7 +257,7 @@ struct StudyTopicDetailView: View {
                                     }
                                 }
                                 .frame(maxWidth: .infinity)
-                                .animation(.spring(response: 0.34, dampingFraction: 0.86), value: normalizedTopicSearchText)
+                                .animation(.springQuick, value: normalizedTopicSearchText)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -400,7 +400,7 @@ struct StudyTopicDetailView: View {
         }
         // Sync localFiles when the parent pushes new files in (e.g. after a photo/file pick).
         .onChange(of: topic.files) { _, newFiles in
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+            withAnimation(.springLively) {
                 localFiles = newFiles
             }
         }
@@ -462,7 +462,7 @@ struct StudyTopicDetailView: View {
         deletingConversationIDs.insert(conversation.id)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-            withAnimation(.spring(response: 0.34, dampingFraction: 0.88)) {
+            withAnimation(.springQuick) {
                 onDeleteConversation(conversation)
             }
             deletingConversationIDs.remove(conversation.id)
@@ -598,13 +598,13 @@ struct StudyTopicDetailView: View {
             #selector(UIResponder.resignFirstResponder),
             to: nil, from: nil, for: nil
         )
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+        withAnimation(.springStandard) {
             canvasMode.isTopicCanvasVisible = true
         }
     }
 
     private func closeInsightTree() {
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+        withAnimation(.springStandard) {
             canvasMode.isTopicCanvasVisible = false
         }
     }
@@ -616,7 +616,7 @@ struct StudyTopicDetailView: View {
     }
 
     private func toggleSavedInsight(_ concept: ConceptDefinition) {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+        withAnimation(.springBouncy) {
             if savedInsights.contains(where: { $0.id == concept.id }) {
                 removeTopicTreeInsight(concept)
             } else {
@@ -714,7 +714,7 @@ struct StudyTopicDetailView: View {
             onInquireConnection: { canvasMode.canvasInquireConnectionRequest += 1 },
             onQuoteCanvasItem: {
                 guard canvasMode.canvasQuoteTarget != nil else { return }
-                withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
+                withAnimation(.springQuick) {
                     isInsightAskMode = true
                 }
             },
@@ -730,7 +730,7 @@ struct StudyTopicDetailView: View {
                 quotePickerInsight = insight
             },
             onCancelCanvasAsk: {
-                withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
+                withAnimation(.springQuick) {
                     isInsightAskMode = false
                 }
             },

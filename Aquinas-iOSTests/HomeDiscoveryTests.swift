@@ -46,10 +46,26 @@ struct HomeDiscoveryTests {
 
         #expect(
             TodayInHistoryCatalog.entry(for: aquinasDeath, calendar: calendar)?.title
-                == "Death of Thomas Aquinas"
+                == "Thomas Aquinas Dies"
         )
         #expect(TodayInHistoryCatalog.entry(for: uncovered, calendar: calendar) == nil)
         #expect(Set(TodayInHistoryCatalog.entries.map(\.date)).count == TodayInHistoryCatalog.entries.count)
+    }
+
+    @Test("An existing Today in History thread uses the shortened headline and keeps its description")
+    func todayInHistoryExistingThreadHeadline() {
+        let penicillin = TodayInHistoryCatalog.entries.first { $0.date == "09-28" }!
+        let oldContext = """
+            <today in history>
+            <title>Fleming's discovery of penicillin, traditionally dated</title>
+            <description>\(penicillin.description.xmlEscaped)</description>
+            </today in history>
+            """
+
+        let matched = TodayInHistoryCatalog.entry(matchingPromptContext: oldContext)
+        #expect(matched?.title == "Penicillin Discovered")
+        #expect(matched?.description == penicillin.description)
+        #expect(TodayInHistoryCatalog.entry(matchingPromptContext: "<description>\(penicillin.description.xmlEscaped)</description>") == nil)
     }
 
     // MARK: Terms You Glossed Over

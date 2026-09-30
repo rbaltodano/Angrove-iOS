@@ -643,6 +643,10 @@ private struct LibraryDocument {
         return (title, level)
     }
 
+    static func bibleBookTitle(forCode code: String) -> String? {
+        bibleBooks.first { $0.marker == code + (code == "PSA" ? "001" : "01") }?.title
+    }
+
     private static let bibleBooks: [(marker: String, title: String)] = [
         ("1CH01", "1 Chronicles"), ("1CO01", "1 Corinthians"),
         ("1ES01", "1 Esdras"), ("1JN01", "1 John"),
@@ -694,6 +698,7 @@ struct LibraryView: View {
     @State private var searchText = ""
     @State private var selectedWorkID: String?
     @State private var targetChunkIndex: Int?
+    @State private var targetScripture: LibraryTextFormatter.ScriptureTarget?
     @State private var pendingNavigationRequest: LibraryNavigationRequest?
     @AppStorage(LibraryRecents.storageKey) private var recentWorkIDsRaw = ""
 
@@ -718,8 +723,10 @@ struct LibraryView: View {
                     work: selectedWork,
                     targetTitle: navigationRequest?.sourceTitle,
                     targetChunkIndex: targetChunkIndex,
+                    targetScripture: targetScripture,
                     modelTasks: modelTasks,
-                    modelTasksPopupState: modelTasksPopupState
+                    modelTasksPopupState: modelTasksPopupState,
+                    onOpenScripture: openScripture
                 )
                 .transition(.move(edge: .trailing))
                 .zIndex(1)
@@ -734,7 +741,7 @@ struct LibraryView: View {
                     }
                     Spacer()
                 }
-                .animation(.spring(response: 0.42, dampingFraction: 0.84), value: selectedWorkID)
+                .animation(.springStandard, value: selectedWorkID)
                 .padding(.horizontal, 24)
                 .padding(.top, 24)
                 Spacer()
@@ -742,7 +749,7 @@ struct LibraryView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .zIndex(20)
         }
-        .animation(.spring(response: 0.42, dampingFraction: 0.84), value: selectedWorkID)
+        .animation(.springStandard, value: selectedWorkID)
         .onChange(of: selectedWorkID) { _, id in
             modelTasksPopupState.reset()
             onReaderVisibilityChange(id != nil)
@@ -760,9 +767,11 @@ struct LibraryView: View {
                 LibraryCatalog.loadBundled()
             }.value
             withAnimation(.easeOut(duration: 0.25)) { catalog = loaded }
-            if let pendingNavigationRequest {
-                self.pendingNavigationRequest = nil
-                applyNavigationRequest(pendingNavigationRequest)
+            // A request that opened the Library arrives as the initial value, which `onChange`
+            // never reports; one that arrived while the catalog loaded is held as pending.
+            if let request = pendingNavigationRequest ?? navigationRequest {
+                pendingNavigationRequest = nil
+                applyNavigationRequest(request)
             }
         }
         .onChange(of: navigationRequest) { _, request in
@@ -784,27 +793,40 @@ struct LibraryView: View {
         selectedWorkID = work.id
     }
 
+    private func openScripture(_ target: LibraryTextFormatter.ScriptureTarget) {
+        withAnimation(.springStandard) {
+            targetChunkIndex = nil
+            targetScripture = target
+            selectedWorkID = "web-bible"
+        }
+    }
+
     private func openWork(id: String, atChunk chunkIndex: Int? = nil) {
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+        withAnimation(.springStandard) {
+            targetScripture = nil
             targetChunkIndex = chunkIndex
             selectedWorkID = id
         }
     }
 
     private func closeDocument() {
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+        withAnimation(.springStandard) {
             selectedWorkID = nil
             targetChunkIndex = nil
+            targetScripture = nil
         }
     }
 }
 
 private struct LibraryDocumentDetail: View {
+    private static let readerTopID = "reader-top"
     let work: LibraryWork
     let targetTitle: String?
     var targetChunkIndex: Int?
+    var targetScripture: LibraryTextFormatter.ScriptureTarget?
     let modelTasks: ModelTaskQueue
     let modelTasksPopupState: ModelTasksPopupState
+    let onOpenScripture: (LibraryTextFormatter.ScriptureTarget) -> Void
     @State private var document: LibraryDocument?
     @State private var selectedSectionID = "chapter-1"
     @State private var selectedOutlineID = "chapter-1"
@@ -820,27 +842,44 @@ private struct LibraryDocumentDetail: View {
                 let selectedSection = document.sections[selectedIndex]
                 let selectedOutline = document.sections.node(withID: selectedOutlineID) ?? selectedSection
                 let visibleChunks = selectedOutline.chunks
-                ScrollView(showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: 24) {
-                            Color.clear.frame(height: 72)
-                            VStack(alignment: .leading, spacing: 16) {
-                                Text(document.title)
-                                    .font(.custom("LibreBaskerville-Regular", size: 28))
-                                    .foregroundStyle(AquinasTheme.Colors.lightGreen)
-                                Text(document.context)
-                                    .font(.figtreeParagraph)
-                                    .foregroundStyle(AquinasTheme.Colors.paragraphText)
-                            }
+                ScrollViewReader { proxy in
+                    ScrollView(showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 32) {
+                            LibraryReaderHeader(
+                                subject: LibrarySubject.of(workID: work.id).generalTitle,
+                                title: document.title,
+                                context: document.context
+                            )
+                            .id(Self.readerTopID)
                             LibraryTextSection(
-                                title: selectedOutline.title,
+                                title: selectedOutline.id == selectedSection.id || selectedOutline.title.contains(": ")
+                                    ? selectedOutline.title
+                                    : "\(selectedSection.title): \(selectedOutline.title)",
                                 passages: document.passages.filter { visibleChunks.contains($0.chunkIndex) },
-                                isVisible: isPageTextVisible
+                                sourceID: work.id,
+                                highlightedChunkIndex: targetChunkIndex,
+                                isVisible: isPageTextVisible,
+                                onOpenScripture: onOpenScripture
                             )
                             .id(selectedOutline.id)
                             .transition(.opacity.combined(with: .move(edge: .trailing)))
                         }
                         .padding(.horizontal, 24)
-                        .padding(.bottom, 24)
+                        .padding(.bottom, 140)
+                    }
+                    // Clears the floating menu and back buttons, including for scroll-to-passage.
+                    .safeAreaPadding(.top, 88)
+                    .onChange(of: isPageTextVisible) { _, visible in
+                        guard visible else { return }
+                        if let targetChunkIndex, visibleChunks.contains(targetChunkIndex) {
+                            withAnimation(.springStandard) {
+                                proxy.scrollTo(targetChunkIndex, anchor: .top)
+                            }
+                        } else {
+                            // A new page or work starts at its heading, not the prior scroll offset.
+                            proxy.scrollTo(Self.readerTopID, anchor: .top)
+                        }
+                    }
                 }
                 // Keep the controls publisher mounted while chapter text changes (it publishes to
                 // the shell's single Model Controls bar and renders nothing here). Giving the
@@ -872,7 +911,7 @@ private struct LibraryDocumentDetail: View {
                                     let sectionID = document.sections.first(where: { $0.id == outlineID })?.id
                                         ?? selectedSectionID
                                     transitionToPage(sectionID: sectionID, outlineID: outlineID)
-                                    withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                                    withAnimation(.springStandard) {
                                         isContentsOpen = true
                                     }
                                 }
@@ -895,6 +934,13 @@ private struct LibraryDocumentDetail: View {
                let match = document?.sections.first(where: { $0.title.caseInsensitiveCompare(targetTitle) == .orderedSame }) {
                 selectedSectionID = match.id
                 selectedOutlineID = match.firstReadableDescendant.id
+            }
+            if let targetScripture,
+               let bookTitle = LibraryDocument.bibleBookTitle(forCode: targetScripture.bookCode),
+               let book = document?.sections.first(where: { $0.title == bookTitle }) {
+                selectedSectionID = book.id
+                selectedOutlineID = book.children.first(where: { $0.title == "Chapter \(targetScripture.chapter)" })?.id
+                    ?? book.firstReadableDescendant.id
             }
             if let targetChunkIndex,
                let path = document?.sections.path(containingChunk: targetChunkIndex),
@@ -931,28 +977,143 @@ private struct LibraryDocumentDetail: View {
     }
 }
 
+private struct LibraryReaderHeader: View {
+    let subject: String
+    let title: String
+    let context: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(subject.uppercased())
+                .font(AquinasTheme.Typography.uiLabel)
+                .foregroundStyle(AquinasTheme.Colors.lightGreen)
+            Text(title)
+                .font(.custom("LibreBaskerville-Regular", size: 34))
+                .foregroundStyle(AquinasTheme.Colors.primaryReadable)
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(context)
+                .font(.custom("LibreBaskerville-Italic", size: 16))
+                .foregroundStyle(AquinasTheme.Colors.paragraphText)
+                .lineSpacing(6)
+            LibraryOrnamentRule()
+                .padding(.top, 8)
+        }
+    }
+}
+
+/// A hairline broken by the Jerusalem cross, echoing the side menu's footer divider.
+private struct LibraryOrnamentRule: View {
+    var body: some View {
+        HStack(spacing: 16) {
+            Rectangle().fill(AquinasTheme.Colors.controlBorder).frame(height: 1)
+            Image("cross-1")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 16, height: 16)
+                .foregroundStyle(AquinasTheme.Colors.lightGreen)
+            Rectangle().fill(AquinasTheme.Colors.controlBorder).frame(height: 1)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 private struct LibraryTextSection: View {
     let title: String
     let passages: [LibraryPassage]
+    let sourceID: String
+    var highlightedChunkIndex: Int?
     let isVisible: Bool
+    let onOpenScripture: (LibraryTextFormatter.ScriptureTarget) -> Void
     @AppStorage("aquinas.settings.conversationFontSize")
     private var conversationFontSize: ConversationFontSizeOption = .medium
     @AppStorage("aquinas.settings.responseFont")
     private var responseFont: ConversationFontOption = .sans
 
-    private var documentText: String {
-        passages.map(\.text).joined(separator: "\n\n")
+    /// "Book II: Nature of Stock" reads as a small-caps kicker over a serif chapter title.
+    private var titleParts: (kicker: String?, heading: String) {
+        guard let range = title.range(of: ": ") else { return (nil, title) }
+        return (String(title[..<range.lowerBound]), String(title[range.upperBound...]))
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(title).font(.custom("Figtree-Bold", size: 18)).foregroundStyle(AquinasTheme.Colors.headingText)
-            Text(documentText)
-                .font(responseFont.textFont(size: conversationFontSize))
-                .lineSpacing(8)
-                .foregroundStyle(AquinasTheme.Colors.paragraphText)
+        VStack(alignment: .leading, spacing: 32) {
+            VStack(spacing: 8) {
+                if let kicker = titleParts.kicker {
+                    Text(kicker.uppercased())
+                        .font(AquinasTheme.Typography.uiLabel)
+                        .tracking(1.5)
+                        .foregroundStyle(AquinasTheme.Colors.placeholderText)
+                }
+                Text(titleParts.heading)
+                    .font(.custom("LibreBaskerville-Italic", size: 24))
+                    .foregroundStyle(AquinasTheme.Colors.headingText)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+            }
+            .frame(maxWidth: .infinity)
+
+            LazyVStack(alignment: .leading, spacing: 20) {
+                ForEach(passages) { passage in
+                    LibraryParagraph(
+                        text: LibraryTextFormatter.attributed(
+                            passage.text,
+                            sourceID: sourceID,
+                            linkColor: AquinasTheme.Colors.lightGreen,
+                            verseColor: AquinasTheme.Colors.lightGreen,
+                            verseFont: .custom("Figtree-Bold", size: max(9, conversationFontSize.pointSize - 4))
+                        ),
+                        font: responseFont.textFont(size: conversationFontSize),
+                        isHighlighted: passage.chunkIndex == highlightedChunkIndex
+                    )
+                    .id(passage.chunkIndex)
+                }
+            }
+            .textSelection(.enabled)
+            .environment(\.openURL, OpenURLAction { url in
+                guard let target = LibraryTextFormatter.ScriptureTarget(url: url) else { return .discarded }
+                onOpenScripture(target)
+                return .handled
+            })
+
+            Image("cross-1")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 14, height: 14)
+                .foregroundStyle(AquinasTheme.Colors.lightGreen)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 8)
+                .accessibilityHidden(true)
         }
         .opacity(isVisible ? 1 : 0)
+    }
+}
+
+/// One corpus chunk. Rendering chunks separately keeps long sections within `Text`'s limits
+/// and lets the reader scroll straight to a featured passage.
+private struct LibraryParagraph: View {
+    let text: AttributedString
+    let font: Font
+    let isHighlighted: Bool
+
+    var body: some View {
+        Text(text)
+            .font(font)
+            .lineSpacing(8)
+            .foregroundStyle(isHighlighted ? AquinasTheme.Colors.primaryReadable : AquinasTheme.Colors.paragraphText)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(isHighlighted ? 24 : 0)
+            .background {
+                if isHighlighted {
+                    let shape = RoundedRectangle(cornerRadius: AquinasTheme.Spacing.cardRadius, style: .continuous)
+                    shape
+                        .fill(AquinasTheme.Colors.canvasSecondary)
+                        .overlay(shape.stroke(AquinasTheme.Colors.quietBorder, lineWidth: 1))
+                }
+            }
     }
 }
 
@@ -1025,7 +1186,7 @@ private struct ContentsRow: View {
                     }
                     Text(title).font(.custom(isSelected ? "Figtree-SemiBold" : "Figtree-Regular", size: 14)).foregroundStyle(isSelected ? AquinasTheme.Colors.lightGreen : AquinasTheme.Colors.paragraphText)
                 }
-                .fixedSize().animation(.spring(response: 0.32, dampingFraction: 0.78), value: isSelected)
+                .fixedSize().animation(.springLively, value: isSelected)
                 Spacer()
             }
         }

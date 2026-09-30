@@ -101,12 +101,12 @@ struct MidpointHandle: View {
                     .fill(AquinasTheme.Colors.lightGreen)
                     .frame(width: circleSize, height: circleSize)
                     .overlay(Circle().stroke(AquinasTheme.Colors.canvas, lineWidth: 2))
-                    .shadow(color: Color.black.opacity(0.25), radius: 4, x: 0, y: 2)
+                    .shadow(color: AquinasTheme.Colors.scrim.opacity(0.25), radius: 4, x: 0, y: 2)
 
                 Image(systemName: "text.bubble.fill")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(AquinasTheme.Colors.lightGreen)
-                    .shadow(color: Color.black.opacity(0.18), radius: 3, x: 0, y: 1)
+                    .shadow(color: AquinasTheme.Colors.scrim.opacity(0.18), radius: 3, x: 0, y: 1)
                     .opacity(Double(1.0 - phase * 0.5))   // 100% at bottom, 50% at top
                     .offset(y: yOffset)
             }

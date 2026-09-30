@@ -47,10 +47,6 @@ struct PageModelControls: View {
             .frame(width: 0, height: 0)
             .accessibilityHidden(true)
             .modelControls(configuration)
-            .onChange(of: modelTasks.isBusy) { _, isBusy in
-                guard !isBusy else { return }
-                popupState.reset()
-            }
     }
 
     private var configuration: ModelControlsConfiguration {
@@ -108,7 +104,7 @@ struct PageModelControls: View {
             generator.prepare()
             generator.impactOccurred(intensity: 0.65)
         }
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.springStandard) {
             popupState.isOpen.toggle()
         }
     }
@@ -166,11 +162,6 @@ struct LibraryModelControls<Contents: View>: View {
                     extraFade: (height: 300, opacity: 0.95)
                 )
             )
-            .onChange(of: modelTasks.isBusy) { _, isBusy in
-                if !isBusy {
-                    modelTasksPopupState.reset()
-                }
-            }
     }
 
     private var buttons: some View {
@@ -221,14 +212,14 @@ struct LibraryModelControls<Contents: View>: View {
     }
 
     private func toggleModelTasks() {
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.springStandard) {
             isContentsOpen = false
             modelTasksPopupState.isOpen.toggle()
         }
     }
 
     private func toggleContents() {
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.springStandard) {
             modelTasksPopupState.isOpen = false
             isContentsOpen.toggle()
         }

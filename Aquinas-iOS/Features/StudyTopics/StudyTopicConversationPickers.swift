@@ -310,10 +310,14 @@ struct ExistingConversationPickerSheet: View {
     private func deleteConversationCard(_ conversation: InquiryConversation) {
         guard !deletingConversationIDs.contains(conversation.id) else { return }
 
-        deletingConversationIDs.insert(conversation.id)
+        withAnimation(.springMicro) {
+            selectedConversationIDs.remove(conversation.id)
+            deletingConversationIDs.insert(conversation.id)
+        }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-            withAnimation(.spring(response: 0.34, dampingFraction: 0.88)) {
+            withAnimation(.springQuick) {
+                storeConversations.removeAll { $0.id == conversation.id }
                 onDeleteConversation(conversation)
             }
             deletingConversationIDs.remove(conversation.id)
@@ -321,7 +325,7 @@ struct ExistingConversationPickerSheet: View {
     }
 
     private func toggleSelection(_ conversation: InquiryConversation) {
-        withAnimation(.spring(response: 0.18, dampingFraction: 0.86)) {
+        withAnimation(.springMicro) {
             if selectedConversationIDs.contains(conversation.id) {
                 selectedConversationIDs.remove(conversation.id)
             } else {
@@ -335,7 +339,7 @@ struct ExistingConversationPickerSheet: View {
         for conversation in selected {
             onSelectConversation(conversation)
         }
-        withAnimation(.spring(response: 0.18, dampingFraction: 0.86)) {
+        withAnimation(.springMicro) {
             selectedConversationIDs.removeAll()
         }
     }
@@ -345,7 +349,7 @@ struct ExistingConversationPickerSheet: View {
             addButtonPulseScale = 1.05
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.68)) {
+            withAnimation(.springBouncy) {
                 addButtonPulseScale = 1.0
             }
         }

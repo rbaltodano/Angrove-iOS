@@ -33,7 +33,7 @@ struct DynamicInsightSheetCard: View {
                         .tint(AquinasTheme.Colors.lightGreen)
 
                     Text(funStatusText ?? "Generating relevant definition...")
-                        .font(.figtreeParagraph)
+                        .paragraphFont()
                         .foregroundColor(AquinasTheme.Colors.placeholderText)
                         .accessibilityLabel("Generating relevant definition")
                 }
@@ -48,7 +48,7 @@ struct DynamicInsightSheetCard: View {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .stroke(AquinasTheme.Colors.brownBorder, lineWidth: 1)
         )
-        .shadow(color: Color(red: 0.13, green: 0.06, blue: 0).opacity(0.15), radius: 24, x: 0, y: 0)
+        .cardGlow()
         .transaction { transaction in
             transaction.animation = nil
         }
@@ -109,7 +109,7 @@ private struct InsightDefinitionEntry: View {
                     "In regards to \(context)",
                     comment: "Label describing the subject that gives an Insight definition its meaning."
                 )
-                .font(.figtreeParagraph)
+                .paragraphFont()
                 .bold()
                 .italic()
                 .foregroundColor(AquinasTheme.Colors.headingText)

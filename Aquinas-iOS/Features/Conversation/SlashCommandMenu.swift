@@ -30,6 +30,7 @@ struct SlashCommand: Identifiable, Equatable {
 enum SlashCommandInvocation: Equatable {
     case compact
     case clear
+    case rename(String?)
 }
 
 extension SlashCommand {
@@ -37,14 +38,22 @@ extension SlashCommand {
     static let all: [SlashCommand] = [
         SlashCommand(name: "/compact",    description: "Condense the conversation so far"),
         SlashCommand(name: "/clear",      description: "Clear the current conversation"),
+        SlashCommand(name: "/rename",     description: "Rename the current conversation"),
     ]
 
     static func invocation(for text: String) -> SlashCommandInvocation? {
-        switch text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        let parts = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(maxSplits: 1, whereSeparator: \.isWhitespace)
+        guard let name = parts.first else { return nil }
+        switch name.lowercased() {
         case "/compact":
-            return .compact
+            return parts.count == 1 ? .compact : nil
         case "/clear":
-            return .clear
+            return parts.count == 1 ? .clear : nil
+        case "/rename":
+            return .rename(parts.count == 2
+                ? String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+                : nil)
         default:
             return nil
         }
@@ -79,9 +88,9 @@ struct SlashCommandMenu: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(maxHeight: maxHeight)
         .background(AquinasTheme.Colors.canvasSecondary)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .stroke(AquinasTheme.Colors.canvasSecondary, lineWidth: 1)
         )
     }

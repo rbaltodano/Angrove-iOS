@@ -28,7 +28,7 @@ struct AppearanceSettingsView: View {
                                 isSelected: option == selectedAppearance
                             ) {
                                 SettingsHaptics.playSelection()
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                                withAnimation(.springQuick) {
                                     colorSchemeOverride = option.colorScheme
                                 }
                             }

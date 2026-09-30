@@ -55,9 +55,12 @@ protocol AquinasModel {
         conversationID: UUID?
     ) async -> ConceptDefinition?
 
-    /// The most elementary 1–5 word subject label organizing a set of contextual Insight
+    /// The nearest useful broader 1–5 word concept organizing contextual Insight
     /// descriptions — used to name a Node Concept.
     func labelSubject(forTitles titles: [String]) async throws -> String
+
+    /// Exact member titles are separate from descriptions so punctuation in either is harmless.
+    func labelSubject(forTitles titles: [String], excludingInsightTitles: [String]) async throws -> String
 
     /// Extracts this turn's main subject (label + summary) to seed the on-device Insight Tree.
     /// `nil` means
@@ -105,6 +108,15 @@ enum AquinasModelActionError: Error {
 }
 
 extension AquinasModel {
+    func labelSubject(forTitles titles: [String], excludingInsightTitles: [String]) async throws -> String {
+        let label = try await labelSubject(forTitles: titles)
+        try Task.checkCancellation()
+        guard NodeConceptLabelPolicy.isValid(label, insightTitles: excludingInsightTitles) else {
+            throw AquinasModelActionError.invalidResponse
+        }
+        return label
+    }
+
     /// Only `LiteRTAquinasModel` implements this; every other model boundary (unavailable, mock)
     /// has no use for it, so this default keeps them at zero extra surface area.
     func insightTreeSeedCandidate(
@@ -358,6 +370,8 @@ nonisolated struct GroundingSourceSummary: Identifiable, Codable, Equatable {
 struct LibraryNavigationRequest: Equatable {
     let sourceTitle: String
     let sourceName: String
+    /// Distinguishes repeated taps on the same source, so each one still navigates.
+    var id = UUID()
 }
 
 enum ModelResponseUpdate {

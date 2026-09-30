@@ -61,6 +61,31 @@ struct SettingsBehaviorTests {
         )
     }
 
+    @Test("Automatic titles keep the subject instead of question scaffolding")
+    func automaticTitleStripsScaffolding() {
+        let cases = [
+            ("What does Aquinas say about the virtue of justice?", "Virtue of Justice"),
+            ("How does Aquinas prove that God exists?", "God Exists"),
+            ("What is grace?", "Grace"),
+            ("Can you explain the five ways?", "Five Ways"),
+            ("What does St. Augustine teach about original sin?", "Original Sin"),
+            ("Why is justice a virtue according to Aquinas?", "Why Is Justice a Virtue")
+        ]
+        for (question, expected) in cases {
+            #expect(ConversationTitlePolicy.title(for: question, option: .automatic) == expected)
+        }
+    }
+
+    @Test("Automatic titles fit the header budget without ending on a minor word")
+    func automaticTitleFitsBudget() {
+        let title = ConversationTitlePolicy.title(
+            for: "What does Aquinas say about the relationship of the intellect and the will?",
+            option: .automatic
+        ) ?? ""
+        #expect(title.count <= ConversationTitlePolicy.headlineCharacterBudget)
+        #expect(title == "Relationship of the Intellect")
+    }
+
     @Test("First Question keeps the submitted question")
     func firstQuestionConversationTitle() {
         #expect(

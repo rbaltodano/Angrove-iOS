@@ -534,7 +534,7 @@ struct StudyToolResultsLayer: View {
     private func chip(_ result: StudyToolResult, inStudy: Bool) -> some View {
         Button {
             UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.7)
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+            withAnimation(.springLively) {
                 store.toggleKept(result.id)
             }
         } label: {
@@ -570,7 +570,7 @@ struct StudyToolResultsLayer: View {
                 if inStudy, result.kind == .part, result.isKept {
                     Button {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                        withAnimation(.springRelaxed) {
                             store.makeNode(result.id)
                         }
                     } label: {
@@ -608,7 +608,7 @@ struct StudyToolResultsLayer: View {
 
     private func foldPill(count: Int, sourceKey: UUID) -> some View {
         Button {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            withAnimation(.springLively) {
                 _ = expandedTrails.insert(sourceKey)
             }
         } label: {

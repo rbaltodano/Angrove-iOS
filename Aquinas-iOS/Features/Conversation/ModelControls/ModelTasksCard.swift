@@ -18,8 +18,14 @@ final class ModelTasksPopupState {
 
 struct ModelTasksCard: View {
     let modelTasks: ModelTaskQueue
+    var popupState: ModelTasksPopupState? = nil
     @Environment(\.openModelTaskPage) private var openModelTaskPage
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var draggingTaskID: UUID?
+    @State private var dismissTask: Task<Void, Never>?
+
+    private let rowExitDuration = 0.4
+    private let rowExitStagger = 0.15
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -38,53 +44,62 @@ struct ModelTasksCard: View {
                 }
             }
 
-            if modelTasks.allTasks.isEmpty {
-                HStack(spacing: 4) {
-                    Image(systemName: "circle.dotted")
-                        .font(.system(size: 12, weight: .regular))
-                        .frame(width: 12, height: 12)
-
-                    Text("Model is current idle...")
-                        .font(.custom("Figtree-Regular", size: 14))
-                        .lineLimit(1)
-                }
-                .frame(minHeight: 28)
-                .transition(.opacity)
-            } else {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(modelTasks.allTasks) { task in
-                        ModelTaskRow(
-                            task: task,
-                            isDragging: draggingTaskID == task.id,
-                            onOpen: {
-                                openModelTaskPage(task)
-                            },
-                            onStop: modelTasks.stopCurrent,
-                            onRemove: {
-                                modelTasks.removeUpcoming(id: task.id)
-                            },
-                            draggingTaskID: $draggingTaskID,
-                            onReorder: { draggedID in
-                                guard draggedID != task.id else { return }
-                                let didMove = modelTasks.moveUpcoming(
-                                    id: draggedID,
-                                    relativeTo: task.id,
-                                    placeAfterTarget: false
-                                )
-                                if didMove {
-                                    UIImpactFeedbackGenerator(style: .light)
-                                        .impactOccurred(intensity: 0.5)
-                                }
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(modelTasks.allTasks.enumerated(), id: \.element.id) { index, task in
+                    ModelTaskRow(
+                        task: task,
+                        isDragging: draggingTaskID == task.id,
+                        onOpen: {
+                            openModelTaskPage(task)
+                        },
+                        onStop: modelTasks.stopCurrent,
+                        onRemove: {
+                            modelTasks.removeUpcoming(id: task.id)
+                        },
+                        draggingTaskID: $draggingTaskID,
+                        onReorder: { draggedID in
+                            guard draggedID != task.id else { return }
+                            let didMove = modelTasks.moveUpcoming(
+                                id: draggedID,
+                                relativeTo: task.id,
+                                placeAfterTarget: false
+                            )
+                            if didMove {
+                                UIImpactFeedbackGenerator(style: .light)
+                                    .impactOccurred(intensity: 0.5)
                             }
+                        }
+                    )
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity,
+                            removal: .offset(x: reduceMotion ? 0 : 24)
+                                .combined(with: .opacity)
                         )
-                        .transition(.opacity)
-                    }
+                        .animation(
+                            .smooth(duration: rowExitDuration)
+                                .delay(reduceMotion ? 0 : Double(index) * rowExitStagger)
+                        )
+                    )
                 }
-                .transition(.opacity)
+
+                if modelTasks.allTasks.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: "circle.dotted")
+                            .font(.system(size: 12, weight: .regular))
+                            .frame(width: 12, height: 12)
+
+                        Text("Model is current idle...")
+                            .font(.custom("Figtree-Regular", size: 14))
+                            .lineLimit(1)
+                    }
+                    .frame(minHeight: 28)
+                    .transition(.opacity)
+                }
             }
         }
         .foregroundColor(AquinasTheme.Colors.paragraphText.opacity(0.75))
-        .animation(.spring(response: 0.32, dampingFraction: 0.78), value: modelTasks.allTasks)
+        .animation(.springLively, value: modelTasks.allTasks)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(32)
         .frame(width: 355)
@@ -94,6 +109,20 @@ struct ModelTasksCard: View {
             RoundedRectangle(cornerRadius: 36, style: .continuous)
                 .stroke(AquinasTheme.Colors.darkBrown.opacity(0.08), lineWidth: 1)
         )
+        .onChange(of: modelTasks.allTasks.count) { oldCount, newCount in
+            dismissTask?.cancel()
+            guard oldCount > 0, newCount == 0, let popupState else { return }
+            let exitDuration = rowExitDuration
+                + (reduceMotion ? 0 : Double(oldCount - 1) * rowExitStagger)
+            dismissTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(exitDuration))
+                guard !Task.isCancelled, modelTasks.allTasks.isEmpty else { return }
+                popupState.reset()
+            }
+        }
+        .onDisappear {
+            dismissTask?.cancel()
+        }
     }
 }
 
@@ -248,7 +277,7 @@ struct ModelTaskCounter: View {
             Text(currentTaskNumber, format: .number)
                 .contentTransition(.numericText(value: Double(currentTaskNumber)))
                 .animation(
-                    .spring(response: 0.32, dampingFraction: 0.82),
+                    .springQuick,
                     value: currentTaskNumber
                 )
 
@@ -257,7 +286,7 @@ struct ModelTaskCounter: View {
             Text(totalTaskCount, format: .number)
                 .contentTransition(.numericText(value: Double(totalTaskCount)))
                 .animation(
-                    .spring(response: 0.32, dampingFraction: 0.82),
+                    .springQuick,
                     value: totalTaskCount
                 )
         }

@@ -34,6 +34,7 @@ struct HomeDashboardView: View {
     @State private var studyTopics: [StudyTopic] = []
     @State private var usageMonth = MonthlyUsageStore.currentMonth()
     @State private var activeInsight: ConceptDefinition? = nil
+    @State private var readingWorks: [RecommendedWork] = []
 
     private var regularConversations: [InquiryConversation] {
         conversations.filter { !$0.isStudyTopic }
@@ -145,9 +146,9 @@ struct HomeDashboardView: View {
                             HomeFigmaDivider()
                         }
 
-                        HomeFigmaReadingSection(
-                            items: HomeDashboardContent.recommendedReading(from: regularConversations)
-                        )
+                        if !readingWorks.isEmpty {
+                            HomeFigmaReadingSection(works: readingWorks)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -169,7 +170,11 @@ struct HomeDashboardView: View {
             MonthlyUsageStore.recordVisitIfNeeded()
             usageMonth = MonthlyUsageStore.currentMonth()
             studyTopics = StudyTopicStore.load()
+            readingWorks = RecommendedReading.works(for: regularConversations)
             onLoadHomeSections()
+        }
+        .onChange(of: regularConversations.count) {
+            readingWorks = RecommendedReading.works(for: regularConversations)
         }
         .sheet(item: $activeInsight) { insight in
             ConceptSheetContent(concept: insight, collectedDefinitions: .constant(savedInsights))
@@ -182,6 +187,7 @@ struct HomeDashboardView: View {
     private func refreshContent() {
         usageMonth = MonthlyUsageStore.currentMonth()
         studyTopics = StudyTopicStore.load()
+        readingWorks = RecommendedReading.works(for: regularConversations)
         onRefresh()
         onLoadHomeSections()
     }
@@ -328,24 +334,24 @@ private struct HomeFigmaResumeSection: View {
 }
 
 private struct HomeFigmaReadingSection: View {
-    let items: [FurtherStudyItem]
+    let works: [RecommendedWork]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             HomeFigmaSectionTitle("Read Material")
 
             VStack(alignment: .leading, spacing: 24) {
-                ForEach(items) { item in
+                ForEach(works, id: \.title) { work in
                     Button {
                         NotificationCenter.default.post(
                             name: .openGroundingSourceInLibrary,
                             object: LibraryNavigationRequest(
-                                sourceTitle: item.title,
-                                sourceName: item.author
+                                sourceTitle: work.title,
+                                sourceName: work.sourceName
                             )
                         )
                     } label: {
-                        HomeFigmaReadingRow(item: item)
+                        HomeFigmaReadingRow(work: work)
                     }
                     .buttonStyle(.plain)
                 }
@@ -370,7 +376,7 @@ private struct HomeInsightBridgeSection: View {
                         .foregroundColor(AquinasTheme.Colors.primaryReadable)
 
                     Text("These insights might be worth connecting in your Insight Tree. Who knows what you'll learn")
-                        .font(AquinasTheme.Typography.body)
+                        .paragraphFont()
                         .foregroundColor(AquinasTheme.Colors.paragraphText)
                         .lineSpacing(7)
                 }
@@ -480,7 +486,7 @@ private struct HomeLooseThreadSection: View {
                         .foregroundColor(AquinasTheme.Colors.primaryReadable)
 
                     Text(looseThreadDescription)
-                    .font(AquinasTheme.Typography.body)
+                    .paragraphFont()
                     .foregroundColor(AquinasTheme.Colors.paragraphText)
                     .lineSpacing(7)
                 }
@@ -510,12 +516,12 @@ private struct HomeTodayInHistorySection: View {
                     .foregroundColor(AquinasTheme.Colors.lightGreen)
 
                 Text(card.title)
-                    .font(.custom("LibreBaskerville-Regular", size: 28))
+                    .font(.custom("LibreBaskerville-Regular", size: 40))
                     .foregroundColor(AquinasTheme.Colors.primaryReadable)
             }
 
             Text(card.description)
-                .font(AquinasTheme.Typography.body)
+                .paragraphFont()
                 .foregroundColor(AquinasTheme.Colors.paragraphText)
                 .lineSpacing(7)
 
@@ -525,7 +531,7 @@ private struct HomeTodayInHistorySection: View {
                         .font(.system(size: 12, weight: .bold))
 
                     Text("Tell me more...")
-                        .font(AquinasTheme.Typography.body)
+                        .paragraphFont()
                         .fontWeight(.bold)
                 }
                 .foregroundColor(AquinasTheme.Colors.canvas)
@@ -555,7 +561,7 @@ private struct HomeGlossedTermSection: View {
                         .foregroundColor(AquinasTheme.Colors.primaryReadable)
 
                     Text(card.definition)
-                        .font(AquinasTheme.Typography.body)
+                        .paragraphFont()
                         .foregroundColor(AquinasTheme.Colors.paragraphText)
                         .lineSpacing(7)
                         .lineLimit(3)
@@ -666,7 +672,7 @@ private struct HomeFigmaStat: View {
 }
 
 private struct HomeFigmaReadingRow: View {
-    let item: FurtherStudyItem
+    let work: RecommendedWork
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
@@ -676,20 +682,14 @@ private struct HomeFigmaReadingRow: View {
                 .frame(width: 18, alignment: .center)
 
             VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(item.title)
-                        .font(AquinasTheme.Typography.uiHeading)
-                        .foregroundColor(AquinasTheme.Colors.primaryReadable)
+                Text(work.title)
+                    .font(AquinasTheme.Typography.uiHeading)
+                    .foregroundColor(AquinasTheme.Colors.primaryReadable)
 
-                    Text(item.author)
-                        .font(AquinasTheme.Typography.uiLabel)
-                        .foregroundColor(AquinasTheme.Colors.lightGreen)
-                }
-
-                Text(item.reason)
-                    .font(AquinasTheme.Typography.body)
+                Text(work.reason)
+                    .paragraphFont()
                     .foregroundColor(AquinasTheme.Colors.placeholderText)
-                    .lineSpacing(14)
+                    .lineSpacing(7)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -713,14 +713,6 @@ private func figmaUsageColor(for level: Int) -> Color {
 
 // MARK: - Dashboard Content
 
-private struct FurtherStudyItem: Identifiable {
-    let id = UUID()
-    let category: String
-    let title: String
-    let author: String
-    let reason: String
-}
-
 private struct HomeInsightBridgeSuggestion {
     let first: ConceptDefinition
     let second: ConceptDefinition
@@ -728,76 +720,6 @@ private struct HomeInsightBridgeSuggestion {
 }
 
 private enum HomeDashboardContent {
-    nonisolated static let furtherStudyItems: [FurtherStudyItem] = [
-        FurtherStudyItem(
-            category: "Primary Text",
-            title: "Summa Theologica",
-            author: "St. Thomas Aquinas",
-            reason: "A series of theological concepts broken down by St. Thomas Aquinas"
-        ),
-        FurtherStudyItem(
-            category: "Primary Text",
-            title: "Confessions",
-            author: "St. Augustine",
-            reason: "An explanation of essential doctrines outlined by St. Augustine of Hippo"
-        ),
-        FurtherStudyItem(
-            category: "Primary Text",
-            title: "On the Incarnation",
-            author: "Athanasius",
-            reason: "An explanation of essential doctrines outlined by Augustine of Hippo"
-        ),
-        FurtherStudyItem(
-            category: "Reference",
-            title: "Catechism of the Catholic Church",
-            author: "Catholic Church",
-            reason: "A concise doctrinal reference when a question needs firm coordinates."
-        )
-    ]
-
-    /// Ranks the library works that have actually grounded answers across the user's
-    /// conversations. Because response presentations are persisted with each conversation,
-    /// this naturally updates as new questions are answered without another background job.
-    static func recommendedReading(from conversations: [InquiryConversation]) -> [FurtherStudyItem] {
-        let sourceGroups = conversations
-            .flatMap { conversation in
-                conversation.branches.flatMap { branch in
-                    (branch.responsePresentations ?? []).flatMap { presentation in
-                        presentation.groundingSources ?? []
-                    }
-                }
-            }
-            .reduce(into: [String: (source: GroundingSourceSummary, count: Int)]()) { result, source in
-                let key = source.id.isEmpty ? source.title.lowercased() : source.id
-                if let current = result[key] {
-                    result[key] = (current.source, current.count + 1)
-                } else {
-                    result[key] = (source, 1)
-                }
-            }
-
-        let ranked = sourceGroups.values
-            .sorted {
-                if $0.count != $1.count { return $0.count > $1.count }
-                return $0.source.title.localizedCaseInsensitiveCompare($1.source.title) == .orderedAscending
-            }
-            .prefix(3)
-            .map { entry in
-                FurtherStudyItem(
-                    category: "Suggested for you",
-                    title: entry.source.title,
-                    author: entry.source.sourceName,
-                    reason: entry.count == 1
-                        ? "Referenced in one of your recent answers."
-                        : "Referenced (entry.count) times across your conversations."
-                )
-            }
-
-        return ranked.count == 3
-            ? Array(ranked)
-            : Array((Array(ranked) + furtherStudyItems).prefix(3))
-    }
-
     nonisolated private static let dailyQuestions: [String] = [
         "What does it mean for knowledge to become wisdom?",
         "Where does faith seek understanding in your current study?",

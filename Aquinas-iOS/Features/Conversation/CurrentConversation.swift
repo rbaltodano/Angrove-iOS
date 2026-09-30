@@ -116,7 +116,6 @@ struct CurrentConversationView: View {
     let responseFont: ConversationFontOption
     let conversationTitlePolicy: ConversationTitleOption
     @Binding var conversationPersonality: ConversationPersonality
-    let userName: String
     let isPageVisible: Bool
     /// App-shell-owned task state. Keeping these references above page navigation lets model
     /// work continue and keeps one shared popup/status surface throughout the app.
@@ -166,6 +165,8 @@ struct CurrentConversationView: View {
     @State private var insertCommandRequest: Int = 0
     @State private var isCompactingContext: Bool = false
     @State private var isCompactionErrorPresented: Bool = false
+    @State private var isRenamePromptPresented: Bool = false
+    @State private var renameDraft: String = ""
     @State private var undiscoveredInsightCount: Int = 0
     @State private var persistedTreeRefreshRequest: Int = 0
     @State private var insightTreeUpdateSignal: Int = 0
@@ -232,11 +233,6 @@ struct CurrentConversationView: View {
             return nil
         }
         return studyTopics.first { $0.id == topicID }?.title
-    }
-
-    private var displayUserName: String {
-        let trimmedName = userName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedName.isEmpty ? "Ryan" : trimmedName
     }
 
     private var topConversationChromeOpacity: Double {
@@ -634,7 +630,7 @@ struct CurrentConversationView: View {
     private func closeTopicCanvas() {
         canvasMode.isCanvasSearchActive = false
         canvasMode.canvasSearchQuery = ""
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+        withAnimation(.springStandard) {
             canvasMode.isTopicCanvasVisible = false
         }
     }
@@ -646,7 +642,7 @@ struct CurrentConversationView: View {
             from: nil,
             for: nil
         )
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+        withAnimation(.springStandard) {
             isKeyboardOpen = false
             canvasMode.isTopicCanvasVisible = true
         }
@@ -734,7 +730,7 @@ struct CurrentConversationView: View {
     }
 
     private func quoteConceptIntoCurrentConversation(_ concept: ConceptDefinition) {
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+        withAnimation(.springBouncy) {
             attachedConcept = concept
             if focusedBranchID == nil {
                 focusedBranchID = activeBranches.first?.id
@@ -819,7 +815,7 @@ struct CurrentConversationView: View {
         commandToInsert = command.name + " "
         insertCommandRequest += 1
         hasTextToSubmit = true
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
+        withAnimation(.springQuick) {
             isSlashCommandContext = false
         }
     }
@@ -850,12 +846,12 @@ struct CurrentConversationView: View {
             onScrollToBottom: { scrollToBottomRequest += 1 },
             onViewEntireCanvas: { },
             onOpenInsights: {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                withAnimation(.springQuick) {
                     isInsightLibraryOpen = true
                 }
             },
             onSend: {
-                withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                withAnimation(.springStandard) {
                     hasTextToSubmit = false
                     isKeyboardOpen = false
                 }
@@ -947,7 +943,7 @@ struct CurrentConversationView: View {
                 allInsights: collectedDefinitions,
                 savedInsights: $collectedDefinitions,
                 onQuote: { concept in
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    withAnimation(.springBouncy) {
                         attachedConcept = concept
                         if focusedBranchID == nil {
                             focusedBranchID = activeBranches.first?.id
@@ -967,13 +963,13 @@ struct CurrentConversationView: View {
                         parentResponseIndex: targetSpawnResponseIndex,
                         yOffset: targetSpawnY
                     )
-                    withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                    withAnimation(.springRelaxed) {
                         insertBranch(newBranch, after: parentID)
                     }
                     isInsightLibraryOpen = false
                 },
                 onToggleSaved: { concept in
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    withAnimation(.springBouncy) {
                         if collectedDefinitions.contains(where: { $0.word.caseInsensitiveCompare(concept.word) == .orderedSame }) {
                             collectedDefinitions.removeAll { $0.word.caseInsensitiveCompare(concept.word) == .orderedSame }
                         } else {
@@ -1010,7 +1006,7 @@ struct CurrentConversationView: View {
             let targetID = target.id
             Task {
                 try? await Task.sleep(for: .milliseconds(100))
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.78)) {
+                withAnimation(.springRelaxed) {
                     focusedBranchID = targetID
                 }
             }
@@ -1268,7 +1264,7 @@ struct CurrentConversationView: View {
                     onMenuTap: onOpenMenu,
                     onCanvasTap: enterCanvasMode,
                     onBackTap: {
-                        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+                        withAnimation(.springStandard) {
                             if canvasMode.isCanvasStudyMode {
                                 canvasMode.canvasStudyExitRequest += 1
                             } else {
@@ -1277,11 +1273,7 @@ struct CurrentConversationView: View {
                         }
                     },
                     onCommitTitle: { newTitle in
-                        guard !newTitle.trimmingCharacters(in: .whitespaces).isEmpty,
-                              let idx = conversations.firstIndex(where: { $0.id == activeConversationID }) else { return }
-                        conversations[idx].title = newTitle
-                        publishShellMenuState()
-                        persistConversations()
+                        renameActiveConversation(to: newTitle)
                     },
                     onTapStudyTopicBadge: {
                         conversationForTopicPicker = conversations.first { $0.id == activeConversationID }
@@ -1306,6 +1298,14 @@ struct CurrentConversationView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("The conversation was left unchanged. The on-device model couldn’t finish; please try again.")
+        }
+        .alert("Rename Conversation", isPresented: $isRenamePromptPresented) {
+            TextField("Conversation name", text: $renameDraft)
+            Button("Cancel", role: .cancel) { renameDraft = "" }
+            Button("Save") {
+                renameActiveConversation(to: renameDraft)
+                renameDraft = ""
+            }
         }
         .alert("Couldn’t generate definition", isPresented: Binding(
             get: { definitionState.failedWord != nil },
@@ -1338,19 +1338,19 @@ struct CurrentConversationView: View {
         }
         .onChange(of: canvasMode.hasHoveredCanvasInsight) { _, isHoveringInsight in
             guard isHoveringInsight else { return }
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+            withAnimation(.springStandard) {
                 modelTasksPopupState.reset()
             }
         }
         .onChange(of: canvasMode.canvasSelectedItemCount) { _, selectedCount in
             guard selectedCount > 0 else { return }
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+            withAnimation(.springStandard) {
                 modelTasksPopupState.reset()
             }
         }
         .onChange(of: canvasMode.isCanvasMidpointMode) { _, isMakingMidpoint in
             guard isMakingMidpoint else { return }
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+            withAnimation(.springStandard) {
                 modelTasksPopupState.reset()
             }
         }
@@ -1368,7 +1368,7 @@ struct CurrentConversationView: View {
         .onReceive(NotificationCenter.default.publisher(
             for: UIResponder.keyboardWillHideNotification
         )) { _ in
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+            withAnimation(.springStandard) {
                 isKeyboardOpen = false
                 isSlashCommandContext = false
             }
@@ -1386,7 +1386,7 @@ struct CurrentConversationView: View {
                     if let data = try? await item.loadTransferable(type: Data.self),
                        UploadedFile.isImageData(data) {
                         await MainActor.run {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                            withAnimation(.springLively) {
                                 uploadedFiles.append(
                                     UploadedFile(
                                         name: "Photo",
@@ -1429,7 +1429,7 @@ struct CurrentConversationView: View {
         .fullScreenCover(isPresented: $showCamera) {
             CameraCaptureView { image in
                 if let data = image.jpegData(compressionQuality: 0.86) {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                    withAnimation(.springLively) {
                         uploadedFiles.append(
                             UploadedFile(
                                 name: "Camera Photo",
@@ -1520,10 +1520,8 @@ struct CurrentConversationView: View {
                     modelTasks: modelTasks,
                     isModelBusy: modelTasks.isBusy,
                     isPageVisible: isPageVisible,
-                    emptyStateUserName: displayUserName,
                     emptyStateEyebrow: activeEmptyPromptEyebrow,
                     newConversationViewportHeight: stableViewportHeight,
-                    usesCompactVerticalLayout: usesCompactVerticalLayout,
                     studyTopicTitle: activeStudyTopicTitle,
                     onTapEyebrow: {
                         conversationForTopicPicker = conversations.first { $0.id == activeConversationID }
@@ -1541,7 +1539,7 @@ struct CurrentConversationView: View {
                             duplicatedResponse: InlineInsightMarkup.plainText(from: text),
                             yOffset: targetSpawnY
                         )
-                        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                        withAnimation(.springRelaxed) {
                             insertBranch(newBranch, after: b.id)
                         }
                     },
@@ -1577,7 +1575,7 @@ struct CurrentConversationView: View {
                         let slash = text.hasPrefix("/") && !text.contains(" ") && !text.contains("\n")
                         if slash { slashQuery.text = text }   // re-renders only the picker
                         if slash != isSlashCommandContext {
-                            withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
+                            withAnimation(.springQuick) {
                                 isSlashCommandContext = slash
                             }
                         }
@@ -1652,7 +1650,7 @@ struct CurrentConversationView: View {
                         openDynamicDefinition(word: word, sourceResponseBlock: sourceResponseBlock)
                     },
                     onInlineInsightQuote: { concept in
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                        withAnimation(.springBouncy) {
                             attachedConcept = concept
                             focusedBranchID = b.id
                         }
@@ -1668,7 +1666,7 @@ struct CurrentConversationView: View {
                             parentResponseIndex: responseIndex,
                             yOffset: targetSpawnY
                         )
-                        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                        withAnimation(.springRelaxed) {
                             insertBranch(newBranch, after: b.id)
                         }
                     },
@@ -1705,13 +1703,13 @@ struct CurrentConversationView: View {
             .coordinateSpace(name: "BranchScroll-\(b.id)")
             .onChange(of: scrollToBottomRequest) { _, _ in
                 guard b.id == effectiveFocusedID else { return }
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.82)) {
+                withAnimation(.springStandard) {
                     proxy.scrollTo("branch-bottom-\(b.id)", anchor: .bottom)
                 }
             }
             .onChange(of: scrollToTopRequest) { _, _ in
                 guard b.id == effectiveFocusedID else { return }
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.82)) {
+                withAnimation(.springStandard) {
                     proxy.scrollTo("branch-top-\(b.id)", anchor: .top)
                 }
             }
@@ -1722,7 +1720,7 @@ struct CurrentConversationView: View {
             )) { _ in
                 guard b.id == effectiveFocusedID,
                       let anchor = lastFocusedAnchor else { return }
-                withAnimation(.spring(response: 0.36, dampingFraction: 0.86)) {
+                withAnimation(.springStandard) {
                     proxy.scrollTo(anchor, anchor: .top)
                 }
             }
@@ -1770,7 +1768,7 @@ struct CurrentConversationView: View {
             onQuote: {
                 guard let concept = definition else { return }
                 definitionState.activeWord = nil
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                withAnimation(.springBouncy) {
                     attachedConcept = concept
                     if focusedBranchID == nil {
                         focusedBranchID = activeBranches.first?.id
@@ -1790,7 +1788,7 @@ struct CurrentConversationView: View {
                     parentResponseIndex: targetSpawnResponseIndex,
                     yOffset: targetSpawnY
                 )
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                withAnimation(.springRelaxed) {
                     insertBranch(newBranch, after: effectiveFocusedID)
                 }
             },
@@ -1844,13 +1842,13 @@ struct CurrentConversationView: View {
             }
         }
 
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+        withAnimation(.springStandard) {
             activeBranches.removeAll { toRemove.contains($0.id) }
         }
         let returnID = parent.id
         Task {
             try? await Task.sleep(for: .milliseconds(80))
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.78)) {
+            withAnimation(.springRelaxed) {
                 focusedBranchID = returnID
             }
         }
@@ -1867,7 +1865,30 @@ struct CurrentConversationView: View {
             clearCurrentConversation()
         case .compact:
             compactContext(in: branchID)
+        case .rename(let title):
+            if let title {
+                renameActiveConversation(to: title)
+            } else {
+                renameDraft = activeTitle
+                isRenamePromptPresented = true
+            }
         }
+    }
+
+    private func renameActiveConversation(to title: String) {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty,
+              let index = conversations.firstIndex(where: { $0.id == activeConversationID }) else {
+            return
+        }
+        conversations[index].title = trimmedTitle
+        // A title chosen before the first question should survive automatic title generation.
+        if let rootIndex = activeBranches.firstIndex(where: { $0.parentBranchID == nil }) {
+            activeBranches[rootIndex].generatedBranchTitle = trimmedTitle
+            conversations[index].branches = activeBranches
+        }
+        publishShellMenuState()
+        persistConversations()
     }
 
     private func compactContext(in branchID: UUID) {
@@ -2425,7 +2446,7 @@ struct CurrentConversationView: View {
         let existingConcept = collectedDefinitions.first { $0.id == concept.id }
         let conceptToSave = existingConcept?.mergingDefinitions(from: concept) ?? concept
 
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+        withAnimation(.springBouncy) {
             if isSaved {
                 if let existingIndex = collectedDefinitions.firstIndex(
                     where: { $0.id == concept.id }

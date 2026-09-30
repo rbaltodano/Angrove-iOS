@@ -115,7 +115,7 @@ struct ModelControlsStack<Controls: View>: View {
             } else if let modelTasksPopupState,
                       modelTasksPopupState.isOpen,
                       let modelTasks {
-                ModelTasksCard(modelTasks: modelTasks)
+                ModelTasksCard(modelTasks: modelTasks, popupState: modelTasksPopupState)
                     .transition(.bottomDockCard)
             }
 
@@ -147,40 +147,40 @@ struct ModelControlsStack<Controls: View>: View {
             controlsPulseTask?.cancel()
         }
         .animation(
-            .spring(response: 0.42, dampingFraction: 0.86),
+            .springStandard,
             value: showsScrollToBottom
         )
         .animation(
-            .spring(response: 0.42, dampingFraction: 0.86),
+            .springStandard,
             value: contextCard?.isOpen == true
         )
         .animation(
-            .spring(response: 0.42, dampingFraction: 0.86),
+            .springStandard,
             value: modelTasksPopupState?.isOpen == true
         )
         .animation(
-            .spring(response: 0.42, dampingFraction: 0.86),
+            .springStandard,
             value: supplementalPopupIsOpen
         )
         .animation(
-            .spring(response: 0.42, dampingFraction: 0.86),
+            .springStandard,
             value: completionNotifications?.notifications.map(\.id) ?? []
         )
         .animation(
-            .spring(response: 0.42, dampingFraction: 0.86),
+            .springStandard,
             value: confirmationTitle
         )
     }
 
     private func pulseControls() {
         controlsPulseTask?.cancel()
-        withAnimation(.spring(response: 0.18, dampingFraction: 0.72)) {
+        withAnimation(.springLively) {
             controlsScale = 1.05
         }
         controlsPulseTask = Task {
             try? await Task.sleep(for: .milliseconds(180))
             guard !Task.isCancelled else { return }
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.78)) {
+            withAnimation(.springLively) {
                 controlsScale = 1
             }
         }
@@ -244,7 +244,7 @@ private struct ScrollToBottomStackButton: View {
         Button(action: action) {
             Image(systemName: "arrow.down")
                 .font(.system(size: 8, weight: .semibold))
-                .foregroundColor(Color(hex: 0xFFFAF0))
+                .foregroundColor(AquinasTheme.Colors.onAccent)
                 .frame(width: 24, height: 24)
                 .background(AquinasTheme.Colors.lightBrown)
                 .clipShape(Circle())
@@ -327,6 +327,7 @@ struct ModelStatusButton: View {
                         .transition(.opacity)
                     } else {
                         BlurSwapText(activeStatusText)
+                            .fixedSize(horizontal: statusOverride != nil, vertical: false)
                             .modifier(
                                 ThinkingShimmer(
                                     isActive: true,
@@ -357,8 +358,8 @@ struct ModelStatusButton: View {
             .frame(minHeight: 21)
             .contentShape(Rectangle())
             .animation(.easeInOut(duration: 0.25), value: isActive)
-            .animation(.spring(response: 0.32, dampingFraction: 0.82), value: totalTaskCount)
-            .animation(.spring(response: 0.32, dampingFraction: 0.82), value: currentTaskNumber)
+            .animation(.springQuick, value: totalTaskCount)
+            .animation(.springQuick, value: currentTaskNumber)
         }
         .buttonStyle(FloatingControlButtonStyle(isPressed: controlIsPressed))
         .accessibilityLabel(accessibilityStatus)
@@ -384,7 +385,7 @@ struct FloatingControlPressFeedback: ViewModifier {
         content
             .scaleEffect(isPressed || isButtonPressed ? 1.05 : 1)
             .animation(
-                .spring(response: 0.22, dampingFraction: 0.72),
+                .springLively,
                 value: isPressed || isButtonPressed
             )
             .simultaneousGesture(

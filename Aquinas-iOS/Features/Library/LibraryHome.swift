@@ -33,6 +33,17 @@ nonisolated enum LibrarySubject: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// The broad discipline shown above a work's title in the reader.
+    var generalTitle: String {
+        switch self {
+        case .scripture: "Scripture"
+        case .thomisticTheology, .earlyChristianity, .councilsAndCreeds, .catechismsAndConfessions: "Theology"
+        case .philosophy: "Philosophy"
+        case .history: "History"
+        case .politicalThought: "Political Thought"
+        }
+    }
+
     var systemImage: String {
         switch self {
         case .scripture: "book.closed"
@@ -309,7 +320,7 @@ struct LibraryHomeView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Color.clear.frame(height: 72)
 
-                    LibraryHomeHeader(catalog: catalog)
+                    LibraryHomeHeader()
                         .padding(.top, 24)
                         .padding(.horizontal, 24)
 
@@ -372,34 +383,21 @@ struct LibraryHomeView: View {
 }
 
 private struct LibraryHomeHeader: View {
-    let catalog: LibraryCatalog?
-
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(statsLine)
-                .font(AquinasTheme.Typography.uiLabel)
-                .foregroundStyle(AquinasTheme.Colors.lightGreen)
-                .contentTransition(.numericText())
-
-            Text("\(Text("The ").font(.custom("LibreBaskerville-Regular", size: 30)))\(Text("Library").font(.custom("LibreBaskerville-Italic", size: 30)))")
+            Text("\(Text("The ").font(.custom("LibreBaskerville-Regular", size: 40)))\(Text("Library").font(.custom("LibreBaskerville-Italic", size: 40)))")
                 .foregroundStyle(AquinasTheme.Colors.primaryReadable)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
 
             Text("The primary sources Aquinas draws on when it grounds an answer.")
-                .font(AquinasTheme.Typography.body)
+                .paragraphFont()
                 .foregroundStyle(AquinasTheme.Colors.paragraphText)
                 .lineSpacing(4)
                 .padding(.top, 8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
-    }
-
-    private var statsLine: String {
-        guard let catalog, !catalog.works.isEmpty else { return "PRIMARY SOURCES" }
-        let passages = catalog.passageCount.formatted(.number)
-        return "\(catalog.works.count) WORKS · \(passages) PASSAGES"
     }
 }
 
@@ -556,7 +554,7 @@ private struct LibraryPressableStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(.spring(response: 0.28, dampingFraction: 0.8), value: configuration.isPressed)
+            .animation(.springLively, value: configuration.isPressed)
     }
 }
 
@@ -601,7 +599,7 @@ private struct LibraryIndexRow: View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Text(work.title)
-                    .font(AquinasTheme.Typography.bodyLarge)
+                    .paragraphFont(.large)
                     .foregroundStyle(AquinasTheme.Colors.paragraphText)
                     .multilineTextAlignment(.leading)
                 Spacer(minLength: 8)
@@ -671,7 +669,7 @@ private struct LibrarySearchResultCard: View {
                     .multilineTextAlignment(.leading)
 
                 Text("\(work.passageCount.formatted(.number)) passages")
-                    .font(AquinasTheme.Typography.body)
+                    .paragraphFont()
                     .foregroundStyle(AquinasTheme.Colors.paragraphText)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
