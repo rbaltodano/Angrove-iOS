@@ -152,6 +152,67 @@ nonisolated struct LocalAquinasGroundingProvider: AquinasGroundingProviding {
                 "psalm 23", "the lord is my shepherd", "valley of the shadow of death",
                 "green pastures"
             ]
+        ),
+        // Facts about Aquinas's works and scholastic vocabulary that the bundled sources do not
+        // state about themselves. Without them the app either abstained ("In what year did
+        // Aquinas finish the Summa?") or the model answered from memory and got the order of an
+        // article, or the sense of "transcendental", wrong. Aliases are specific phrases: a bare
+        // "summa" would attach these to every question about the Summa's teaching.
+        AquinasGroundingReference(
+            id: "summa-theologiae-composition",
+            title: "The Summa Theologiae: composition",
+            sourceName: "Aquinas curated reference note",
+            facts: "Thomas Aquinas wrote the Summa Theologiae between about 1265 and 1273. The work is unfinished. He stopped writing in December 1273, partway through the Third Part's treatment of the sacrament of penance, and died in March 1274. His followers compiled a Supplement from his earlier Commentary on the Sentences to complete the plan. The Summa has three parts, the second divided in two; each part is divided into questions, and each question into articles.",
+            retrievalAliases: [
+                "finish the summa", "finished the summa", "complete the summa",
+                "completed the summa", "completion of the summa", "summa unfinished",
+                "finish writing the summa", "stop writing the summa", "stopped writing the summa",
+                "when was the summa written", "write the summa", "wrote the summa",
+                "what is the summa", "parts of the summa"
+            ]
+        ),
+        AquinasGroundingReference(
+            id: "summa-article-structure",
+            title: "The structure of an article in the Summa Theologiae",
+            sourceName: "Aquinas curated reference note",
+            facts: "Every article of the Summa Theologiae follows the same order. First, a question beginning \"Whether\". Second, the objections: arguments for the position Aquinas will go on to answer, each introduced \"It would seem that\". Third, \"On the contrary\" (sed contra), which cites an authority for the other side. Fourth, Aquinas's own answer in the body of the article, beginning \"I answer that\" (respondeo). Fifth, a reply to each objection in turn.",
+            retrievalAliases: [
+                "article structured", "articles structured", "structure of an article",
+                "structure of each article", "structure of the articles", "structure of the summa",
+                "sed contra", "respondeo", "objections and replies"
+            ]
+        ),
+        AquinasGroundingReference(
+            id: "aquinas-commentary-on-the-sentences",
+            title: "Peter Lombard's Sentences and Aquinas's commentary",
+            sourceName: "Aquinas curated reference note",
+            facts: "Peter Lombard (c. 1096–1160), bishop of Paris, compiled the Four Books of Sentences around 1150. It became the standard theology textbook of the medieval universities. Thomas Aquinas wrote a commentary on it, the Scriptum super libros Sententiarum (Commentary on the Sentences), from his lectures at Paris in about 1252–1256. It was his first major work: commenting on the Sentences was the normal requirement for becoming a master of theology.",
+            retrievalAliases: [
+                "peter lombard", "lombard's sentences", "sentences of peter lombard",
+                "commentary on the sentences", "book of sentences", "books of sentences"
+            ]
+        ),
+        AquinasGroundingReference(
+            id: "substance-and-accident",
+            title: "Substance and accident",
+            sourceName: "Aquinas curated reference note",
+            facts: "In Aristotle and the scholastics, a substance is what exists in itself and not in another as in a subject: this man, this horse, this tree. An accident is what exists only in a substance, as a feature of it: its color, size, shape, position, or activity. The difference is one of dependence. A substance has being in its own right and underlies change; an accident has being only by inhering in a substance, and can come or go while the substance remains the same thing. Aristotle lists nine kinds of accident, including quantity, quality, and relation.",
+            retrievalAliases: [
+                "substance and accident", "accident and substance", "substance and accidents",
+                "accidents and substance", "substance from accident", "substance versus accident",
+                "substance vs accident"
+            ]
+        ),
+        AquinasGroundingReference(
+            id: "scholastic-transcendentals",
+            title: "The transcendentals in scholastic philosophy",
+            sourceName: "Aquinas curated reference note",
+            facts: "In scholastic philosophy the transcendentals are the properties that belong to every being simply because it is a being, so they are not confined to any one category of things. The usual list is being, one, true, and good; Aquinas's fuller list in De veritate q.1 a.1 is being, thing, one, something, true, and good. They are coextensive with being: whatever is, is one, true, and good in some respect. Each adds to \"being\" only a further aspect under which the same thing is considered.",
+            retrievalAliases: [
+                "transcendentals", "transcendental in scholastic", "scholastic transcendental",
+                "transcendental in thomis", "transcendental in aquinas",
+                "transcendental properties of being", "transcendental property of being"
+            ]
         )
     ]
 
