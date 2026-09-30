@@ -560,7 +560,7 @@ enum ConversationTextAlignmentOption: String, CaseIterable, Identifiable {
 
     var iconName: String {
         switch self {
-        case .center: "text.aligncenter"
+        case .center: "text.justify"
         case .left: "text.alignleft"
         }
     }

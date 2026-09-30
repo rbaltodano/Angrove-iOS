@@ -26,7 +26,12 @@ struct SettingsView: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             NavigationStack(path: $path) {
-                SettingsHubView { route in
+                SettingsHubView(
+                    colorSchemeOverride: colorSchemeOverride,
+                    conversationPersonality: conversationPersonality,
+                    conversationFontSize: conversationFontSize,
+                    responseFont: responseFont
+                ) { route in
                     path.append(route)
                 }
                 .navigationDestination(for: SettingsRoute.self) { route in
@@ -132,102 +137,214 @@ private enum SettingsRoute: Hashable {
 
 // MARK: - Hub
 
+/// The Settings home reads like a book's table of contents: italic part titles, serif entries, and
+/// each entry's current state noted beneath it.
 private struct SettingsHubView: View {
+    let colorSchemeOverride: ColorScheme?
+    let conversationPersonality: ConversationPersonality
+    let conversationFontSize: ConversationFontSizeOption
+    let responseFont: ConversationFontOption
     let onSelect: (SettingsRoute) -> Void
 
     var body: some View {
-        SettingsPageScaffold(title: "Settings") {
-            VStack(alignment: .leading, spacing: 24) {
-                SettingsHubSection(
-                    title: "General",
-                    rows: [
-                        SettingsHubItem(title: "Appearance", iconName: "paintpalette.fill", route: .appearance),
-                        SettingsHubItem(title: "App Experience", iconName: "sparkles", route: .appExperience),
-                        SettingsHubItem(title: "Notifications", iconName: "bell.fill", route: .notifications),
-                        SettingsHubItem(title: "Privacy & Data", iconName: "lock.shield.fill", route: .privacyAndData)
-                    ],
-                    onSelect: onSelect
-                )
+        ZStack {
+            AquinasTheme.Colors.canvas.ignoresSafeArea()
 
-                SettingsHubSection(
-                    title: "Model",
-                    rows: [
-                        SettingsHubItem(title: "Model Behavior", iconName: "brain.fill", route: .modelBehavior),
-                        SettingsHubItem(title: "Model Activity", iconName: "waveform.circle.fill", route: .modelActivity)
-                    ],
-                    onSelect: onSelect
-                )
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 48) {
+                    SettingsHubHeader()
 
-                SettingsHubSection(
-                    title: "Conversations",
-                    rows: [
-                        SettingsHubItem(title: "Text & Display", iconName: "textformat.size", route: .textAndDisplay),
-                        SettingsHubItem(title: "Conversation Defaults", iconName: "bubble.left.and.bubble.right.fill", route: .conversationDefaults)
-                    ],
-                    onSelect: onSelect
-                )
+                    ForEach(Array(parts.enumerated()), id: \.offset) { _, part in
+                        SettingsHubPart(
+                            title: part.title,
+                            rows: part.rows,
+                            onSelect: onSelect
+                        )
+                    }
 
-                SettingsHubSection(
-                    title: "Support",
-                    rows: [
-                        SettingsHubItem(title: "User Guide", iconName: "book.fill", route: .userGuide),
-                        SettingsHubItem(title: "Report a Bug", iconName: "ladybug.fill", route: .reportBug)
-                    ],
-                    onSelect: onSelect
-                )
+                    SettingsColophon()
+                }
+                .padding(.horizontal, 24)
+                // Clears the floating menu button, matching the Library home.
+                .padding(.top, 96)
+                .padding(.bottom, 120)
             }
         }
+    }
+
+    private var appearanceDetail: LocalizedStringResource {
+        switch colorSchemeOverride {
+        case .light: "Light"
+        case .dark: "Dark"
+        default: "Matches system"
+        }
+    }
+
+    private var parts: [(title: LocalizedStringResource, rows: [SettingsHubItem])] {
+        [
+            ("General", [
+                SettingsHubItem(title: "Appearance", detail: appearanceDetail, iconName: "paintpalette", route: .appearance),
+                SettingsHubItem(title: "App Experience", detail: "Start screen and haptics", iconName: "sparkles", route: .appExperience),
+                SettingsHubItem(title: "Notifications", detail: "Daily question and finished responses", iconName: "bell", route: .notifications),
+                SettingsHubItem(title: "Privacy & Data", detail: "App lock, export, and import", iconName: "lock.shield", route: .privacyAndData)
+            ]),
+            ("Model", [
+                SettingsHubItem(
+                    title: "Model Behavior",
+                    detail: "\(conversationPersonality.displayName) voice",
+                    iconName: "brain",
+                    route: .modelBehavior
+                ),
+                SettingsHubItem(title: "Model Activity", detail: "How on-device work is shown", iconName: "waveform.circle", route: .modelActivity)
+            ]),
+            ("Conversations", [
+                SettingsHubItem(
+                    title: "Text & Display",
+                    detail: "\(responseFont.rawValue) · \(conversationFontSize.rawValue)",
+                    iconName: "textformat.size",
+                    route: .textAndDisplay
+                ),
+                SettingsHubItem(title: "Conversation Defaults", detail: "Titles and daily study", iconName: "bubble.left.and.bubble.right", route: .conversationDefaults)
+            ]),
+            ("Support", [
+                SettingsHubItem(title: "User Guide", detail: "How each part of Aquinas works", iconName: "book", route: .userGuide),
+                SettingsHubItem(title: "Report a Bug", detail: "Tell us what went wrong", iconName: "ladybug", route: .reportBug)
+            ])
+        ]
+    }
+}
+
+private struct SettingsHubHeader: View {
+    var body: some View {
+        Text("Settings")
+            .font(AquinasTheme.Typography.titleXLarge)
+            .foregroundStyle(AquinasTheme.Colors.primaryReadable)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
     }
 }
 
 private struct SettingsHubItem: Identifiable {
     let title: LocalizedStringResource
+    let detail: LocalizedStringResource
     let iconName: String
     let route: SettingsRoute
 
     var id: SettingsRoute { route }
 }
 
-private struct SettingsHubSection: View {
+/// One part of the contents: an italic serif title over its entries on a flat bordered card.
+private struct SettingsHubPart: View {
     let title: LocalizedStringResource
     let rows: [SettingsHubItem]
     let onSelect: (SettingsRoute) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 16) {
             Text(title)
-                .font(AquinasTheme.Typography.uiHeading)
+                .font(.custom("LibreBaskerville-Italic", size: 24))
                 .foregroundStyle(AquinasTheme.Colors.headingText)
+                .accessibilityAddTraits(.isHeader)
 
-            VStack(alignment: .leading, spacing: 16) {
-                ForEach(rows) { row in
-                    Button {
-                        SettingsHaptics.playSelection()
-                        onSelect(row.route)
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: row.iconName)
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundStyle(AquinasTheme.Colors.paragraphText)
-                                .frame(width: 20)
-
-                            Text(row.title)
-                                .font(AquinasTheme.Typography.body)
-                                .foregroundStyle(AquinasTheme.Colors.paragraphText)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 18, alignment: .leading)
-                        .contentShape(Rectangle())
+            VStack(spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                    if index > 0 {
+                        Rectangle()
+                            .fill(AquinasTheme.Colors.divider)
+                            .frame(height: 1)
+                            .padding(.leading, 36)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityHint("Opens this settings menu")
+                    SettingsHubRow(item: row) { onSelect(row.route) }
                 }
             }
-            .padding(24)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(AquinasTheme.Colors.canvasSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .padding(.horizontal, 20)
+            .padding(.vertical, 4)
+            .background {
+                let shape = RoundedRectangle(cornerRadius: AquinasTheme.Spacing.cardRadius, style: .continuous)
+                shape
+                    .fill(AquinasTheme.Colors.canvasSecondary)
+                    .overlay(shape.stroke(AquinasTheme.Colors.quietBorder, lineWidth: 1))
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct SettingsHubRow: View {
+    let item: SettingsHubItem
+    let action: () -> Void
+
+    var body: some View {
+        Button {
+            SettingsHaptics.playSelection()
+            action()
+        } label: {
+            HStack(spacing: 16) {
+                Image(systemName: item.iconName)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(AquinasTheme.Colors.lightGreen)
+                    .frame(width: 20)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(item.title)
+                        .font(.custom("LibreBaskerville-Regular", size: 16))
+                        .foregroundStyle(AquinasTheme.Colors.primaryReadable)
+
+                    Text(item.detail)
+                        .font(.custom("Figtree-Regular", size: 12))
+                        .foregroundStyle(AquinasTheme.Colors.placeholderText)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(AquinasTheme.Colors.placeholderText)
+            }
+            .padding(.vertical, 16)
+            .frame(maxWidth: .infinity, minHeight: AquinasTheme.Spacing.controlHeight, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens this settings menu")
+    }
+}
+
+/// A closing colophon, as at the end of a printed book.
+private struct SettingsColophon: View {
+    private var version: String {
+        let info = Bundle.main.infoDictionary
+        let short = info?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let build = info?["CFBundleVersion"] as? String ?? "1"
+        return "\(short) (\(build))"
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image("cross-1")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 14, height: 14)
+                .foregroundStyle(AquinasTheme.Colors.lightGreen)
+                .accessibilityHidden(true)
+                .padding(.bottom, 4)
+
+            Text("Aquinas")
+                .font(AquinasTheme.Typography.quote)
+                .foregroundStyle(AquinasTheme.Colors.headingText)
+
+            Text("Version \(version) · Runs entirely on this device")
+                .font(.custom("Figtree-Regular", size: 11))
+                .foregroundStyle(AquinasTheme.Colors.placeholderText)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 }
 

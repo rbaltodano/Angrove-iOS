@@ -335,7 +335,7 @@ struct PersonalitySegmentedControl: View {
                         .background {
                             if selection == option {
                                 Capsule()
-                                    .fill(AquinasTheme.Colors.systemSelection)
+                                    .fill(AquinasTheme.Colors.canvas)
                                     .matchedGeometryEffect(
                                         id: "personality-selection",
                                         in: selectionNamespace
@@ -350,11 +350,9 @@ struct PersonalitySegmentedControl: View {
             }
         }
         .padding(4)
-        .background(AquinasTheme.Colors.canvas)
-        .clipShape(Capsule())
         .overlay {
             Capsule()
-                .stroke(AquinasTheme.Colors.darkBrown.opacity(0.05), lineWidth: 1)
+                .stroke(AquinasTheme.Colors.border, lineWidth: 1)
         }
     }
 }
@@ -380,7 +378,7 @@ struct ConversationAlignmentSegmentedControl: View {
                         .background {
                             if selection == option {
                                 Capsule()
-                                    .fill(AquinasTheme.Colors.systemSelection)
+                                    .fill(AquinasTheme.Colors.canvas)
                                     .matchedGeometryEffect(
                                         id: "conversation-alignment-selection",
                                         in: selectionNamespace
@@ -394,8 +392,10 @@ struct ConversationAlignmentSegmentedControl: View {
             }
         }
         .padding(4)
-        .background(AquinasTheme.Colors.canvas)
-        .clipShape(Capsule())
+        .overlay {
+            Capsule()
+                .stroke(AquinasTheme.Colors.border, lineWidth: 1)
+        }
     }
 }
 
@@ -420,7 +420,7 @@ struct FontSizeSegmentedControl: View {
                         .background {
                             if selection == option {
                                 Capsule()
-                                    .fill(AquinasTheme.Colors.systemSelection)
+                                    .fill(AquinasTheme.Colors.canvas)
                                     .matchedGeometryEffect(
                                         id: "font-size-selection",
                                         in: selectionNamespace
@@ -433,8 +433,10 @@ struct FontSizeSegmentedControl: View {
             }
         }
         .padding(4)
-        .background(AquinasTheme.Colors.canvas)
-        .clipShape(Capsule())
+        .overlay {
+            Capsule()
+                .stroke(AquinasTheme.Colors.border, lineWidth: 1)
+        }
     }
 }
 
@@ -459,7 +461,7 @@ struct FontSegmentedControl: View {
                         .background {
                             if selection == option {
                                 Capsule()
-                                    .fill(AquinasTheme.Colors.systemSelection)
+                                    .fill(AquinasTheme.Colors.canvas)
                                     .matchedGeometryEffect(
                                         id: "font-selection",
                                         in: selectionNamespace
@@ -472,8 +474,10 @@ struct FontSegmentedControl: View {
             }
         }
         .padding(4)
-        .background(AquinasTheme.Colors.canvas)
-        .clipShape(Capsule())
+        .overlay {
+            Capsule()
+                .stroke(AquinasTheme.Colors.border, lineWidth: 1)
+        }
     }
 }
 
