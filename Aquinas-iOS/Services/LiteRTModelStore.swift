@@ -46,9 +46,9 @@ nonisolated enum LiteRTModelStoreError: LocalizedError, Sendable {
     }
 }
 
-/// Resolves a post-install model before the development-only bundled seed. Production delivery
-/// writes the verified package to Application Support; the bundled path keeps device development
-/// usable while that downloader and hosting endpoint are brought online.
+/// Finds the model, in order: a development override, the Apple-hosted asset pack (TestFlight and
+/// App Store builds, see `ModelAssetPack`), a verified download in Application Support, then the
+/// development seed bundled from `LocalModels/`.
 nonisolated struct LiteRTModelStore: Sendable {
     let manifest: LiteRTModelManifest
     private let developmentModelURL: URL?
@@ -66,6 +66,11 @@ nonisolated struct LiteRTModelStore: Sendable {
         if let developmentModelURL {
             try validateModel(at: developmentModelURL)
             return developmentModelURL
+        }
+        if let assetPackModel = ModelAssetPack.localModelURL(for: manifest),
+           fileManager.fileExists(atPath: assetPackModel.path) {
+            try validateModel(at: assetPackModel)
+            return assetPackModel
         }
         if let downloaded = applicationSupportModelURL(
             fileManager: fileManager

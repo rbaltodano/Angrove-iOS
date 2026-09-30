@@ -448,6 +448,9 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
     }
 
     private func initializeEngine() async throws {
+        // Normally a no-op: the essential pack arrives with the app. It matters when the system
+        // has offloaded the pack or the install was interrupted.
+        try await ModelAssetPack.ensureAvailable()
         let modelURL = try modelStore.installedModelURL()
         let cacheURL = try modelStore.cacheDirectory()
         var backend: Backend = .gpu

@@ -1,0 +1,21 @@
+{
+	"assetPackID": "AquinasModel",
+	"downloadPolicy": {
+		"essential": {
+			"installationEventTypes": [
+				"firstInstallation",
+				"subsequentUpdate"
+			]
+		}
+	},
+	"fileSelectors": [
+		{
+			"fileSource": "Aquinas-iOS/LocalModels/gemma-4-E4B-it.litertlm",
+			"fileDestination": "Models/gemma-4-E4B-it.litertlm"
+		}
+	],
+	"platforms": [
+		"iOS"
+	],
+	"sourceRoot": "../.."
+}
