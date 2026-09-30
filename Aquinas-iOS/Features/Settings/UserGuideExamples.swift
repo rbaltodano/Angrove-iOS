@@ -475,7 +475,7 @@ private struct UserGuideStudyExample: View {
                     )
                 )
             }
-            .frame(height: 640)
+            .frame(height: 460)
             .task {
                 try? await Task.sleep(for: .milliseconds(900))
                 studyNodeID = Self.node.id
