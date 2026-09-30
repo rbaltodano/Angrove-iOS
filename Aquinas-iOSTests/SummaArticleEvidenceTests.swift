@@ -77,6 +77,21 @@ struct SummaArticleIndexTests {
         #expect(other.relatedNextArticle(after: 0, in: unrelated) == nil)
     }
 
+    @Test("A term's defining article is found by its question")
+    func findsTheDefiningArticle() {
+        let articles = [
+            "Whether there is a different matter for both kinds of justice? Objection 1: It would seem not.",
+            "I answer that, justice is about certain external operations, namely distribution and commutation.",
+            "Whether justice is fittingly defined as being the perpetual and constant will to render to each one his right? Objection 1: It would seem that lawyers have unfittingly defined justice.",
+            "I answer that, the aforesaid definition of justice is fitting if understood aright.",
+            "Whether the process of counsel is indefinite? Objection 1: It would seem that it is."
+        ].enumerated().map { Self.passage($1, $0) }
+        let definitions = SummaArticleIndex(passages: articles, indices: Array(articles.indices))
+        #expect(definitions.definingArticleStart(for: "justice", in: articles) == 2)
+        #expect(definitions.definingArticleStart(for: "counsel", in: articles) == nil)
+        #expect(definitions.definingArticleStart(for: "prudence", in: articles) == nil)
+    }
+
     @Test("An answer marker split across two chunks is still found")
     func findsAnAnswerSplitAcrossChunks() throws {
         let split = [
@@ -125,7 +140,9 @@ struct SummaEvidenceDeliveryTests {
         "In what year did Aquinas finish the Summa Theologiae?",
         "What is the Summa Theologiae?\n\nHow is each article structured?",
         "Who was Peter Lombard?\n\nDid Aquinas comment on his work?",
-        "Can I trust my own reasoning about God?"
+        "Can I trust my own reasoning about God?",
+        "What is justice?",
+        "Which pope canonized Aquinas, and in what year?"
     ]
 
     @Test("Development dump of delivered evidence")

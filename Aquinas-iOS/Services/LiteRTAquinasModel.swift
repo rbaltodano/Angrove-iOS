@@ -187,6 +187,50 @@ struct LiteRTAquinasModel: AquinasModel {
         return false
     }
 
+    /// Whether the references are about what a source-dependent question names. True when the
+    /// question names nothing, when a curated note or cited chapter was matched, or when a named
+    /// person, place, or work appears in a reference. "Aquinas" is also satisfied by his own text.
+    static func referencesNameSubject(
+        of question: String,
+        in references: [AquinasGroundingReference]
+    ) -> Bool {
+        let names = namedSubjects(in: question)
+        guard !names.isEmpty else { return true }
+        if references.contains(where: { $0.sourceID == nil || $0.id.hasPrefix("citation-") }) {
+            return true
+        }
+        let text = references
+            .map { "\($0.title) \($0.facts)" }
+            .joined(separator: " ")
+            .lowercased()
+        let hasSumma = references.contains { $0.sourceID == SummaArticleIndex.sourceID }
+        return names.contains { name in
+            text.contains(name.lowercased()) || (name == "Aquinas" && hasSumma)
+        }
+    }
+
+    /// Capitalized words that aren't the first word of the question and aren't a term so common
+    /// in this corpus that it identifies nothing.
+    static func namedSubjects(in question: String) -> [String] {
+        let generic: Set<String> = [
+            "God", "Summa", "Theologiae", "Theologica", "Christian", "Christians", "Christ",
+            "Jesus", "Bible", "Scripture", "Church", "Catholic", "Gospel", "Gospels", "Letter",
+            "Book", "Council", "War", "Wars", "Saint", "Lord", "Holy", "Spirit", "Father", "Son"
+        ]
+        let words = question
+            .split(whereSeparator: { !$0.isLetter && $0 != "'" && $0 != "’" && $0 != "-" })
+            .map(String.init)
+        return words.dropFirst().compactMap { word -> String? in
+            let name = word
+                .replacingOccurrences(of: "’s", with: "")
+                .replacingOccurrences(of: "'s", with: "")
+            guard name.count > 2, name.first?.isUppercase == true, !generic.contains(name) else {
+                return nil
+            }
+            return name
+        }
+    }
+
     /// The compact on-device model is reliable for ordinary definitions, but not for unfamiliar,
     /// highly technical labels when retrieval has no direct evidence. Require a passage for those
     /// terms rather than presenting a fluent invented definition as knowledge.
@@ -331,7 +375,12 @@ struct LiteRTAquinasModel: AquinasModel {
             let evidenceBasis: ResponseEvidenceBasis = responseReferences.isEmpty
                 ? .generalKnowledge
                 : .corpusGrounded
-            guard !responseReferences.isEmpty || !Self.requiresCorpusEvidence(latestQuestion) else {
+            // Some passage always comes back, so "a passage was retrieved" is not evidence. Asked
+            // which pope canonized Aquinas, retrieval returned notes on a canon of Constantinople,
+            // and the model answered, labeled corpus-grounded, that no single pope had (seal-D5).
+            let hasEvidence = !responseReferences.isEmpty
+                && Self.referencesNameSubject(of: latestQuestion, in: responseReferences)
+            guard hasEvidence || !Self.requiresCorpusEvidence(latestQuestion) else {
                 let response = ModelResponse(
                     text: Self.corpusScopeAbstentionText,
                     thinkingSummary: thinkingEnabled ? [
@@ -1965,6 +2014,7 @@ private extension LiteRTAquinasModel {
         // A word that points back into the conversation ("Why was *that* council important?",
         // "Is *it* still taught?") makes the question a continuation.
         if !words(in: latestQuestion).isDisjoint(with: referringWords) { return false }
+        if latestQuestion.lowercased().contains("which one") { return false }
         // A question with no subject of its own once generic follow-up wording is removed
         // ("Can you give a concrete example?", "Explain more simply") can only be about the
         // conversation so far. Treating it as a new topic dropped all history, so the model
@@ -1984,13 +2034,16 @@ private extension LiteRTAquinasModel {
     /// Words that point back into the conversation rather than naming a subject.
     private static let referringWords: Set<String> = [
         "also", "but", "further", "more", "that", "this", "these", "those", "it", "its",
-        "they", "them", "their", "he", "him", "his", "she", "her", "why", "such", "same"
+        "they", "them", "their", "he", "him", "his", "she", "her", "why", "such", "same",
+        // "Which one governs the others?" after a list of the cardinal virtues was treated as
+        // a new topic and answered about forms of government (seal-E1).
+        "others", "ones", "former", "latter", "either", "neither", "both"
     ]
 
     /// Pronouns whose referent must come from earlier in the conversation.
     private static let pronouns: Set<String> = [
         "that", "this", "these", "those", "it", "its", "they", "them", "their", "he", "him",
-        "his", "she", "her"
+        "his", "she", "her", "others", "ones", "former", "latter", "either", "neither", "both"
     ]
 
     /// Whether a substantive word of the latest question also appears in the previous answer.
@@ -2036,6 +2089,7 @@ private extension LiteRTAquinasModel {
         previousAnswer: String?
     ) -> Bool {
         if !words(in: latestQuestion).isDisjoint(with: pronouns) { return true }
+        if latestQuestion.lowercased().contains("which one") { return true }
         let latest = topicWords(in: latestQuestion).subtracting(followUpWords)
         if latest.isEmpty { return true }
         return latest.isDisjoint(with: topicWords(in: previousQuestion))

@@ -279,6 +279,63 @@ struct LiteRTProductionRuntimeTests {
         #expect(!standalone.toString.contains("The previous question was"))
     }
 
+    @MainActor
+    @Test("A follow-up that points at earlier items keeps the conversation")
+    func itemReferenceKeepsContext() {
+        #expect(
+            !LiteRTAquinasModel.startsFreshTopic(
+                latestQuestion: "Which one governs the others?",
+                previousQuestion: "What are the cardinal virtues?",
+                previousAnswer: "The cardinal virtues are prudence, justice, fortitude, and temperance."
+            )
+        )
+    }
+
+    @Test("A source-dependent question needs a reference about what it names")
+    func evidenceMustNameTheSubject() {
+        let council = AquinasGroundingReference(
+            id: "corpus-seven-ecumenical-councils-0",
+            title: "The Seven Ecumenical Councils",
+            sourceName: "The Seven Ecumenical Councils",
+            facts: "Cardinal Baronius disputed the genuineness of this Canon, as Pope Innocent III declares.",
+            retrievalAliases: [],
+            sourceID: "seven-ecumenical-councils",
+            chunkIndex: 12
+        )
+        let summa = AquinasGroundingReference(
+            id: "corpus-summa-theologica-0",
+            title: "Summa Theologica",
+            sourceName: "Summa Theologica",
+            facts: "Question: Whether it is lawful to kill sinners? Aquinas's own answer: I answer that…",
+            retrievalAliases: [],
+            sourceID: "summa-theologica",
+            chunkIndex: 8537
+        )
+        let note = AquinasGroundingReference(
+            id: "aquinas-life",
+            title: "Thomas Aquinas: life",
+            sourceName: "Aquinas curated reference note",
+            facts: "Pope John XXII canonized him on 18 July 1323.",
+            retrievalAliases: []
+        )
+        let canonization = "Which pope canonized Aquinas, and in what year?"
+        #expect(!LiteRTAquinasModel.referencesNameSubject(of: canonization, in: [council]))
+        #expect(LiteRTAquinasModel.referencesNameSubject(of: canonization, in: [note, council]))
+        #expect(LiteRTAquinasModel.referencesNameSubject(
+            of: "According to Aquinas, is it lawful to kill sinners?",
+            in: [summa]
+        ))
+        #expect(!LiteRTAquinasModel.referencesNameSubject(
+            of: "Who wrote the Letter to the Hebrews?",
+            in: [council]
+        ))
+        // A question that names nothing is not gated.
+        #expect(LiteRTAquinasModel.referencesNameSubject(
+            of: "What year did the council meet?",
+            in: [council]
+        ))
+    }
+
     @Test("Definition evidence may name the term in the plural")
     func definitionEvidenceAllowsPlural() {
         let note = AquinasGroundingReference(

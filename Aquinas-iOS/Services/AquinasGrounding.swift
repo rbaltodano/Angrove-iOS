@@ -159,6 +159,20 @@ nonisolated struct LocalAquinasGroundingProvider: AquinasGroundingProviding {
         // article, or the sense of "transcendental", wrong. Aliases are specific phrases: a bare
         // "summa" would attach these to every question about the Summa's teaching.
         AquinasGroundingReference(
+            id: "aquinas-life",
+            title: "Thomas Aquinas: life",
+            sourceName: "Aquinas curated reference note",
+            facts: "Thomas Aquinas was born about 1225 at Roccasecca, near Aquino in southern Italy. He joined the Dominican order about 1244 and studied under Albert the Great at Paris and Cologne. He became a master of theology at Paris in 1256 and taught there in 1256–1259 and 1268–1272; he also taught at Orvieto, at Rome, and at Naples. He died on 7 March 1274 at the abbey of Fossanova, on his way to the Second Council of Lyon. Pope John XXII canonized him on 18 July 1323, and Pope Pius V declared him a Doctor of the Church in 1567.",
+            retrievalAliases: [
+                "canonized aquinas", "canonised aquinas", "aquinas canonized", "aquinas canonised",
+                "canonization of aquinas", "aquinas born", "born aquinas", "aquinas's birth",
+                "aquinas die", "aquinas died", "aquinas's death", "death of aquinas",
+                "who was aquinas", "who was thomas aquinas", "who is thomas aquinas",
+                "aquinas's life", "life of aquinas", "aquinas teach", "aquinas taught",
+                "aquinas study", "aquinas studied", "doctor of the church"
+            ]
+        ),
+        AquinasGroundingReference(
             id: "summa-theologiae-composition",
             title: "The Summa Theologiae: composition",
             sourceName: "Aquinas curated reference note",

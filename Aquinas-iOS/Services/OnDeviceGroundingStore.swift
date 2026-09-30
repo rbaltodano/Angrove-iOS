@@ -111,6 +111,22 @@ final class OnDeviceGroundingStore {
         )
     }
 
+    /// The opening chunk of the Summa article that defines `term`, if there is one.
+    func summaDefiningArticleOpening(for term: String) -> GroundingPassage? {
+        guard let start = summaArticles.definingArticleStart(for: term, in: passages) else {
+            return nil
+        }
+        let record = passages[start]
+        return GroundingPassage(
+            text: record.text,
+            title: record.title,
+            sourceID: record.sourceId,
+            distance: 0,
+            chunkIndex: record.chunkIndex,
+            corpusIndex: start
+        )
+    }
+
     /// The following article, when its question shares a subject with the one at `start`.
     func relatedNextSummaArticle(after start: Int) -> Int? {
         summaArticles.relatedNextArticle(after: start, in: passages)

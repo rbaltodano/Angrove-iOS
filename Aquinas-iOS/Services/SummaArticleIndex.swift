@@ -75,6 +75,23 @@ nonisolated struct SummaArticleIndex: Sendable {
         return starts.first { Self.question(in: passages[$0].text).lowercased().contains(phrase) }
     }
 
+    /// The article that defines `term`: "Whether justice is fittingly defined as being the
+    /// perpetual and constant will to render to each one his right?" Semantic search for "What
+    /// is justice?" returned articles on kinds of justice and never this one (seal-R1).
+    func definingArticleStart(for term: String, in passages: [LibraryPassage]) -> Int? {
+        let term = term.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !term.isEmpty else { return nil }
+        return starts.first { start in
+            let words = Self.question(in: passages[start].text)
+                .lowercased()
+                .split(whereSeparator: { !$0.isLetter })
+                .map(String.init)
+            let names = words.contains(term)
+                || words.joined(separator: " ").contains(" \(term) ")
+            return names && !Set(words).isDisjoint(with: ["defined", "definition", "defines"])
+        }
+    }
+
     /// The article that follows the one opening at `start`, when its question shares a subject
     /// word with it. Adjacent articles often carry the qualification that completes the first:
     /// I–II q.19 a.5 (an erring conscience binds) with a.6 (but error doesn't always excuse), or

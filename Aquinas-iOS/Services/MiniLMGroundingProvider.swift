@@ -178,6 +178,13 @@ nonisolated final class MiniLMGroundingProvider: AquinasGroundingProviding {
                         )
                     }
                 }
+                // A definition request goes first to the article that defines the term.
+                if let term = LiteRTAquinasModel.definitionRequestTerm(
+                       in: [.user(question, nil, [])]
+                   ),
+                   let opening = store.summaDefiningArticleOpening(for: term) {
+                    appendCorpus(opening, id: "corpus-\(opening.sourceID)-definition")
+                }
                 for route in SubjectSection.routes(in: question) {
                     guard collected.count < limit else { break }
                     if route.sourceIDs == [SummaArticleIndex.sourceID],
