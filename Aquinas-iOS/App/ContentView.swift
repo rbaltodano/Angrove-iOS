@@ -63,23 +63,9 @@ struct ContentView: View {
     @State private var requestedConversationID: UUID? = nil
     @State private var requestedTopicID: UUID? = nil
     @State private var insightConversationQuoteRequest: InsightConversationQuoteRequest? = nil
-    @State private var newConversationInsightQuoteRequest: NewConversationInsightQuoteRequest? = nil
     @State private var studyTopicTreeSelectionRequest: StudyTopicTreeSelectionRequest? = nil
-    @State private var newConversationRequest: Int = 0
-    /// Must be owned here, not as local `@State` inside `CurrentConversationView` — that view
-    /// gets torn down and recreated on every page switch, so a locally-reset "handled" counter
-    /// would forget it had already handled a request. `newConversationRequest` itself lives at
-    /// this same app-shell level and persists for the whole session; once it's been incremented
-    /// even once, a freshly-reset local counter would never match it again, causing every later
-    /// remount of the conversation page to spuriously fire `startNewConversation()` — discarding
-    /// whatever conversation had just correctly loaded, including one still mid-generation.
-    @State private var handledNewConversationRequest: Int = 0
-    @State private var pendingNewConversationQuestion: String = ""
-    @State private var pendingNewConversationEyebrow: String = ""
-    @State private var pendingNewConversationPromptContext: String = ""
-    @State private var pendingNewConversationSubtitle: String = ""
-    @State private var newConversationTopicID: UUID? = nil
-    @State private var newConversationIsStudyTopic: Bool = false
+    /// Consumed requests stay consumed when the conversation page is recreated.
+    @State private var newConversationRequests = NewConversationRequests()
     @State private var deletedConversationID: UUID? = nil
     @State private var colorSchemeOverride: ColorScheme? = nil
     @State private var requestedForkConcept: ConceptDefinition? = nil
@@ -301,7 +287,7 @@ struct ContentView: View {
                 popupState: modelTasksPopupState,
                 actionTitle: "New Conversation",
                 action: {
-                    newConversationRequest += 1
+                    newConversationRequests.submit()
                     activePage = .conversation
                 },
                 surfaceID: "home",
@@ -324,7 +310,7 @@ struct ContentView: View {
                 popupState: modelTasksPopupState,
                 actionTitle: "New Conversation",
                 action: {
-                    newConversationRequest += 1
+                    newConversationRequests.submit()
                     activePage = .conversation
                 },
                 surfaceID: "open-conversations"
@@ -613,18 +599,10 @@ struct ContentView: View {
             sideMenuCurrentTitle: $sideMenuCurrentTitle,
             sideMenuActiveConversationID: $sideMenuActiveConversationID,
             requestedConversationID: $requestedConversationID,
-            newConversationRequest: $newConversationRequest,
-            handledNewConversationRequest: $handledNewConversationRequest,
-            pendingNewConversationQuestion: $pendingNewConversationQuestion,
-            pendingNewConversationEyebrow: $pendingNewConversationEyebrow,
-            pendingNewConversationPromptContext: $pendingNewConversationPromptContext,
-            pendingNewConversationSubtitle: $pendingNewConversationSubtitle,
-            newConversationTopicID: $newConversationTopicID,
-            newConversationIsStudyTopic: $newConversationIsStudyTopic,
+            newConversationRequests: newConversationRequests,
             deletedConversationID: $deletedConversationID,
             requestedForkConcept: $requestedForkConcept,
             insightConversationQuoteRequest: $insightConversationQuoteRequest,
-            newConversationInsightQuoteRequest: $newConversationInsightQuoteRequest,
             conversationNodeFocusRequest: $conversationNodeFocusRequest,
             conversationFontSize: conversationFontSize,
             conversationTextAlignment: conversationTextAlignment,
@@ -650,7 +628,7 @@ struct ContentView: View {
             selectedPersonality: conversationPersonality.displayName,
             isPresented: isGlobalSideMenuOpen,
             renderVersion: sideMenuRenderVersion,
-            onNewChat: { dismissGlobalSideMenu { newConversationRequest += 1; activePage = .conversation } },
+            onNewChat: { dismissGlobalSideMenu { newConversationRequests.submit(); activePage = .conversation } },
             onSelectConversation: { conversation in dismissGlobalSideMenu { requestedConversationID = conversation.id; activePage = .conversation } },
             onRenameConversation: { conversation, title in renameConversation(conversation, to: title) },
             onPinConversation: { pinConversation($0) },
@@ -756,11 +734,11 @@ struct ContentView: View {
                                         activePage = .conversation
                                     },
                                     onStartQuestion: { dailyQuestion in
-                                        pendingNewConversationQuestion = dailyQuestion.question
-                                        pendingNewConversationEyebrow = "QUESTION OF THE DAY"
-                                        pendingNewConversationPromptContext =
-                                            dailyQuestion.taggedPromptContext
-                                        newConversationRequest += 1
+                                        newConversationRequests.submit(NewConversationRequest(
+                                            question: dailyQuestion.question,
+                                            eyebrow: "QUESTION OF THE DAY",
+                                            promptContext: dailyQuestion.taggedPromptContext
+                                        ))
                                         activePage = .conversation
                                     },
                                     onOpenInsightBridge: { firstID, secondID in
@@ -778,11 +756,12 @@ struct ContentView: View {
                                         activePage = .conversation
                                     },
                                     onStartTodayInHistory: { card in
-                                        pendingNewConversationQuestion = card.title
-                                        pendingNewConversationEyebrow = "TODAY IN HISTORY"
-                                        pendingNewConversationPromptContext = card.taggedPromptContext
-                                        pendingNewConversationSubtitle = card.description
-                                        newConversationRequest += 1
+                                        newConversationRequests.submit(NewConversationRequest(
+                                            question: card.title,
+                                            eyebrow: "TODAY IN HISTORY",
+                                            promptContext: card.taggedPromptContext,
+                                            subtitle: card.description
+                                        ))
                                         activePage = .conversation
                                     },
                                     onRefresh: refreshPersistedContent,
@@ -808,7 +787,7 @@ struct ContentView: View {
                                         activePage = .conversation
                                     },
                                     onNewChat: {
-                                        newConversationRequest += 1
+                                        newConversationRequests.submit()
                                         activePage = .conversation
                                     },
                                     onRenameConversation: { conversation, title in
@@ -861,22 +840,18 @@ struct ContentView: View {
                                         activePage = .conversation
                                     },
                                     onNewChat: {
-                                        newConversationRequest += 1
+                                        newConversationRequests.submit()
                                         activePage = .conversation
                                     },
                                     onNewChatInTopic: { topicID in
-                                        newConversationTopicID = topicID
-                                        newConversationRequest += 1
+                                        newConversationRequests.submit(NewConversationRequest(topicID: topicID))
                                         activePage = .conversation
                                     },
                                     onQuoteInsightIntoNewConversation: { insight, topicID in
-                                        newConversationTopicID = topicID
-                                        newConversationInsightQuoteRequest =
-                                            NewConversationInsightQuoteRequest(
-                                                insight: insight,
-                                                topicID: topicID
-                                            )
-                                        newConversationRequest += 1
+                                        newConversationRequests.submit(NewConversationRequest(
+                                            topicID: topicID,
+                                            quote: NewConversationInsightQuoteRequest(insight: insight, topicID: topicID)
+                                        ))
                                         activePage = .conversation
                                     },
                                     onQuoteInsightIntoConversation: { conversation, insight, topicID in
@@ -1430,7 +1405,7 @@ struct ContentView: View {
             requestedConversationID = conversationID
             activePage = .conversation
         case .newConversation:
-            newConversationRequest += 1
+            newConversationRequests.submit()
             activePage = .conversation
         }
     }
@@ -1490,8 +1465,9 @@ struct ContentView: View {
     private func askGlobalInsightInNewConversation() {
         guard let insight = globalInsightQuoteTarget else { return }
         isGlobalInsightAskMode = false
-        newConversationInsightQuoteRequest = NewConversationInsightQuoteRequest(insight: insight)
-        newConversationRequest += 1
+        newConversationRequests.submit(NewConversationRequest(
+            quote: NewConversationInsightQuoteRequest(insight: insight)
+        ))
         activePage = .conversation
     }
 

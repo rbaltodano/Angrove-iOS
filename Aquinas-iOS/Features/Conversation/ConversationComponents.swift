@@ -1367,7 +1367,7 @@ struct ChatThreadColumn: View {
                                 isAwaitingResponse: isResponsePending(at: index, text: textContent),
                                 isReceivingStream: streamingResponseIndices.contains(index),
                                 isQueuedForModel: isResponseQueued(at: index),
-                                usesNetworkStream: false,
+                                usesIncrementalStream: false,
                                 thinkingSummary: responseThinkingSummary(at: index),
                                 groundingSources: responseGroundingSources(at: index),
                                 evidenceBasis: responseEvidenceBasis(at: index),
@@ -1813,7 +1813,7 @@ struct TrackedResponseCard: View {
     let isAwaitingResponse: Bool
     let isReceivingStream: Bool
     let isQueuedForModel: Bool
-    let usesNetworkStream: Bool
+    let usesIncrementalStream: Bool
     let thinkingSummary: [String]
     let groundingSources: [GroundingSourceSummary]
     let evidenceBasis: ResponseEvidenceBasis?
@@ -1862,7 +1862,7 @@ struct TrackedResponseCard: View {
             isAwaitingResponse: isAwaitingResponse,
             isReceivingStream: isReceivingStream,
             isQueuedForModel: isQueuedForModel,
-            usesNetworkStream: usesNetworkStream,
+            usesIncrementalStream: usesIncrementalStream,
             thinkingSummary: thinkingSummary,
             groundingSources: groundingSources,
             evidenceBasis: evidenceBasis,

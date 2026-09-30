@@ -99,46 +99,16 @@ struct InsightTreeCanvasView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var cameraState = InsightTreeCanvasCameraState()
-    @State private var selectedEdgeID: UUID?
+    @State private var revealState = InsightTreeRevealState()
+    @State private var selectionState = InsightTreeSelectionState()
     @State private var rippleTrigger:      RippleTrigger? = nil
-    @State private var selectionRipples:   [RippleTrigger] = []
     @State private var hasAppeared:        Bool = false
-    @State private var revealedInsightIDs: Set<UUID> = []
-    /// Connector lines for newly inserted Insights are intentionally staged after the chip
-    /// reveal. Existing lines are seeded here immediately; new lines are added by the entrance
-    /// sequence once the Insight's own animation has completed.
-    @State private var revealedInsightConnectorIDs: Set<UUID> = []
-    /// Connectors of newly revealed Insights, which grow out of their Node Concept as they appear.
-    @State private var growingConnectorIDs: Set<UUID> = []
-    @State private var revealedGraphEdgeIDs: Set<String> = []
-    @State private var animatedGraphEdgeIDs: Set<String> = []
-    @State private var revealedNodeIDs: Set<UUID> = []
-    /// Stable topology baselines for live (non-persisted) trees. Reveal state is deliberately
-    /// separate: an Insight can already belong to the tree while remaining hidden during its
-    /// camera/reveal sequence, so using `revealedInsightIDs` to detect additions can replay an
-    /// entrance whenever an unrelated node update arrives mid-animation.
-    @State private var observedLiveInsightIDs: Set<UUID> = []
-    @State private var observedLiveNodeIDs: Set<UUID> = []
     /// Insights the user hasn't opened yet — they show a red "new" dot until first hovered.
     @State private var undiscoveredInsightIDs: Set<UUID> = []
     /// New Node Concepts keep their own discovery state and clear it when first opened.
     @State private var undiscoveredNodeIDs: Set<UUID> = []
-    @State private var entranceTask:       Task<Void, Never>? = nil
-    @State private var midpointRevealTask: Task<Void, Never>? = nil
-    @State private var midpointLoadingStartedAt: [UUID: TimeInterval] = [:]
-    @State private var makeNodeRevealTask: Task<Void, Never>? = nil
-    @State private var makeNodeLoadingStartedAt: TimeInterval?
-    @State private var pendingMakeNodeChildren: [PendingMakeNodeChild] = []
-    /// Baseline for detecting Insights and Node Concepts added by a persisted tree mutation.
-    @State private var confirmedPersistedInsightIDs: Set<UUID> = []
-    @State private var confirmedPersistedNodeIDs: Set<UUID> = []
     @State private var pulseCycleStartedAt = Date().timeIntervalSinceReferenceDate
     @State private var connectorPulseDelayUntil = Date().timeIntervalSinceReferenceDate
-    @State private var selectionPulseStartTime: TimeInterval?
-    @State private var selectionFlashOpacity: CGFloat = 1
-    @State private var loadingInsightIDs: Set<UUID> = []
-    @State private var loadingFlashOpacity: CGFloat = 1
-    @State private var unsplayedInsightIDs: Set<UUID> = []
     @State private var midpointHandleWorld: CGPoint?
     @State private var midpointHandleVisible: Bool = false
     @State private var dragStartHandleWorld: CGPoint?
@@ -147,10 +117,6 @@ struct InsightTreeCanvasView: View {
     /// stops chasing the generating insight and the user can look around freely.
     @GestureState private var dragOffset:  CGSize = .zero
 
-    private struct PendingMakeNodeChild: Equatable {
-        let id: UUID
-        let orbitIndex: Int
-    }
 
     /// The narrow slice of node state that actually changes graph geometry.
     /// Labels, definitions, embeddings, and refreshed snapshots with identical membership
@@ -364,7 +330,7 @@ struct InsightTreeCanvasView: View {
 
     private func itemFlashOpacity(selected: Bool) -> Double {
         guard insightsFlashing, !selected else { return 1 }
-        return Double(selectionFlashOpacity)
+        return Double(selectionState.selectionFlashOpacity)
     }
 
     private var insightTreeInsightColor: Color {
@@ -406,7 +372,7 @@ struct InsightTreeCanvasView: View {
                     settledOffset: cameraState.offset,
                     settledScale:  activeScale,
                     dragOffset:    dragOffset,
-                    ripples:       (rippleTrigger.map { [$0] } ?? []) + selectionRipples
+                    ripples:       (rippleTrigger.map { [$0] } ?? []) + selectionState.selectionRipples
                 )
                 // Keep the grid's Canvas in the exact same coordinate frame as the graph.
                 // Expanding it independently into the safe area shifts ripple origins away
@@ -446,7 +412,7 @@ struct InsightTreeCanvasView: View {
                         let visibleInsights = layout.insightsByNode[node.id] ?? []
                         // Placed-midpoint nodes render as just their insight chip — no concept circle.
                         if !placedMidpointNodeIDs.contains(node.id),
-                           revealedNodeIDs.contains(node.id) {
+                           revealState.revealedNodeIDs.contains(node.id) {
                             nodeGroup(node, camera: camera, size: size, labelOpacity: nodeLabelOpacity)
                                 .opacity(itemFlashOpacity(selected: selectedCanvasTargets.contains(.node(node.id))))
                                 .opacity(studyOpacity(forNodeID: node.id))
@@ -492,7 +458,7 @@ struct InsightTreeCanvasView: View {
             .simultaneousGesture(studyPinchGesture, including: studyReady ? .all : .none)
             .onTapGesture {
                 guard !isInStudy else { return }
-                selectedEdgeID = nil
+                selectionState.selectedEdgeID = nil
                 cameraState.userMovedSincePlacement = true
             }
             .onChange(of: studyToolRequestTool) { _, _ in
@@ -554,24 +520,24 @@ struct InsightTreeCanvasView: View {
                 reconcileBodies()   // seed live physics bodies + start the tick
                 undiscoveredInsightIDs = loadUndiscoveredInsightIDs()
                 undiscoveredNodeIDs = loadUndiscoveredNodeIDs()
-                revealedNodeIDs = Set(nodes.map(\.id))
-                revealedGraphEdgeIDs = Set(displayGraphEdges().map(\.id))
-                observedLiveInsightIDs = visibleInsightIDs(in: nodes)
-                observedLiveNodeIDs = Set(nodes.map(\.id))
+                revealState.revealedNodeIDs = Set(nodes.map(\.id))
+                revealState.revealedGraphEdgeIDs = Set(displayGraphEdges().map(\.id))
+                revealState.observedLiveInsightIDs = visibleInsightIDs(in: nodes)
+                revealState.observedLiveNodeIDs = Set(nodes.map(\.id))
                 if defersEntranceUntilPersistedTree {
                     // Show the in-memory tree without moving the camera or marking it as the
                     // baseline. The completed seeded load will do both.
-                    revealedInsightIDs = visibleInsightIDs(in: nodes)
-                    revealedInsightConnectorIDs = visibleInsightIDs(in: nodes)
-                    revealedGraphEdgeIDs = Set(displayGraphEdges().map(\.id))
+                    revealState.revealedInsightIDs = visibleInsightIDs(in: nodes)
+                    revealState.revealedInsightConnectorIDs = visibleInsightIDs(in: nodes)
+                    revealState.revealedGraphEdgeIDs = Set(displayGraphEdges().map(\.id))
                     reportUndiscoveredInsightCount()
                 } else {
                     let newInsights = computeNewInsights()
-                    revealedInsightConnectorIDs.subtract(Set(newInsights.map(\.id)))
+                    revealState.revealedInsightConnectorIDs.subtract(Set(newInsights.map(\.id)))
                     markUndiscovered(newInsights.map(\.id))   // new since last open → red dot
                     reportUndiscoveredInsightCount()
                     saveAllInsightIDsAsSeen()
-                    entranceTask = Task {
+                    revealState.entranceTask = Task {
                         await runEntranceSequence(newInsights: newInsights, in: size)
                     }
                 }
@@ -588,16 +554,16 @@ struct InsightTreeCanvasView: View {
             }
             .onChange(of: selectionPulseRequest) { _, newValue in
                 guard newValue > 0 else { return }
-                selectionPulseStartTime = Date().timeIntervalSinceReferenceDate
+                selectionState.selectionPulseStartTime = Date().timeIntervalSinceReferenceDate
             }
             .onChange(of: insightsFlashing) { _, flashing in
                 if flashing {
-                    selectionFlashOpacity = 1
+                    selectionState.selectionFlashOpacity = 1
                     withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) {
-                        selectionFlashOpacity = 0.25
+                        selectionState.selectionFlashOpacity = 0.25
                     }
                 } else {
-                    withAnimation(.easeInOut(duration: 0.2)) { selectionFlashOpacity = 1 }
+                    withAnimation(.easeInOut(duration: 0.2)) { selectionState.selectionFlashOpacity = 1 }
                 }
             }
             .onChange(of: physicsTopologySignature) { _, _ in
@@ -622,13 +588,13 @@ struct InsightTreeCanvasView: View {
                 guard hasAppeared else { return }
                 let currentInsightIDs = visibleInsightIDs(in: newNodes)
                 let currentNodeIDs = Set(newNodes.map(\.id))
-                let addedLiveInsightIDs = currentInsightIDs.subtracting(observedLiveInsightIDs)
-                let addedLiveNodeIDs = currentNodeIDs.subtracting(observedLiveNodeIDs)
+                let addedLiveInsightIDs = currentInsightIDs.subtracting(revealState.observedLiveInsightIDs)
+                let addedLiveNodeIDs = currentNodeIDs.subtracting(revealState.observedLiveNodeIDs)
                 if !defersEntranceUntilPersistedTree {
-                    observedLiveInsightIDs = currentInsightIDs
-                    observedLiveNodeIDs = currentNodeIDs
+                    revealState.observedLiveInsightIDs = currentInsightIDs
+                    revealState.observedLiveNodeIDs = currentNodeIDs
                 }
-                let known = revealedInsightIDs.union(loadingInsightIDs)
+                let known = revealState.revealedInsightIDs.union(revealState.loadingInsightIDs)
                 var newOnes: [(id: UUID, orbitIndex: Int)] = []
                 var plainNewInsights: [InsightModel] = []
                 var placedMidpointID: UUID? = nil
@@ -651,12 +617,12 @@ struct InsightTreeCanvasView: View {
                 // persisted tree updates. Waiting one layout beat lets their simulated positions
                 // settle before the camera pans to them.
                 if !plainNewInsights.isEmpty && !defersEntranceUntilPersistedTree {
-                    entranceTask?.cancel()
+                    revealState.entranceTask?.cancel()
                     let plainNewIDs = Set(plainNewInsights.map(\.id))
                     markUndiscovered(Array(plainNewIDs))
                     markNodesUndiscovered(Array(addedLiveNodeIDs))
                     reportUndiscoveredInsightCount()
-                    entranceTask = Task {
+                    revealState.entranceTask = Task {
                         await Task.yield()
                         try? await Task.sleep(for: .milliseconds(50))
                         guard !Task.isCancelled else { return }
@@ -672,7 +638,7 @@ struct InsightTreeCanvasView: View {
                     // Make Node and other node-only additions own their Insight animation below,
                     // but their parent concept still needs to become visible immediately.
                     withAnimation(.easeOut(duration: 0.22)) {
-                        revealedNodeIDs.formUnion(addedLiveNodeIDs)
+                        revealState.revealedNodeIDs.formUnion(addedLiveNodeIDs)
                     }
                 }
 
@@ -693,13 +659,13 @@ struct InsightTreeCanvasView: View {
     /// Loading, midpoint, and pulse observers, split out of `body` like `canvasLifecycleObservers`.
     private func canvasRequestObservers<Content: View>(_ content: Content, size: CGSize) -> some View {
         content
-            .onChange(of: loadingInsightIDs.isEmpty) { _, empty in
+            .onChange(of: revealState.loadingInsightIDs.isEmpty) { _, empty in
                 if empty {
-                    loadingFlashOpacity = 1
+                    revealState.loadingFlashOpacity = 1
                 } else {
-                    loadingFlashOpacity = 1
+                    revealState.loadingFlashOpacity = 1
                     withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
-                        loadingFlashOpacity = 0.35
+                        revealState.loadingFlashOpacity = 0.35
                     }
                 }
             }
@@ -761,10 +727,8 @@ struct InsightTreeCanvasView: View {
                 }
             }
             .onDisappear {
-                entranceTask?.cancel()
-                midpointRevealTask?.cancel()
-                makeNodeRevealTask?.cancel()
-                if !pendingMakeNodeChildren.isEmpty {
+                revealState.cancelPendingAnimations()
+                if !revealState.pendingMakeNodeChildren.isEmpty {
                     onGeneratingChange(false)
                 }
                 persistLivePositions()
@@ -777,13 +741,13 @@ struct InsightTreeCanvasView: View {
                     let positions = selectedWorldPositions()
                     if !positions.isEmpty {
                         let now = Date().timeIntervalSinceReferenceDate
-                        selectionRipples = positions.map { RippleTrigger(worldOrigin: $0, startTime: now) }
+                        selectionState.selectionRipples = positions.map { RippleTrigger(worldOrigin: $0, startTime: now) }
                     }
                     try? await Task.sleep(nanoseconds: 1_200_000_000)
                 }
             }
             .onChange(of: selectionRippleKey) { _, key in
-                if key == nil { selectionRipples = [] }
+                if key == nil { selectionState.selectionRipples = [] }
             }
             .task(id: pulseSourceKey) {
                 guard pulseSourceKey != nil else { return }
@@ -1143,14 +1107,14 @@ struct InsightTreeCanvasView: View {
     private func graphEdges(camera: InsightTreeCamera, size: CGSize) -> some View {
         let hasSelection = !selectedCanvasTargets.isEmpty
         ForEach(displayGraphEdges()) { edge in
-            if revealedGraphEdgeIDs.contains(edge.id),
+            if revealState.revealedGraphEdgeIDs.contains(edge.id),
                let from = simPosition(of: edge.fromNodeID),
                let to = simPosition(of: edge.toNodeID) {
                 let start = camera.worldToScreen(from, in: size)
                 let end = camera.worldToScreen(to, in: size)
 
                 Group {
-                    if animatedGraphEdgeIDs.contains(edge.id) {
+                    if revealState.animatedGraphEdgeIDs.contains(edge.id) {
                         InsightConnectorLine(
                             start: start,
                             end: end,
@@ -1230,7 +1194,7 @@ struct InsightTreeCanvasView: View {
         ForEach(connectorNodes, id: \.id) { node in
             let visibleInsights = layout.insightsByNode[node.id] ?? []
             ForEach(visibleInsights) { insight in
-                if revealedInsightConnectorIDs.contains(insight.id),
+                if revealState.revealedInsightConnectorIDs.contains(insight.id),
                    let placement = layout.placements[insight.id] {
                     let start = camera.worldToScreen(node.position, in: size)
                     let end = insightScreenPosition(placement, camera: camera, size: size)
@@ -1244,7 +1208,7 @@ struct InsightTreeCanvasView: View {
                         color: AquinasTheme.Colors.divider.opacity(
                             baseOpacity * (hasSelection ? 0.5 : 1.0) * studyOpacity(forNodeID: node.id)
                         ),
-                        grows: growingConnectorIDs.contains(insight.id)
+                        grows: revealState.growingConnectorIDs.contains(insight.id)
                     )
                         .frame(width: size.width, height: size.height)
                         .allowsHitTesting(false)
@@ -1257,14 +1221,12 @@ struct InsightTreeCanvasView: View {
 
     /// Reveals new Insights' connectors, growing each out of its Node Concept.
     private func growConnectors(_ insightIDs: Set<UUID>) {
-        let fresh = insightIDs.subtracting(revealedInsightConnectorIDs)
-        growingConnectorIDs.formUnion(fresh)
-        revealedInsightConnectorIDs.formUnion(insightIDs)
+        let fresh = revealState.beginConnectorGrowth(insightIDs)
         guard !fresh.isEmpty else { return }
         Task { @MainActor in
             // Past the grow, so a connector redrawn later appears whole.
             try? await Task.sleep(for: .milliseconds(800))
-            growingConnectorIDs.subtract(fresh)
+            revealState.growingConnectorIDs.subtract(fresh)
         }
     }
 
@@ -1339,7 +1301,7 @@ struct InsightTreeCanvasView: View {
 
             ZStack {
                 ForEach(lines) { line in
-                    travelingPulseLine(start: line.start, end: line.end, progress: pulseProgress, lineWidth: line.lineWidth)
+                    TravelingCanvasPulse(start: line.start, end: line.end, progress: pulseProgress, lineWidth: line.lineWidth)
                         .frame(width: size.width, height: size.height)
                 }
             }
@@ -1355,113 +1317,21 @@ struct InsightTreeCanvasView: View {
         studySelectionCenter == nil ? 0 : studyProgress
     }
 
-    @ViewBuilder
     private func selectionOverlay(
         layout: CanvasInsightLayout,
         camera: InsightTreeCamera,
         size: CGSize,
         restFade: Double
     ) -> some View {
-        let studied = selectionStudyAmount
-        // Selection lines end where each target is drawn, including an Insight's elevation and
-        // perspective, rather than at its bare world point.
-        let screenPosition = { (target: CanvasSelectionTarget) in
-            selectionScreenPosition(for: target, layout: layout, camera: camera, size: size)
-        }
-        if !isMidpointMode,
-           let activeTarget = selectedCanvasTargets.last,
-           let activePosition = screenPosition(activeTarget) {
-            let center = focusAnchor(in: size)
-
-            ZStack {
-                ForEach(Array(selectedCanvasTargets.indices.dropFirst()), id: \.self) { index in
-                    if let previousPosition = screenPosition(selectedCanvasTargets[index - 1]),
-                       let currentPosition = screenPosition(selectedCanvasTargets[index]) {
-                        AnimatableLine(start: previousPosition, end: currentPosition)
-                        .stroke(
-                            AquinasTheme.Colors.lightGreen.opacity(0.8 + 0.2 * studied),
-                            style: StrokeStyle(lineWidth: 1.5 + 0.5 * CGFloat(studied), lineCap: .round)
-                        )
-                        .frame(width: size.width, height: size.height)
-                        .opacity(max(restFade, studied))
-                    }
-                }
-
-                Group {
-                    AnimatableLine(start: activePosition, end: center)
-                        .stroke(
-                            AquinasTheme.Colors.lightGreen.opacity(0.8),
-                            style: StrokeStyle(lineWidth: 1.5, lineCap: .round)
-                        )
-                        .frame(width: size.width, height: size.height)
-
-                    SelectionReticle()
-                        .position(center)
-                }
-                .opacity(restFade)
-
-                if let selectionPulseStartTime,
-                   selectedCanvasTargets.count > 1,
-                   let previousTarget = selectedCanvasTargets.dropLast().last,
-                   let previousPosition = screenPosition(previousTarget) {
-                    TimelineView(.animation) { timeline in
-                        let progress = min(max((timeline.date.timeIntervalSinceReferenceDate - selectionPulseStartTime) / 0.8, 0), 1)
-                        if progress < 1 {
-                            travelingPulseLine(start: previousPosition, end: activePosition, progress: progress, lineWidth: 2.4)
-                                .frame(width: size.width, height: size.height)
-                                .opacity(restFade)
-                        }
-                    }
-                }
-
-                // Fast repeating green pulses along all selection lines
-                TimelineView(.animation) { fastTimeline in
-                    let fastCycle = 0.55
-                    let fastProgress = fastTimeline.date.timeIntervalSinceReferenceDate
-                        .truncatingRemainder(dividingBy: fastCycle) / fastCycle
-                    let segWidth = 0.38
-                    let segStart = max(0, fastProgress - segWidth)
-                    let segEnd = min(fastProgress, 1)
-
-                    ZStack {
-                        // Pulses between each pair of selected targets
-                        ForEach(Array(selectedCanvasTargets.indices.dropFirst()), id: \.self) { index in
-                            if let previousPosition = screenPosition(selectedCanvasTargets[index - 1]),
-                               let currentPosition = screenPosition(selectedCanvasTargets[index]),
-                               segEnd > segStart {
-                                pulseSegment(
-                                    start: previousPosition,
-                                    end: currentPosition,
-                                    from: segStart, to: segEnd,
-                                    lineWidth: 4,
-                                    color: AquinasTheme.Colors.lightGreen,
-                                    opacity: 0.9
-                                )
-                                .frame(width: size.width, height: size.height)
-                            }
-                        }
-
-                        // Pulse from most recent selection to center circle
-                        if segEnd > segStart {
-                            pulseSegment(
-                                start: activePosition,
-                                end: center,
-                                from: segStart, to: segEnd,
-                                lineWidth: 4,
-                                color: AquinasTheme.Colors.lightGreen,
-                                opacity: 0.9
-                            )
-                            .frame(width: size.width, height: size.height)
-                        }
-                    }
-                    .frame(width: size.width, height: size.height)
-                }
-                .frame(width: size.width, height: size.height)
-                // The pulses stop as the lines solidify in Study.
-                .opacity(restFade)
-            }
-            .allowsHitTesting(false)
-        }
+        InsightTreeSelectionOverlay(
+            positions: selectedCanvasTargets.map {
+                selectionScreenPosition(for: $0, layout: layout, camera: camera, size: size)
+            },
+            isMidpointMode: isMidpointMode,
+            center: focusAnchor(in: size), size: size, restFade: restFade,
+            studyAmount: selectionStudyAmount,
+            selectionPulseStartTime: selectionState.selectionPulseStartTime
+        )
     }
 
     /// Node targets keep their existing unshifted camera position; Insight targets use the
@@ -1476,60 +1346,6 @@ struct InsightTreeCanvasView: View {
             return insightScreenPosition(placement, camera: camera, size: size)
         }
         return worldPosition(for: target).map { camera.worldToScreen($0, in: size) }
-    }
-
-    @ViewBuilder
-    private func travelingPulseLine(
-        start: CGPoint,
-        end: CGPoint,
-        progress: Double,
-        lineWidth: CGFloat
-    ) -> some View {
-        let segmentWidth = 0.22
-        let segmentStart = max(0, progress - segmentWidth)
-        let segmentEnd = min(progress, 1)
-
-        if segmentEnd > segmentStart {
-            pulseSegment(start: start, end: end, from: segmentStart, to: segmentEnd, lineWidth: lineWidth)
-        }
-    }
-
-    private func pulseSegment(
-        start: CGPoint,
-        end: CGPoint,
-        from segmentStart: Double,
-        to segmentEnd: Double,
-        lineWidth: CGFloat,
-        color: Color = AquinasTheme.Colors.pulse,
-        opacity: Double = 0.5
-    ) -> some View {
-        let dx = end.x - start.x
-        let dy = end.y - start.y
-        let distance = hypot(dx, dy)
-        let centerProgress = (segmentStart + segmentEnd) / 2
-        let segmentLength = max(distance * CGFloat(segmentEnd - segmentStart), 1)
-        let center = CGPoint(
-            x: start.x + dx * CGFloat(centerProgress),
-            y: start.y + dy * CGFloat(centerProgress)
-        )
-        let angle = Angle(radians: Double(atan2(dy, dx)))
-
-        return Capsule()
-            .fill(
-                LinearGradient(
-                    stops: [
-                        Gradient.Stop(color: color.opacity(0), location: 0.00),
-                        Gradient.Stop(color: color, location: 0.50),
-                        Gradient.Stop(color: color.opacity(0), location: 1.00)
-                    ],
-                    startPoint: UnitPoint(x: 0, y: 0.5),
-                    endPoint: UnitPoint(x: 1, y: 0.5)
-                )
-            )
-            .frame(width: segmentLength, height: lineWidth)
-            .rotationEffect(angle)
-            .opacity(opacity)
-            .position(center)
     }
 
     private func connectorPulseProgress(at date: Date) -> Double {
@@ -1602,18 +1418,18 @@ struct InsightTreeCanvasView: View {
         in newNodes: [NodeModel],
         size: CGSize
     ) {
-        guard pendingMakeNodeChildren.isEmpty else { return }
+        guard revealState.pendingMakeNodeChildren.isEmpty else { return }
         let pending = children
             .sorted { $0.orbitIndex < $1.orbitIndex }
             .map {
-                PendingMakeNodeChild(id: $0.id, orbitIndex: $0.orbitIndex)
+                InsightTreeRevealState.PendingMakeNodeChild(id: $0.id, orbitIndex: $0.orbitIndex)
             }
-        pendingMakeNodeChildren = pending
-        makeNodeLoadingStartedAt = Date().timeIntervalSinceReferenceDate
+        revealState.pendingMakeNodeChildren = pending
+        revealState.makeNodeLoadingStartedAt = Date().timeIntervalSinceReferenceDate
 
         for child in pending {
-            loadingInsightIDs.insert(child.id)
-            unsplayedInsightIDs.insert(child.id)
+            revealState.loadingInsightIDs.insert(child.id)
+            revealState.unsplayedInsightIDs.insert(child.id)
         }
         onGeneratingChange(true)
         markUndiscovered(pending.map(\.id))
@@ -1646,7 +1462,7 @@ struct InsightTreeCanvasView: View {
                 try? await Task.sleep(for: .seconds(delay))
                 await MainActor.run {
                     withAnimation(.springBouncy) {
-                        _ = unsplayedInsightIDs.remove(child.id)
+                        _ = revealState.unsplayedInsightIDs.remove(child.id)
                     }
                 }
             }
@@ -1660,17 +1476,17 @@ struct InsightTreeCanvasView: View {
     /// Starts the existing three-stop camera tour only when all child titles and definitions have
     /// replaced their loading content. The former 3.5-second simulated dwell remains a minimum.
     private func scheduleMakeNodeRevealIfReady(in size: CGSize) {
-        guard !pendingMakeNodeChildren.isEmpty, makeNodeRevealTask == nil else { return }
-        let childIDs = Set(pendingMakeNodeChildren.map(\.id))
+        guard !revealState.pendingMakeNodeChildren.isEmpty, revealState.makeNodeRevealTask == nil else { return }
+        let childIDs = Set(revealState.pendingMakeNodeChildren.map(\.id))
         guard childIDs.isSubset(of: generatedMakeNodeChildIDs) else { return }
 
-        let children = pendingMakeNodeChildren
-        let startedAt = makeNodeLoadingStartedAt
+        let children = revealState.pendingMakeNodeChildren
+        let startedAt = revealState.makeNodeLoadingStartedAt
             ?? Date().timeIntervalSinceReferenceDate
         let elapsed = Date().timeIntervalSinceReferenceDate - startedAt
         let remainingDelay = max(3.5 - elapsed, 0)
 
-        makeNodeRevealTask = Task {
+        revealState.makeNodeRevealTask = Task {
             try? await Task.sleep(for: .seconds(remainingDelay))
             guard !Task.isCancelled else { return }
             for (index, child) in children.enumerated() {
@@ -1700,17 +1516,17 @@ struct InsightTreeCanvasView: View {
                     playGeneratedHaptics()
                     onMakeNodeChildRevealed(child.id)
                     withAnimation(.easeOut(duration: 0.32)) {
-                        loadingInsightIDs.remove(child.id)
-                        revealedInsightIDs.insert(child.id)
+                        revealState.loadingInsightIDs.remove(child.id)
+                        revealState.revealedInsightIDs.insert(child.id)
                     }
                 }
                 try? await Task.sleep(for: .milliseconds(700))
             }
             guard !Task.isCancelled else { return }
             await MainActor.run {
-                pendingMakeNodeChildren = []
-                makeNodeLoadingStartedAt = nil
-                makeNodeRevealTask = nil
+                revealState.pendingMakeNodeChildren = []
+                revealState.makeNodeLoadingStartedAt = nil
+                revealState.makeNodeRevealTask = nil
                 onGeneratingChange(false)
             }
         }
@@ -1719,9 +1535,9 @@ struct InsightTreeCanvasView: View {
     /// Starts the existing loading presentation as soon as the placed identity enters the tree.
     /// Generation completion is signaled separately, so a slow model never reveals blank text.
     private func beginMidpointLoading(_ insightID: UUID, in size: CGSize) {
-        guard midpointLoadingStartedAt[insightID] == nil else { return }
-        midpointLoadingStartedAt[insightID] = Date().timeIntervalSinceReferenceDate
-        loadingInsightIDs.insert(insightID)
+        guard revealState.midpointLoadingStartedAt[insightID] == nil else { return }
+        revealState.midpointLoadingStartedAt[insightID] = Date().timeIntervalSinceReferenceDate
+        revealState.loadingInsightIDs.insert(insightID)
         cameraState.userMovedSincePlacement = false
         markUndiscovered([insightID])
         if let position = worldPosition(forInsightID: insightID) {
@@ -1733,13 +1549,13 @@ struct InsightTreeCanvasView: View {
     /// generation takes longer. The generated title and definition are already in `nodes`.
     private func scheduleMidpointReveal(_ insightID: UUID, in size: CGSize) {
         beginMidpointLoading(insightID, in: size)
-        let startedAt = midpointLoadingStartedAt[insightID]
+        let startedAt = revealState.midpointLoadingStartedAt[insightID]
             ?? Date().timeIntervalSinceReferenceDate
         let elapsed = Date().timeIntervalSinceReferenceDate - startedAt
         let remainingDelay = max(3.5 - elapsed, 0)
 
-        midpointRevealTask?.cancel()
-        midpointRevealTask = Task {
+        revealState.midpointRevealTask?.cancel()
+        revealState.midpointRevealTask = Task {
             try? await Task.sleep(for: .seconds(remainingDelay))
             guard !Task.isCancelled else { return }
             await MainActor.run {
@@ -1756,10 +1572,10 @@ struct InsightTreeCanvasView: View {
                     playGeneratedHaptics()
                 }
                 withAnimation(.easeOut(duration: 0.32)) {
-                    loadingInsightIDs.remove(insightID)
-                    revealedInsightIDs.insert(insightID)
+                    revealState.loadingInsightIDs.remove(insightID)
+                    revealState.revealedInsightIDs.insert(insightID)
                 }
-                midpointLoadingStartedAt[insightID] = nil
+                revealState.midpointLoadingStartedAt[insightID] = nil
             }
             try? await Task.sleep(for: .milliseconds(650))
             guard !Task.isCancelled else { return }
@@ -2051,15 +1867,15 @@ struct InsightTreeCanvasView: View {
 
                 Button {
                     guard canAcceptTap else { return }
-                    if selectedEdgeID == edge.id {
-                        selectedEdgeID = nil
+                    if selectionState.selectedEdgeID == edge.id {
+                        selectionState.selectedEdgeID = nil
                         onSuggestConnection(edge)
                     } else {
-                        selectedEdgeID = edge.id
+                        selectionState.selectedEdgeID = edge.id
                     }
                 } label: {
                     ZStack {
-                        if selectedEdgeID == edge.id {
+                        if selectionState.selectedEdgeID == edge.id {
                             Text("Suggest Connection")
                                 .font(.figtreeHeading3)
                                 .foregroundStyle(AquinasTheme.Colors.primaryReadable)
@@ -2202,14 +2018,14 @@ struct InsightTreeCanvasView: View {
         // Placed-midpoint insights are pinned at the node position itself (no orbit).
         let isPinnedAtNode = placement.isPinnedAtNode
         let worldPosition = placement.world
-        let isRevealed    = revealedInsightIDs.contains(insight.id)
-        let isLoading     = loadingInsightIDs.contains(insight.id)
+        let isRevealed    = revealState.revealedInsightIDs.contains(insight.id)
+        let isLoading     = revealState.loadingInsightIDs.contains(insight.id)
         let isSelected    = selectedCanvasTargets.contains(.insight(insight.id))
         // Pinned (placed-midpoint) chips stay visible from the moment they appear — even in
         // the brief gap between the icon turning solid and the title blurring in.
         let isVisible     = isRevealed || isLoading || isPinnedAtNode
         // While unsplayed, render at the node center so the child appears to splay out from it.
-        let atCenter      = unsplayedInsightIDs.contains(insight.id)
+        let atCenter      = revealState.unsplayedInsightIDs.contains(insight.id)
         let projection    = atCenter
             ? camera.project(node.position, in: size)
             : insightProjection(placement, camera: camera, size: size)
@@ -2223,7 +2039,7 @@ struct InsightTreeCanvasView: View {
                 Image(systemName: "text.bubble")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(AquinasTheme.Colors.lightGreen)
-                    .opacity(loadingFlashOpacity)
+                    .opacity(revealState.loadingFlashOpacity)
                     .transition(.fadeBlur)
             }
             // Icon + title appear together as one unit (fade + transform + blur), like a
@@ -3907,7 +3723,7 @@ struct InsightTreeCanvasView: View {
     /// introduced by later mutations. This prevents the temporary in-memory build from
     /// consuming the update animation before the seeded load finishes.
     private func presentPersistedTree(animated: Bool, in size: CGSize) {
-        entranceTask?.cancel()
+        revealState.entranceTask?.cancel()
 
         let currentInsightIDs = visibleInsightIDs(in: nodes)
         let currentNodeIDs = Set(nodes.map(\.id))
@@ -3919,9 +3735,9 @@ struct InsightTreeCanvasView: View {
         let pendingNodeIDs = InsightDiscoveryStore.pendingNodePresentationIDs()
             .intersection(currentNodeIDs)
         let changedInsightIDs =
-            currentInsightIDs.subtracting(confirmedPersistedInsightIDs)
+            currentInsightIDs.subtracting(revealState.confirmedPersistedInsightIDs)
         let changedNodeIDs =
-            currentNodeIDs.subtracting(confirmedPersistedNodeIDs)
+            currentNodeIDs.subtracting(revealState.confirmedPersistedNodeIDs)
         // In-app mutations record their exact presentation targets. Intersecting those with
         // the snapshot diff prevents a first-load race from touring older content. Keep the
         // raw diff as a fallback for tree changes that recorded no presentation targets.
@@ -3940,22 +3756,22 @@ struct InsightTreeCanvasView: View {
         }
         // Clear these before the asynchronous camera/reveal sequence begins. This prevents a
         // connector from the previous topology from remaining visible during the camera scroll.
-        revealedInsightConnectorIDs.subtract(newInsightIDs)
+        revealState.revealedInsightConnectorIDs.subtract(newInsightIDs)
         let newGraphEdgeIDs = Set(displayGraphEdges().filter {
             newNodeIDs.contains($0.fromNodeID) || newNodeIDs.contains($0.toNodeID)
         }.map(\.id))
-        revealedGraphEdgeIDs.subtract(newGraphEdgeIDs)
-        animatedGraphEdgeIDs.formUnion(newGraphEdgeIDs)
-        confirmedPersistedInsightIDs = currentInsightIDs
-        confirmedPersistedNodeIDs = currentNodeIDs
+        revealState.revealedGraphEdgeIDs.subtract(newGraphEdgeIDs)
+        revealState.animatedGraphEdgeIDs.formUnion(newGraphEdgeIDs)
+        revealState.confirmedPersistedInsightIDs = currentInsightIDs
+        revealState.confirmedPersistedNodeIDs = currentNodeIDs
         undiscoveredInsightIDs.formUnion(loadUndiscoveredInsightIDs())
         undiscoveredNodeIDs.formUnion(loadUndiscoveredNodeIDs())
 
         guard !newInsights.isEmpty || !newNodeIDs.isEmpty else {
-            revealedInsightIDs = currentInsightIDs
-            revealedInsightConnectorIDs = currentInsightIDs
-            revealedGraphEdgeIDs = Set(displayGraphEdges().map(\.id))
-            revealedNodeIDs = currentNodeIDs
+            revealState.revealedInsightIDs = currentInsightIDs
+            revealState.revealedInsightConnectorIDs = currentInsightIDs
+            revealState.revealedGraphEdgeIDs = Set(displayGraphEdges().map(\.id))
+            revealState.revealedNodeIDs = currentNodeIDs
             saveAllInsightIDsAsSeen()
             reportUndiscoveredInsightCount()
             return
@@ -3964,7 +3780,7 @@ struct InsightTreeCanvasView: View {
         markUndiscovered(newInsights.map(\.id))
         markNodesUndiscovered(Array(newNodeIDs))
         reportUndiscoveredInsightCount()
-        entranceTask = Task {
+        revealState.entranceTask = Task {
             // Let the node/body reconciliation from this same snapshot reach the canvas first.
             await Task.yield()
             try? await Task.sleep(for: .milliseconds(50))
@@ -3998,13 +3814,13 @@ struct InsightTreeCanvasView: View {
         let insightIDs = Set(newInsights.map(\.id))
         let allInsightIDs = visibleInsightIDs(in: nodes)
         let allNodeIDs = Set(nodes.map(\.id))
-        revealedInsightIDs = allInsightIDs.subtracting(insightIDs)
-        revealedInsightConnectorIDs = allInsightIDs.subtracting(insightIDs)
+        revealState.revealedInsightIDs = allInsightIDs.subtracting(insightIDs)
+        revealState.revealedInsightConnectorIDs = allInsightIDs.subtracting(insightIDs)
         let newGraphEdgeIDs = Set(displayGraphEdges().filter {
             newNodeIDs.contains($0.fromNodeID) || newNodeIDs.contains($0.toNodeID)
         }.map(\.id))
-        revealedGraphEdgeIDs = Set(displayGraphEdges().map(\.id)).subtracting(newGraphEdgeIDs)
-        revealedNodeIDs = allNodeIDs.subtracting(newNodeIDs)
+        revealState.revealedGraphEdgeIDs = Set(displayGraphEdges().map(\.id)).subtracting(newGraphEdgeIDs)
+        revealState.revealedNodeIDs = allNodeIDs.subtracting(newNodeIDs)
 
         // The topology callback can arrive before the simulation has reconciled the new nodes.
         // Give the layout a beat to create/settle their bodies before resolving camera targets;
@@ -4015,11 +3831,11 @@ struct InsightTreeCanvasView: View {
         // The user is inspecting something: reveal the new content in place (with its red dot)
         // rather than pulling the camera away from what they are looking at.
         if isHoveringTarget {
-            revealedInsightIDs = allInsightIDs
-            revealedInsightConnectorIDs = allInsightIDs.subtracting(insightIDs)
+            revealState.revealedInsightIDs = allInsightIDs
+            revealState.revealedInsightConnectorIDs = allInsightIDs.subtracting(insightIDs)
             growConnectors(insightIDs)
-            revealedNodeIDs = allNodeIDs
-            revealedGraphEdgeIDs = Set(displayGraphEdges().map(\.id))
+            revealState.revealedNodeIDs = allNodeIDs
+            revealState.revealedGraphEdgeIDs = Set(displayGraphEdges().map(\.id))
             return
         }
 
@@ -4054,9 +3870,9 @@ struct InsightTreeCanvasView: View {
             return (target, position)
         }
         guard !positionedTargets.isEmpty else {
-            revealedInsightIDs = allInsightIDs
-            revealedInsightConnectorIDs = allInsightIDs
-            revealedNodeIDs = allNodeIDs
+            revealState.revealedInsightIDs = allInsightIDs
+            revealState.revealedInsightConnectorIDs = allInsightIDs
+            revealState.revealedNodeIDs = allNodeIDs
             return
         }
 
@@ -4073,19 +3889,19 @@ struct InsightTreeCanvasView: View {
                         .springRelaxed,
                         completionCriteria: .logicallyComplete
                     ) {
-                        revealedInsightIDs.insert(insight.id)
+                        revealState.revealedInsightIDs.insert(insight.id)
                     } completion: {
                         guard !Task.isCancelled else { return }
                         growConnectors([insight.id])
                     }
                 case .node(let nodeID):
                     _ = withAnimation(.easeOut(duration: 0.22)) {
-                        revealedNodeIDs.insert(nodeID)
+                        revealState.revealedNodeIDs.insert(nodeID)
                     }
                     try? await Task.sleep(for: .milliseconds(620))
                     guard !Task.isCancelled else { return }
                     withAnimation(.easeInOut(duration: 0.62)) {
-                        revealedGraphEdgeIDs.formUnion(displayGraphEdges().filter {
+                        revealState.revealedGraphEdgeIDs.formUnion(displayGraphEdges().filter {
                             $0.fromNodeID == nodeID || $0.toNodeID == nodeID
                         }.map(\.id))
                     }
@@ -4105,15 +3921,15 @@ struct InsightTreeCanvasView: View {
                 .easeOut(duration: 0.22),
                 completionCriteria: .logicallyComplete
             ) {
-                revealedNodeIDs.formUnion(newNodeIDs)
-                revealedInsightIDs.formUnion(insightIDs)
+                revealState.revealedNodeIDs.formUnion(newNodeIDs)
+                revealState.revealedInsightIDs.formUnion(insightIDs)
             } completion: {
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(620))
                     guard !Task.isCancelled else { return }
                     growConnectors(insightIDs)
                     withAnimation(.easeInOut(duration: 0.62)) {
-                        revealedGraphEdgeIDs.formUnion(displayGraphEdges().filter {
+                        revealState.revealedGraphEdgeIDs.formUnion(displayGraphEdges().filter {
                             newNodeIDs.contains($0.fromNodeID) || newNodeIDs.contains($0.toNodeID)
                         }.map(\.id))
                     }
@@ -4276,13 +4092,13 @@ struct InsightTreeCanvasView: View {
         // All non-new insights animate in with the standard 0.25 s stagger.
         try? await Task.sleep(nanoseconds: 250_000_000)
         guard !Task.isCancelled else { return }
-        revealedInsightIDs = nonNewIDs
-        revealedInsightConnectorIDs = nonNewIDs
+        revealState.revealedInsightIDs = nonNewIDs
+        revealState.revealedInsightConnectorIDs = nonNewIDs
 
         if newInsights.isEmpty {
             // Nothing new — reveal everything at the stagger point and we're done.
-            revealedInsightIDs = allIDs
-            revealedInsightConnectorIDs = allIDs
+            revealState.revealedInsightIDs = allIDs
+            revealState.revealedInsightConnectorIDs = allIDs
             return
         }
 
@@ -4301,7 +4117,7 @@ struct InsightTreeCanvasView: View {
                     .springRelaxed,
                     completionCriteria: .logicallyComplete
                 ) {
-                    revealedInsightIDs.insert(insight.id)
+                    revealState.revealedInsightIDs.insert(insight.id)
                 } completion: {
                     guard !Task.isCancelled else { return }
                     growConnectors([insight.id])
@@ -4323,7 +4139,7 @@ struct InsightTreeCanvasView: View {
                 .springRelaxed,
                 completionCriteria: .logicallyComplete
             ) {
-                revealedInsightIDs.formUnion(newIDs)
+                revealState.revealedInsightIDs.formUnion(newIDs)
             } completion: {
                 guard !Task.isCancelled else { return }
                 growConnectors(newIDs)

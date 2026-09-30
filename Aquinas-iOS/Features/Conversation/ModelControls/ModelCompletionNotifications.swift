@@ -6,18 +6,10 @@
 import SwiftUI
 import UIKit
 
-private struct OpenModelTaskPageActionKey: EnvironmentKey {
-    static let defaultValue: (ModelTaskSnapshot) -> Void = { _ in }
-}
+private let defaultOpenModelTaskPage: (ModelTaskSnapshot) -> Void = { _ in }
 
 extension EnvironmentValues {
-    var openModelTaskPage: (ModelTaskSnapshot) -> Void {
-        get { self[OpenModelTaskPageActionKey.self] }
-        set { self[OpenModelTaskPageActionKey.self] = newValue }
-    }
-}
-
-extension EnvironmentValues {
+    @Entry var openModelTaskPage: (ModelTaskSnapshot) -> Void = defaultOpenModelTaskPage
     @Entry var modelCompletionNotifications: ModelCompletionNotificationCenter? = nil
 }
 

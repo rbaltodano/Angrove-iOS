@@ -85,30 +85,10 @@ struct CurrentConversationView: View {
     @Binding var sideMenuCurrentTitle:         String
     @Binding var sideMenuActiveConversationID: UUID?
     @Binding var requestedConversationID:      UUID?
-    @Binding var newConversationRequest:       Int
-    /// Owned by ContentView, not local state here — see its declaration for why: this view is
-    /// torn down and recreated on every page switch, so a locally-reset counter would forget
-    /// it had already handled a request and spuriously re-fire `startNewConversation()` on
-    /// every later remount once `newConversationRequest` had ever been incremented.
-    @Binding var handledNewConversationRequest: Int
-    @Binding var pendingNewConversationQuestion: String
-    @Binding var pendingNewConversationEyebrow: String
-    @Binding var pendingNewConversationPromptContext: String
-    /// Visible paragraph shown beneath the header title (e.g. a Today in History description) --
-    /// distinct from `pendingNewConversationPromptContext`, which the model sees but never renders.
-    @Binding var pendingNewConversationSubtitle: String
-    /// Set by ContentView before incrementing `newConversationRequest` when the
-    /// user taps "New Conversation" inside a study topic. The new conversation
-    /// is tagged with this ID, then the binding is cleared.
-    @Binding var newConversationTopicID:       UUID?
-    /// Set to `true` by ContentView before incrementing `newConversationRequest`
-    /// when the user taps "New Study Topic". The created conversation is marked
-    /// as a topic container, then this binding is cleared.
-    @Binding var newConversationIsStudyTopic:  Bool
+    let newConversationRequests: NewConversationRequests
     @Binding var deletedConversationID:        UUID?
     @Binding var requestedForkConcept:         ConceptDefinition?
     @Binding var insightConversationQuoteRequest: InsightConversationQuoteRequest?
-    @Binding var newConversationInsightQuoteRequest: NewConversationInsightQuoteRequest?
     @Binding var conversationNodeFocusRequest: ConversationNodeFocusRequest?
     let conversationFontSize: ConversationFontSizeOption
     let conversationTextAlignment: ConversationTextAlignmentOption
@@ -128,13 +108,8 @@ struct CurrentConversationView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
-    // MARK: Conversation list (source of truth for side menu)
-    @State private var conversations: [InquiryConversation] = []
-    @State private var activeConversationID: UUID? = nil
-
-    // MARK: Branch state (working copy of the active conversation's branches)
-    @State private var activeBranches: [ChatBranch] = [ChatBranch(startingConcept: nil)]
-    @State private var focusedBranchID: UUID? = nil
+    // MARK: - Conversation session and presentation
+    @State private var session = ConversationSession()
     @State private var pendingFocusBranchID: UUID? = nil
 
     // MARK: Quoted insight chip
@@ -223,13 +198,13 @@ struct CurrentConversationView: View {
 
     // MARK: Canvas helpers
     private var activeTitle: String {
-        conversations.first { $0.id == activeConversationID }?.title ?? "New Conversation"
+        session.conversations.first { $0.id == session.activeConversationID }?.title ?? "New Conversation"
     }
 
     /// The active conversation's study topic name, if it belongs to one — shown in the
     /// eyebrow above the branch title in place of "NEW CONVERSATION".
     private var activeStudyTopicTitle: String? {
-        guard let topicID = conversations.first(where: { $0.id == activeConversationID })?.studyTopicID else {
+        guard let topicID = session.conversations.first(where: { $0.id == session.activeConversationID })?.studyTopicID else {
             return nil
         }
         return studyTopics.first { $0.id == topicID }?.title
@@ -240,7 +215,7 @@ struct CurrentConversationView: View {
     }
 
     private var isNewConversationPromptMode: Bool {
-        guard activeBranches.count == 1, let branch = activeBranches.first else { return false }
+        guard session.activeBranches.count == 1, let branch = session.activeBranches.first else { return false }
         return !branch.topQuestionSubmitted
             && branch.parentBranchID == nil
             && branch.startingConcept == nil
@@ -264,7 +239,7 @@ struct CurrentConversationView: View {
     }
 
     private var conversationInsights: [ConceptDefinition] {
-        var result = ChatBranch.mentionedInsights(in: activeBranches)
+        var result = ChatBranch.mentionedInsights(in: session.activeBranches)
         var seen = Set(result.map { $0.word.lowercased() })
         for concept in collectedDefinitions
         where manuallySavedConversationInsightIDs.contains(concept.id) {
@@ -287,7 +262,7 @@ struct CurrentConversationView: View {
     /// A completed tree mutation refreshes a mounted Canvas before announcing "Updated".
     /// When Canvas is not mounted, the mutation itself is the final update boundary.
     private func finishInsightTreeMutation(for conversationID: UUID) {
-        guard activeConversationID == conversationID else { return }
+        guard session.activeConversationID == conversationID else { return }
         persistedTreeRefreshRequest += 1
         if !canvasMode.isTopicCanvasVisible {
             insightTreeUpdateSignal += 1
@@ -295,8 +270,8 @@ struct CurrentConversationView: View {
     }
 
     private func enqueueInsightTreeAnalysis(branchID: UUID, responseIndex: Int) {
-        guard let conversationID = activeConversationID,
-              let branch = activeBranches.first(where: { $0.id == branchID }) else {
+        guard let conversationID = session.activeConversationID,
+              let branch = session.activeBranches.first(where: { $0.id == branchID }) else {
             return
         }
         enqueueInsightTreeAnalysis(
@@ -543,8 +518,8 @@ struct CurrentConversationView: View {
     }
 
     private var canCompactFocusedContext: Bool {
-        guard let branch = activeBranches.first(where: { $0.id == effectiveFocusedID })
-                ?? activeBranches.first else {
+        guard let branch = session.activeBranches.first(where: { $0.id == effectiveFocusedID })
+                ?? session.activeBranches.first else {
             return false
         }
 
@@ -570,8 +545,8 @@ struct CurrentConversationView: View {
     }
 
     private func refreshDisplayedContextWordCount(animated: Bool = true) {
-        let branch = activeBranches.first(where: { $0.id == effectiveFocusedID })
-            ?? activeBranches.first
+        let branch = session.activeBranches.first(where: { $0.id == effectiveFocusedID })
+            ?? session.activeBranches.first
         let count = contextTokenCount(in: branch)
 
         if animated {
@@ -585,7 +560,7 @@ struct CurrentConversationView: View {
 
     // MARK: Helpers
     private var effectiveFocusedID: UUID? {
-        focusedBranchID ?? activeBranches.first?.id
+        session.focusedBranchID ?? session.activeBranches.first?.id
     }
 
     private var insightSheetHeight: CGFloat {
@@ -596,11 +571,11 @@ struct CurrentConversationView: View {
 
     private func pendingFocusBranchTarget() -> ChatBranch? {
         if let pendingFocusBranchID,
-           let branch = activeBranches.first(where: { $0.id == pendingFocusBranchID }) {
+           let branch = session.activeBranches.first(where: { $0.id == pendingFocusBranchID }) {
             return branch
         }
 
-        return activeBranches.last
+        return session.activeBranches.last
     }
 
     private var focusedBranchSelection: Binding<UUID?> {
@@ -608,7 +583,7 @@ struct CurrentConversationView: View {
             get: { effectiveFocusedID },
             set: { newID in
                 if let newID {
-                    focusedBranchID = newID
+                    session.focusedBranchID = newID
                 }
             }
         )
@@ -617,7 +592,7 @@ struct CurrentConversationView: View {
     @ViewBuilder
     private func branchPager(in geo: GeometryProxy) -> some View {
         TabView(selection: focusedBranchSelection) {
-            ForEach($activeBranches) { branch in
+            ForEach($session.activeBranches) { branch in
                 let branchID = branch.wrappedValue.id
                 branchPage(branch: branch, geo: geo)
                     .tag(Optional(branchID))
@@ -659,7 +634,7 @@ struct CurrentConversationView: View {
         let savedIDs = Set(collectedDefinitions.map(\.id))
         return InsightTreeView(
             insights: conversationInsights.filter { savedIDs.contains($0.id) },
-            conversationID: activeConversationID,
+            conversationID: session.activeConversationID,
             selectionRequest: canvasMode.canvasSelectionRequest,
             persistedTreeRefreshRequest: persistedTreeRefreshRequest,
             clearSelectionRequest: canvasMode.canvasClearSelectionRequest,
@@ -732,8 +707,8 @@ struct CurrentConversationView: View {
     private func quoteConceptIntoCurrentConversation(_ concept: ConceptDefinition) {
         withAnimation(.springBouncy) {
             attachedConcept = concept
-            if focusedBranchID == nil {
-                focusedBranchID = activeBranches.first?.id
+            if session.focusedBranchID == nil {
+                session.focusedBranchID = session.activeBranches.first?.id
             }
             canvasMode.isTopicCanvasVisible = false
             canvasMode.hasCanvasHover = false
@@ -753,10 +728,10 @@ struct CurrentConversationView: View {
     /// had a moment to lay out.
     private func openConversationNodeFocus(_ request: ConversationNodeFocusRequest) {
         conversationNodeFocusRequest = nil
-        guard let conversation = conversations.first(where: { $0.id == request.conversationID }) else {
+        guard let conversation = session.conversations.first(where: { $0.id == request.conversationID }) else {
             return
         }
-        if activeConversationID != conversation.id {
+        if session.activeConversationID != conversation.id {
             switchToConversation(conversation)
         }
         canvasFocusNodeID = request.nodeID
@@ -769,7 +744,7 @@ struct CurrentConversationView: View {
     }
 
     private func openInsightConversationQuote(_ request: InsightConversationQuoteRequest) {
-        guard let conversation = conversations.first(where: {
+        guard let conversation = session.conversations.first(where: {
             $0.id == request.conversationID
                 && (request.topicID == nil || $0.studyTopicID == request.topicID)
         }) else {
@@ -945,8 +920,8 @@ struct CurrentConversationView: View {
                 onQuote: { concept in
                     withAnimation(.springBouncy) {
                         attachedConcept = concept
-                        if focusedBranchID == nil {
-                            focusedBranchID = activeBranches.first?.id
+                        if session.focusedBranchID == nil {
+                            session.focusedBranchID = session.activeBranches.first?.id
                         }
                     }
                     isInsightLibraryOpen = false
@@ -956,7 +931,7 @@ struct CurrentConversationView: View {
                     }
                 },
                 onFork: { concept in
-                    let parentID = focusedBranchID ?? activeBranches.first?.id
+                    let parentID = session.focusedBranchID ?? session.activeBranches.first?.id
                     let newBranch = ChatBranch(
                         startingConcept: concept,
                         parentBranchID: parentID,
@@ -995,10 +970,10 @@ struct CurrentConversationView: View {
     /// modifiers are applied in the same order as a single chain.
     private var conversationWithStateSync: some View {
         conversationScaffold
-        .onChange(of: focusedBranchID) { _, _ in
+        .onChange(of: session.focusedBranchID) { _, _ in
             refreshDisplayedContextWordCount()
         }
-        .onChange(of: activeBranches.count) { oldCount, newCount in
+        .onChange(of: session.activeBranches.count) { oldCount, newCount in
             guard newCount > oldCount else { return }
             let target = pendingFocusBranchTarget()
             pendingFocusBranchID = nil
@@ -1007,7 +982,7 @@ struct CurrentConversationView: View {
             Task {
                 try? await Task.sleep(for: .milliseconds(100))
                 withAnimation(.springRelaxed) {
-                    focusedBranchID = targetID
+                    session.focusedBranchID = targetID
                 }
             }
         }
@@ -1029,17 +1004,17 @@ struct CurrentConversationView: View {
             // other branches while making the finished answer appear immediately.
             // A completion for a conversation the user has since left only refreshes the stored
             // copy below, so reopening that conversation shows the answer.
-            if completedTask.conversationID == activeConversationID,
-               let branchIndex = activeBranches.firstIndex(where: { $0.id == branchID }) {
-                activeBranches[branchIndex] = persistedBranch
+            if completedTask.conversationID == session.activeConversationID,
+               let branchIndex = session.activeBranches.firstIndex(where: { $0.id == branchID }) {
+                session.activeBranches[branchIndex] = persistedBranch
             }
-            if let conversationIndex = conversations.firstIndex(where: {
+            if let conversationIndex = session.conversations.firstIndex(where: {
                 $0.id == persistedConversation.id
             }) {
-                conversations[conversationIndex].branches = persistedConversation.branches
-                conversations[conversationIndex].title = persistedConversation.title
+                session.conversations[conversationIndex].branches = persistedConversation.branches
+                session.conversations[conversationIndex].title = persistedConversation.title
             }
-            if completedTask.conversationID == activeConversationID {
+            if completedTask.conversationID == session.activeConversationID {
                 refreshDisplayedContextWordCount()
             }
             // Keep the reader's viewport stable when the completed response appears.
@@ -1056,7 +1031,7 @@ struct CurrentConversationView: View {
                 return cleaned
             }
             if let snapshot = cleanedSnapshot, !snapshot.conversations.isEmpty {
-                conversations = snapshot.conversations
+                session.conversations = snapshot.conversations
                 // `openModelTaskPage` (tapping a task in the Model Tasks popup from a different
                 // page) sets `requestedConversationID` *before* this view is even created, so
                 // the `.onChange(of: requestedConversationID)` below never fires for it — that
@@ -1072,27 +1047,27 @@ struct CurrentConversationView: View {
                     ?? snapshot.activeConversationID
                     ?? snapshot.conversations.first?.id
                 if let id = targetID, let convo = snapshot.conversations.first(where: { $0.id == id }) {
-                    activeConversationID = id
-                    activeBranches = convo.branches.isEmpty ? [ChatBranch(startingConcept: nil)] : convo.branches
+                    session.activeConversationID = id
+                    session.activeBranches = convo.branches.isEmpty ? [ChatBranch(startingConcept: nil)] : convo.branches
                     canvasMode.promotedCanvasInsightIDs = convo.promotedInsightIDs
                 } else if let first = snapshot.conversations.first {
-                    activeConversationID = first.id
-                    activeBranches = first.branches.isEmpty ? [ChatBranch(startingConcept: nil)] : first.branches
+                    session.activeConversationID = first.id
+                    session.activeBranches = first.branches.isEmpty ? [ChatBranch(startingConcept: nil)] : first.branches
                     canvasMode.promotedCanvasInsightIDs = first.promotedInsightIDs
                 }
             } else {
                 let initial = InquiryConversation()
-                conversations = [initial]
-                activeConversationID = initial.id
-                activeBranches = [ChatBranch(startingConcept: nil)]
+                session.conversations = [initial]
+                session.activeConversationID = initial.id
+                session.activeBranches = [ChatBranch(startingConcept: nil)]
                 canvasMode.promotedCanvasInsightIDs = []
             }
-            focusedBranchID = activeBranches.first?.id
-            restoreEmptyPromptState(from: activeBranches)
+            session.focusedBranchID = session.activeBranches.first?.id
+            restoreEmptyPromptState(from: session.activeBranches)
             refreshDisplayedContextWordCount(animated: false)
-            if let activeConversationID {
+            if let conversationID = session.activeConversationID {
                 manuallySavedConversationInsightIDs =
-                    ConversationInsightMembershipStore.insightIDs(for: activeConversationID)
+                    ConversationInsightMembershipStore.insightIDs(for: conversationID)
             }
             studyTopics = StudyTopicStore.load()
             publishShellMenuState()
@@ -1102,9 +1077,8 @@ struct CurrentConversationView: View {
             // unmounted (e.g. from the Study Topics page). Handle it now so the
             // correct topic-tagged conversation is created instead of showing the
             // most-recently saved one.
-            if newConversationRequest != handledNewConversationRequest {
-                handledNewConversationRequest = newConversationRequest
-                startNewConversation()
+            if let request = newConversationRequests.takePending() {
+                startNewConversation(request)
             }
             if let request = insightConversationQuoteRequest {
                 openInsightConversationQuote(request)
@@ -1116,7 +1090,7 @@ struct CurrentConversationView: View {
         // Save branches back into the active conversation on every change, then persist.
         // saveCurrentConversation + publishShellMenuState are cheap (memory only).
         // persistConversations is debounced so UserDefaults isn't hit on every keystroke.
-        .onChange(of: activeBranches) { _, _ in
+        .onChange(of: session.activeBranches) { _, _ in
             saveCurrentConversation()
             // publishShellMenuState() intentionally omitted — side menu data doesn't
             // change while typing, so calling it here causes a full AquinasSideMenu +
@@ -1140,7 +1114,7 @@ struct CurrentConversationView: View {
         }
         // Side menu selected a conversation.
         .onChange(of: requestedConversationID) { _, id in
-            guard let id, let convo = conversations.first(where: { $0.id == id }) else { return }
+            guard let id, let convo = session.conversations.first(where: { $0.id == id }) else { return }
             requestedConversationID = nil
             switchToConversation(convo)
         }
@@ -1153,10 +1127,9 @@ struct CurrentConversationView: View {
             openConversationNodeFocus(request)
         }
         // "New Conversation" button in side menu.
-        .onChange(of: newConversationRequest) { _, new in
-            guard new != handledNewConversationRequest else { return }
-            handledNewConversationRequest = new
-            startNewConversation()
+        .onChange(of: newConversationRequests.pending?.id) { _, _ in
+            guard let request = newConversationRequests.takePending() else { return }
+            startNewConversation(request)
         }
         // Conversation deleted from side menu / Conversations page.
         .onChange(of: deletedConversationID) { _, id in
@@ -1166,9 +1139,9 @@ struct CurrentConversationView: View {
             LocalInsightTreeSeedStore.removeConversation(id)
             GlossedTermStore.removeConversation(id)
             FlaggedQuoteStore.removeConversation(id)
-            conversations.removeAll { $0.id == id }
-            if activeConversationID == id {
-                if let first = conversations.first {
+            session.conversations.removeAll { $0.id == id }
+            if session.activeConversationID == id {
+                if let first = session.conversations.first {
                     switchToConversation(first)
                 } else {
                     startNewConversation()
@@ -1180,13 +1153,13 @@ struct CurrentConversationView: View {
         .onChange(of: sideMenuConversations) { _, updated in
             var changed = false
             for mc in updated {
-                if let idx = conversations.firstIndex(where: { $0.id == mc.id }) {
-                    if conversations[idx].title != mc.title {
-                        conversations[idx].title = mc.title
+                if let idx = session.conversations.firstIndex(where: { $0.id == mc.id }) {
+                    if session.conversations[idx].title != mc.title {
+                        session.conversations[idx].title = mc.title
                         changed = true
                     }
-                    if conversations[idx].studyTopicID != mc.studyTopicID {
-                        conversations[idx].studyTopicID = mc.studyTopicID
+                    if session.conversations[idx].studyTopicID != mc.studyTopicID {
+                        session.conversations[idx].studyTopicID = mc.studyTopicID
                         changed = true
                     }
                 }
@@ -1204,36 +1177,12 @@ struct CurrentConversationView: View {
                 // Horizontal branch pager
                 branchPager(in: geo)
 
-                // Top fade gradient, independent of the nav bar.
-                LinearGradient(
-                    stops: [
-                        Gradient.Stop(color: AquinasTheme.Colors.canvas.opacity(0.97), location: 0.00),
-                        Gradient.Stop(color: AquinasTheme.Colors.canvas.opacity(0), location: 1.00),
-                    ],
-                    startPoint: UnitPoint(x: 0.5, y: 0.33),
-                    endPoint: UnitPoint(x: 0.5, y: 1)
+                ConversationScrollFades(
+                    topHeight: ConversationScrollFades.topFadeHeight(compact: usesCompactVerticalLayout),
+                    bottomHeight: geo.size.height * (usesCompactVerticalLayout ? 0.28 : 0.4),
+                    topOpacity: topConversationChromeOpacity,
+                    showsBottomFade: !canvasMode.isTopicCanvasVisible
                 )
-                .frame(height: usesCompactVerticalLayout ? 96 : 150)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .opacity(topConversationChromeOpacity)
-                .animation(.easeInOut(duration: 0.28), value: topConversationChromeOpacity)
-                .allowsHitTesting(false)
-
-                // Bottom fade gradient (hidden in canvas mode)
-                if !canvasMode.isTopicCanvasVisible {
-                    LinearGradient(
-                        stops: [
-                            .init(color: AquinasTheme.Colors.canvas.opacity(0), location: 0),
-                            .init(color: AquinasTheme.Colors.canvas, location: 1),
-                        ],
-                        startPoint: UnitPoint(x: 0.5, y: 0),
-                        endPoint: UnitPoint(x: 0.5, y: 0.84)
-                    )
-                    .frame(height: geo.size.height * (usesCompactVerticalLayout ? 0.28 : 0.4))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-                }
 
                 // Canvas Mode: per-conversation Insight Tree
                 if canvasMode.isTopicCanvasVisible {
@@ -1276,7 +1225,7 @@ struct CurrentConversationView: View {
                         renameActiveConversation(to: newTitle)
                     },
                     onTapStudyTopicBadge: {
-                        conversationForTopicPicker = conversations.first { $0.id == activeConversationID }
+                        conversationForTopicPicker = session.conversations.first { $0.id == session.activeConversationID }
                     }
                 )
                 .zIndex(2)
@@ -1284,8 +1233,8 @@ struct CurrentConversationView: View {
             }
             .onAppear {
                 viewportSize = geo.size
-                if focusedBranchID == nil {
-                    focusedBranchID = activeBranches.first?.id
+                if session.focusedBranchID == nil {
+                    session.focusedBranchID = session.activeBranches.first?.id
                 }
             }
             .onChange(of: geo.size) { _, s in viewportSize = s }
@@ -1405,15 +1354,15 @@ struct CurrentConversationView: View {
             SideMenuStudyTopicPickerSheet(
                 conversation: conversation,
                 onSelectTopic: { topic in
-                    if let idx = conversations.firstIndex(where: { $0.id == conversation.id }) {
-                        conversations[idx].studyTopicID = topic.id
+                    if let idx = session.conversations.firstIndex(where: { $0.id == conversation.id }) {
+                        session.conversations[idx].studyTopicID = topic.id
                         publishShellMenuState()
                         persistConversations()
                     }
                 },
                 onRemoveTopic: {
-                    if let idx = conversations.firstIndex(where: { $0.id == conversation.id }) {
-                        conversations[idx].studyTopicID = nil
+                    if let idx = session.conversations.firstIndex(where: { $0.id == conversation.id }) {
+                        session.conversations[idx].studyTopicID = nil
                         publishShellMenuState()
                         persistConversations()
                     }
@@ -1453,7 +1402,7 @@ struct CurrentConversationView: View {
 
     private func currentConversationInsights() -> [ConceptDefinition] {
         var parts: [String] = []
-        for branch in activeBranches {
+        for branch in session.activeBranches {
             parts.append(branch.topQuestionText)
             parts.append(branch.bottomQuestionText)
             if let dup = branch.duplicatedResponse { parts.append(dup) }
@@ -1500,7 +1449,7 @@ struct CurrentConversationView: View {
 
                 ChatThreadColumn(
                     branchData: branch,
-                    conversationID: activeConversationID,
+                    conversationID: session.activeConversationID,
                     branchAnchor: "branch-top-\(b.id)",
                     targetSpawnY: $targetSpawnY,
                     uploadedFiles: $uploadedFiles,
@@ -1524,7 +1473,7 @@ struct CurrentConversationView: View {
                     newConversationViewportHeight: stableViewportHeight,
                     studyTopicTitle: activeStudyTopicTitle,
                     onTapEyebrow: {
-                        conversationForTopicPicker = conversations.first { $0.id == activeConversationID }
+                        conversationForTopicPicker = session.conversations.first { $0.id == session.activeConversationID }
                     },
                     emptyStatePromptQuestion: activeEmptyPromptQuestion,
                     emptyStatePromptSubtitle: activeEmptyPromptSubtitle,
@@ -1545,8 +1494,8 @@ struct CurrentConversationView: View {
                     },
                     onDeleteBranch: { deleteBranch(b) },
                     onConversationTitleChange: { newTitle in
-                        if let idx = conversations.firstIndex(where: { $0.id == activeConversationID }) {
-                            conversations[idx].title = newTitle
+                        if let idx = session.conversations.firstIndex(where: { $0.id == session.activeConversationID }) {
+                            session.conversations[idx].title = newTitle
                         }
                         publishShellMenuState()
                     },
@@ -1618,13 +1567,13 @@ struct CurrentConversationView: View {
                                   $0.id == conversationID
                               }),
                               let branch = persisted.branches.first(where: { $0.id == branchID }),
-                              let index = conversations.firstIndex(where: {
+                              let index = session.conversations.firstIndex(where: {
                                   $0.id == conversationID
                               }) else {
                             return
                         }
-                        conversations[index].branches = persisted.branches
-                        conversations[index].title = persisted.title
+                        session.conversations[index].branches = persisted.branches
+                        session.conversations[index].title = persisted.title
                         enqueueInsightTreeAnalysis(
                             conversationID: conversationID,
                             branch: branch,
@@ -1652,7 +1601,7 @@ struct CurrentConversationView: View {
                     onInlineInsightQuote: { concept in
                         withAnimation(.springBouncy) {
                             attachedConcept = concept
-                            focusedBranchID = b.id
+                            session.focusedBranchID = b.id
                         }
                         Task {
                             try? await Task.sleep(for: .milliseconds(180))
@@ -1770,8 +1719,8 @@ struct CurrentConversationView: View {
                 definitionState.activeWord = nil
                 withAnimation(.springBouncy) {
                     attachedConcept = concept
-                    if focusedBranchID == nil {
-                        focusedBranchID = activeBranches.first?.id
+                    if session.focusedBranchID == nil {
+                        session.focusedBranchID = session.activeBranches.first?.id
                     }
                 }
                 Task {
@@ -1823,33 +1772,33 @@ struct CurrentConversationView: View {
     private func insertBranch(_ branch: ChatBranch, after parentID: UUID?) {
         pendingFocusBranchID = branch.id
         guard let parentID,
-              let parentIndex = activeBranches.firstIndex(where: { $0.id == parentID }) else {
-            activeBranches.append(branch)
+              let parentIndex = session.activeBranches.firstIndex(where: { $0.id == parentID }) else {
+            session.activeBranches.append(branch)
             return
         }
-        activeBranches.insert(branch, at: min(parentIndex + 1, activeBranches.count))
+        session.activeBranches.insert(branch, at: min(parentIndex + 1, session.activeBranches.count))
     }
 
     private func deleteBranch(_ branch: ChatBranch) {
         guard let parentID = branch.parentBranchID,
-              let parent = activeBranches.first(where: { $0.id == parentID }) else { return }
+              let parent = session.activeBranches.first(where: { $0.id == parentID }) else { return }
 
         var toRemove: Set<UUID> = [branch.id]
         var queue: [UUID] = [branch.id]
         while let current = queue.popLast() {
-            for b in activeBranches where b.parentBranchID == current {
+            for b in session.activeBranches where b.parentBranchID == current {
                 if toRemove.insert(b.id).inserted { queue.append(b.id) }
             }
         }
 
         withAnimation(.springStandard) {
-            activeBranches.removeAll { toRemove.contains($0.id) }
+            session.activeBranches.removeAll { toRemove.contains($0.id) }
         }
         let returnID = parent.id
         Task {
             try? await Task.sleep(for: .milliseconds(80))
             withAnimation(.springRelaxed) {
-                focusedBranchID = returnID
+                session.focusedBranchID = returnID
             }
         }
     }
@@ -1876,17 +1825,7 @@ struct CurrentConversationView: View {
     }
 
     private func renameActiveConversation(to title: String) {
-        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTitle.isEmpty,
-              let index = conversations.firstIndex(where: { $0.id == activeConversationID }) else {
-            return
-        }
-        conversations[index].title = trimmedTitle
-        // A title chosen before the first question should survive automatic title generation.
-        if let rootIndex = activeBranches.firstIndex(where: { $0.parentBranchID == nil }) {
-            activeBranches[rootIndex].generatedBranchTitle = trimmedTitle
-            conversations[index].branches = activeBranches
-        }
+        guard session.rename(to: title) else { return }
         publishShellMenuState()
         persistConversations()
     }
@@ -1900,11 +1839,11 @@ struct CurrentConversationView: View {
     @MainActor
     private func performContextCompaction(in branchID: UUID) async -> Bool {
         guard !isCompactingContext,
-              let branchIndex = activeBranches.firstIndex(where: { $0.id == branchID }) else {
+              let branchIndex = session.activeBranches.firstIndex(where: { $0.id == branchID }) else {
             return false
         }
 
-        let branch = activeBranches[branchIndex]
+        let branch = session.activeBranches[branchIndex]
         let compactedBlockCount = min(
             branch.compactedThroughBlockCount ?? 0,
             branch.activeChatBlocks.count
@@ -1942,12 +1881,12 @@ struct CurrentConversationView: View {
             isCompactionErrorPresented = true
             return false
         }
-        guard let currentIndex = activeBranches.firstIndex(where: { $0.id == branchID }) else {
+        guard let currentIndex = session.activeBranches.firstIndex(where: { $0.id == branchID }) else {
             return false
         }
-        activeBranches[currentIndex].compactedContext = summary
-        activeBranches[currentIndex].compactedThroughBlockCount =
-            min(compactedThroughBlockCount, activeBranches[currentIndex].activeChatBlocks.count)
+        session.activeBranches[currentIndex].compactedContext = summary
+        session.activeBranches[currentIndex].compactedThroughBlockCount =
+            min(compactedThroughBlockCount, session.activeBranches[currentIndex].activeChatBlocks.count)
         saveCurrentConversation()
         persistConversations()
         // Compaction succeeds silently: the context gauge drops immediately, which is the
@@ -1962,60 +1901,36 @@ struct CurrentConversationView: View {
         branchID: UUID,
         responseIndex: Int
     ) {
-        guard let stored = CurrentConversationsStore.load()?.conversations
-            .first(where: { $0.id == conversationID })?.branches
-            .first(where: { $0.id == branchID }),
-              stored.activeChatBlocks.indices.contains(responseIndex) else { return }
-
-        // Copy only the completed slot, preserving any draft typed since the saved snapshot.
-        func apply(to branch: inout ChatBranch) {
-            guard branch.activeChatBlocks.indices.contains(responseIndex) else { return }
-            branch.activeChatBlocks[responseIndex] = stored.activeChatBlocks[responseIndex]
-            if let presentation = stored.responsePresentation(at: responseIndex) {
-                branch.setResponsePresentation(presentation)
-            }
-            if responseIndex == branch.activeChatBlocks.count - 1 {
-                branch.showBottomInput = true
-            }
-        }
-        if let conversationIndex = conversations.firstIndex(where: { $0.id == conversationID }),
-           let branchIndex = conversations[conversationIndex].branches.firstIndex(where: { $0.id == branchID }) {
-            apply(to: &conversations[conversationIndex].branches[branchIndex])
-        }
-        if activeConversationID == conversationID,
-           let branchIndex = activeBranches.firstIndex(where: { $0.id == branchID }) {
-            apply(to: &activeBranches[branchIndex])
-        }
+        guard session.refreshPersistedResponse(
+            conversationID: conversationID, branchID: branchID, responseIndex: responseIndex
+        ) else { return }
         publishShellMenuState()
     }
 
     /// Copy activeBranches back into the conversations array for the active conversation.
     private func saveCurrentConversation() {
-        guard let id = activeConversationID,
-              let idx = conversations.firstIndex(where: { $0.id == id }) else { return }
-        conversations[idx].branches = activeBranches
-        conversations[idx].promotedInsightIDs = canvasMode.promotedCanvasInsightIDs
+        session.saveActiveConversation(promotedInsightIDs: canvasMode.promotedCanvasInsightIDs)
     }
 
     /// New conversations exist only while the user is composing them. Once navigation leaves an
     /// untouched draft, discard it instead of letting an empty card accumulate in the list.
     /// A quoted Insight is first copied into the branch so it remains available after remounting.
     private func removeActiveConversationIfEmpty() {
-        guard let id = activeConversationID,
-              let index = conversations.firstIndex(where: { $0.id == id }) else {
+        guard let id = session.activeConversationID,
+              let index = session.conversations.firstIndex(where: { $0.id == id }) else {
             return
         }
 
         if let attachedConcept,
-           let branchIndex = activeBranches.firstIndex(where: { $0.id == focusedBranchID })
-                ?? activeBranches.indices.first {
-            activeBranches[branchIndex].attachedConcept = attachedConcept
-            activeBranches[branchIndex].showBottomInput = true
+           let branchIndex = session.activeBranches.firstIndex(where: { $0.id == session.focusedBranchID })
+                ?? session.activeBranches.indices.first {
+            session.activeBranches[branchIndex].attachedConcept = attachedConcept
+            session.activeBranches[branchIndex].showBottomInput = true
             self.attachedConcept = nil
         }
         saveCurrentConversation()
 
-        let conversation = conversations[index]
+        let conversation = session.conversations[index]
         let hasSavedInsights = !manuallySavedConversationInsightIDs.isEmpty
             || !ConversationInsightMembershipStore.insightIDs(for: id).isEmpty
         guard !ConversationDraftRetention.shouldKeep(
@@ -2029,8 +1944,8 @@ struct CurrentConversationView: View {
         LocalInsightTreeSeedStore.removeConversation(id)
         GlossedTermStore.removeConversation(id)
         FlaggedQuoteStore.removeConversation(id)
-        conversations.remove(at: index)
-        activeConversationID = conversations.first?.id
+        session.conversations.remove(at: index)
+        session.activeConversationID = session.conversations.first?.id
         manuallySavedConversationInsightIDs = []
         canvasMode.promotedCanvasInsightIDs = []
         publishShellMenuState()
@@ -2038,9 +1953,9 @@ struct CurrentConversationView: View {
 
     /// Update the sideMenu bindings from the current conversations list.
     private func publishShellMenuState() {
-        sideMenuConversations = conversations
-        sideMenuActiveConversationID = activeConversationID
-        sideMenuCurrentTitle = conversations.first { $0.id == activeConversationID }?.title ?? "New Conversation"
+        sideMenuConversations = session.conversations
+        sideMenuActiveConversationID = session.activeConversationID
+        sideMenuCurrentTitle = session.conversations.first { $0.id == session.activeConversationID }?.title ?? "New Conversation"
     }
 
     /// Save activeBranches → conversations, then switch to a different conversation.
@@ -2050,12 +1965,8 @@ struct CurrentConversationView: View {
         // result back to the originating conversation. Only destructive actions such as Clear
         // intentionally call `resetModelTaskPipeline()`.
         removeActiveConversationIfEmpty()
-        activeConversationID = conversation.id
-        let nextBranches = conversation.branches.isEmpty
-            ? [ChatBranch(startingConcept: nil)]
-            : conversation.branches
-        activeBranches = nextBranches
-        focusedBranchID = activeBranches.first?.id
+        session.activate(conversation)
+        let nextBranches = session.activeBranches
         manuallySavedConversationInsightIDs =
             ConversationInsightMembershipStore.insightIDs(for: conversation.id)
         refreshDisplayedContextWordCount(animated: false)
@@ -2112,10 +2023,10 @@ struct CurrentConversationView: View {
     /// conversation's identity remain stable while every question/response disappears.
     private func clearCurrentConversation() {
         persistenceTask?.cancel()
-        resetModelTaskPipeline(conversationID: activeConversationID)
+        resetModelTaskPipeline(conversationID: session.activeConversationID)
         let freshBranches = [ChatBranch(startingConcept: nil)]
-        activeBranches = freshBranches
-        focusedBranchID = freshBranches.first?.id
+        session.activeBranches = freshBranches
+        session.focusedBranchID = freshBranches.first?.id
         displayedContextTokenCount = 0
         undiscoveredInsightCount = 0
         activeEmptyPromptEyebrow = ""
@@ -2129,16 +2040,16 @@ struct CurrentConversationView: View {
         canvasMode.canvasQuoteTarget = nil
         canvasMode.canvasSelectedItemCount = 0
 
-        if let id = activeConversationID,
-           let index = conversations.firstIndex(where: { $0.id == id }) {
+        if let id = session.activeConversationID,
+           let index = session.conversations.firstIndex(where: { $0.id == id }) {
             ConversationInsightMembershipStore.removeConversation(id)
             LocalInsightTreeSeedStore.removeConversation(id)
             GlossedTermStore.removeConversation(id)
             FlaggedQuoteStore.removeConversation(id)
             manuallySavedConversationInsightIDs = []
-            conversations[index].title = "New Conversation"
-            conversations[index].branches = freshBranches
-            conversations[index].promotedInsightIDs = []
+            session.conversations[index].title = "New Conversation"
+            session.conversations[index].branches = freshBranches
+            session.conversations[index].promotedInsightIDs = []
         }
 
         publishShellMenuState()
@@ -2148,6 +2059,10 @@ struct CurrentConversationView: View {
 
     /// Save current work, then create a fresh conversation and make it active.
     private func startNewConversation() {
+        startNewConversation(NewConversationRequest())
+    }
+
+    private func startNewConversation(_ request: NewConversationRequest) {
         // Starting a new conversation is navigation, not cancellation: jobs already queued for
         // the conversation being left keep running and route their results back to it. Only the
         // per-conversation UI state is reset for the fresh conversation.
@@ -2155,22 +2070,10 @@ struct CurrentConversationView: View {
         definitionState.reset()
         modelTasksPopupState.reset()
         removeActiveConversationIfEmpty()
-        // Consume any pending topic tag set by a "New Conversation inside topic" action.
-        let topicID = newConversationTopicID
-        newConversationTopicID = nil
-        // Consume any study-topic flag set by a "New Study Topic" action.
-        let isStudyTopic = newConversationIsStudyTopic
-        newConversationIsStudyTopic = false
-        let pendingQuestion = pendingNewConversationQuestion.trimmingCharacters(in: .whitespacesAndNewlines)
-        let pendingEyebrow = pendingNewConversationEyebrow.trimmingCharacters(in: .whitespacesAndNewlines)
-        let pendingPromptContext = pendingNewConversationPromptContext.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
-        let pendingSubtitle = pendingNewConversationSubtitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        pendingNewConversationQuestion = ""
-        pendingNewConversationEyebrow = ""
-        pendingNewConversationPromptContext = ""
-        pendingNewConversationSubtitle = ""
+        let pendingQuestion = request.question
+        let pendingEyebrow = request.eyebrow
+        let pendingPromptContext = request.promptContext
+        let pendingSubtitle = request.subtitle
         var freshBranch = ChatBranch(
             startingConcept: nil,
             hiddenPromptContext: pendingPromptContext.isEmpty ? nil : pendingPromptContext
@@ -2178,22 +2081,22 @@ struct CurrentConversationView: View {
         if ["QUESTION OF THE DAY", "TODAY IN HISTORY"].contains(pendingEyebrow), !pendingQuestion.isEmpty {
             freshBranch.pinnedHeaderQuestion = pendingQuestion
         }
-        var fresh = InquiryConversation(isStudyTopic: isStudyTopic, studyTopicID: topicID)
+        var fresh = InquiryConversation(isStudyTopic: request.isStudyTopic, studyTopicID: request.topicID)
         if let pinned = freshBranch.pinnedHeaderQuestion {
             fresh.title = pinned
         }
-        conversations.insert(fresh, at: 0)
-        activeConversationID = fresh.id
+        session.conversations.insert(fresh, at: 0)
+        session.activeConversationID = fresh.id
         manuallySavedConversationInsightIDs = []
-        activeBranches = [freshBranch]
+        session.activeBranches = [freshBranch]
         activeEmptyPromptEyebrow = pendingEyebrow
         activeEmptyPromptQuestion = pendingQuestion
         activeEmptyPromptSubtitle = pendingSubtitle
         displayedContextTokenCount = 0
         hasTextToSubmit = false
         canvasMode.promotedCanvasInsightIDs = []
-        focusedBranchID = activeBranches.first?.id
-        if let quoteRequest = newConversationInsightQuoteRequest {
+        session.focusedBranchID = session.activeBranches.first?.id
+        if let quoteRequest = request.quote {
             attachedConcept = quoteRequest.insight
             // Set regardless of whether this came from a Study Topic or the global Insight
             // Tree (`topicID` nil either way is fine — `InsightConversationQuoteRequest`
@@ -2205,7 +2108,6 @@ struct CurrentConversationView: View {
                 conversationID: fresh.id,
                 insight: quoteRequest.insight
             )
-            newConversationInsightQuoteRequest = nil
 
             // Seed the on-device Insight Tree fallback from the quoted Insight itself rather
             // than waiting for the first question's answer to generate one — the quoted
@@ -2257,9 +2159,7 @@ struct CurrentConversationView: View {
 
     /// Persist the current conversations through the canonical file-backed repository.
     private func persistConversations() {
-        CurrentConversationsStore.save(
-            InquiryPersistenceSnapshot(conversations: conversations, activeConversationID: activeConversationID)
-        )
+        session.persist()
     }
 
     // MARK: - Insight definition
@@ -2278,7 +2178,7 @@ struct CurrentConversationView: View {
         guard !definitionState.lookupKeys.contains(insightWord.id) else { return }
         definitionState.lookupKeys.insert(insightWord.id)
 
-        let conversationID = activeConversationID
+        let conversationID = session.activeConversationID
         let context = definitionContext(sourceResponseBlock: sourceResponseBlock)
         Task {
             let cached = await aquinasModel.cachedDefinition(
@@ -2290,7 +2190,7 @@ struct CurrentConversationView: View {
             // this was in flight — otherwise this term's key stays stuck in the lookup set
             // forever and every future tap on it silently no-ops.
             definitionState.lookupKeys.remove(insightWord.id)
-            guard activeConversationID == conversationID else { return }
+            guard session.activeConversationID == conversationID else { return }
 
             if let cached {
                 definitionState.definitionsByKey[insightWord.id] = stableDefinition(
@@ -2332,7 +2232,7 @@ struct CurrentConversationView: View {
         modelTasks.enqueue(
             kind: .defineInsight(key: word.id, name: word.text),
             originPage: .conversation,
-            conversationID: activeConversationID,
+            conversationID: session.activeConversationID,
             onStart: {
                 definitionState.sheetContentHeight = 178
                 definitionState.loadingWord = word
@@ -2352,7 +2252,7 @@ struct CurrentConversationView: View {
 
     // Routes through the live AquinasModel's contextual-definition call.
     private func requestDynamicDefinition(for word: String, sourceResponseBlock: String?) async {
-        let conversationID = activeConversationID
+        let conversationID = session.activeConversationID
         let completedWord = ConversationInsightWord(text: word, sourceResponseBlock: sourceResponseBlock)
 
         let defined: ConceptDefinition
@@ -2390,7 +2290,7 @@ struct CurrentConversationView: View {
             return ConversationContext()
         }
         return ConversationContext(
-            transcript: [.text(sourceResponseBlock.removingAquinasInsightMarkup())]
+            transcript: [.text(ResponseTextFormatting.definitionContext(from: sourceResponseBlock))]
         )
     }
 
@@ -2460,7 +2360,7 @@ struct CurrentConversationView: View {
             }
         }
 
-        guard let conversationID = activeConversationID else { return }
+        guard let conversationID = session.activeConversationID else { return }
         if isSaved {
             ConversationInsightMembershipStore.add(
                 insightID: concept.id,
@@ -2484,7 +2384,7 @@ struct CurrentConversationView: View {
     }
 
     private func removeConversationInsight(_ concept: ConceptDefinition) {
-        guard let conversationID = activeConversationID else { return }
+        guard let conversationID = session.activeConversationID else { return }
         ConversationInsightMembershipStore.remove(
             insightID: concept.id,
             from: conversationID
@@ -2493,28 +2393,11 @@ struct CurrentConversationView: View {
     }
 
     private func restoreConversationInsight(_ concept: ConceptDefinition) {
-        guard let conversationID = activeConversationID else { return }
+        guard let conversationID = session.activeConversationID else { return }
         ConversationInsightMembershipStore.add(
             insightID: concept.id,
             to: conversationID
         )
         manuallySavedConversationInsightIDs.insert(concept.id)
-    }
-}
-
-private let aquinasInsightLinkPattern = try! NSRegularExpression(
-    pattern: #"\[([^\]]+)\]\(aq://[^)]+\)"#
-)
-
-private extension String {
-    func removingAquinasInsightMarkup() -> String {
-        let range = NSRange(startIndex..., in: self)
-        let visibleText = aquinasInsightLinkPattern.stringByReplacingMatches(
-            in: self,
-            options: [],
-            range: range,
-            withTemplate: "$1"
-        )
-        return InlineInsightMarkup.plainText(from: visibleText)
     }
 }

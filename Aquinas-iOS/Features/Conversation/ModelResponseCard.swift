@@ -19,7 +19,7 @@ struct ModelResponseCard: View {
     let isAwaitingResponse: Bool
     let isReceivingStream: Bool
     let isQueuedForModel: Bool
-    let usesNetworkStream: Bool
+    let usesIncrementalStream: Bool
     let thinkingSummary: [String]
     /// Retrieved grounding passages for the turn currently generating, rendered as expandable
     /// Source rows in the loading state. Empty once the response is complete.
@@ -98,7 +98,7 @@ struct ModelResponseCard: View {
         isAwaitingResponse: Bool = false,
         isReceivingStream: Bool = false,
         isQueuedForModel: Bool = false,
-        usesNetworkStream: Bool = false,
+        usesIncrementalStream: Bool = false,
         thinkingSummary: [String] = [],
         groundingSources: [GroundingSourceSummary] = [],
         evidenceBasis: ResponseEvidenceBasis? = nil,
@@ -126,7 +126,7 @@ struct ModelResponseCard: View {
         self.isAwaitingResponse = isAwaitingResponse
         self.isReceivingStream = isReceivingStream
         self.isQueuedForModel = isQueuedForModel
-        self.usesNetworkStream = usesNetworkStream
+        self.usesIncrementalStream = usesIncrementalStream
         self.thinkingSummary = thinkingSummary
         self.groundingSources = groundingSources
         self.evidenceBasis = evidenceBasis
@@ -347,7 +347,7 @@ struct ModelResponseCard: View {
                         fullText: fullText,
                         shouldStream: shouldAnimateOnAppear,
                         isReceivingStream: isReceivingStream,
-                        usesNetworkStream: usesNetworkStream,
+                        usesIncrementalStream: usesIncrementalStream,
                         responseTextAlignment: responseTextAlignment,
                         responseFont: responseFont,
                         conversationFontSize: conversationFontSize,

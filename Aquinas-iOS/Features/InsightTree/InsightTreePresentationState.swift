@@ -1,0 +1,61 @@
+import SwiftUI
+import Observation
+
+/// Reveal bookkeeping is separate from camera, physics, selection, and discovery state.
+/// Geometry-dependent animation sequences stay with the canvas; their values and tasks have
+/// one owner for the lifetime of that canvas.
+@MainActor
+@Observable
+final class InsightTreeRevealState {
+    var revealedInsightIDs: Set<UUID> = []
+    /// Connectors appear after their chips finish entering.
+    var revealedInsightConnectorIDs: Set<UUID> = []
+    var growingConnectorIDs: Set<UUID> = []
+    var revealedGraphEdgeIDs: Set<String> = []
+    var animatedGraphEdgeIDs: Set<String> = []
+    var revealedNodeIDs: Set<UUID> = []
+    /// Membership baselines are independent of reveal state, so content updates cannot replay
+    /// an entrance while a newly inserted Insight is still hidden.
+    var observedLiveInsightIDs: Set<UUID> = []
+    var observedLiveNodeIDs: Set<UUID> = []
+    @ObservationIgnored var entranceTask: Task<Void, Never>? = nil
+    @ObservationIgnored var midpointRevealTask: Task<Void, Never>? = nil
+    var midpointLoadingStartedAt: [UUID: TimeInterval] = [:]
+    @ObservationIgnored var makeNodeRevealTask: Task<Void, Never>? = nil
+    var makeNodeLoadingStartedAt: TimeInterval?
+    var pendingMakeNodeChildren: [PendingMakeNodeChild] = []
+    /// Membership baselines for persisted topology mutations.
+    var confirmedPersistedInsightIDs: Set<UUID> = []
+    var confirmedPersistedNodeIDs: Set<UUID> = []
+    var loadingInsightIDs: Set<UUID> = []
+    var loadingFlashOpacity: CGFloat = 1
+    var unsplayedInsightIDs: Set<UUID> = []
+
+    struct PendingMakeNodeChild: Equatable {
+        let id: UUID
+        let orbitIndex: Int
+    }
+
+    func cancelPendingAnimations() {
+        entranceTask?.cancel()
+        midpointRevealTask?.cancel()
+        makeNodeRevealTask?.cancel()
+    }
+
+    func beginConnectorGrowth(_ insightIDs: Set<UUID>) -> Set<UUID> {
+        let fresh = insightIDs.subtracting(revealedInsightConnectorIDs)
+        growingConnectorIDs.formUnion(fresh)
+        revealedInsightConnectorIDs.formUnion(insightIDs)
+        return fresh
+    }
+}
+
+/// Transient selection effects, independent of reveal and topology changes.
+@MainActor
+@Observable
+final class InsightTreeSelectionState {
+    var selectedEdgeID: UUID?
+    var selectionRipples: [RippleTrigger] = []
+    var selectionPulseStartTime: TimeInterval?
+    var selectionFlashOpacity: CGFloat = 1
+}

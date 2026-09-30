@@ -12,7 +12,12 @@ binding or durable store—not local `@State` in `CurrentConversationView`.
 
 `CurrentConversationView` owns active conversation and branch presentation, the visible model-task
 experience, conversation-scoped definition flow, slash-command handling, and on-device Insight Tree seeding
-after each completed response. `ModelTaskQueue` serializes questions, contextual
+after each completed response. Its `ConversationSession` owns the conversation list, active
+branches, rename/save operations, and ID-addressed response reconciliation. The view retains
+presentation state and callbacks into the shell. `NewConversationRequests` is a shell-owned
+mailbox of complete typed requests (including prompt metadata, topic, and optional quoted
+Insight); consuming a request clears it, so recreating the page cannot replay a handoff.
+`ModelTaskQueue` serializes questions, contextual
 definitions, tree updates, and Question of the Day consolidation. Cancellation must keep the
 visible pending/breathing state in sync.
 
@@ -47,6 +52,17 @@ prompts use the same broader-concept relationship. On rebuild, an existing cache
 whose name repeats a member is relabelled through the queue with its ID, membership, and position
 preserved. The new label overrides the seed's presentation and receives a fresh definition.
 Explicit Make Node promotions and placed Midpoints retain their intentional titles.
+
+Response formatting is split by responsibility: `ResponseParsing` and `LiveResponseParsing`
+prepare completed and incremental text; `ResponseFlowLayout` lays out words;
+`CompletedResponseSegments` and `LiveFormattedResponseView` render them; `StreamingMessageView`
+coordinates reveal progress and completion. `ResponseTextFormatting` shares Insight-markup
+removal while retaining the different emphasis policies for previews and definition context.
+
+The tree canvas retains geometry-dependent interactions and physics. `InsightTreeRevealState`
+owns reveal membership and animation tasks, and `InsightTreeSelectionState` owns transient
+selection effects. `InsightTreeSelectionOverlay` receives resolved screen positions so rendering
+selection lines does not depend on the full graph or physics state.
 
 ## Persistence boundaries
 

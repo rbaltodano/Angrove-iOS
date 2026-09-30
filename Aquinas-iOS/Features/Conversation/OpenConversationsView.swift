@@ -742,62 +742,6 @@ private struct ConversationCardAnswerText: View {
     }
 }
 
-enum ConversationCardAnswerFormatting {
-    enum Segment: Equatable {
-        case plain(String)
-    }
-
-    private static let insightMarkup = try! NSRegularExpression(
-        pattern: #"\*{0,2}\[([^\]]+)\]\(aq://[^)]+\)\*{0,2}|\*{0,2}\{\{([^{}]+)\}\}\*{0,2}"#
-    )
-
-    static func segments(from answer: String) -> [Segment] {
-        let visibleAnswer = InlineInsightMarkup.plainText(from: answer)
-        let fullRange = NSRange(visibleAnswer.startIndex..., in: visibleAnswer)
-        let matches = insightMarkup.matches(in: visibleAnswer, range: fullRange)
-        var segments: [Segment] = []
-        var cursor = visibleAnswer.startIndex
-
-        for match in matches {
-            guard let matchRange = Range(match.range(at: 0), in: visibleAnswer) else {
-                continue
-            }
-            appendPlain(String(visibleAnswer[cursor..<matchRange.lowerBound]), to: &segments)
-
-            let titleRange = match.range(at: 1).location != NSNotFound
-                ? match.range(at: 1)
-                : match.range(at: 2)
-            if let titleRange = Range(titleRange, in: visibleAnswer) {
-                appendPlain(String(visibleAnswer[titleRange]), to: &segments)
-            }
-            cursor = matchRange.upperBound
-        }
-
-        appendPlain(String(visibleAnswer[cursor...]), to: &segments)
-        return segments
-    }
-
-    static func attributedText(from answer: String) -> AttributedString {
-        var result = AttributedString()
-        for segment in segments(from: answer) {
-            guard case .plain(let text) = segment else { continue }
-            result.append(AttributedString(text))
-        }
-        return result
-    }
-
-    private static func appendPlain(_ text: String, to segments: inout [Segment]) {
-        let cleaned = text
-            .replacingOccurrences(of: "{{", with: "")
-            .replacingOccurrences(of: "}}", with: "")
-        guard !cleaned.isEmpty else { return }
-        if case .plain(let previous) = segments.last {
-            segments[segments.count - 1] = .plain(previous + cleaned)
-        } else {
-            segments.append(.plain(cleaned))
-        }
-    }
-}
 
 struct InsightLine: View {
     let word: String
