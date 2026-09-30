@@ -109,3 +109,72 @@ re-export preserves its current fidelity.
 
 Online sources were used for reviewer verification only. They were not added to the app's
 corpus, used for generation, or downloaded as training material.
+
+## Implementation — September 30, 2026 (branch `fix/e4b-quality-triage`)
+
+The review above led to the changes below. The original phone score stays 26/40 under the original
+scorer; nothing here re-scores that run as a pass.
+
+### What changed
+
+| Priority | Change | Cases it targets |
+| --- | --- | --- |
+| 1. Context | A follow-up that shares a substantive word with the previous **answer** keeps its history. | E2 |
+| 2. Contextual retrieval | A follow-up that depends on the previous exchange is retrieved for together with the previous question. A follow-up with a pronoun carries one line naming the previous question. | E5, E2 |
+| 3. Evidence | A Summa hit delivers that article's own answer ("I answer that" to the first reply), once per article, led by its conclusion when the closing sentence states one. Header-only chunks are dropped. The first article brings the next when their questions share two subject words. Subject routes anchor on the article's question. | B1, C4, C5, R1, R5, B6 |
+| 3. Evidence | Two subject routes: mistaken conscience → I–II q.19 a.5; just war → II–II q.40 a.1. | B1, B3 |
+| 3. Evidence | Curated notes: Summa composition (unfinished), article structure, Commentary on the Sentences, substance and accident, the transcendentals, a mistaken conscience. | D2, E2, E5, A6, A5, B1 |
+| 4. Definitions | Definition evidence accepts a passage that names the term in the plural. Direct definitions stay plain text (see *Open decision*). | A5, R5 |
+| 5. Evaluation | `score_objective_v2.py` beside the frozen v1: negated forbidden matches, per-case paraphrase additions, no link requirement for direct definitions, and an `outcome` per case (pass, abstained, incomplete_or_wrong, reject). | R7, A6, R5, E3 |
+| — | Scripture: one passage from each cited chapter before a second from any. This also fixes the long-failing `namedPassagesUseSourceTextAnchors` test. | — |
+
+Two existing defects surfaced and were fixed along the way:
+- The "lying" subject route delivered the article on false evidence (II–II q.70), because the
+  phrase "every lie is a sin" first appears there. It now delivers II–II q.110 a.3.
+- An "I answer that" split across two chunks ("… I" / "answer that …") was not recognized.
+
+### Results so far (simulator CPU, greedy; development set, not an acceptance run)
+
+| Run | Build | Scorer v1 | Scorer v2 |
+| --- | --- | --- | --- |
+| `C8-M4Ls-held-2` | before these changes | 28/40 | 29/40 |
+| `P2-phone-held-f32-1` (phone GPU, F32) | before these changes | 26/40 | 28/40 |
+| `Q2-held-sim-2` | context + evidence + notes (`435a7ed`) | 33/40 | 35/40 |
+| `Q3-held-sim-1` | + conclusions, pronoun note, plural definitions (`5a06d9c`) | 34/40 | 37/40 |
+
+`Q3-held-sim-1` remaining misses:
+- **held-D6 (levitation):** still a safe abstention. No evidence was added; hagiography is out of
+  scope until the owner decides otherwise.
+- **held-C4 (law and reason):** the answer is now faithful to I–II q.90 a.1 and no longer invents
+  the claim about the will. The check wants "ordinance" or "common good", which belong to q.90
+  a.4, a different article from the one asked about.
+- **held-B6 (gluttony):** correct core answer from q.148 a.1. The species in a.4 sit just below
+  the retrieval floor (0.461 against 0.45), so the examples the check wants aren't delivered.
+- v1 only: held-R5 (no links, by design), held-R7 (the scorer false positive), held-E3 (the answer
+  "One hundred forty-four" where the check wants "144").
+
+**held-B1** passed both scorers in `Q3-held-sim-1`, but its text was still muddled: it never said
+that an erring conscience binds. With the curated note added afterwards (`Q4-b1-sim-1`), it opens
+"a person must follow their conscience, even if that conscience is mistaken" and then
+distinguishes culpable from blameless error.
+
+### Not yet done
+
+- **Phone verification** under production F32 settings. The simulator runs on CPU; the phone GPU
+  differs (the F16 digit bug was phone-only).
+- **A fresh sealed evaluation set.** These 40 cases are now development material.
+- **Latency and memory.** A lone Summa article may now take up to 2,600 characters, and the total
+  reference budget is 3,900 characters, close to what three raw chunks took. Measure on the phone.
+
+### Open decision for the owner
+
+Direct-definition answers ("What is natural law?") are plain text with no tappable term and no
+Insight card. Code has done this since `2524f6e` (September 12), and
+`directDefinitionDoesNotRenderInlineInsightCard` asserts it. `Aquinas-Foundations/FUNCTIONALITY.md`
+§3 still says those answers include an in-text Insight card. One of the two needs to change.
+
+### Fine-tuning
+
+After these changes, the remaining simulator failures are retrieval-floor and scorer-strictness
+issues, not behavior the model gets wrong with the right context in front of it. That leaves no
+case here that justifies training yet. Revisit after the phone run and a fresh sealed set.

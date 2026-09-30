@@ -192,6 +192,23 @@ nonisolated struct LocalAquinasGroundingProvider: AquinasGroundingProviding {
                 "commentary on the sentences", "book of sentences", "books of sentences"
             ]
         ),
+        // The primary text reaches the model too (I–II q.19 a.5–6, via a subject route), but
+        // Aquinas's answer there opens with a view he rejects and speaks of "erring reason" and
+        // "the will". Given only that, the model answered about when error excuses and never
+        // said that conscience binds, or reversed it outright (held-B1).
+        AquinasGroundingReference(
+            id: "erring-conscience",
+            title: "Aquinas on a mistaken conscience",
+            sourceName: "Aquinas curated reference note",
+            facts: "Aquinas treats a mistaken conscience in Summa Theologiae I–II, question 19, articles 5 and 6, and his answer has two parts. First, conscience binds even when it is mistaken: a person who acts against what their reason judges to be right does wrong, whether that judgment is correct or in error, because they choose what they take to be evil. Second, following a mistaken conscience is not thereby good. If the mistake comes from ignorance the person is responsible for, such as negligence or ignorance of the divine law they are bound to know, the act is still wrong. If it comes from blameless ignorance of a circumstance, the person is excused. So the duty is both to follow conscience and to form it well.",
+            retrievalAliases: [
+                "mistaken conscience", "erring conscience", "erroneous conscience",
+                "conscience that is mistaken", "conscience is mistaken", "conscience that is wrong",
+                "conscience is wrong", "conscience errs", "conscience that errs",
+                "conscience be wrong", "conscience be mistaken", "wrong conscience",
+                "conscience bind", "conscience binds"
+            ]
+        ),
         AquinasGroundingReference(
             id: "substance-and-accident",
             title: "Substance and accident",
