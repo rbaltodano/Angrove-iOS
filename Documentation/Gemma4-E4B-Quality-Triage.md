@@ -217,3 +217,29 @@ already.
 session, which clones the "iPhone 17" simulator and shuts it down. Probes now run on a dedicated
 "Aquinas Probe" simulator (`PROBE_DEVICE`). The same cause explains the earlier unexplained exits
 (`V1-vision-sim-2`, `Q2-held-sim-1`).
+
+### Follow-up fixes for the three shared defects (`d367ae9`)
+
+- **Evidence must name the subject.** A source-dependent question that names a person, place, or
+  work now needs a reference that mentions it (a curated note, a cited chapter, or a passage
+  containing the name; "Aquinas" is also satisfied by his own text). Otherwise the app abstains.
+  A curated note on Aquinas's life was added.
+- **Definitions** go first to the Summa article that defines the term, where one exists ("Whether
+  justice is fittingly defined as…").
+- **Follow-ups that point at earlier items** ("which one", "the others", "the former") keep their
+  history and are retrieved with the previous question.
+
+| Run (simulator CPU, scorer v2) | Build | Sealed set 1 | Held-out |
+| --- | --- | --- | --- |
+| `A1-sealed-main-sim-1`, `C8-M4Ls-held-2` | before any fixes | 37/40 | 29/40 |
+| `A1-sealed-fixed-sim-2`, `Q3-held-sim-1` | first round of fixes | 36/40 | 37/40 |
+| `A2-sealed-sim-1`, `Q5-held-sim-1` | + these three (`d367ae9`) | 38/40 | 37/40 |
+
+- seal-R1 now gives the definition ("renders to each one his due by a constant and perpetual
+  will"). seal-D5 answers "Pope John XXII canonized Thomas Aquinas in 1323." seal-E1 answers
+  prudence.
+- **seal-R6** ("Who wrote the Letter to the Hebrews?") now abstains. No retrieved passage
+  mentions Hebrews; before, the model answered from memory and the answer was labeled
+  corpus-grounded. This is the guard working as intended, at the cost of an unhelpful reply.
+- seal-C2 is the check-wording miss described above. Held-out is unchanged, with no regressions.
+- Sealed set 1 has now been used for development. The next acceptance claim needs a new set.
