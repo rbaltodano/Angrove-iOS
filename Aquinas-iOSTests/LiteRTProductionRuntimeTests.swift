@@ -200,6 +200,89 @@ struct LiteRTProductionRuntimeTests {
         #expect(query == latestQuestion)
     }
 
+    @Test("A follow-up that depends on the previous exchange retrieves with the previous question")
+    func contextDependentFollowUpRetrievesWithPreviousQuestion() {
+        let lombard = LiteRTAquinasModel.groundingQuery(
+            for: ConversationContext(
+                transcript: [
+                    .user("Who was Peter Lombard?", nil, []),
+                    .text("Peter Lombard was a theologian and bishop of Paris whose Four Books of Sentences became the standard theology textbook."),
+                    .user("Did Aquinas comment on his work?", nil, [])
+                ]
+            )
+        )
+        #expect(lombard.contains("Peter Lombard"))
+        #expect(lombard.contains("Did Aquinas comment on his work?"))
+
+        let subjectless = LiteRTAquinasModel.groundingQuery(
+            for: ConversationContext(
+                transcript: [
+                    .user("What is the natural law?", nil, []),
+                    .text("The natural law is the rational creature's participation in the eternal law."),
+                    .user("Can you give a concrete example?", nil, [])
+                ]
+            )
+        )
+        #expect(subjectless.contains("natural law"))
+
+        let answerSubject = LiteRTAquinasModel.groundingQuery(
+            for: ConversationContext(
+                transcript: [
+                    .user("What is the Summa Theologiae?", nil, []),
+                    .text("The Summa Theologiae is Thomas Aquinas's unfinished systematic presentation of theology, organized into questions and articles."),
+                    .user("How is each article structured?", nil, [])
+                ]
+            )
+        )
+        #expect(answerSubject.contains("Summa Theologiae"))
+
+        let newTopic = "What's the capital of Portugal?"
+        let unrelated = LiteRTAquinasModel.groundingQuery(
+            for: ConversationContext(
+                transcript: [
+                    .user("Who was Peter Lombard?", nil, []),
+                    .text("Peter Lombard was a theologian and bishop of Paris."),
+                    .user(newTopic, nil, [])
+                ]
+            )
+        )
+        #expect(unrelated == newTopic)
+    }
+
+    @MainActor
+    @Test("A follow-up about a subject the previous answer introduced keeps the conversation")
+    func followUpOnAnswerSubjectKeepsContext() {
+        let answer = "The Summa Theologiae is Thomas Aquinas's unfinished systematic presentation of theology, organized into questions and articles."
+        #expect(
+            !LiteRTAquinasModel.startsFreshTopic(
+                latestQuestion: "How is each article structured?",
+                previousQuestion: "What is the Summa Theologiae?",
+                previousAnswer: answer
+            )
+        )
+        // Without the answer there is nothing to connect the two questions.
+        #expect(
+            LiteRTAquinasModel.startsFreshTopic(
+                latestQuestion: "How is each article structured?",
+                previousQuestion: "What is the Summa Theologiae?"
+            )
+        )
+        for unrelated in [
+            "What's the capital of Portugal?",
+            "Can you explain quantum entanglement in physics?",
+            "Can you write some JavaScript cursor tracker code?"
+        ] {
+            #expect(
+                LiteRTAquinasModel.startsFreshTopic(
+                    latestQuestion: unrelated,
+                    previousQuestion: "What is the Summa Theologiae?",
+                    previousAnswer: answer
+                ),
+                "kept history for: \(unrelated)"
+            )
+        }
+    }
+
     @Test("Direct-definition responses remain plain conversation")
     func directDefinitionDoesNotRenderInlineInsightCard() {
         let response = ModelResponse(

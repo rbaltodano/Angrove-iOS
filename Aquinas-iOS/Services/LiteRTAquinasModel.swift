@@ -37,11 +37,13 @@ struct LiteRTAquinasModel: AquinasModel {
 
     static func startsFreshTopic(
         latestQuestion: String,
-        previousQuestion: String
+        previousQuestion: String,
+        previousAnswer: String? = nil
     ) -> Bool {
         isLikelyTopicShift(
             latestQuestion: latestQuestion,
-            previousQuestion: previousQuestion
+            previousQuestion: previousQuestion,
+            previousAnswer: previousAnswer
         )
     }
 
@@ -200,11 +202,17 @@ struct LiteRTAquinasModel: AquinasModel {
         text.trimmingCharacters(in: .whitespacesAndNewlines) == corpusScopeAbstentionText
     }
 
-    /// A Question of the Day is stored as a leading user prompt, followed immediately by the
-    /// person's reflective reply. The reply alone is often personal language with little source
-    /// vocabulary ("I should be more gracious"), so retrieve from the whole prompt-and-reply
-    /// exchange. Ordinary turns alternate user/model blocks and still retrieve from the latest
-    /// question alone, preserving the corpus-scope abstention for unrelated questions.
+    /// The text retrieval searches with.
+    ///
+    /// - A Question of the Day is stored as a leading user prompt, followed immediately by the
+    ///   person's reflective reply. The reply alone is often personal language with little source
+    ///   vocabulary ("I should be more gracious"), so retrieve from the whole prompt-and-reply
+    ///   exchange.
+    /// - A follow-up that depends on the previous exchange ("Did Aquinas comment on his work?"
+    ///   after "Who was Peter Lombard?") carries no retrievable subject of its own, so the previous
+    ///   question is searched with it (held-E5 retrieved nothing about Lombard).
+    /// - Any other turn retrieves from the latest question alone, preserving the corpus-scope
+    ///   abstention for unrelated questions.
     static func groundingQuery(for context: ConversationContext) -> String {
         guard let latestIndex = context.transcript.lastIndex(where: { block in
             if case .user = block { return true }
@@ -215,15 +223,31 @@ struct LiteRTAquinasModel: AquinasModel {
         }
 
         let latest = latestQuestion.trimmed
-        guard latestIndex > 0,
-              case .user(let precedingPrompt, _, _) = context.transcript[latestIndex - 1]
-        else {
-            return latest
+        guard latestIndex > 0 else { return latest }
+        if case .user(let precedingPrompt, _, _) = context.transcript[latestIndex - 1] {
+            let prompt = precedingPrompt.trimmed
+            return prompt.isEmpty ? latest : "\(prompt)\n\n\(latest)"
         }
 
-        let prompt = precedingPrompt.trimmed
-        guard !prompt.isEmpty else { return latest }
-        return "\(prompt)\n\n\(latest)"
+        let earlier = context.transcript[..<latestIndex]
+        guard let previousQuestion = earlier.reversed().compactMap({ block -> String? in
+            guard case .user(let question, _, _) = block else { return nil }
+            return question.trimmed
+        }).first, !previousQuestion.isEmpty else {
+            return latest
+        }
+        let previousAnswer = earlier.reversed().compactMap { block -> String? in
+            guard case .text(let answer) = block else { return nil }
+            return InlineInsightMarkup.plainText(from: answer)
+        }.first
+        guard followUpDependsOnContext(
+            latestQuestion: latest,
+            previousQuestion: previousQuestion,
+            previousAnswer: previousAnswer
+        ) else {
+            return latest
+        }
+        return "\(previousQuestion)\n\n\(latest)"
     }
 
     /// For a definition, accept semantic retrieval only if a passage explicitly names the term.
@@ -1748,10 +1772,15 @@ private extension LiteRTAquinasModel {
         } else {
             latestQuestion = ""
         }
+        let previousAnswer = earlierTranscript.reversed().compactMap { block -> String? in
+            guard case .text(let answer) = block else { return nil }
+            return InlineInsightMarkup.plainText(from: answer)
+        }.first
         let startsFreshTopic = previousQuestion.map {
             isLikelyTopicShift(
                 latestQuestion: latestQuestion,
-                previousQuestion: $0
+                previousQuestion: $0,
+                previousAnswer: previousAnswer
             )
         } ?? false
         return ConversationRequest(
@@ -1899,14 +1928,11 @@ private extension LiteRTAquinasModel {
 
     static func isLikelyTopicShift(
         latestQuestion: String,
-        previousQuestion: String
+        previousQuestion: String,
+        previousAnswer: String? = nil
     ) -> Bool {
         // A word that points back into the conversation ("Why was *that* council important?",
         // "Is *it* still taught?") makes the question a continuation.
-        let referringWords: Set<String> = [
-            "also", "but", "further", "more", "that", "this", "these", "those", "it", "its",
-            "they", "them", "their", "he", "him", "his", "she", "her", "why", "such", "same"
-        ]
         if !words(in: latestQuestion).isDisjoint(with: referringWords) { return false }
         // A question with no subject of its own once generic follow-up wording is removed
         // ("Can you give a concrete example?", "Explain more simply") can only be about the
@@ -1916,7 +1942,57 @@ private extension LiteRTAquinasModel {
         guard !latest.isEmpty else { return false }
         let previous = topicWords(in: previousQuestion)
         guard latest.count >= 2, previous.count >= 2 else { return false }
-        return latest.isDisjoint(with: previous)
+        guard latest.isDisjoint(with: previous) else { return false }
+        // A follow-up can pick up a subject the previous *answer* introduced: after "What is the
+        // Summa Theologiae?" was answered with "...organized into questions and articles", "How
+        // is each article structured?" shares no word with the earlier question but continues
+        // the answer (held-E2 lost its history this way).
+        return !continuesAnswer(latest, previousAnswer: previousAnswer)
+    }
+
+    /// Words that point back into the conversation rather than naming a subject.
+    private static let referringWords: Set<String> = [
+        "also", "but", "further", "more", "that", "this", "these", "those", "it", "its",
+        "they", "them", "their", "he", "him", "his", "she", "her", "why", "such", "same"
+    ]
+
+    /// Pronouns whose referent must come from earlier in the conversation.
+    private static let pronouns: Set<String> = [
+        "that", "this", "these", "those", "it", "its", "they", "them", "their", "he", "him",
+        "his", "she", "her"
+    ]
+
+    /// Whether a substantive word of the latest question also appears in the previous answer.
+    /// Short words are ignored, and plural forms count as the same word.
+    private static func continuesAnswer(
+        _ latestTopicWords: Set<String>,
+        previousAnswer: String?
+    ) -> Bool {
+        guard let previousAnswer, !previousAnswer.isEmpty else { return false }
+        let answerStems = Set(topicWords(in: previousAnswer).map(singularStem))
+        return latestTopicWords.contains { word in
+            let stem = singularStem(word)
+            return stem.count >= 5 && answerStems.contains(stem)
+        }
+    }
+
+    private static func singularStem(_ word: String) -> String {
+        word.count > 3 && word.hasSuffix("s") ? String(word.dropLast()) : word
+    }
+
+    /// Whether the latest question can only be understood, and so only be retrieved for, together
+    /// with the previous exchange: it uses a pronoun, names no subject of its own, or continues a
+    /// subject the previous answer introduced.
+    static func followUpDependsOnContext(
+        latestQuestion: String,
+        previousQuestion: String,
+        previousAnswer: String?
+    ) -> Bool {
+        if !words(in: latestQuestion).isDisjoint(with: pronouns) { return true }
+        let latest = topicWords(in: latestQuestion).subtracting(followUpWords)
+        if latest.isEmpty { return true }
+        return latest.isDisjoint(with: topicWords(in: previousQuestion))
+            && continuesAnswer(latest, previousAnswer: previousAnswer)
     }
 
     /// Wording that asks for more of what was just discussed rather than naming a subject.
