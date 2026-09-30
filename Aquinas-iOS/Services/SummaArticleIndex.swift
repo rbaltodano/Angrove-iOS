@@ -25,6 +25,10 @@ nonisolated struct SummaArticleIndex: Sendable {
         let question: String
         /// From "I answer that" up to the first reply, shortened to the character budget.
         let answer: String
+        /// The sentence that closes the answer, when it states the conclusion ("Hence…", "We must
+        /// therefore conclude…"). An answer often opens with a view Aquinas goes on to reject, so
+        /// the conclusion is given to the model first.
+        let conclusion: String?
         /// Corpus index of the chunk where the answer begins, for citations.
         let answerIndex: Int
     }
@@ -117,10 +121,12 @@ nonisolated struct SummaArticleIndex: Sendable {
         guard trimmed.count > "I answer that".count + 20,
               let answerIndex = chunkOffsets.last(where: { $0.offset <= markerOffset })?.index
         else { return nil }
+        let conclusion = Self.conclusion(of: trimmed)
         return Evidence(
             articleStart: start,
             question: Self.question(in: passages[start].text),
-            answer: Self.shortened(trimmed, to: characterBudget),
+            answer: Self.shortened(trimmed, to: characterBudget - (conclusion?.count ?? 0)),
+            conclusion: conclusion,
             answerIndex: answerIndex
         )
     }
@@ -184,6 +190,25 @@ nonisolated struct SummaArticleIndex: Sendable {
                 // "sinners" and "sinned" name one subject.
                 .map { String($0.prefix(5)) }
         )
+    }
+
+    /// A closing sentence that states the conclusion: it opens with "Hence", "We must therefore
+    /// conclude" and the like, and runs to the end of the answer.
+    private static let closingConclusion = try! NSRegularExpression(
+        pattern: #"(?:^|[.;:!?]["”’']?\s+)((?:Hence|Therefore|Wherefore|Consequently|Accordingly|Thus|So then|We must therefore|It follows|It is therefore|It is evident|It is clear|It is manifest)\b[^.]{20,400}\.?)\s*$"#
+    )
+
+    /// The answer's final sentence, when it reads as a conclusion and is short enough to quote.
+    static func conclusion(of answer: String) -> String? {
+        let body = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let match = closingConclusion.firstMatch(
+                in: body,
+                range: NSRange(body.startIndex..., in: body)
+              ),
+              let range = Range(match.range(at: 1), in: body)
+        else { return nil }
+        let sentence = body[range].trimmingCharacters(in: .whitespaces)
+        return sentence.hasSuffix(".") ? sentence : sentence + "."
     }
 
     /// Keeps the opening and the close of a long answer. A scholastic answer states its

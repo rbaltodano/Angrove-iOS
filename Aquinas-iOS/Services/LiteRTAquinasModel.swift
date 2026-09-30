@@ -47,6 +47,11 @@ struct LiteRTAquinasModel: AquinasModel {
         )
     }
 
+    /// The latest user message exactly as a request for `context` would send it.
+    static func latestRequestMessage(for context: ConversationContext) -> Message? {
+        conversationRequest(from: context)?.latest
+    }
+
     static func repeatsEarlierAnswer(
         _ response: String,
         transcript: [ChatBlock]
@@ -258,12 +263,29 @@ struct LiteRTAquinasModel: AquinasModel {
     ) -> [AquinasGroundingReference] {
         let normalizedTerm = normalizedDefinitionEvidenceText(term)
         guard !normalizedTerm.isEmpty else { return [] }
+        let termWords = definitionEvidenceWords(in: normalizedTerm)
         return references.filter { reference in
-            normalizedDefinitionEvidenceText(
-                "\(reference.title) \(reference.facts)"
-            )
-            .contains(normalizedTerm)
+            let text = normalizedDefinitionEvidenceText("\(reference.title) \(reference.facts)")
+            if text.contains(normalizedTerm) { return true }
+            // "a transcendental in scholastic philosophy" is named by a passage on "the
+            // transcendentals in scholastic philosophy": every word of the term, allowing a
+            // plural, rather than the exact phrase.
+            guard !termWords.isEmpty else { return false }
+            let words = definitionEvidenceWords(in: text)
+            return termWords.allSatisfy { word in
+                words.contains(word) || words.contains(word + "s")
+            }
         }
+    }
+
+    private static func definitionEvidenceWords(in normalizedText: String) -> Set<String> {
+        let fillers: Set<String> = ["a", "an", "the", "of", "in", "and", "or", "to", "for"]
+        return Set(
+            normalizedText
+                .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+                .map(String.init)
+                .filter { !fillers.contains($0) }
+        )
     }
 
     private static func normalizedDefinitionEvidenceText(_ text: String) -> String {
@@ -1742,11 +1764,7 @@ private extension LiteRTAquinasModel {
         guard let latestIndex = context.transcript.lastIndex(where: { block in
             if case .user = block { return true }
             return false
-        }),
-        let latest = liteRTMessage(
-            context.transcript[latestIndex],
-            isLatestUserRequest: true
-        ) else {
+        }) else {
             return nil
         }
         let earlierTranscript = context.transcript[..<latestIndex]
@@ -1783,6 +1801,18 @@ private extension LiteRTAquinasModel {
                 previousAnswer: previousAnswer
             )
         } ?? false
+        let followUpNote = startsFreshTopic
+            ? ""
+            : previousQuestion.map {
+                pronounNote(latestQuestion: latestQuestion, previousQuestion: $0)
+            } ?? ""
+        guard let latest = liteRTMessage(
+            context.transcript[latestIndex],
+            isLatestUserRequest: true,
+            followUpNote: followUpNote
+        ) else {
+            return nil
+        }
         return ConversationRequest(
             history: startsFreshTopic
                 ? []
@@ -1794,7 +1824,8 @@ private extension LiteRTAquinasModel {
 
     static func liteRTMessage(
         _ block: ChatBlock,
-        isLatestUserRequest: Bool = false
+        isLatestUserRequest: Bool = false,
+        followUpNote: String = ""
     ) -> Message? {
         switch block {
         case .text(let text):
@@ -1819,7 +1850,7 @@ private extension LiteRTAquinasModel {
                 When an <insight_quote> appears before the question, treat it as the Insight the
                 user deliberately selected and resolve references such as "this" or "that idea"
                 against its title and definition.
-
+                \(followUpNote)
                 User question:
                 \(prompt)
                 """
@@ -1978,6 +2009,22 @@ private extension LiteRTAquinasModel {
 
     private static func singularStem(_ word: String) -> String {
         word.count > 3 && word.hasSuffix("s") ? String(word.dropLast()) : word
+    }
+
+    /// Tells the model what a pronoun in a follow-up points at. After "Who was Peter Lombard?",
+    /// "Did Aquinas comment on his work?" was read as Aquinas commenting on his own work
+    /// (held-E5), even with the history in front of the model.
+    static func pronounNote(latestQuestion: String, previousQuestion: String) -> String {
+        let previous = previousQuestion.trimmed
+        guard !previous.isEmpty,
+              !words(in: latestQuestion).isDisjoint(with: pronouns)
+        else { return "" }
+        return """
+
+        This question continues the conversation. The previous question was: “\(previous)” \
+        Read a pronoun in the new question as pointing to what that question asked about.
+
+        """
     }
 
     /// Whether the latest question can only be understood, and so only be retrieved for, together

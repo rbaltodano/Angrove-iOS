@@ -130,7 +130,11 @@ final class OnDeviceGroundingStore {
         ) else { return nil }
         let record = passages[evidence.answerIndex]
         return GroundingPassage(
-            text: "Question: \(evidence.question)\nAquinas's own answer: \(evidence.answer)",
+            text: [
+                "Question: \(evidence.question)",
+                evidence.conclusion.map { "Aquinas's conclusion: \($0)" },
+                "Aquinas's own answer: \(evidence.answer)"
+            ].compactMap { $0 }.joined(separator: "\n"),
             title: record.title,
             sourceID: record.sourceId,
             distance: distance,

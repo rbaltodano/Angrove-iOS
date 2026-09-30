@@ -147,11 +147,19 @@ nonisolated final class MiniLMGroundingProvider: AquinasGroundingProviding {
             append(reference)
         }
 
-        for citation in ScriptureCitation.citations(in: question) {
-            guard collected.count < limit else { break }
-            for passage in store.chapter(for: citation, limit: limit - collected.count) {
+        // One passage from each cited chapter before a second from any: a named passage can point
+        // at several chapters (the resurrection is told in all four Gospels), and filling every
+        // slot from the first would deliver one witness instead of several.
+        let citedChapters = ScriptureCitation.citations(in: question).map { citation in
+            (citation: citation, passages: store.chapter(for: citation, limit: limit))
+        }
+        var depth = 0
+        while collected.count < limit, citedChapters.contains(where: { $0.passages.count > depth }) {
+            for (citation, passages) in citedChapters where passages.count > depth {
+                let passage = passages[depth]
                 append(Self.reference(for: passage, id: "citation-\(citation.bookCode)\(citation.chapter)-\(passage.sourceID)-\(collected.count)"))
             }
+            depth += 1
         }
 
         if collected.count < limit {

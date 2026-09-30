@@ -175,7 +175,7 @@ nonisolated struct LocalAquinasGroundingProvider: AquinasGroundingProviding {
             id: "summa-article-structure",
             title: "The structure of an article in the Summa Theologiae",
             sourceName: "Aquinas curated reference note",
-            facts: "Every article of the Summa Theologiae follows the same order. First, a question beginning \"Whether\". Second, the objections: arguments for the position Aquinas will go on to answer, each introduced \"It would seem that\". Third, \"On the contrary\" (sed contra), which cites an authority for the other side. Fourth, Aquinas's own answer in the body of the article, beginning \"I answer that\" (respondeo). Fifth, a reply to each objection in turn.",
+            facts: "Every article of the Summa Theologiae follows the same order. First, a question beginning \"Whether\". Second, the objections: arguments against the conclusion Aquinas will reach, each introduced \"It would seem that\". Third, \"On the contrary\" (sed contra), which cites an authority against the objections. Fourth, Aquinas's own answer in the body of the article, beginning \"I answer that\" (respondeo). Fifth, a reply to each objection in turn.",
             retrievalAliases: [
                 "article structured", "articles structured", "structure of an article",
                 "structure of each article", "structure of the articles", "structure of the summa",

@@ -51,6 +51,15 @@ struct SummaArticleIndexTests {
         #expect(!evidence.answer.contains("Objection"))
         #expect(!evidence.answer.contains("Article. 5"))
         #expect(evidence.answerIndex == 3)
+        #expect(evidence.conclusion == "Hence we must say that every will at variance with reason, whether right or erring, is always evil, in accord with what was said.")
+    }
+
+    @Test("Only a closing sentence that reads as a conclusion is offered as one")
+    func recognizesConclusions() {
+        #expect(SummaArticleIndex.conclusion(of: "I answer that, gluttony denotes an inordinate desire. Wherefore it is evident that gluttony is a sin.") == "Wherefore it is evident that gluttony is a sin.")
+        #expect(SummaArticleIndex.conclusion(of: "I answer that, a thing is said in two ways. The second way concerns the body alone.") == nil)
+        // The sentence before the conclusion ends in a quotation and cites "Ethic. vii".
+        #expect(SummaArticleIndex.conclusion(of: "I answer that, the Philosopher says (Ethic. vii, 9) that \"he is also one who does not follow false reason.\" We must therefore conclude that, absolutely speaking, every will at variance with reason, whether right or erring, is always evil.") == "We must therefore conclude that, absolutely speaking, every will at variance with reason, whether right or erring, is always evil.")
     }
 
     @Test("The next article is offered only when its question shares a subject")

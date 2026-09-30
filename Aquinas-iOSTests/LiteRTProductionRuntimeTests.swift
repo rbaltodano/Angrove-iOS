@@ -250,6 +250,59 @@ struct LiteRTProductionRuntimeTests {
     }
 
     @MainActor
+    @Test("A follow-up with a pronoun is told what the previous question asked about")
+    func pronounFollowUpNamesThePreviousQuestion() throws {
+        let request = try #require(
+            LiteRTAquinasModel.latestRequestMessage(
+                for: ConversationContext(
+                    transcript: [
+                        .user("Who was Peter Lombard?", nil, []),
+                        .text("Peter Lombard was a theologian and bishop of Paris."),
+                        .user("Did Aquinas comment on his work?", nil, [])
+                    ]
+                )
+            )
+        )
+        #expect(request.toString.contains("The previous question was: “Who was Peter Lombard?”"))
+
+        let standalone = try #require(
+            LiteRTAquinasModel.latestRequestMessage(
+                for: ConversationContext(
+                    transcript: [
+                        .user("Who was Peter Lombard?", nil, []),
+                        .text("Peter Lombard was a theologian and bishop of Paris."),
+                        .user("What is the natural law?", nil, [])
+                    ]
+                )
+            )
+        )
+        #expect(!standalone.toString.contains("The previous question was"))
+    }
+
+    @Test("Definition evidence may name the term in the plural")
+    func definitionEvidenceAllowsPlural() {
+        let note = AquinasGroundingReference(
+            id: "scholastic-transcendentals",
+            title: "The transcendentals in scholastic philosophy",
+            sourceName: "Aquinas curated reference note",
+            facts: "In scholastic philosophy the transcendentals are the properties that belong to every being.",
+            retrievalAliases: []
+        )
+        let unrelated = AquinasGroundingReference(
+            id: "other",
+            title: "Summa Theologica",
+            sourceName: "Summa Theologica",
+            facts: "Philosophy treats of many things in the schools.",
+            retrievalAliases: []
+        )
+        let evidence = LiteRTAquinasModel.definitionEvidence(
+            for: "a transcendental in scholastic philosophy",
+            in: [note, unrelated]
+        )
+        #expect(evidence.map(\.id) == ["scholastic-transcendentals"])
+    }
+
+    @MainActor
     @Test("A follow-up about a subject the previous answer introduced keeps the conversation")
     func followUpOnAnswerSubjectKeepsContext() {
         let answer = "The Summa Theologiae is Thomas Aquinas's unfinished systematic presentation of theology, organized into questions and articles."
