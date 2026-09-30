@@ -129,10 +129,19 @@ enum LiteRTDiagnosticsProbe {
                     onUpdate: { _ in }
                 ))
             }),
-            ("images: latest turn attaches an image (text-only runtime)", {
+            ("images: latest turn attaches an image", {
                 describe(await model.respond(
                     to: ConversationContext(transcript: [
                         .user("What does this picture show about prudence?", nil, [image])
+                    ]),
+                    thinkingEnabled: false,
+                    onUpdate: { _ in }
+                ))
+            }),
+            ("images: reads the word and shape in the picture (expect PRUDENCE, red circle)", {
+                describe(await model.respond(
+                    to: ConversationContext(transcript: [
+                        .user("What word is written in this picture, and what shape and color is drawn below it?", nil, [image])
                     ]),
                     thinkingEnabled: false,
                     onUpdate: { _ in }
@@ -240,10 +249,24 @@ enum LiteRTDiagnosticsProbe {
         return "evidence=\(basis) | keyTerms[\(response.keyTerms.count)]=\(terms) | text=\(response.text)"
     }
 
+    /// A picture with checkable content: the word PRUDENCE above a red circle, on white.
     private static func probeImagePNG() -> Data? {
-        UIGraphicsImageRenderer(size: CGSize(width: 64, height: 64)).pngData { context in
-            UIColor.systemTeal.setFill()
-            context.fill(CGRect(x: 0, y: 0, width: 64, height: 64))
+        let size = CGSize(width: 448, height: 448)
+        return UIGraphicsImageRenderer(size: size).pngData { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            let text = "PRUDENCE" as NSString
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.boldSystemFont(ofSize: 72),
+                .foregroundColor: UIColor.black
+            ]
+            let textSize = text.size(withAttributes: attributes)
+            text.draw(
+                at: CGPoint(x: (size.width - textSize.width) / 2, y: 60),
+                withAttributes: attributes
+            )
+            UIColor.red.setFill()
+            context.cgContext.fillEllipse(in: CGRect(x: 144, y: 220, width: 160, height: 160))
         }
     }
 

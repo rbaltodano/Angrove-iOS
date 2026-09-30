@@ -282,7 +282,6 @@ struct LiteRTProductionRuntimeTests {
     @MainActor
     @Test("A text-only runtime sends image turns as text with a note, never image content")
     func imagesBecomeTextNotesWithoutVision() throws {
-        try #require(!LiteRTAquinasRuntime.supportsVision)
         let upload = UploadedFile(
             name: "diagram.png",
             imageData: Data([0x89, 0x50]),
@@ -292,7 +291,8 @@ struct LiteRTProductionRuntimeTests {
             let message = try #require(
                 LiteRTAquinasModel.engineMessage(
                     .user("What does this diagram show?", nil, [upload]),
-                    isLatestUserRequest: isLatest
+                    isLatestUserRequest: isLatest,
+                    supportsVision: false
                 )
             )
             #expect(message.contents.allSatisfy { content in
@@ -303,9 +303,32 @@ struct LiteRTProductionRuntimeTests {
             #expect(message.toString.contains("cannot view"))
         }
         let imageOnly = try #require(
-            LiteRTAquinasModel.engineMessage(.user("", nil, [upload]))
+            LiteRTAquinasModel.engineMessage(.user("", nil, [upload]), supportsVision: false)
         )
         #expect(imageOnly.toString.contains("cannot view"))
+    }
+
+    @MainActor
+    @Test("A vision runtime sends image turns as image content, with no note")
+    func imagesAreSentWithVision() throws {
+        let upload = UploadedFile(
+            name: "diagram.png",
+            imageData: Data([0x89, 0x50]),
+            rotationDegrees: 0
+        )
+        let message = try #require(
+            LiteRTAquinasModel.engineMessage(
+                .user("What does this diagram show?", nil, [upload]),
+                isLatestUserRequest: true,
+                supportsVision: true
+            )
+        )
+        #expect(message.contents.contains { content in
+            if case .imageData = content { return true }
+            return false
+        })
+        #expect(message.toString.contains("What does this diagram show?"))
+        #expect(!message.toString.contains("cannot view"))
     }
 
     @MainActor

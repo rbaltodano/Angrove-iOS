@@ -61,9 +61,14 @@ struct LiteRTAquinasModel: AquinasModel {
     /// The engine message for one transcript block, exactly as a request would send it.
     static func engineMessage(
         _ block: ChatBlock,
-        isLatestUserRequest: Bool = false
+        isLatestUserRequest: Bool = false,
+        supportsVision: Bool = LiteRTAquinasRuntime.supportsVision
     ) -> Message? {
-        liteRTMessage(block, isLatestUserRequest: isLatestUserRequest)
+        liteRTMessage(
+            block,
+            isLatestUserRequest: isLatestUserRequest,
+            supportsVision: supportsVision
+        )
     }
 
     static func questionOfTheDayQuestion(from raw: String) -> String? {
@@ -1760,7 +1765,8 @@ private extension LiteRTAquinasModel {
 
     static func liteRTMessage(
         _ block: ChatBlock,
-        isLatestUserRequest: Bool = false
+        isLatestUserRequest: Bool = false,
+        supportsVision: Bool = LiteRTAquinasRuntime.supportsVision
     ) -> Message? {
         switch block {
         case .text(let text):
@@ -1791,7 +1797,7 @@ private extension LiteRTAquinasModel {
                 """
             }
             let images = uploads.filter { $0.imageData != nil }
-            if !images.isEmpty, !LiteRTAquinasRuntime.supportsVision {
+            if !images.isEmpty, !supportsVision {
                 // A text-only engine rejects any image content, which failed this turn and
                 // every later turn carrying it in history. Keep the text and say what's missing.
                 prompt += Self.unviewableImageNote(count: images.count)
@@ -1799,7 +1805,7 @@ private extension LiteRTAquinasModel {
             if !prompt.isEmpty {
                 contents.append(.text(prompt))
             }
-            if LiteRTAquinasRuntime.supportsVision {
+            if supportsVision {
                 contents.append(contentsOf: images.compactMap {
                     $0.imageData.map(Content.imageData)
                 })

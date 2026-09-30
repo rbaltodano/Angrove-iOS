@@ -34,13 +34,23 @@ grounding corpus, model conversion, and evaluation.
 
 ## Model package and device safety
 
-On `feature/gemma4-e4b-qat`, `LiteRTModelManifest.aquinas` selects the standard LiteRT Community
-Gemma 4 E4B package, not a fine-tune. It runs text-only on the GPU with a 4,096-token KV cache.
-An earlier owner-approved build from this branch remains installed on Ry as a personal trial.
-**The migration is not promoted:** C9 failed the frozen physical-device latency gate, C10 is
-blocked, and `main` still selects the fine-tuned E2B package. Do not infer a release decision
-from the branch manifest or the phone installation. The manifest comment records B0 rollback
-values. Evidence, exact hashes, and the next diagnostic plan are in the
+`LiteRTModelManifest.aquinas` selects the standard LiteRT Community Gemma 4 E4B package, not a
+fine-tune (merged to `main` in PR #8, 2026-09-29). It runs on the GPU with a 4,096-token KV cache.
+
+- **Activations are forced to F32.** The package's default F16 misread multi-digit numbers on the
+  phone GPU ("John 14" answered as John 4). `--litert-f16` restores the default in DEBUG.
+- **Vision is on.** The vision encoder loads on the same backend as the main executor, and image
+  turns are sent as image content. `--litert-no-vision` turns it off in DEBUG, and image turns
+  then become text notes.
+  - Simulator CPU evidence (`V1-vision-sim-3`, `-4`): 15/15 diagnostics, and the model read the
+    probe picture correctly ("PRUDENCE", red circle). One earlier run (`V1-vision-sim-2`) exited
+    without a result or crash report during a later text case; it didn't repeat.
+  - **Not yet validated on the phone GPU** (plan step C12): load, memory, real images, and
+    whether F32 still holds with vision loaded.
+- Audio input isn't wired into the app.
+- MTP speculative decoding is off (`--litert-mtp` enables it in DEBUG).
+
+The old fine-tuned E2B package (B0) is retired. Evidence and exact hashes are in the
 [E4B migration ledger](Gemma4-E4B-QAT-Progress.md) and
 [post-C9 diagnostics](Gemma4-E4B-Post-C9-Diagnostics.md).
 

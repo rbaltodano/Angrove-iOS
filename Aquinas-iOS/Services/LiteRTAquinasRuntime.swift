@@ -386,13 +386,18 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
         }
     }
 
-    // Text-only. The E4B package ships a vision encoder, but it hasn't passed a load and memory
-    // gate on the phone (optional plan step C12). Re-enable (.gpu) only once it has; until then
-    // image turns become text notes (`supportsVision`).
-    private static let visionBackend: Backend? = nil
-    /// Whether image content may be sent to the engine. Without a vision executor LiteRT-LM
-    /// rejects the whole request ("Vision executor should not be null").
-    static let supportsVision = visionBackend != nil
+    /// Whether image content may be sent to the engine. The E4B package ships a vision encoder,
+    /// which LiteRT-LM loads on first image use. Without a vision executor LiteRT-LM rejects the
+    /// whole request ("Vision executor should not be null"), so image turns become text notes
+    /// when this is off. `--litert-no-vision` turns it off in DEBUG builds.
+    /// Not yet validated on the phone (plan step C12): load, memory, and answers about real images.
+    static var supportsVision: Bool {
+#if DEBUG
+        !ProcessInfo.processInfo.arguments.contains("--litert-no-vision")
+#else
+        true
+#endif
+    }
 
     /// `Engine.close()` deletes the native handle synchronously, but the GPU backend's own
     /// worker pool can still be finishing teardown from the just-closed engine when the next
@@ -454,10 +459,16 @@ actor LiteRTAquinasRuntime: ModelRuntimeDriver {
 #if DEBUG
         if evidenceExperimentUsesCPU { backend = .cpu() }
 #endif
+        // The vision encoder follows the main executor's backend: the simulator's Metal delegate
+        // can't hold it, and the CPU diagnostic path must stay all-CPU.
+        var visionBackend: Backend? = Self.supportsVision ? .gpu : nil
+#if DEBUG
+        if evidenceExperimentUsesCPU, Self.supportsVision { visionBackend = .cpu() }
+#endif
         let config = try EngineConfig(
             modelPath: modelURL.path,
             backend: backend,
-            visionBackend: Self.visionBackend,
+            visionBackend: visionBackend,
             maxNumTokens: Self.maxNumTokens,
             cacheDir: cacheURL.path
         )
