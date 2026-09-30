@@ -1,5 +1,19 @@
 # Gemma 4 E4B QAT migration — progress ledger
 
+> **September 30, 2026 quality-review addendum:** the September 27 handoff below is historical.
+> Main now contains the E4B/F32 promotion merge (`57912e1`, integrated locally by `6497d51`).
+> Later phone observations are in `Gemma4-E4B-Post-C9-Diagnostics.md`, including the September 29
+> held-out run `P2-phone-held-f32-1` (26/40 objective). This does not change the original C9
+> failure or certify that all P2/release criteria passed. At the owner's request, Codex reviewed
+> all 14 failed checks and their recorded prompts; see
+> [Gemma4-E4B-Quality-Triage.md](Gemma4-E4B-Quality-Triage.md). Findings: one clear scorer false
+> positive, three pre-generation abstentions, two context failures, and eight generated-answer
+> issues. Input hashes and full failed-case evidence are preserved separately in
+> `LocalModels/e4b-eval/quality-triage-20260930-1/evidence.json` on main. No new model run,
+> training, export, or app-behavior change was performed. Next: context and evidence delivery
+> fixes before a separate fine-tuning decision; preserve the old score and use a fresh sealed
+> set for independent acceptance after development on these cases.
+
 > This is the **mutable** record for [`Gemma4-E4B-QAT-Plan.md`](Gemma4-E4B-QAT-Plan.md) (plan v2).
 > Update it at the start and end of every checkpoint and commit each update on
 > `feature/gemma4-e4b-qat`. Never delete earlier entries; if evidence is superseded, strike it
