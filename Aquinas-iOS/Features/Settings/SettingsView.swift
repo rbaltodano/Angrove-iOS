@@ -117,7 +117,7 @@ struct SettingsView: View {
         conversationTextAlignment = .center
         inputFont = .serif
         responseFont = .sans
-        conversationPersonality = .balanced
+        conversationPersonality = .default
     }
 }
 
