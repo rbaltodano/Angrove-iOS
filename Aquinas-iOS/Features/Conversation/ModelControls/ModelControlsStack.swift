@@ -23,6 +23,7 @@ struct ModelControlsStack<Controls: View>: View {
     let confirmationTitle: String?
     let onConfirm: () -> Void
     let onDecline: () -> Void
+    let dockedCard: ModelControlsDockedCard?
     let controlsUpdateKey: String
     let controls: Controls
     @Environment(\.modelCompletionNotifications) private var completionNotifications
@@ -47,6 +48,7 @@ struct ModelControlsStack<Controls: View>: View {
         confirmationTitle: String? = nil,
         onConfirm: @escaping () -> Void = {},
         onDecline: @escaping () -> Void = {},
+        dockedCard: ModelControlsDockedCard? = nil,
         controlsUpdateKey: String = "",
         @ViewBuilder controls: () -> Controls
     ) {
@@ -65,17 +67,13 @@ struct ModelControlsStack<Controls: View>: View {
         self.confirmationTitle = confirmationTitle
         self.onConfirm = onConfirm
         self.onDecline = onDecline
+        self.dockedCard = dockedCard
         self.controlsUpdateKey = controlsUpdateKey
         self.controls = controls()
     }
 
     var body: some View {
         VStack(spacing: 16) {
-            if showsScrollToBottom {
-                ScrollToBottomStackButton(action: onScrollToBottom)
-                    .transition(.bottomDockCard)
-            }
-
             if let completionNotifications {
                 ForEach(completionNotifications.notifications) { notification in
                     ModelCompletionNotificationPill(
@@ -117,6 +115,9 @@ struct ModelControlsStack<Controls: View>: View {
                       let modelTasks {
                 ModelTasksCard(modelTasks: modelTasks, popupState: modelTasksPopupState)
                     .transition(.bottomDockCard)
+            } else if let dockedCard {
+                dockedCard.view
+                    .transition(.bottomDockCard)
             }
 
             controls
@@ -131,6 +132,17 @@ struct ModelControlsStack<Controls: View>: View {
                 }
         }
         .frame(maxWidth: .infinity, alignment: .center)
+        .overlay(alignment: .top) {
+            if showsScrollToBottom {
+                ScrollToBottomStackButton(action: onScrollToBottom)
+                    // Keep transient scroll state out of the dock's measured height and
+                    // the conversation's reserved bottom inset. Offset (not an alignment
+                    // guide, which the overlay ignored) so it sits one stack gap above the
+                    // topmost card, matching the VStack's spacing.
+                    .offset(y: -(ScrollToBottomStackButton.size + 16))
+                    .transition(.bottomDockCard)
+            }
+        }
         .onPreferenceChange(ModelControlsWidthPreferenceKey.self) { width in
             guard width > 0, abs(controlsWidth - width) > 0.5 else { return }
             let shouldPulseForSizeChange = hasMeasuredControls
@@ -170,6 +182,9 @@ struct ModelControlsStack<Controls: View>: View {
             .springStandard,
             value: confirmationTitle
         )
+        // Docked cards arrive through a preference, which drops the page's transaction;
+        // animate their changes here instead.
+        .animation(.springStandard, value: dockedCard?.key)
     }
 
     private func pulseControls() {
@@ -210,7 +225,7 @@ private struct ModelControlsConfirmationPill: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            HStack(spacing: 12) {
+            HStack(spacing: 24) {
                 Button("Yes", action: onConfirm)
                     .accessibilityLabel("Confirm \(title)")
 
@@ -238,6 +253,8 @@ private struct ModelControlsWidthPreferenceKey: PreferenceKey {
 }
 
 private struct ScrollToBottomStackButton: View {
+    static let size: CGFloat = 24
+
     let action: () -> Void
 
     var body: some View {
@@ -245,7 +262,7 @@ private struct ScrollToBottomStackButton: View {
             Image(systemName: "arrow.down")
                 .font(.system(size: 8, weight: .semibold))
                 .foregroundColor(AquinasTheme.Colors.onAccent)
-                .frame(width: 24, height: 24)
+                .frame(width: Self.size, height: Self.size)
                 .background(AquinasTheme.Colors.lightBrown)
                 .clipShape(Circle())
         }

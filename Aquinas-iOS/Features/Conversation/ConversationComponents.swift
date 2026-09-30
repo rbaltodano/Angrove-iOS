@@ -1231,123 +1231,127 @@ struct ChatThreadColumn: View {
                 VStack(alignment: .center, spacing: 48) {
             // MARK: Branch Header
             // Cross, branch title, starting context chip, and the first editable/locked question.
-            if usesNewConversationPromptHeader {
-                newConversationPromptHeader
-                    .padding(.top, 84)
-            } else {
-                VStack(spacing: 16) {
-                    Image("cross-1")
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 24, height: 24)
-                        .foregroundColor(AquinasTheme.Colors.accent)
+            // The new-conversation headline keeps its prompt spacing to the question after
+            // submission, so the question doesn't drift away from it.
+            VStack(spacing: usesNewConversationPromptHeader ? Self.promptHeadlineSpacing : 48) {
+                if usesNewConversationPromptHeader {
+                    newConversationPromptHeader
+                        .padding(.top, 84)
+                } else {
+                    VStack(spacing: 16) {
+                        Image("cross-1")
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 24, height: 24)
+                            .foregroundColor(AquinasTheme.Colors.accent)
 
-                    if let branchKeyword {
-                        Text(createEditorialTitle(
-                            fullText: displayBranchTitle,
-                            keyword: branchKeyword,
-                            fontSize: 34,
-                            baseColor: AquinasTheme.Colors.primaryReadable,
-                            keywordColor: AquinasTheme.Colors.linkGreen
-                        ))
-                        .multilineTextAlignment(conversationTextAlignment.textAlignment)
-                        .frame(maxWidth: .infinity, alignment: conversationTextAlignment.frameAlignment)
-                    } else {
-                        Text(displayBranchTitle)
-                            .font(.custom("LibreBaskerville-Regular", size: 34))
-                            .foregroundColor(AquinasTheme.Colors.primaryReadable)
+                        if let branchKeyword {
+                            Text(createEditorialTitle(
+                                fullText: displayBranchTitle,
+                                keyword: branchKeyword,
+                                fontSize: 34,
+                                baseColor: AquinasTheme.Colors.primaryReadable,
+                                keywordColor: AquinasTheme.Colors.linkGreen
+                            ))
                             .multilineTextAlignment(conversationTextAlignment.textAlignment)
                             .frame(maxWidth: .infinity, alignment: conversationTextAlignment.frameAlignment)
-                            .id(displayBranchTitle)
-                            .transition(.blurredTitleReplacement)
+                        } else {
+                            Text(displayBranchTitle)
+                                .font(.custom("LibreBaskerville-Regular", size: 34))
+                                .foregroundColor(AquinasTheme.Colors.primaryReadable)
+                                .multilineTextAlignment(conversationTextAlignment.textAlignment)
+                                .frame(maxWidth: .infinity, alignment: conversationTextAlignment.frameAlignment)
+                                .id(displayBranchTitle)
+                                .transition(.blurredTitleReplacement)
+                        }
                     }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.top, readingTopPadding)
-            }
-
-            VStack(spacing: 16) {
-                UploadedFileStrip(
-                    files: branchData.topQuestionSubmitted ? branchData.topQuestionUploads : visibleUploads,
-                    onRemove: branchData.topQuestionSubmitted ? nil : { file in
-                        uploadedFiles.removeAll { $0.id == file.id }
-                    }
-                )
-
-                if let concept = branchData.branchContextConcept {
-                    BranchContextChip(
-                        title: concept.word.capitalized,
-                        icon: branchData.topQuestionSubmitted ? "text.bubble.fill" : "text.bubble",
-                        animationKey: branchData.topQuestionSubmitted ? "submitted" : "pending",
-                        isFilled: branchData.topQuestionSubmitted,
-                        appearDelay: 0.25,
-                        showRemove: branchData.parentBranchID != nil && !branchData.topQuestionSubmitted,
-                        onTap: { onQuotedConceptTap(concept) },
-                        onRemove: onDeleteBranch
-                    )
-                    .matchedGeometryEffect(
-                        id: quotedConceptMatchID(concept.id, responseIndex: 0),
-                        in: quotedContextChipNamespace
-                    )
-                } else if let branchResponseTitle {
-                    BranchContextChip(
-                        title: branchResponseTitle,
-                        icon: "arrow.triangle.branch",
-                        animationKey: branchData.topQuestionSubmitted ? "submitted" : "pending",
-                        isFilled: branchData.topQuestionSubmitted,
-                        appearDelay: 0.25,
-                        showRemove: branchData.parentBranchID != nil && !branchData.topQuestionSubmitted,
-                        onRemove: onDeleteBranch
-                    )
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, readingTopPadding)
                 }
 
-                Group {
-                    if usesNewConversationPromptHeader {
-                        newConversationQuestionField
-                    } else {
-                        VStack(spacing: 12) {
-                            QuestionInputField(
-                                placeholder: "Ask a question...",
-                                text: $branchData.topQuestionText,
-                                isLocked: branchData.topQuestionSubmitted,
-                                isEmpty: topFieldIsEmpty && !branchData.topQuestionSubmitted,
-                                lineHeight: inputLineHeight,
-                                fontSize: questionFontSize,
-                                textAlignment: conversationTextAlignment,
-                                fontOption: inputFont,
-                                placeholderColor: placeholderColor,
-                                relay: topFieldRelay,
-                                onFocusChange: { focused in
-                                    isTopQuestionFocused = focused
-                                    if focused {
+                VStack(spacing: 16) {
+                    UploadedFileStrip(
+                        files: branchData.topQuestionSubmitted ? branchData.topQuestionUploads : visibleUploads,
+                        onRemove: branchData.topQuestionSubmitted ? nil : { file in
+                            uploadedFiles.removeAll { $0.id == file.id }
+                        }
+                    )
+
+                    if let concept = branchData.branchContextConcept {
+                        BranchContextChip(
+                            title: concept.word.capitalized,
+                            icon: branchData.topQuestionSubmitted ? "text.bubble.fill" : "text.bubble",
+                            animationKey: branchData.topQuestionSubmitted ? "submitted" : "pending",
+                            isFilled: branchData.topQuestionSubmitted,
+                            appearDelay: 0.25,
+                            showRemove: branchData.parentBranchID != nil && !branchData.topQuestionSubmitted,
+                            onTap: { onQuotedConceptTap(concept) },
+                            onRemove: onDeleteBranch
+                        )
+                        .matchedGeometryEffect(
+                            id: quotedConceptMatchID(concept.id, responseIndex: 0),
+                            in: quotedContextChipNamespace
+                        )
+                    } else if let branchResponseTitle {
+                        BranchContextChip(
+                            title: branchResponseTitle,
+                            icon: "arrow.triangle.branch",
+                            animationKey: branchData.topQuestionSubmitted ? "submitted" : "pending",
+                            isFilled: branchData.topQuestionSubmitted,
+                            appearDelay: 0.25,
+                            showRemove: branchData.parentBranchID != nil && !branchData.topQuestionSubmitted,
+                            onRemove: onDeleteBranch
+                        )
+                    }
+
+                    Group {
+                        if usesNewConversationPromptHeader {
+                            newConversationQuestionField
+                        } else {
+                            VStack(spacing: 12) {
+                                QuestionInputField(
+                                    placeholder: "Ask a question...",
+                                    text: $branchData.topQuestionText,
+                                    isLocked: branchData.topQuestionSubmitted,
+                                    isEmpty: topFieldIsEmpty && !branchData.topQuestionSubmitted,
+                                    lineHeight: inputLineHeight,
+                                    fontSize: questionFontSize,
+                                    textAlignment: conversationTextAlignment,
+                                    fontOption: inputFont,
+                                    placeholderColor: placeholderColor,
+                                    relay: topFieldRelay,
+                                    onFocusChange: { focused in
+                                        isTopQuestionFocused = focused
+                                        if focused {
+                                            bottomFieldIsActive = false
+                                            isBottomQuestionFocused = false
+                                            onTopInputFocused()
+                                        }
+                                    },
+                                    onTextChange: { text in
+                                        topFieldIsEmpty = text.isEmpty
+                                        onActiveInputTextChange(text)
+                                    },
+                                    onSubmit: submitTopQuestionIfNeeded,
+                                    onTapToFocus: {
+                                        guard !branchData.topQuestionSubmitted else { return }
                                         bottomFieldIsActive = false
+                                        isTopQuestionFocused = true
                                         isBottomQuestionFocused = false
-                                        onTopInputFocused()
+                                        topFieldRelay.focus()
                                     }
-                                },
-                                onTextChange: { text in
-                                    topFieldIsEmpty = text.isEmpty
-                                    onActiveInputTextChange(text)
-                                },
-                                onSubmit: submitTopQuestionIfNeeded,
-                                onTapToFocus: {
-                                    guard !branchData.topQuestionSubmitted else { return }
-                                    bottomFieldIsActive = false
-                                    isTopQuestionFocused = true
-                                    isBottomQuestionFocused = false
-                                    topFieldRelay.focus()
+                                )
+                                .overlay(alignment: .top) {
+                                    slashCommandMenuOverlay(forBottomField: false, yOffset: 72)
                                 }
-                            )
-                            .overlay(alignment: .top) {
-                                slashCommandMenuOverlay(forBottomField: false, yOffset: 72)
                             }
                         }
                     }
+                    .id("top-input-anchor-\(branchData.id)")
                 }
-                .id("top-input-anchor-\(branchData.id)")
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
 
             if branchData.topQuestionSubmitted {
                 ConversationSeparator()

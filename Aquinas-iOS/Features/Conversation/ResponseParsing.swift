@@ -3,6 +3,22 @@ import Foundation
 // MARK: - Cached Regex
 
 /// Compiled once per process — never inside init or hot-path functions.
+/// A small bounded memo for parse results. Streaming re-renders every block on each token, and
+/// the settled blocks' text does not change, so their parses are reused instead of recomputed.
+final class ParseMemo<Value> {
+    private final class Box { let value: Value; init(_ value: Value) { self.value = value } }
+    private let cache = NSCache<NSString, Box>()
+
+    init(countLimit: Int) { cache.countLimit = countLimit }
+
+    func value(for key: String, compute: () -> Value) -> Value {
+        if let hit = cache.object(forKey: key as NSString) { return hit.value }
+        let value = compute()
+        cache.setObject(Box(value), forKey: key as NSString)
+        return value
+    }
+}
+
 enum ResponseRegex {
     static let orderedListLine = try! NSRegularExpression(pattern: #"^\s*\d+[.)]\s+(.+)"#)
     static let unorderedListLine = try! NSRegularExpression(pattern: #"^\s*[-*+]\s+(.+)"#)
@@ -41,6 +57,9 @@ struct ParsedInsightLink {
             from: String(token[fullRange.upperBound...])
         )
     }
+
+    /// A source chip (`aq-cite://`) rather than a tappable Insight term.
+    var isCitation: Bool { url.scheme == ResponseCitationMarkup.scheme }
 
     private static func removingEmphasis(from text: String) -> String {
         String(text.filter { $0 != "*" })
@@ -282,7 +301,7 @@ enum ResponseParser {
 
         for segment in segments {
             for (offset, word) in segment.words.enumerated()
-            where Self.insightLink(from: word) != nil {
+            where Self.insightLink(from: word).map({ !$0.isCitation }) ?? false {
                 sequenceByWordStart[segment.wordStart + offset] = sequence
                 sequence += 1
             }

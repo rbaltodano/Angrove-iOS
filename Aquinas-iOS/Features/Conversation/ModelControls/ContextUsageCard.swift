@@ -243,7 +243,9 @@ private struct ContextUsageCard: View {
     }
 
     var body: some View {
-        Group {
+        // A ZStack, not a Group: Group hands its modifiers and transition to each child,
+        // so the children's opacity transitions replaced the stack's scale-down removal.
+        ZStack {
             if isCompacting {
                 if isCompactionComplete {
                     HStack(spacing: 8) {

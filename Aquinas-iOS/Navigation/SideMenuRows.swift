@@ -140,7 +140,7 @@ private struct ConversationActivityIndicator: View {
                 .transition(.opacity)
             case .completed:
                 Circle()
-                    .fill(AquinasTheme.Colors.accentRed)
+                    .fill(AquinasTheme.Colors.unreadDot)
                     .frame(width: 9, height: 9)
                     .overlay(
                         Circle()

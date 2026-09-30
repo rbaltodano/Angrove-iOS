@@ -31,6 +31,9 @@ struct ContentView: View {
     @State private var globalTreeInsights: [ConceptDefinition] =
         GlobalInsightTreeStore.load()
     @State private var isGlobalTreeUpdatePromptVisible: Bool = false
+    /// The saved Insights the user last answered the Global Insight Tree update prompt for.
+    @State private var globalTreeAcknowledgedLibraryIDs: Set<UUID>? =
+        GlobalInsightTreeUpdatePrompt.loadAcknowledgedLibraryIDs()
     @State private var isGlobalTreeReconciling: Bool = false
     /// After accepting an update, Global Insights stays quiet until model work originating on a
     /// different page completes. Global-page actions must not repeatedly re-offer the same sync.
@@ -46,6 +49,9 @@ struct ContentView: View {
     @State private var isPageContentVisible: Bool = true
     @State private var pageContentOffsetY: CGFloat = 0
     @State private var pendingPageTransitionWorkItem: DispatchWorkItem? = nil
+    @State private var pageTransitionID = UUID()
+    /// Keep controls measurement changes from reflowing the departing scroll view.
+    @State private var departingPageControlsHeight: CGFloat? = nil
     @State private var isGlobalSideMenuOpen: Bool = false
     // Set while a Study Topic's detail view is open, so the global edge-swipe
     // gesture below yields to that screen's own swipe-to-go-back gesture.
@@ -300,7 +306,6 @@ struct ContentView: View {
                 PageModelControls(
                     modelTasks: modelTasks,
                     popupState: modelTasksPopupState,
-                    alwaysShowModelStatus: true,
                     surfaceID: "library"
                 )
             }
@@ -457,6 +462,7 @@ struct ContentView: View {
                     globalTreeInsights.removeAll { $0.id == def.id }
                 }
                 GlobalInsightTreeStore.save(globalTreeInsights)
+                acknowledgeGlobalTreeEdit(removing: [def.id])
             },
             onRestoreInsight: { def in
                 withAnimation {
@@ -468,6 +474,7 @@ struct ContentView: View {
                     }
                 }
                 GlobalInsightTreeStore.save(globalTreeInsights)
+                acknowledgeGlobalTreeEdit(adding: [def.id])
             },
             onForkInsight: { def in
                 requestedForkConcept = def
@@ -498,6 +505,7 @@ struct ContentView: View {
                     globalTreeInsights.removeAll { $0.id == concept.id }
                 }
                 GlobalInsightTreeStore.save(globalTreeInsights)
+                acknowledgeGlobalTreeEdit(removing: [concept.id])
             },
             onBookmarkConcepts: { concepts in
                 withAnimation(.springBouncy) {
@@ -511,6 +519,7 @@ struct ContentView: View {
                     }
                 }
                 GlobalInsightTreeStore.save(globalTreeInsights)
+                acknowledgeGlobalTreeEdit(adding: concepts.map(\.id))
             },
             inquireConnectionRequest: globalInsightInquireConnectionRequest,
             onInquireConnectionConcepts: { concepts in
@@ -905,13 +914,12 @@ struct ContentView: View {
                     .background {
                         globalModelControlsBar(usesLandscapeInsightSplit: usesLandscapeInsightSplit)
                     }
-                    .environment(\.modelControlsReservedHeight, modelControlsHeight)
                     // The app's one Model Controls bar. It lives here — outside every page and the
                     // fade/offset applied to them — so it never swaps out; only the buttons the
                     // visible page publishes change inside it. The inset reserves its measured
                     // height so every page's content keeps the same bottom clearance.
                     .safeAreaInset(edge: .bottom, spacing: 0) {
-                        Color.clear.frame(height: modelControlsHeight)
+                        Color.clear.frame(height: departingPageControlsHeight ?? modelControlsHeight)
                     }
                     .overlayPreferenceValue(ModelControlsPreferenceKey.self, alignment: .bottom) { configuration in
                         ModelControlsHost(configuration: configuration)
@@ -1270,34 +1278,56 @@ struct ContentView: View {
     // MARK: - Page Transitions
 
     private func transitionDisplayedPage(to nextPage: AppPage) {
+        pendingPageTransitionWorkItem?.cancel()
+        let transitionID = UUID()
+        pageTransitionID = transitionID
+
         guard displayedPage != nextPage else {
             withAnimation(.easeInOut(duration: pageFadeDuration)) {
                 isPageContentVisible = true
                 pageContentOffsetY = 0
+            } completion: {
+                guard pageTransitionID == transitionID else { return }
+                departingPageControlsHeight = nil
             }
             return
         }
 
-        pendingPageTransitionWorkItem?.cancel()
+        departingPageControlsHeight = departingPageControlsHeight ?? modelControlsHeight
         let startDelay: TimeInterval = isGlobalSideMenuOpen ? pageFadeDuration : 0
 
         let fadeOutWork = DispatchWorkItem {
-            withAnimation(.easeInOut(duration: pageFadeDuration)) {
+            guard pageTransitionID == transitionID else { return }
+            let fadeInWork = DispatchWorkItem {
+                guard pageTransitionID == transitionID else { return }
+                // Mount and lay out the destination while hidden. Its controls can now
+                // reserve their own space without moving the departing conversation.
+                var transaction = Transaction(animation: nil)
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    displayedPage = nextPage
+                    departingPageControlsHeight = nil
+                    pageContentOffsetY = pageTransitionOffset
+                }
+                let revealWork = DispatchWorkItem {
+                    guard pageTransitionID == transitionID else { return }
+                    withAnimation(.easeInOut(duration: pageFadeDuration)) {
+                        isPageContentVisible = true
+                        pageContentOffsetY = 0
+                    }
+                }
+                pendingPageTransitionWorkItem = revealWork
+                DispatchQueue.main.async(execute: revealWork)
+            }
+
+            withAnimation(.easeInOut(duration: pageFadeDuration), completionCriteria: .removed) {
                 isPageContentVisible = false
                 pageContentOffsetY = pageTransitionOffset
+            } completion: {
+                guard pageTransitionID == transitionID else { return }
+                pendingPageTransitionWorkItem = fadeInWork
+                DispatchQueue.main.asyncAfter(deadline: .now() + pageFadePauseDuration, execute: fadeInWork)
             }
-
-            let fadeInWork = DispatchWorkItem {
-                displayedPage = nextPage
-                pageContentOffsetY = pageTransitionOffset
-                withAnimation(.easeInOut(duration: pageFadeDuration)) {
-                    isPageContentVisible = true
-                    pageContentOffsetY = 0
-                }
-            }
-
-            pendingPageTransitionWorkItem = fadeInWork
-            DispatchQueue.main.asyncAfter(deadline: .now() + pageFadeDuration + pageFadePauseDuration, execute: fadeInWork)
         }
 
         pendingPageTransitionWorkItem = fadeOutWork
@@ -1348,6 +1378,7 @@ struct ContentView: View {
     /// every stored Insight Tree artifact.
     private func clearInsightTree() {
         isGlobalTreeUpdatePromptVisible = false
+        globalTreeAcknowledgedLibraryIDs = nil
         globalInsightPromotedIDs = []
         globalTreeInsights = []
         collectedDefinitions = []
@@ -1358,7 +1389,7 @@ struct ContentView: View {
         InsightLibraryStore.save(definitions)
         guard activePage == .insights,
               !suppressGlobalTreePromptUntilExternalModelCompletion else { return }
-        isGlobalTreeUpdatePromptVisible = globalTreeNeedsUpdate
+        refreshGlobalInsightTreeUpdatePrompt()
     }
 
     private func handleSideMenuConversationsChange() {
@@ -1476,9 +1507,36 @@ struct ContentView: View {
             != Set(collectedDefinitions.uniquedByWord())
     }
 
+    private var globalTreeLibraryIDs: Set<UUID> {
+        Set(collectedDefinitions.map(\.id))
+    }
+
+    /// Offers the update only when the saved Insights changed since the prompt was last
+    /// answered, so reopening Global Insights doesn't ask again about the same library.
     private func refreshGlobalInsightTreeUpdatePrompt() {
+        let needsUpdate = globalTreeNeedsUpdate
+        // The tree already matches the library, so there is nothing left to ask about.
+        if !needsUpdate { acknowledgeGlobalTreeLibrary(globalTreeLibraryIDs) }
         isGlobalTreeUpdatePromptVisible = !suppressGlobalTreePromptUntilExternalModelCompletion
-            && globalTreeNeedsUpdate
+            && GlobalInsightTreeUpdatePrompt.shouldOffer(
+                libraryIDs: globalTreeLibraryIDs,
+                acknowledgedLibraryIDs: globalTreeAcknowledgedLibraryIDs,
+                treeNeedsUpdate: needsUpdate
+            )
+    }
+
+    private func acknowledgeGlobalTreeLibrary(_ ids: Set<UUID>) {
+        guard globalTreeAcknowledgedLibraryIDs != ids else { return }
+        globalTreeAcknowledgedLibraryIDs = ids
+        GlobalInsightTreeUpdatePrompt.saveAcknowledgedLibraryIDs(ids)
+    }
+
+    /// A bookmark added or removed inside Global Insights changes the tree and the library
+    /// together, so it is already applied and must not raise the prompt by itself. A change
+    /// still waiting on an answer stays pending.
+    private func acknowledgeGlobalTreeEdit(adding added: [UUID] = [], removing removed: [UUID] = []) {
+        guard let acknowledged = globalTreeAcknowledgedLibraryIDs else { return }
+        acknowledgeGlobalTreeLibrary(acknowledged.union(added).subtracting(removed))
     }
 
     private func updateGlobalInsightTree() {
@@ -1515,6 +1573,7 @@ struct ContentView: View {
                 isGlobalTreeReconciling = false
             }
             GlobalInsightTreeStore.save(reconciledInsights)
+            acknowledgeGlobalTreeLibrary(Set(incomingSnapshot.map(\.id)))
             globalInsightsContextCardState.reset()
             modelTasksPopupState.reset()
             UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.7)
@@ -1522,6 +1581,7 @@ struct ContentView: View {
     }
 
     private func dismissGlobalInsightTreeUpdate() {
+        acknowledgeGlobalTreeLibrary(globalTreeLibraryIDs)
         withAnimation(.springStandard) {
             isGlobalTreeUpdatePromptVisible = false
         }

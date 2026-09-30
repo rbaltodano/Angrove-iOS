@@ -1275,11 +1275,18 @@ final class InsightTreeViewModel: ObservableObject {
     /// tree and every per-conversation tree — keyed by node id. Always read-modify-write through
     /// this pair (`loadStoredPositions`/`persistPositions`) rather than replacing the value
     /// outright, or one tree's rebuild silently wipes every other tree's saved positions.
+    /// Write-through cache of the position file. A rebuild restores one position per node, and
+    /// reading and decoding the file for each of them stalled the main thread on large trees.
+    private static var storedPositionsCache: [String: [String: CodablePoint]] = [:]
+
     private static func loadStoredPositions(storageKey: String) -> [String: CodablePoint] {
-        InsightTreeLocalStateStore.load(
+        if let cached = storedPositionsCache[storageKey] { return cached }
+        let stored = InsightTreeLocalStateStore.load(
             [String: CodablePoint].self,
             key: storageKey
         ) ?? [:]
+        storedPositionsCache[storageKey] = stored
+        return stored
     }
 
     private func restoredPosition(for id: UUID) -> CGPoint? {
@@ -1291,6 +1298,7 @@ final class InsightTreeViewModel: ObservableObject {
         for node in nodes {
             positions[node.id.uuidString] = CodablePoint(node.position)
         }
+        Self.storedPositionsCache[positionStoreKey] = positions
         InsightTreeLocalStateStore.save(positions, key: positionStoreKey)
     }
 

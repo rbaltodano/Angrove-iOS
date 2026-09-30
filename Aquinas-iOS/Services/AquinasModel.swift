@@ -370,6 +370,10 @@ nonisolated struct GroundingSourceSummary: Identifiable, Codable, Equatable {
 struct LibraryNavigationRequest: Equatable {
     let sourceTitle: String
     let sourceName: String
+    /// Identifies the work directly when known, instead of by title.
+    var sourceID: String? = nil
+    /// Opens the reader at this passage when set; otherwise at the work's start.
+    var chunkIndex: Int? = nil
     /// Distinguishes repeated taps on the same source, so each one still navigates.
     var id = UUID()
 }
@@ -420,19 +424,23 @@ struct ModelResponse {
     let keyTerms: [KeyTerm]
     let insight: ConceptDefinition?
     let evidenceBasis: ResponseEvidenceBasis?
+    /// Source chips for sentences that quote a retrieved corpus passage.
+    let citations: [ResponseCitation]
 
     init(
         text: String,
         thinkingSummary: [String] = [],
         keyTerms: [KeyTerm] = [],
         insight: ConceptDefinition? = nil,
-        evidenceBasis: ResponseEvidenceBasis? = nil
+        evidenceBasis: ResponseEvidenceBasis? = nil,
+        citations: [ResponseCitation] = []
     ) {
         self.text = text
         self.thinkingSummary = thinkingSummary
         self.keyTerms = keyTerms
         self.insight = insight
         self.evidenceBasis = evidenceBasis
+        self.citations = citations
     }
 
     /// `text` with each key term wrapped as `[term](aq://slug)` — the markup
@@ -476,6 +484,13 @@ struct ModelResponse {
             replacements.append((
                 termRange,
                 "[\(term.displayText)](aq://\(Self.slugify(term.canonicalTerm)))"
+            ))
+        }
+
+        for citation in citations where citation.insertionOffset <= source.length {
+            replacements.append((
+                NSRange(location: citation.insertionOffset, length: 0),
+                " " + ResponseCitationMarkup.markup(for: citation)
             ))
         }
 
@@ -526,7 +541,8 @@ struct ModelResponse {
             thinkingSummary: thinkingSummary,
             keyTerms: keyTerms,
             insight: insight,
-            evidenceBasis: evidenceBasis
+            evidenceBasis: evidenceBasis,
+            citations: citations
         )
     }
 }
@@ -572,7 +588,7 @@ enum InlineInsightMarkup {
     }
 
     static func plainText(from text: String) -> String {
-        text.components(separatedBy: "\n")
+        ResponseCitationMarkup.removing(from: text).components(separatedBy: "\n")
             .map { line in
                 guard let insight = insight(from: line) else { return line }
                 return "\(insight.word)\n\(insight.meaning)"

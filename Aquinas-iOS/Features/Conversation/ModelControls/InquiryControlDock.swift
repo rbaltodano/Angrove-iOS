@@ -57,6 +57,9 @@ struct InquiryControlDock: View {
     /// Shared serialized model work. Drives both the status control and its task popup.
     var modelTasks: ModelTaskQueue? = nil
     var modelTasksPopupState: ModelTasksPopupState? = nil
+    /// Conversation threads retain Idle; standalone trees show status only during work.
+    var keepsIdleModelStatus: Bool = false
+    var onAttachRecentPhoto: ((Data) -> Void)? = nil
     var canvasSearchText: Binding<String>? = nil
     var isCanvasSearchActive: Binding<Bool>? = nil
     var canvasSearchResultIndex: Int = 0
@@ -85,6 +88,7 @@ struct InquiryControlDock: View {
     @State private var canvasActionDrawID = UUID()
     @State private var isScrollButtonVisible = false
     @State private var isControlButtonPressed = false
+    @State private var isRecentPhotosOpen = false
     @State private var addFlashOpacity: CGFloat = 1
     @AppStorage(SettingsStorageKey.modelActivityDisplay)
     private var activityDisplay: ModelActivityDisplayOption = .detailed
@@ -122,6 +126,7 @@ struct InquiryControlDock: View {
     private var showsModelStatusControl: Bool {
         !showsStudyControls && activityDisplay != .hidden
             && modelTasks != nil
+            && (keepsIdleModelStatus || modelTasks?.isBusy == true || modelStatusOverride != nil)
             && !(isCanvasMode && (
                 hasCanvasHover
                     || hasSelectedCanvasItems
@@ -241,6 +246,7 @@ struct InquiryControlDock: View {
             }
             .onDisappear {
                 contextCard.compactTask?.cancel()
+                isRecentPhotosOpen = false
             }
     }
 
@@ -258,11 +264,27 @@ struct InquiryControlDock: View {
             onClearConversation: onClearConversation,
             modelTasksPopupState: modelTasksPopupState,
             modelTasks: modelTasks,
+            supplementalPopupIsOpen: isRecentPhotosOpen,
+            supplementalPopup: onAttachRecentPhoto.map { attach in
+                AnyView(RecentPhotosCard(
+                    onSelect: { data in
+                        attach(data)
+                        withAnimation(.springStandard) { isRecentPhotosOpen = false }
+                    },
+                    onDismiss: {
+                        withAnimation(.springStandard) { isRecentPhotosOpen = false }
+                    },
+                    onChoosePhoto: {
+                        withAnimation(.springStandard) { isRecentPhotosOpen = false }
+                        showPhotoPicker = true
+                    }
+                ))
+            },
             confirmationTitle: confirmationTitle,
             onConfirm: onConfirm,
             onDecline: onDecline,
             controlsUpdateKey: controlLayoutKey,
-            buttons: AnyView(buttons),
+            buttons: controlCount > 0 ? AnyView(buttons) : nil,
             pillHorizontalPadding: showsStudyControls ? 0 : (isCanvasAskMode ? 16 : 32),
             pillVerticalPadding: showsStudyControls ? 0 : 24,
             showsPillChrome: !showsStudyControls,
@@ -496,27 +518,42 @@ struct InquiryControlDock: View {
         }
     }
 
+    @ViewBuilder
     private var attachmentButton: some View {
+        if onAttachRecentPhoto != nil {
+            PhotoAttachmentControl(
+                isPressed: $isControlButtonPressed,
+                onHold: toggleRecentPhotos,
+                onCamera: { isRecentPhotosOpen = false; showCamera = true },
+                onPhoto: { isRecentPhotosOpen = false; showPhotoPicker = true },
+                onFile: { isRecentPhotosOpen = false; showFilePicker = true },
+                onInsights: { isRecentPhotosOpen = false; onOpenInsights() }
+            )
+        } else {
         Menu {
             Button {
+                isRecentPhotosOpen = false
                 showCamera = true
             } label: {
                 Label("Camera", systemImage: "camera")
             }
 
             Button {
+                isRecentPhotosOpen = false
                 showPhotoPicker = true
             } label: {
                 Label("Photo", systemImage: "photo")
             }
 
             Button {
+                isRecentPhotosOpen = false
                 showFilePicker = true
             } label: {
                 Label("File", systemImage: "doc")
             }
 
             Button {
+                isRecentPhotosOpen = false
                 onOpenInsights()
             } label: {
                 Label("Insights", systemImage: "text.bubble")
@@ -529,11 +566,23 @@ struct InquiryControlDock: View {
         }
         .menuStyle(.button)
         .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
+        }
+    }
+
+    private func toggleRecentPhotos() {
+        guard onAttachRecentPhoto != nil, !contextCard.isCompacting else { return }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.65)
+        withAnimation(.springStandard) {
+            contextCard.isOpen = false
+            modelTasksPopupState?.isOpen = false
+            isRecentPhotosOpen.toggle()
+        }
     }
 
     private var contextButton: some View {
         Button {
             guard !contextCard.isCompacting else { return }
+            withAnimation(.springStandard) { isRecentPhotosOpen = false }
             UIImpactFeedbackGenerator(style: .medium).impactOccurred(intensity: 0.7)
             contextCard.dragY = 0
             if contextCard.isOpen {
@@ -563,6 +612,7 @@ struct InquiryControlDock: View {
 
     private func handleModelStatusTap() {
         guard !contextCard.isCompacting, let modelTasksPopupState else { return }
+        withAnimation(.springStandard) { isRecentPhotosOpen = false }
         if modelTasksPopupState.isOpen {
             withAnimation(.springStandard) {
                 modelTasksPopupState.isOpen = false

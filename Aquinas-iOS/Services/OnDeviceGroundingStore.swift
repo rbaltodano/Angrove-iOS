@@ -15,14 +15,11 @@ struct GroundingPassage {
     let title: String
     let sourceID: String
     let distance: Float
+    /// The passage's position in its source, so a citation can open the Library reader there.
+    var chunkIndex: Int? = nil
 }
 
-private struct PassageRecord: Decodable {
-    let text: String
-    let title: String
-    let sourceId: String
-    let chunkIndex: Int
-}
+private typealias PassageRecord = LibraryPassage
 
 /// Loads the pre-embedded grounding corpus once (a flat float32 embeddings
 /// file plus a parallel-indexed JSON metadata file, exported from the
@@ -70,9 +67,8 @@ final class OnDeviceGroundingStore {
     private let defaultMaxDistance: Float = 0.45
 
     init(embeddingsURL: URL, passagesURL: URL) throws {
-        let passagesData = try Data(contentsOf: passagesURL)
-        let decodedPassages = try JSONDecoder().decode([PassageRecord].self, from: passagesData)
-        self.passages = decodedPassages
+        let corpus = try BundledPassageCorpus.load(from: passagesURL)
+        self.passages = corpus.passages
         self.embeddings = try Data(contentsOf: embeddingsURL, options: .alwaysMapped)
 
         let expectedBytes = passages.count * embeddingDimension * MemoryLayout<Float>.size
@@ -80,7 +76,7 @@ final class OnDeviceGroundingStore {
             throw OnDeviceGroundingStoreError.corpusMismatch
         }
         self.chapterRanges = Self.indexChapters(in: passages)
-        self.sourceIndices = Dictionary(grouping: decodedPassages.indices, by: { decodedPassages[$0].sourceId })
+        self.sourceIndices = corpus.indicesBySource
     }
 
     /// Chapters are chunked across several passages, but only the first chunk
@@ -167,7 +163,8 @@ final class OnDeviceGroundingStore {
                 title: "\(citation.displayName) — \(record.title)",
                 sourceID: record.sourceId,
                 // An exact citation match is a lookup hit, not a ranked one.
-                distance: 0
+                distance: 0,
+                chunkIndex: record.chunkIndex
             )
         }
     }
@@ -198,7 +195,8 @@ final class OnDeviceGroundingStore {
                     text: record.text,
                     title: record.title,
                     sourceID: record.sourceId,
-                    distance: 0
+                    distance: 0,
+                    chunkIndex: record.chunkIndex
                 )
             }
     }
@@ -278,7 +276,8 @@ final class OnDeviceGroundingStore {
                 text: record.text,
                 title: record.title,
                 sourceID: record.sourceId,
-                distance: entry.distance
+                distance: entry.distance,
+                chunkIndex: record.chunkIndex
             )
         }
     }

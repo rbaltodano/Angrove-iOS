@@ -15,6 +15,7 @@ enum InsightTreeReset {
         "aquinas.saved.insights.v1",
         "aquinas.global-insight-tree.snapshot.v1",
         "aquinas.global-insight-tree.promoted-ids.v1",
+        "aquinas.global-insight-tree.acknowledged-library-ids.v1",
         "aquinas.study-topic.insight-trees.v1",
         "aquinas.pendingInsightTreeAnalysis.v2", // retired backend analysis queue
         "aquinas.conversation.insight-memberships.v1",

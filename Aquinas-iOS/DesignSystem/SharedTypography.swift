@@ -70,6 +70,9 @@ enum AquinasTheme {
         )
         static let systemSelection = Color(light: 0xF0E9DA, dark: 0x181511)
         static let accentRed = Color(light: 0xAF4949, dark: 0xAF4949)
+        /// The "new" dot on an undiscovered Insight or Node Concept and on a conversation
+        /// whose response finished while it wasn't open.
+        static let unreadDot = Color(light: 0x408CFF, dark: 0x408CFF)
         static let uploadBorder = Color(light: 0xFFFFFF, dark: 0xFFFAF0)
 
         // Compatibility aliases used by older views. New code should prefer the tokens above.

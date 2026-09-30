@@ -13,6 +13,9 @@ nonisolated struct AquinasGroundingReference: Sendable, Equatable {
     let sourceName: String
     let facts: String
     let retrievalAliases: [String]
+    /// Set for corpus passages (not curated notes), locating the passage for inline citations.
+    var sourceID: String? = nil
+    var chunkIndex: Int? = nil
 
     var promptText: String {
         "[\(title) — \(sourceName)]\n\(facts)"

@@ -47,13 +47,11 @@ struct StreamingMessageView: View {
     // Process-level cache keyed by response text. parseSegments + tokenize is
     // O(words) and called every time a parent view re-renders (SwiftUI creates new
     // struct values for comparison). Caching makes repeated inits a O(1) lookup.
-    private static var parseCache: [
-        String: (
-            segments: [ResponseSegment],
-            words: [String],
-            insightLinkSequenceByWordStart: [Int: Int]
-        )
-    ] = [:]
+    private static let parseCache = ParseMemo<(
+        segments: [ResponseSegment],
+        words: [String],
+        insightLinkSequenceByWordStart: [Int: Int]
+    )>(countLimit: 64)
 
     @State private var displayedWords: [String] = []
     @State private var isFinished: Bool = false
@@ -119,17 +117,15 @@ struct StreamingMessageView: View {
             // one-off cache entries. The persistent incremental renderer parses prefixes
             // without adding them to this completed-response cache.
             cached = (segments: [], words: [], insightLinkSequenceByWordStart: [:])
-        } else if let hit = Self.parseCache[fullText] {
-            cached = hit
         } else {
-            let segs = ResponseParser.parseSegments(from: fullText)
-            let words = segs.flatMap { $0.words }
-            cached = (
-                segments: segs,
-                words: words,
-                insightLinkSequenceByWordStart: ResponseParser.insightLinkSequenceByWordStart(in: segs)
-            )
-            Self.parseCache[fullText] = cached
+            cached = Self.parseCache.value(for: fullText) {
+                let segs = ResponseParser.parseSegments(from: fullText)
+                return (
+                    segments: segs,
+                    words: segs.flatMap { $0.words },
+                    insightLinkSequenceByWordStart: ResponseParser.insightLinkSequenceByWordStart(in: segs)
+                )
+            }
         }
         self.segments = cached.segments
         self.responseWords = cached.words

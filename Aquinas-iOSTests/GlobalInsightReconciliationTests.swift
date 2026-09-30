@@ -50,3 +50,55 @@ struct GlobalInsightReconciliationTests {
         ConceptDefinition(word: word, partOfSpeech: "noun", pronunciation: "", meaning: meaning, example: "")
     }
 }
+
+@Suite("Global Insight Tree update prompt")
+struct GlobalInsightTreeUpdatePromptTests {
+    private let first = UUID()
+    private let second = UUID()
+
+    @Test("Reopening with the same saved Insights does not ask again")
+    func unchangedLibraryIsNotOffered() {
+        #expect(!GlobalInsightTreeUpdatePrompt.shouldOffer(
+            libraryIDs: [first, second],
+            acknowledgedLibraryIDs: [first, second],
+            treeNeedsUpdate: true
+        ))
+    }
+
+    @Test("Saving or removing an Insight since the last answer asks again")
+    func changedLibraryIsOffered() {
+        #expect(GlobalInsightTreeUpdatePrompt.shouldOffer(
+            libraryIDs: [first, second],
+            acknowledgedLibraryIDs: [first],
+            treeNeedsUpdate: true
+        ))
+        #expect(GlobalInsightTreeUpdatePrompt.shouldOffer(
+            libraryIDs: [first],
+            acknowledgedLibraryIDs: [first, second],
+            treeNeedsUpdate: true
+        ))
+    }
+
+    @Test("A swap that keeps the count the same still asks")
+    func swappedInsightIsOffered() {
+        #expect(GlobalInsightTreeUpdatePrompt.shouldOffer(
+            libraryIDs: [second],
+            acknowledgedLibraryIDs: [first],
+            treeNeedsUpdate: true
+        ))
+    }
+
+    @Test("A never-answered prompt is offered, but not when the tree already matches")
+    func unansweredPrompt() {
+        #expect(GlobalInsightTreeUpdatePrompt.shouldOffer(
+            libraryIDs: [first],
+            acknowledgedLibraryIDs: nil,
+            treeNeedsUpdate: true
+        ))
+        #expect(!GlobalInsightTreeUpdatePrompt.shouldOffer(
+            libraryIDs: [first],
+            acknowledgedLibraryIDs: nil,
+            treeNeedsUpdate: false
+        ))
+    }
+}

@@ -247,11 +247,9 @@ nonisolated struct LibraryCatalog: Sendable {
     let featuredPassage: LibraryFeaturedPassage?
 
     static func loadBundled(on date: Date = Date()) -> LibraryCatalog {
-        guard let url = Bundle.main.url(forResource: "passages", withExtension: "json"),
-              let data = try? Data(contentsOf: url),
-              let passages = try? JSONDecoder().decode([LibraryPassage].self, from: data)
+        guard let corpus = BundledPassageCorpus.bundled()
         else { return LibraryCatalog(works: [], passageCount: 0, featuredPassage: nil) }
-        return LibraryCatalog(passages: passages, date: date)
+        return LibraryCatalog(passages: corpus.passages, date: date)
     }
 
     init(works: [LibraryWork], passageCount: Int, featuredPassage: LibraryFeaturedPassage?) {
@@ -580,7 +578,7 @@ private struct LibraryIndexCard: View {
                     LibraryIndexRow(work: work) { onOpenWork(work) }
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(AquinasTheme.Spacing.cardPadding)
             .background(AquinasTheme.Colors.canvasSecondary)
             .clipShape(RoundedRectangle(cornerRadius: AquinasTheme.Spacing.cardRadius, style: .continuous))
             .overlay(

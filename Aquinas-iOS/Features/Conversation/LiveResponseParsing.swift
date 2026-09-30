@@ -14,6 +14,9 @@ struct LiveResponseToken: Identifiable {
     let id: Int
     let source: String
     let annotation: Annotation?
+    /// Source chips take negative ids so inserting one at completion leaves every word's ordinal
+    /// (and so its revealed state) unchanged.
+    var citation: ParsedInsightLink? = nil
 
     static func parse(
         _ source: String,
@@ -27,12 +30,23 @@ struct LiveResponseToken: Identifiable {
 
         var result: [LiveResponseToken] = []
         var annotationSequence = annotationSequenceStart
+        var citationCount = 0
 
         for rawToken in rawTokens {
+            if let link = insightLink(from: rawToken), link.isCitation {
+                citationCount += 1
+                result.append(LiveResponseToken(
+                    id: -citationCount,
+                    source: rawToken,
+                    annotation: nil,
+                    citation: link
+                ))
+                continue
+            }
             guard let link = insightLink(from: rawToken) else {
                 result.append(
                     LiveResponseToken(
-                        id: result.count,
+                        id: result.count - citationCount,
                         source: rawToken,
                         annotation: nil
                     )
@@ -44,7 +58,7 @@ struct LiveResponseToken: Identifiable {
             for (index, visibleWord) in visibleWords.enumerated() {
                 result.append(
                     LiveResponseToken(
-                        id: result.count,
+                        id: result.count - citationCount,
                         source: String(visibleWord),
                         annotation: Annotation(
                             title: link.title,
@@ -168,17 +182,20 @@ struct LiveResponseBlock: Identifiable {
         return blocks
     }
 
+    private static let insightCountMemo = ParseMemo<Int>(countLimit: 512)
+
     static func insightCount(in source: String) -> Int {
+        insightCountMemo.value(for: source) { uncachedInsightCount(in: source) }
+    }
+
+    private static func uncachedInsightCount(in source: String) -> Int {
         ResponseRegex.tokenizer.matches(
             in: source,
             range: NSRange(source.startIndex..., in: source)
         )
         .reduce(into: 0) { count, match in
             let token = String(source[Range(match.range, in: source)!])
-            if ResponseRegex.insightLink.firstMatch(
-                in: token,
-                range: NSRange(token.startIndex..., in: token)
-            ) != nil {
+            if let link = ParsedInsightLink(token: token), !link.isCitation {
                 count += 1
             }
         }

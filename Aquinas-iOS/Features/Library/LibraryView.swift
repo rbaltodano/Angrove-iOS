@@ -1,3 +1,4 @@
+import os
 import SwiftUI
 
 extension Notification.Name {
@@ -18,7 +19,7 @@ nonisolated struct LibraryWork: Identifiable, Equatable, Sendable {
     let passageCount: Int
 }
 
-private struct LibrarySection: Identifiable {
+private nonisolated struct LibrarySection: Identifiable, Sendable {
     let id: String
     let title: String
     let chunks: ClosedRange<Int>
@@ -32,7 +33,7 @@ private struct LibrarySection: Identifiable {
     }
 }
 
-private extension Array where Element == LibrarySection {
+private nonisolated extension Array where Element == LibrarySection {
     func node(withID id: String) -> LibrarySection? {
         for node in self {
             if node.id == id { return node }
@@ -56,13 +57,13 @@ private extension Array where Element == LibrarySection {
     }
 }
 
-private extension LibrarySection {
+private nonisolated extension LibrarySection {
     var firstReadableDescendant: LibrarySection {
         children.first?.firstReadableDescendant ?? self
     }
 }
 
-private struct LibraryDocument {
+private nonisolated struct LibraryDocument: Sendable {
     let title: String
     let context: String
     let navigationUnit: String
@@ -70,12 +71,9 @@ private struct LibraryDocument {
     let sections: [LibrarySection]
 
     static func load(_ work: LibraryWork) -> LibraryDocument? {
-        guard let url = Bundle.main.url(forResource: "passages", withExtension: "json"),
-              let data = try? Data(contentsOf: url),
-              let corpus = try? JSONDecoder().decode([LibraryPassage].self, from: data)
-        else { return nil }
+        guard let corpus = BundledPassageCorpus.bundled() else { return nil }
 
-        let passages = corpus.filter { $0.sourceId == work.id }.sorted { $0.chunkIndex < $1.chunkIndex }
+        let passages = corpus.passages(forSource: work.id)
         guard let first = passages.first, let last = passages.last else { return nil }
         let sections = outline(
             for: work.id,
@@ -786,10 +784,12 @@ struct LibraryView: View {
 
     private func applyNavigationRequest(_ request: LibraryNavigationRequest) {
         guard let work = works.first(where: {
-            $0.title.caseInsensitiveCompare(request.sourceTitle) == .orderedSame
+            $0.id == request.sourceID
+                || $0.title.caseInsensitiveCompare(request.sourceTitle) == .orderedSame
                 || $0.title.caseInsensitiveCompare(request.sourceName) == .orderedSame
         }) else { return }
-        targetChunkIndex = nil
+        targetScripture = nil
+        targetChunkIndex = request.chunkIndex
         selectedWorkID = work.id
     }
 
@@ -927,7 +927,12 @@ private struct LibraryDocumentDetail: View {
         }
         .task(id: work.id) {
             isPageTextVisible = false
-            document = LibraryDocument.load(work)
+            // Outlining a work walks every passage; keep it off the main actor.
+            let work = work
+            document = await Task.detached(priority: .userInitiated) {
+                LibraryDocument.load(work)
+            }.value
+            guard !Task.isCancelled else { return }
             selectedSectionID = document?.sections.first?.id ?? "chapter-1"
             selectedOutlineID = document?.sections.first?.firstReadableDescendant.id ?? "chapter-1"
             if let targetTitle,
@@ -996,26 +1001,9 @@ private struct LibraryReaderHeader: View {
                 .font(.custom("LibreBaskerville-Italic", size: 16))
                 .foregroundStyle(AquinasTheme.Colors.paragraphText)
                 .lineSpacing(6)
-            LibraryOrnamentRule()
+            OrnamentRule()
                 .padding(.top, 8)
         }
-    }
-}
-
-/// A hairline broken by the Jerusalem cross, echoing the side menu's footer divider.
-private struct LibraryOrnamentRule: View {
-    var body: some View {
-        HStack(spacing: 16) {
-            Rectangle().fill(AquinasTheme.Colors.controlBorder).frame(height: 1)
-            Image("cross-1")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 16, height: 16)
-                .foregroundStyle(AquinasTheme.Colors.lightGreen)
-            Rectangle().fill(AquinasTheme.Colors.controlBorder).frame(height: 1)
-        }
-        .accessibilityHidden(true)
     }
 }
 
@@ -1191,5 +1179,55 @@ private struct ContentsRow: View {
             }
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Passage Locator
+
+/// Short, human-readable locations for corpus passages ("John 14", "Nicomachean Ethics, Book V"),
+/// drawn from the same outline the Library reader shows. Outlines are built once per work.
+nonisolated enum LibraryPassageLocator {
+    private static let outlines = OSAllocatedUnfairLock<[String: [LibrarySection]]>(initialState: [:])
+
+    /// `nil` when the work is not in the bundled corpus.
+    static func label(sourceID: String, chunkIndex: Int) -> String? {
+        guard let corpus = BundledPassageCorpus.bundled(),
+              let first = corpus.indicesBySource[sourceID]?.first
+        else { return nil }
+        return label(sourceID: sourceID, chunkIndex: chunkIndex, workTitle: corpus.passages[first].title)
+    }
+
+    static func label(sourceID: String, chunkIndex: Int, workTitle: String) -> String {
+        guard let path = sections(for: sourceID, workTitle: workTitle)
+            .path(containingChunk: chunkIndex),
+              let leaf = path.last
+        else { return workTitle }
+
+        if sourceID == "web-bible", path.count > 1, leaf.title.hasPrefix("Chapter ") {
+            return "\(path[path.count - 2].title) \(leaf.title.dropFirst("Chapter ".count))"
+        }
+        let section = shortened(leaf.title)
+        guard !section.isEmpty, section != "Introduction" || path.count == 1 else { return workTitle }
+        return "\(workTitle), \(section)"
+    }
+
+    /// Keeps the locator itself ("Book V") and drops descriptive subtitles and question ranges.
+    private static func shortened(_ title: String) -> String {
+        var result = title
+        for separator in [":", " (", " —"] {
+            if let range = result.range(of: separator) {
+                result = String(result[..<range.lowerBound])
+            }
+        }
+        return result.trimmingCharacters(in: .whitespaces)
+    }
+
+    private static func sections(for sourceID: String, workTitle: String) -> [LibrarySection] {
+        if let cached = outlines.withLock({ $0[sourceID] }) { return cached }
+        let sections = LibraryDocument.load(
+            LibraryWork(id: sourceID, title: workTitle, passageCount: 0)
+        )?.sections ?? []
+        outlines.withLock { $0[sourceID] = sections }
+        return sections
     }
 }

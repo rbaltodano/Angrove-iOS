@@ -74,7 +74,6 @@ struct InsightTreeView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     /// The shell overlays Model Controls outside this view, so its inset is not always inherited.
-    @Environment(\.modelControlsReservedHeight) private var modelControlsReservedHeight
 
     /// On a landscape phone the tree becomes a true left-hand workspace. The detail dock and
     /// shared model controls use the matching right-hand pane instead of floating over the map.
@@ -96,6 +95,9 @@ struct InsightTreeView: View {
     /// animates in like a streamed model response.
     @State private var animateMidpointCardText: Bool = false
     @State private var dockedCardDragY: CGFloat = 0
+    /// Top edge of the docked cards in global coordinates. They render in the shell's Model
+    /// Controls stack, outside this view, so the canvas can't learn their height from layout.
+    @State private var dockedCardTopInGlobal: CGFloat?
     /// While Make Node generates children from a docked insight, its card stays up and grows an
     /// Insight link per child. `makeNodeParentInsightID` is the insight whose card is growing;
     /// `makeNodeLinkInsightIDs` are the child ids revealed so far (each appended on its haptic).
@@ -319,6 +321,144 @@ struct InsightTreeView: View {
         .buttonStyle(.plain)
     }
 
+
+    /// Cards docked above the shell's Model Controls pill. Published into the shared controls
+    /// stack (not laid out here) so they always stack directly above the pill with the stack's
+    /// own spacing, instead of guessing the pill's height from a separate layout.
+    @ViewBuilder private var dockedStackContent: some View {
+        VStack(spacing: 8) {
+            if undoInsight != nil {
+                undoButtonView
+                    .transition(.scale(scale: 0.88).combined(with: .opacity))
+                    .opacity(studySubject == nil ? 1 : 0)
+            }
+
+            if showsStudyToolCard {
+                StudyToolCard(
+                    tool: studyTool,
+                    transitionDirection: studyToolDirection,
+                    onPrevious: { selectStudyTool(studyTool.previous, direction: -1) },
+                    onNext: { selectStudyTool(studyTool.next, direction: 1) }
+                )
+                .offset(y: studyToolCardDragY)
+                .simultaneousGesture(studyToolCardDismissGesture)
+                .transition(.bottomDockCard)
+                .padding(.horizontal, 10)
+            } else if isMidpointMode {
+                MidpointPercentCard(
+                    concepts: selectedCanvasTargets.compactMap { concept(for: $0) },
+                    weights: midpointWeights,
+                    onSetPercent: { index, percent in
+                        midpointTargetIndex = index
+                        midpointTargetWeight = Double(percent) / 100.0
+                        midpointPercentRequest += 1
+                    }
+                )
+                .transition(.scale(scale: 0.35, anchor: .bottom).combined(with: .opacity))
+                .padding(.horizontal, 10)
+            } else if !cardShouldHide {
+                if !showQuestionBar, showsDockedCardAfterStudy, let concept = hoveredConcept {
+                    DockedConceptCard(
+                        concept: concept,
+                        isSaved: savedConceptIDs.contains(concept.id),
+                        onToggleSaved: { onToggleSavedConcept?(concept) },
+                        onFork: {
+                            dismissDockedInsight()
+                            onForkInsight?(concept)
+                        }
+                    )
+                    .id(concept.id)
+                    .growsWhileTouched()
+                    .offset(y: dockedCardDragY)
+                    .gesture(dockedCardDismissGesture)
+                    .transition(.bottomDockCard)
+                    .padding(.horizontal, 10)
+                } else if showsDockedCardAfterStudy, let selectedInsight {
+                    DockedInsightTreeCard(
+                        insight: selectedInsight,
+                        isSaved: savedConceptIDs.contains(selectedInsight.id),
+                        animateIn: animateMidpointCardText,
+                        linkedInsights: makeNodeLinkInsights,
+                        onToggleSaved: {
+                            onToggleSavedConcept?(concept(for: selectedInsight))
+                        },
+                        onRemove: { pendingRemoveInsight = selectedInsight },
+                        onFork:   { performForkInsight(selectedInsight) },
+                        onSelectLinkedInsight: { insight in
+                            focusedInsightID = insight.id
+                            showInsightCard(insight)
+                        }
+                    )
+                    .id(selectedInsight.id)
+                    .growsWhileTouched()
+                    .offset(y: dockedCardDragY)
+                    .gesture(dockedCardDismissGesture)
+                    .transition(.bottomDockCard)
+                    .padding(.horizontal, 10)
+                } else if showsDockedCardAfterStudy, let selectedNode {
+                    let makeNodeSourceID = viewModel.promotedSourceInsightID(
+                        forNodeID: selectedNode.id
+                    )
+                    DockedNodeTreeCard(
+                        node: selectedNode,
+                        isSaved: makeNodeSourceID.map(savedConceptIDs.contains) ?? false,
+                        onSelectInsight: { insight in
+                            focusedInsightID = insight.id
+                            showInsightCard(insight)
+                        },
+                        onToggleSaved: makeNodeSourceID == nil ? nil : {
+                            toggleMakeNodeBookmark(selectedNode)
+                        },
+                        onFork: { performForkNode(selectedNode) }
+                    )
+                    .id(selectedNode.id)
+                    .growsWhileTouched()
+                    .offset(y: dockedCardDragY)
+                    .gesture(dockedCardDismissGesture)
+                    .transition(.bottomDockCard)
+                    .padding(.horizontal, 10)
+                }
+            }
+        }
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.frame(in: .global).minY
+        } action: { top in
+            withAnimation(.springStandard) { dockedCardTopInGlobal = top }
+        }
+        .onDisappear { dockedCardTopInGlobal = nil }
+    }
+
+    /// How much of the canvas's bottom the docked cards cover. The canvas ends at the cards'
+    /// top edge, so a hovered target centers in the space above them and the Study ring sits
+    /// clear of them. In the landscape split the cards dock beside the tree, not over it.
+    private func dockedCardObstruction(in geometry: GeometryProxy) -> CGFloat {
+        guard !usesLandscapeSplitLayout, !dockedCardKey.isEmpty,
+              let dockedCardTopInGlobal else { return 0 }
+        let covered = geometry.frame(in: .global).maxY - dockedCardTopInGlobal
+        // A card grown tall with Insight links still leaves the tree a workable area.
+        return min(max(covered, 0), geometry.size.height * 0.6)
+    }
+
+    /// Identifies what `dockedStackContent` shows; a change animates the shared stack.
+    private var dockedCardKey: String {
+        var parts: [String] = []
+        if undoInsight != nil { parts.append("undo") }
+        if showsStudyToolCard {
+            parts.append("study-tool-\(studyTool)")
+        } else if isMidpointMode {
+            parts.append("midpoint")
+        } else if !cardShouldHide, showsDockedCardAfterStudy {
+            if !showQuestionBar, let concept = hoveredConcept {
+                parts.append("concept-\(concept.id)")
+            } else if let selectedInsight {
+                parts.append("insight-\(selectedInsight.id)-\(makeNodeLinkInsights.count)")
+            } else if let selectedNode {
+                parts.append("node-\(selectedNode.id)")
+            }
+        }
+        return parts.joined(separator: "|")
+    }
+
     var body: some View {
         treeAlerts(treeRequestObservers(treeScreen))
     }
@@ -426,7 +566,12 @@ struct InsightTreeView: View {
                 studyToolsActive: showsStudyToolCard,
                 studyToolBranchCount: 3
             )
-            .frame(width: treePaneWidth, height: geometry.size.height, alignment: .leading)
+            .frame(
+                width: treePaneWidth,
+                height: geometry.size.height - dockedCardObstruction(in: geometry),
+                alignment: .leading
+            )
+            .frame(height: geometry.size.height, alignment: .top)
             .background(insightTreeCanvasColor)
             .onGeometryChange(for: CGPoint.self) { proxy in
                 proxy.frame(in: .named(InsightTreeStackSpace.name)).origin
@@ -481,107 +626,10 @@ struct InsightTreeView: View {
             // from exactly where the canvas drew it.
             .coordinateSpace(.named(InsightTreeStackSpace.name))
         }
+        .modelControlsDockedCard(key: dockedCardKey) { dockedStackContent }
         // safeAreaInset moves with the keyboard automatically — no manual observation needed.
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 8) {
-                if undoInsight != nil {
-                    undoButtonView
-                        .transition(.scale(scale: 0.88).combined(with: .opacity))
-                        .opacity(studySubject == nil ? 1 : 0)
-                }
-
-                if showsStudyToolCard {
-                    StudyToolCard(
-                        tool: studyTool,
-                        transitionDirection: studyToolDirection,
-                        onPrevious: { selectStudyTool(studyTool.previous, direction: -1) },
-                        onNext: { selectStudyTool(studyTool.next, direction: 1) }
-                    )
-                    .offset(y: studyToolCardDragY)
-                    .simultaneousGesture(studyToolCardDismissGesture)
-                    .transition(.bottomDockCard)
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, modelControlsReservedHeight)
-                } else if isMidpointMode {
-                    MidpointPercentCard(
-                        concepts: selectedCanvasTargets.compactMap { concept(for: $0) },
-                        weights: midpointWeights,
-                        onSetPercent: { index, percent in
-                            midpointTargetIndex = index
-                            midpointTargetWeight = Double(percent) / 100.0
-                            midpointPercentRequest += 1
-                        }
-                    )
-                    .transition(.scale(scale: 0.35, anchor: .bottom).combined(with: .opacity))
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, modelControlsReservedHeight)
-                } else if !cardShouldHide {
-                    if !showQuestionBar, showsDockedCardAfterStudy, let concept = hoveredConcept {
-                        DockedConceptCard(
-                            concept: concept,
-                            isSaved: savedConceptIDs.contains(concept.id),
-                            onToggleSaved: { onToggleSavedConcept?(concept) },
-                            onFork: {
-                                dismissDockedInsight()
-                                onForkInsight?(concept)
-                            }
-                        )
-                        .id(concept.id)
-                        .growsWhileTouched()
-                        .offset(y: dockedCardDragY)
-                        .gesture(dockedCardDismissGesture)
-                        .transition(.bottomDockCard)
-                        .padding(.horizontal, 10)
-                        .padding(.bottom, modelControlsReservedHeight)
-                    } else if showsDockedCardAfterStudy, let selectedInsight {
-                        DockedInsightTreeCard(
-                            insight: selectedInsight,
-                            isSaved: savedConceptIDs.contains(selectedInsight.id),
-                            animateIn: animateMidpointCardText,
-                            linkedInsights: makeNodeLinkInsights,
-                            onToggleSaved: {
-                                onToggleSavedConcept?(concept(for: selectedInsight))
-                            },
-                            onRemove: { pendingRemoveInsight = selectedInsight },
-                            onFork:   { performForkInsight(selectedInsight) },
-                            onSelectLinkedInsight: { insight in
-                                focusedInsightID = insight.id
-                                showInsightCard(insight)
-                            }
-                        )
-                        .id(selectedInsight.id)
-                        .growsWhileTouched()
-                        .offset(y: dockedCardDragY)
-                        .gesture(dockedCardDismissGesture)
-                        .transition(.bottomDockCard)
-                        .padding(.horizontal, 10)
-                        .padding(.bottom, modelControlsReservedHeight)
-                    } else if showsDockedCardAfterStudy, let selectedNode {
-                        let makeNodeSourceID = viewModel.promotedSourceInsightID(
-                            forNodeID: selectedNode.id
-                        )
-                        DockedNodeTreeCard(
-                            node: selectedNode,
-                            isSaved: makeNodeSourceID.map(savedConceptIDs.contains) ?? false,
-                            onSelectInsight: { insight in
-                                focusedInsightID = insight.id
-                                showInsightCard(insight)
-                            },
-                            onToggleSaved: makeNodeSourceID == nil ? nil : {
-                                toggleMakeNodeBookmark(selectedNode)
-                            },
-                            onFork: { performForkNode(selectedNode) }
-                        )
-                        .id(selectedNode.id)
-                        .growsWhileTouched()
-                        .offset(y: dockedCardDragY)
-                        .gesture(dockedCardDismissGesture)
-                        .transition(.bottomDockCard)
-                        .padding(.horizontal, 10)
-                        .padding(.bottom, modelControlsReservedHeight)
-                    }
-                }
-
                 // Insight chip — appears above the bar when keyboard is open, mirrors card dismiss animation
                 if showQuestionBar, chipShouldShow, studySubject == nil, let insight = questionBarContextInsight {
                     BranchContextChip(

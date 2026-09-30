@@ -64,7 +64,8 @@ private struct LiveResponseBlockView: View {
                 annotationSequenceStart: block.annotationSequenceStart,
                 loadingInsightKey: loadingInsightKey,
                 queuedInsightKeys: queuedInsightKeys,
-                onInsightTap: onInsightTap
+                onInsightTap: onInsightTap,
+                citationPointSize: conversationFontSize.pointSize
             )
 
         case .heading(let level, let text):
@@ -79,7 +80,8 @@ private struct LiveResponseBlockView: View {
                 annotationSequenceStart: block.annotationSequenceStart,
                 loadingInsightKey: loadingInsightKey,
                 queuedInsightKeys: queuedInsightKeys,
-                onInsightTap: onInsightTap
+                onInsightTap: onInsightTap,
+                citationPointSize: conversationFontSize.pointSize
             )
 
         case .orderedList(let items):
@@ -116,7 +118,8 @@ private struct LiveResponseBlockView: View {
                         ),
                         loadingInsightKey: loadingInsightKey,
                         queuedInsightKeys: queuedInsightKeys,
-                        onInsightTap: onInsightTap
+                        onInsightTap: onInsightTap,
+                        citationPointSize: conversationFontSize.pointSize
                     )
                 }
             }
@@ -166,15 +169,20 @@ private struct LiveTokenFlow: View {
     let loadingInsightKey: String?
     let queuedInsightKeys: Set<String>
     let onInsightTap: ((String, String) -> Void)?
+    let citationPointSize: CGFloat
 
     @State private var visibleTokenCount = 0
     @Environment(\.openURL) private var openURL
 
+    private static let tokenMemo = ParseMemo<[LiveResponseToken]>(countLimit: 256)
+
     private var tokens: [LiveResponseToken] {
-        LiveResponseToken.parse(
-            source,
-            annotationSequenceStart: annotationSequenceStart
-        )
+        Self.tokenMemo.value(for: "\(annotationSequenceStart)\u{1F}\(source)") {
+            LiveResponseToken.parse(
+                source,
+                annotationSequenceStart: annotationSequenceStart
+            )
+        }
     }
 
     var body: some View {
@@ -201,7 +209,9 @@ private struct LiveTokenFlow: View {
 
     @ViewBuilder
     private func tokenView(_ token: LiveResponseToken) -> some View {
-        if let annotation = token.annotation {
+        if let citation = token.citation {
+            ResponseCitationChip(link: citation, textFont: font, fontSize: citationPointSize)
+        } else if let annotation = token.annotation {
             let insightKey = insightLoadingKey(for: annotation.title)
             let isLoading = loadingInsightKey == insightKey
             let isQueued = queuedInsightKeys.contains(insightKey)
@@ -236,17 +246,19 @@ private struct LiveTokenFlow: View {
     }
 
     private func revealNewTokens(animated: Bool) {
-        guard visibleTokenCount < tokens.count else {
-            visibleTokenCount = min(visibleTokenCount, tokens.count)
+        // Source chips carry negative ids and are not part of the word reveal.
+        let wordCount = tokens.lazy.filter { $0.id >= 0 }.count
+        guard visibleTokenCount < wordCount else {
+            visibleTokenCount = min(visibleTokenCount, wordCount)
             return
         }
 
         if animated {
             withAnimation(.easeOut(duration: 0.55)) {
-                visibleTokenCount = tokens.count
+                visibleTokenCount = wordCount
             }
         } else {
-            visibleTokenCount = tokens.count
+            visibleTokenCount = wordCount
         }
     }
 

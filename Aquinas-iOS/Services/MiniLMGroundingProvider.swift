@@ -195,7 +195,9 @@ nonisolated final class MiniLMGroundingProvider: AquinasGroundingProviding {
             title: passage.title,
             sourceName: passage.title,
             facts: passage.text,
-            retrievalAliases: []
+            retrievalAliases: [],
+            sourceID: passage.sourceID,
+            chunkIndex: passage.chunkIndex
         )
     }
 }

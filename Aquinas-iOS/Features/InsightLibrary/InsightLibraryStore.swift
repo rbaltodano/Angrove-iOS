@@ -64,6 +64,36 @@ enum GlobalInsightTreeStore {
     }
 }
 
+/// Decides when Global Insights offers to update its tree.
+///
+/// The tree's snapshot can differ from the bookmark library indefinitely (reconciliation merges
+/// near-duplicates and keeps the tree's own copies), so comparing the two alone asked on every
+/// open even when accepting would change nothing. The offer is instead tied to the library
+/// itself: it is made only when the saved Insights differ from the ones the user last answered
+/// the prompt for.
+enum GlobalInsightTreeUpdatePrompt {
+    private static let storeKey = "aquinas.global-insight-tree.acknowledged-library-ids.v1"
+
+    /// `acknowledgedLibraryIDs` is nil until the prompt has been answered once.
+    nonisolated static func shouldOffer(
+        libraryIDs: Set<UUID>,
+        acknowledgedLibraryIDs: Set<UUID>?,
+        treeNeedsUpdate: Bool
+    ) -> Bool {
+        treeNeedsUpdate && acknowledgedLibraryIDs != libraryIDs
+    }
+
+    static func loadAcknowledgedLibraryIDs() -> Set<UUID>? {
+        guard let data = UserDefaults.standard.data(forKey: storeKey) else { return nil }
+        return try? JSONDecoder().decode(Set<UUID>.self, from: data)
+    }
+
+    static func saveAcknowledgedLibraryIDs(_ ids: Set<UUID>) {
+        guard let data = try? JSONEncoder().encode(ids) else { return }
+        UserDefaults.standard.set(data, forKey: storeKey)
+    }
+}
+
 /// Which Insights the Global Insight Tree has promoted into their own Node Concept via Make Node.
 /// A per-conversation tree gets this for free through its own conversation snapshot
 /// (`InquiryConversation.promotedInsightIDs`); the Global tree has no equivalent owning snapshot,

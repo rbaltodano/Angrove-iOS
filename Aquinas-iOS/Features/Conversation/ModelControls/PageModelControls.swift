@@ -11,7 +11,6 @@ import UIKit
 struct PageModelControls: View {
     let modelTasks: ModelTaskQueue
     let popupState: ModelTasksPopupState
-    var alwaysShowModelStatus: Bool = false
     var actionTitle: String? = nil
     var secondaryActionTitle: String? = nil
     var secondaryAction: () -> Void = {}
@@ -28,7 +27,7 @@ struct PageModelControls: View {
     private var activityDisplay: ModelActivityDisplayOption = .detailed
 
     private var showsModelStatus: Bool {
-        (alwaysShowModelStatus || modelTasks.isBusy) && activityDisplay != .hidden
+        modelTasks.isBusy && activityDisplay != .hidden
     }
 
     private var showsControlPill: Bool {

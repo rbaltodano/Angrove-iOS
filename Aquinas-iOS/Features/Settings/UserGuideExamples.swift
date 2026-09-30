@@ -409,7 +409,6 @@ private struct UserGuideMidpointExample: View {
 /// The real tree canvas holding one Node Concept with three Insights. The canvas starts Study when
 /// `studyNodeID` changes, so the example shows the tree briefly and then moves into Study.
 private struct UserGuideStudyExample: View {
-    @State private var hoveredInsight: InsightModel?
     @State private var studyNodeID: UUID?
 
     init() {
@@ -459,8 +458,8 @@ private struct UserGuideStudyExample: View {
                     pulsingNodeID: nil,
                     selectedCanvasTargets: [],
                     selectionPulseRequest: 0,
-                    onNodeTapped: { _ in hoveredInsight = nil },
-                    onInsightTapped: { hoveredInsight = $0 },
+                    onNodeTapped: { _ in },
+                    onInsightTapped: { _ in },
                     onCanvasMoved: {},
                     onSuggestConnection: { _ in },
                     onDismissSuggestedNode: { _ in },
@@ -481,16 +480,6 @@ private struct UserGuideStudyExample: View {
                 studyNodeID = Self.node.id
             }
             .background(AquinasTheme.Colors.canvas)
-            .overlay(alignment: .bottom) {
-                if let insight = hoveredInsight {
-                    DockedInsightTreeCard(insight: insight)
-                        .id(insight.id)
-                        .transition(.bottomDockCard)
-                        .padding(.horizontal, 10)
-                        .padding(.bottom, 10)
-                }
-            }
-            .animation(.springStandard, value: hoveredInsight?.id)
             .clipShape(RoundedRectangle(cornerRadius: 38, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 38, style: .continuous)

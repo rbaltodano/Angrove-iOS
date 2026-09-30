@@ -372,8 +372,44 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
         queue.sync { makeStore()?.load() }
     }
 
+    /// A whole-snapshot save that has been queued but not yet started. Views save after most
+    /// edits, and each write re-reads, re-encodes and rewrites the full file, so a burst of saves
+    /// collapses into one write of the newest snapshot. Any other queued operation closes the
+    /// slot, so coalescing never reorders a save around a branch completion.
+    private final class PendingSave {
+        var snapshot: InquiryPersistenceSnapshot
+        init(_ snapshot: InquiryPersistenceSnapshot) { self.snapshot = snapshot }
+    }
+
+    private let pendingLock = NSLock()
+    private var openSave: PendingSave?
+
     func save(_ snapshot: InquiryPersistenceSnapshot) {
-        enqueue("Unable to save inquiry snapshot") { try $0.savePreservingCompletedResponses(snapshot) }
+        let pending: PendingSave? = pendingLock.withLock {
+            if let openSave {
+                openSave.snapshot = snapshot
+                return nil
+            }
+            let pending = PendingSave(snapshot)
+            openSave = pending
+            return pending
+        }
+        guard let pending else { return }
+        queue.async { [self] in
+            let latest = pendingLock.withLock {
+                if openSave === pending { openSave = nil }
+                return pending.snapshot
+            }
+            do {
+                try requireStore().savePreservingCompletedResponses(latest)
+            } catch {
+                assertionFailure("Unable to save inquiry snapshot: \(error)")
+            }
+        }
+    }
+
+    private func closePendingSave() {
+        pendingLock.withLock { openSave = nil }
     }
 
     func saveCompletedBranch(_ completedBranch: ChatBranch, conversationID: UUID) {
@@ -405,7 +441,8 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
     }
 
     func importData(_ data: Data) throws -> InquiryPersistenceSnapshot {
-        try queue.sync { try requireStore().importData(data) }
+        closePendingSave()
+        return try queue.sync { try requireStore().importData(data) }
     }
 
     func flush() {
@@ -416,6 +453,7 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
         _ failureMessage: String,
         _ operation: @escaping (InquirySnapshotFileStore) throws -> Void
     ) {
+        closePendingSave()
         queue.async { [self] in
             do {
                 try operation(requireStore())

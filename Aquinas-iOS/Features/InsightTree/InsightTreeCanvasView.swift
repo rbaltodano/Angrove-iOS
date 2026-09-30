@@ -77,7 +77,7 @@ struct InsightTreeCanvasView: View {
     /// Fired to clear any currently hovered/docked insight or node card (e.g. before a
     /// generation zoom-out, so the previously hovered card doesn't linger).
     var onRequestDismissHover: () -> Void = {}
-    /// Reports the current red-dot count whenever Insights or Node Concepts change discovery.
+    /// Reports the current blue-dot count whenever Insights or Node Concepts change discovery.
     var onUndiscoveredInsightCountChange: (Int) -> Void = { _ in }
     /// The Node Concept being studied. The canvas camera shifts from the tree's framing into
     /// `studySlot` while the rest of the tree fades; nil shifts it back. The studied node is
@@ -103,7 +103,7 @@ struct InsightTreeCanvasView: View {
     @State private var selectionState = InsightTreeSelectionState()
     @State private var rippleTrigger:      RippleTrigger? = nil
     @State private var hasAppeared:        Bool = false
-    /// Insights the user hasn't opened yet — they show a red "new" dot until first hovered.
+    /// Insights the user hasn't opened yet — they show a blue "new" dot until first hovered.
     @State private var undiscoveredInsightIDs: Set<UUID> = []
     /// New Node Concepts keep their own discovery state and clear it when first opened.
     @State private var undiscoveredNodeIDs: Set<UUID> = []
@@ -534,7 +534,7 @@ struct InsightTreeCanvasView: View {
                 } else {
                     let newInsights = computeNewInsights()
                     revealState.revealedInsightConnectorIDs.subtract(Set(newInsights.map(\.id)))
-                    markUndiscovered(newInsights.map(\.id))   // new since last open → red dot
+                    markUndiscovered(newInsights.map(\.id))   // new since last open → blue dot
                     reportUndiscoveredInsightCount()
                     saveAllInsightIDsAsSeen()
                     revealState.entranceTask = Task {
@@ -1939,7 +1939,7 @@ struct InsightTreeCanvasView: View {
             .overlay(alignment: .topLeading) {
                 if undiscoveredNodeIDs.contains(node.id) {
                     Circle()
-                        .fill(AquinasTheme.Colors.accentRed)
+                        .fill(AquinasTheme.Colors.unreadDot)
                         .frame(width: 9, height: 9)
                         .overlay(Circle().stroke(insightTreeCanvasColor, lineWidth: 1.5))
                         .offset(x: 4, y: 4)
@@ -2060,11 +2060,11 @@ struct InsightTreeCanvasView: View {
                     .opacity(labelOpacity * (1 - selectionStudyAmount))
             }
         }
-        // Red "new / undiscovered" dot — disappears the first time the insight is hovered.
+        // Blue "new / undiscovered" dot — disappears the first time the insight is hovered.
         .overlay(alignment: .topLeading) {
             if isVisible, undiscoveredInsightIDs.contains(insight.id) {
                 Circle()
-                    .fill(AquinasTheme.Colors.accentRed)
+                    .fill(AquinasTheme.Colors.unreadDot)
                     .frame(width: 9, height: 9)
                     .overlay(Circle().stroke(insightTreeCanvasColor, lineWidth: 1.5))
                     .offset(x: 4, y: 4)
@@ -2077,7 +2077,7 @@ struct InsightTreeCanvasView: View {
             // The placed-midpoint "Insight Loading Icon" stays hoverable even while generating;
             // other loading insights (Make Node children) are not tappable until revealed.
             guard canAcceptTap, !isLoading || isPinnedAtNode else { return }
-            markDiscovered(insight.id)   // hovering clears its red dot
+            markDiscovered(insight.id)   // hovering clears its blue dot
             if selectedCanvasTargets.isEmpty {
                 rippleTrigger = RippleTrigger(
                     worldOrigin: worldPosition,
@@ -3702,7 +3702,7 @@ struct InsightTreeCanvasView: View {
     /// Global tree and every per-conversation tree), and the same saved Insight can legitimately
     /// appear in more than one of them. A plain overwrite here dropped every OTHER tree's
     /// previously-seen insights the moment this tree opened — so tapping an insight to clear its
-    /// red dot, then opening a different tree containing that same insight and coming back,
+    /// blue dot, then opening a different tree containing that same insight and coming back,
     /// re-flagged it "new" on `computeNewInsights()`'s next diff and put the dot right back.
     private func saveAllInsightIDsAsSeen() {
         let ids = Set(nodes.flatMap { $0.insights }.map(\.id))
@@ -3828,7 +3828,7 @@ struct InsightTreeCanvasView: View {
         try? await Task.sleep(for: .milliseconds(200))
         guard !Task.isCancelled else { return }
 
-        // The user is inspecting something: reveal the new content in place (with its red dot)
+        // The user is inspecting something: reveal the new content in place (with its blue dot)
         // rather than pulling the camera away from what they are looking at.
         if isHoveringTarget {
             revealState.revealedInsightIDs = allInsightIDs
@@ -3946,7 +3946,7 @@ struct InsightTreeCanvasView: View {
         }
     }
 
-    // MARK: - Undiscovered (red-dot) tracking
+    // MARK: - Undiscovered (blue-dot) tracking
 
     private func loadUndiscoveredInsightIDs() -> Set<UUID> {
         InsightDiscoveryStore.loadUndiscoveredInsightIDs()
@@ -3978,7 +3978,7 @@ struct InsightTreeCanvasView: View {
         onUndiscoveredInsightCountChange(insightCount + nodeCount)
     }
 
-    /// Flag newly appeared/generated insights as undiscovered (they get a red dot).
+    /// Flag newly appeared/generated insights as undiscovered (they get a blue dot).
     private func markUndiscovered(_ ids: [UUID]) {
         var changed = false
         for id in ids where !undiscoveredInsightIDs.contains(id) {
@@ -3991,7 +3991,7 @@ struct InsightTreeCanvasView: View {
         }
     }
 
-    /// The user hovered an insight — clear its red dot (forever).
+    /// The user hovered an insight — clear its blue dot (forever).
     private func markDiscovered(_ id: UUID) {
         guard undiscoveredInsightIDs.contains(id) else { return }
         withAnimation(.easeOut(duration: 0.25)) {

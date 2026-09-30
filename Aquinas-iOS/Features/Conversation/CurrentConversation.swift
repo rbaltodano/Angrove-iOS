@@ -850,6 +850,17 @@ struct CurrentConversationView: View {
             isCanvasInsightLoading: canvasMode.isCanvasInsightGenerating,
             modelTasks: modelTasks,
             modelTasksPopupState: modelTasksPopupState,
+            keepsIdleModelStatus: true,
+            onAttachRecentPhoto: { data in
+                guard UploadedFile.isImageData(data) else { return }
+                withAnimation(.springLively) {
+                    uploadedFiles.append(UploadedFile(
+                        name: "Photo",
+                        imageData: data,
+                        rotationDegrees: Double.random(in: -5...5)
+                    ))
+                }
+            },
             canvasSearchText: Binding(
                 get: { canvasMode.canvasSearchQuery },
                 set: { canvasMode.canvasSearchQuery = $0 }
@@ -1166,6 +1177,11 @@ struct CurrentConversationView: View {
             }
             if changed { persistConversations() }
         }
+    }
+
+    /// Height of the top fade that softens content scrolling under the top bar.
+    static func topFadeHeight(compact: Bool) -> CGFloat {
+        compact ? 96 : 150
     }
 
     private var conversationScaffold: some View {
@@ -1663,14 +1679,17 @@ struct CurrentConversationView: View {
                 }
             }
             // keyboardDidShow fires AFTER the system's own auto-scroll completes,
-            // so this override always wins and places the field at the top.
+            // so this override always wins and places the field near the top, 48 pt
+            // below the top fade gradient so it stays fully legible.
             .onReceive(NotificationCenter.default.publisher(
                 for: UIResponder.keyboardDidShowNotification
             )) { _ in
                 guard b.id == effectiveFocusedID,
                       let anchor = lastFocusedAnchor else { return }
+                let topBarClearance = Self.topFadeHeight(compact: usesCompactVerticalLayout) + 48
+                let anchorY = min(topBarClearance / max(geo.size.height, 1), 0.5)
                 withAnimation(.springStandard) {
-                    proxy.scrollTo(anchor, anchor: .top)
+                    proxy.scrollTo(anchor, anchor: UnitPoint(x: 0.5, y: anchorY))
                 }
             }
         }

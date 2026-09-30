@@ -490,7 +490,12 @@ struct LiteRTAquinasModel: AquinasModel {
                 text: responseText,
                 thinkingSummary: fallbackThinkingSummary,
                 keyTerms: responseReferences.isEmpty ? [] : keyTerms,
-                evidenceBasis: evidenceBasis
+                evidenceBasis: evidenceBasis,
+                citations: ResponseCitationMatcher.citations(
+                    in: responseText,
+                    references: responseReferences,
+                    label: LibraryPassageLocator.label(sourceID:chunkIndex:)
+                )
             )
         } catch {
             guard !Task.isCancelled else {

@@ -185,7 +185,13 @@ struct CompletedResponseSegments: View {
         isVisible: Bool,
         underlineDelay: Double
     ) -> some View {
-        if let link = ParsedInsightLink(token: word) {
+        if let link = ParsedInsightLink(token: word), link.isCitation {
+            ResponseCitationChip(
+                link: link,
+                textFont: responseFont.textFont(size: conversationFontSize),
+                fontSize: conversationFontSize.pointSize
+            )
+        } else if let link = ParsedInsightLink(token: word) {
             let isLoading = loadingInsightKey == insightLoadingKey(
                 for: link.title,
                 sourceResponseBlock: fullText
