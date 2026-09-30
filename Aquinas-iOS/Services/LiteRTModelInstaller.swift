@@ -78,9 +78,16 @@ actor LiteRTModelInstaller {
         }
         var hasher = SHA256()
         while true {
-            let data = try handle.read(upToCount: 8 * 1_024 * 1_024)
-            guard let data, !data.isEmpty else { break }
-            hasher.update(data: data)
+            // FileHandle's bridged buffers may remain autoreleased for the whole task.
+            // Bound their lifetime: otherwise DEBUG identity logging can retain the entire
+            // multi-gigabyte model while inference is also resident (C9 device diagnostics).
+            let hasMore = try autoreleasepool {
+                guard let data = try handle.read(upToCount: 8 * 1_024 * 1_024),
+                      !data.isEmpty else { return false }
+                hasher.update(data: data)
+                return true
+            }
+            if !hasMore { break }
         }
         return hasher.finalize().map {
             String(format: "%02x", $0)
