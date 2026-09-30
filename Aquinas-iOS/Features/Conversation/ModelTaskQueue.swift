@@ -283,6 +283,7 @@ final class ModelTaskQueue {
         if priority == .foreground,
            let currentJob,
            currentJob.priority == .background {
+            LiteRTLifecycleTrace.shared.record("queue-preempt-foreground")
             runningTask?.cancel()
             runningTask = nil
             self.currentJob = nil
@@ -307,6 +308,7 @@ final class ModelTaskQueue {
 
     func stopCurrent() {
         guard let job = currentJob else { return }
+        LiteRTLifecycleTrace.shared.record("queue-stop")
         runningTask?.cancel()
         runningTask = nil
         currentJob = nil
@@ -382,6 +384,7 @@ final class ModelTaskQueue {
 
     func setApplicationActive(_ isActive: Bool) {
         applicationIsActive = isActive
+        LiteRTLifecycleTrace.shared.record("app-active", ["isActive": isActive])
         if isActive {
             // Returning to the foreground must ALWAYS resume execution. This previously bailed
             // out whenever an unload transition was still in flight
@@ -404,6 +407,7 @@ final class ModelTaskQueue {
     }
 
     func handleMemoryPressure() {
+        LiteRTLifecycleTrace.shared.record("memory-warning")
         beginImmediateUnload(reason: .memoryPressure)
     }
 
@@ -511,6 +515,7 @@ final class ModelTaskQueue {
               currentJob.priority == .background else {
             return
         }
+        LiteRTLifecycleTrace.shared.record("queue-preempt-background")
         runningTask?.cancel()
         runningTask = nil
         self.currentJob = nil

@@ -12,8 +12,9 @@ process-scoped live engine and queue. When no verified package is installed, the
 a failed local generation surfaces as a failure and offers retry. `MockAquinasModel` is restricted
 to previews and tests.
 
-On-device conversation decoding is deterministic because sampled decoding corrupts the current
-4-bit checkpoint. Local decoding currently yields completed text rather than reliable token
+On-device conversation decoding is deterministic (greedy). That policy dates from the earlier
+4-bit E2B checkpoint, which sampling corrupted; the E4B package passed a sampled check in C8, but
+the policy hasn't changed. Local decoding currently yields completed text rather than reliable token
 deltas. The app may present a safe, question-specific approach summary, but it must never expose
 provider scratch work or chain-of-thought.
 
@@ -32,6 +33,22 @@ makes no network requests for model or tree work. `Aquinas_Backend` remains offl
 grounding corpus, model conversion, and evaluation.
 
 ## Model package and device safety
+
+On `feature/gemma4-e4b-qat`, `LiteRTModelManifest.aquinas` selects the standard LiteRT Community
+Gemma 4 E4B package, not a fine-tune. It runs text-only on the GPU with a 4,096-token KV cache.
+An earlier owner-approved build from this branch remains installed on Ry as a personal trial.
+**The migration is not promoted:** C9 failed the frozen physical-device latency gate, C10 is
+blocked, and `main` still selects the fine-tuned E2B package. Do not infer a release decision
+from the branch manifest or the phone installation. The manifest comment records B0 rollback
+values. Evidence, exact hashes, and the next diagnostic plan are in the
+[E4B migration ledger](Gemma4-E4B-QAT-Progress.md) and
+[post-C9 diagnostics](Gemma4-E4B-Post-C9-Diagnostics.md).
+
+Lifecycle rules the runtime enforces (see the C7 evidence):
+- The stall watchdog ignores time the process spent suspended.
+- After a stalled or failed generation, new native work waits (bounded) for the abandoned native
+  stream to end; it is never cancelled natively.
+- A new engine loads only after the previous engine's native delete has finished (bounded wait).
 
 The local package is a large, gitignored artifact. Do not commit models, generated corpora, or
 device data. Simulator inference is useful for iteration but does not replace real-device

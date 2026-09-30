@@ -1,0 +1,276 @@
+# E4B phone usability diagnostics after C9
+
+> Status: frozen for P1, 2026-09-27. Owner delegated the next model decision to the
+> senior developer. This is an informational follow-up, not a revision of the failed C9 gate
+> or an approval to promote. Preserve all C9 evidence and its `failed` status.
+
+## Decision to make
+
+The standard E4B package scored higher than B0 in C8 and used less memory in the valid C9
+phone sample, but missed the frozen cold-load and cold-answer budgets. Determine whether its
+cached and sustained phone behavior is suitable for a new product proposal, or whether to
+stop work on this package. Do not choose a new acceptance budget from P1 data and then call
+P1 a passing promotion gate. Any future promotion requires a separate plan with criteria
+frozen before its runs, phone GPU quality confirmation, and owner approval.
+
+## Frozen P1 protocol
+
+- Worktree/branch: `Aquinas-iOS-e4b-qat` / `feature/gemma4-e4b-qat`. Active artifact M4-Ls,
+  SHA-256 `0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0`;
+  LiteRT-LM 0.14.0, GPU, text-only, 4,096 tokens, production greedy decoding and retrieval.
+  No prompt, model, system-instruction, or runtime setting changes during P1.
+- Use Ry (base iPhone 17), DEBUG disposable bundle
+  `com.ryanbaltodano.Aquinas-iOS.ModelProbe`, with `--litert-sustained-probe` and the bundled
+  E4B file via the DEBUG model-path override. Do not install over or write into production
+  Aquinas. Verify production data backup and current Home counts before installing. Keep the
+  production process closed during measurements. Never use `--remove-existing-content` on it.
+- Raw evidence uses fresh immutable IDs `P1-M4Ls-<n>` in `LocalModels/e4b-eval/`, with exact
+  commands, model hash, OS, effective settings, result JSON, lifecycle trace, stderr, and
+  before/after crash-log listings. The existing C9 runner may be used with a new result name.
+  A failed or preflight-only run keeps its ID and is never overwritten.
+- At nominal thermal state, launch one fresh-process **prime** run, clearing only the
+  disposable E4B cache. Fixed short input: “In one sentence, what is prudence?” Its latency is
+  informational; C9 already proved the old cold gate failed. After that, run three cached
+  fresh-process trials with the same short input and the cache present. Do not clear the
+  cache between them. Report every load, retrieval, visible completion, metadata completion,
+  peak footprint, and thermal sample; report min/median/max, not a five-sample p95.
+- If these runs complete without crash, run one fresh-process 20-turn sequence through the
+  shared app queue, using the same short input as independent fresh-conversation turns. Discard
+  its first turn as warm-up for the turn-20/turn-1 ratio. Record each latency, thermal state,
+  memory, and native overlap events. Then run one 75-second idle hold followed by a new
+  request with a shortened DEBUG idle timeout to exercise reload.
+- A real OS background/foreground cycle, a memory warning, and cancel/stall recovery remain
+  safety questions from C7. Do not substitute queue-only lifecycle probes for real OS cycles.
+  If device control cannot perform them, record them as unverified and do not recommend
+  promotion. Stop any run on jetsam, signal 9, critical thermal state, stale UI updates, or
+  concurrent old native work and a new load.
+- Do not run the 40-case held-out GPU set, edit `LiteRTAquinasModel.swift`, update Foundations,
+  push, open a public PR, or merge under P1. Those steps belong to a later passing promotion
+  plan. Keep the current production E4B installation as a personal trial only.
+
+## Decision rule
+
+P1 does not pass or fail C9. Recommend either (a) a new, predeclared product plan with explicit
+latency tradeoffs and full device/quality gates, or (b) stopping E4B promotion work. Base the
+recommendation on every P1 sample and the C9 failure. Report what remained unverified.
+
+### Instrumentation amendment before P1 runs (2026-09-27)
+
+For the 20-turn continuous foreground diagnostic only, the DEBUG probe disables iOS's idle
+screen timer while the run is active, then restores it. This prevents the screen locking and
+suspending a test intended to measure sustained foreground work. The separate real OS
+background/foreground question still requires explicit scene transitions. Thermal tracing runs
+from a detached task so synchronous retrieval/model calls do not pause its one-second samples.
+Neither change alters the LiteRT model, sampler, prompt, queue, or runtime lifecycle policy.
+Commit the instrumented build and use it for **all** P1 runs; no P1 model run preceded this
+amendment.
+
+## Stopping point — 2026-09-27
+
+Protocol and instrumentation committed before trials. Fresh production-data backup verified:
+`LocalModels/e4b-eval/P1-preflight-1/backup-manifest.json` and `data-counts.json` (28 files,
+9 conversations, 13 saved Insights, 1 study topic, 81 seen Insight IDs). P1 DEBUG physical build
+passed (`build-instrumented.log`). The disposable probe was installed but never launched for a
+P1 model run, then uninstalled at the owner's request to reach a stopping point. Production E4B
+remains installed with its data untouched. No P1 run IDs exist. Resume by reinstalling the
+built disposable app, checking its new installed bundle path, then prime its E4B cache under
+`P1-M4Ls-1` with the frozen flags. Do not reuse old C9 IDs or results.
+
+## P1 results so far — 2026-09-27 (Claude session)
+
+Fresh production-data backup first: `P1-preflight-2` (28 files, matching `P1-preflight-1`).
+The production app process was closed before the runs. The disposable app was built from
+`e1a4a7b`'s instrumented code (unchanged at `3ca9ad6`), installed, and then uninstalled
+afterwards. Summaries come from `LocalModels/e4b-eval/p1_summary.py`. Load time is taken from
+the native load interval in the lifecycle trace. Thermal state stayed nominal throughout, all
+answers succeeded, and there was no jetsam.
+
+| Run | Kind | Load (s) | Request → answer complete (s) | Peak footprint |
+| --- | --- | --- | --- | --- |
+| P1-M4Ls-1 | Prime (cache cleared) | 14.77 | 24.69 | 1.13 GB |
+| P1-M4Ls-2 | Cached | 7.66 | 16.37 | 1.13 GB |
+| P1-M4Ls-3 | Cached | 7.47 | 16.13 | 1.13 GB |
+| P1-M4Ls-4 | Cached | 8.32 | 17.44 | 1.24 GB |
+
+Cached: load min / median / max = 7.47 / 7.66 / 8.32 s; answer = 16.13 / 16.37 / 17.44 s. After
+the load, each answer took about 8.7–9.1 s, consistent with C9.
+
+**Not run yet:** the 20-turn sequence (`--litert-c9-twenty-turns`), the 75-second idle hold with
+reload, and the real OS lifecycle checks. Resume at `P1-M4Ls-5` by reinstalling the disposable
+app (its bundle path changes on every install).
+
+**Reading (informational, not a gate).** Cached load (about 7.7 s) matches B0's
+*cache-cleared* load in C9 (7.9 s). B0's cached load hasn't been measured, so there is no
+cached comparison yet. Most of the answer time after loading is spent on prefill and decode
+of the grounded prompt, and C9's valid samples show it for both models (E4B about 9 s vs B0
+about 10.5 s). Reducing prompt size is a model-independent latency lever.
+
+## Owner report: memory pressure in daily use — 2026-09-28
+
+The owner reports that the production E4B build on Ry is unusable in daily use: answers never
+load, and background music stops (iOS is killing other apps to reclaim memory).
+
+**Likely cause (hypothesis, not yet verified on the phone): the installed build predates the
+SHA-256 fix.**
+- The production app on Ry is a Debug build of `2776cc9`, installed 2026-09-27.
+- DEBUG builds hash the loaded model once per process (`LiteRTAquinasRuntime.logLoadedModelOnce`
+  → `LiteRTModelInstaller.sha256`).
+- Before `a4fd7c0`, that hash kept the file's 8 MiB read buffers alive for the whole task. Codex
+  reproduced a 3.87 GB peak (`C9-diagnostics-1`) and saw it on the phone (`C9-B0-1`, invalid).
+- Model plus hash therefore approaches the whole phone's memory budget, which fits the report.
+- P1 ran the fixed build: peak 1.13–1.24 GB, no pressure kills. In C5, E2B's `phys_footprint`
+  agreed with jetsam's resident count (2.04 GB) on the same standard GPU delegate, so the P1
+  number is plausibly complete. Unlike the artisan package (M4-L), there is no evidence that it
+  under-reports for M4-Ls.
+
+**Next time the phone is connected:**
+1. Install a build that includes `a4fd7c0` into production, keeping data (the current branch
+   HEAD, or a Release build, which skips the DEBUG hash entirely). Back up first.
+2. Verify with the owner's scenario: music playing, ask a question, and pull any JetsamEvent
+   reports. Record the jetsam resident count for the Aquinas process next to `phys_footprint`.
+3. If pressure persists with the fixed build, the model itself is too large for daily use. Then
+   try a 2,048-token KV cache and a faster idle unload as a new candidate configuration, or
+   revert the phone to `main`'s E2B build.
+
+## Prompt size per question — 2026-09-28 (from existing C8 records, no new runs)
+
+> **Correction (same day):** the figures directly below double-count. LiteRT-LM's
+> `renderedMessage` already contains the system preface, so adding `renderedPreface` counted
+> it twice. Corrected values follow this section. The original text is kept for the record.
+
+`C8-M4Ls-held-2/litert-generations.jsonl`, 35 conversation prompts rendered by LiteRT-LM's own
+template:
+- Median 19,138 characters, maximum 24,020. That is roughly 4,000+ tokens at about 4.5
+  characters per token (an estimate; the exact count needs the tokenizer).
+- Example split: system preface about 8,100 characters, per-turn message about 9,000. The
+  per-turn message is mostly standing instructions (revisability rules, register examples,
+  naming rules) repeated on every turn, with the question itself about 100 characters.
+
+At C5's measured prefill rate (about 830 tokens/s on the phone GPU), prefill alone is about
+4–5 s per answer, before any decoding. That explains most of the ~9 s answer time after load,
+for both models. It also leaves little of the 4,096-token window for history and the answer
+(C6's thin compaction margin). Trimming the standing instructions is the single biggest
+latency lever, and it's model-independent. It belongs to the owner's system-prompt work on
+`main` (`LiteRTAquinasModel.swift`).
+
+Release build of `ee3d5e2` for production is ready at
+`build/DerivedData/Build/Products/Release-iphoneos/Aquinas-iOS.app` (bundled model SHA-256
+`0b2a8980…`). Not installed yet: the phone was unreachable.
+
+## MTP (speculative decoding) — 2026-09-28, simulator CPU
+
+The runtime now enables LiteRT-LM speculative decoding (`ExperimentalFlags.enableSpeculativeDecoding`)
+by default; `--litert-no-mtp` turns it off in DEBUG. The E4B package's `tf_lite_mtp_drafter`
+section loads (stderr: `llm_litert_mtp_drafter.cc`).
+
+| Run | MTP | 14-case diagnostics total | Outputs |
+| --- | --- | --- | --- |
+| S0-mtp-on-1 | on | 157.8 s | 14/14 ok |
+| S0-mtp-off-1 | off | 144.5 s | 14/14 ok; 13/14 identical to on |
+
+- Draft acceptance: 0.33–0.52. On the simulator CPU, MTP is about 9% **slower**: verifying
+  drafts costs more than it saves on CPU.
+- Google's published gain (about 2.2× decode for E4B) is on mobile GPUs, so **the phone
+  decides**.
+- The one difference (Midpoint candidates) is a greedy near-tie flipped by batched
+  verification. Both outputs pass the contract. "Identical output" therefore holds only up to
+  numerical ties.
+- **Ship rule:** keep MTP on only if the phone GPU shows a clear decode gain with no stability
+  or memory regression. Otherwise set `usesSpeculativeDecoding` to false.
+
+
+### Corrected prompt size and time split — 2026-09-28
+
+- `renderedMessage` alone (system + user turn): median **10,042 characters**, range 6,898–12,489.
+  That's roughly **2,300 tokens**, not 4,000+.
+- A typical prompt: about 3,300 characters of retrieved passages (about 800 tokens), about
+  6,700 characters of standing instructions (about 1,500 tokens), and about 950 characters for
+  the user turn.
+- Phone runs `P1-M4Ls-2/3`: exactly **one** generation per short answer, **8.2 s** (native
+  generate interval, from the recorder).
+- Estimated split at C5's phone rates: prefill of about 2,400 tokens ≈ 2.9 s; decode of about
+  50 tokens ≈ 2.5 s. The remaining ≈ 2.8 s is unattributed engine overhead. LiteRT-LM exposes no
+  prefill boundary and delivers the text only at the end, so a benchmark-mode phone run is
+  needed to split it.
+- **Revised expectation:** trimming the standing instructions (about 1,500 tokens) would save
+  roughly **1–1.5 s** of the 8.2 s, not half. That's useful but modest, and it carries quality
+  risk, so it's deferred until after launch. MTP (decode) and the unattributed overhead are the
+  bigger levers; measure both on the phone first.
+
+## Phone session S1 — 2026-09-28 (Ry, E4B on GPU, DEBUG disposable app)
+
+Production data backed up first: `S1-preflight-1` (28 files). The production app process was
+closed before the runs.
+
+**MTP on vs off** (cached, alternating; answer = request → answer complete, including a fresh
+load; generation = native generate only):
+
+| Run | MTP | Load (s) | Answer (s) | Generation (s) |
+| --- | --- | --- | --- | --- |
+| S1-on-1 / 2 / 3 | on | 7.10 / 7.94 / 6.75 | 14.57 / 19.53 / 13.51 | 7.14 / 11.39 / 6.51 |
+| S1-off-1 / 2 / 3 | off | 6.91 / 7.33 / 6.98 | 14.47 / 16.57 / 14.83 | 7.15 / 8.58 / 7.51 |
+
+MTP was active (`enable_speculative_decoding: true`, drafter loaded). The median generation
+gain was about 0.4 s, with more variance and changed greedy wording. **Decision: MTP off for
+launch** (`--litert-mtp` enables it in DEBUG). Answers here are short, about 50 tokens, so
+prefill dominates; MTP speeds up only decode.
+
+**Timeline of one cached answer** (S1-off-1..3): accepted → model load 6.9–7.3 s → retrieval
+about 0.35 s → generate 7.2–8.6 s. At C5's rates, generation is about 3 s of prefill
+(~2,400 tokens), about 3.5 s of decode (with Insight markers), and about 1 s of overhead. With
+the model already resident (within the 5-minute idle window), an answer takes about 7–8 s.
+- **Post-launch lever:** start loading the model when the user opens a conversation or starts
+  typing, which hides most of the 7 s load.
+
+**Lifecycle probe on the phone GPU** (`S1-lifecycle-1`, idle timeout 10 s): 0 native overlaps;
+warm-up, idle unload and reload, cancel, foreground preemption, background during generation,
+and memory warning (idle and during generation) all passed.
+- `forced-stall-timeout` reports `false` only because no stall occurred. On the GPU the answer
+  streamed before the 5 s watchdog poll, so the 1 s override never fired. This is a limit of
+  the test, not an app failure; the stall path is verified in simulator C7.
+- Footprint right after each engine delete: 159–665 MB, fluctuating rather than rising
+  steadily, against about 1.1–1.3 GB loaded. It doesn't return to the pre-load level within
+  10%, likely because Metal/driver memory is released lazily. Watch it; it isn't a jetsam risk.
+- iOS logged `Aquinas-iOS.diskwrites_resource` (a disk-write resource report, not a crash),
+  most likely from DEBUG lifecycle-trace writes. Release builds don't write the trace.
+
+## GPU F16 misreads multi-digit numbers — 2026-09-29 (phone S2/S3)
+
+The owner's phone answered "Tell me about John 14" with an essay on John 4, even though retrieval
+was correct (Show Thinking listed the John 14 note and two John 14 WEB chunks).
+- Reproduced deterministically on the phone GPU: 3/3 John 4. The phone CPU and the simulator CPU
+  answered John 14 from the **identical** rendered prompt.
+- Same failure elsewhere: Psalm 23 → Psalm 3, John 11 → John 1. Single-digit chapters are fine.
+- **B0 (current production E2B) fails the same way** on the GPU, so this isn't an E4B regression.
+- Restating or spelling out the chapter next to the question didn't help, and output was also
+  garbled elsewhere ("John 1111").
+- **Fix:** force F32 activations on the GPU (`litert_lm_engine_settings_set_activation_data_type`,
+  exposed through a small addition to the vendored Swift wrapper). S3-f32-1..8: 8/8 chapter
+  questions answered correctly, including John 14, Psalm 23, John 11, 1 Corinthians 13 and
+  Romans 12.
+- Cost (S3-mem-*): peak footprint 1.29–1.33 GB vs 1.13–1.24 GB; same load time (7–10 s); a short
+  answer takes about 0.5 s longer; long answers decode about 20% slower (about 9.5 vs 12.5
+  words/s).
+- `--litert-f16` restores the package default in DEBUG.
+- **Consequence:** C8's quality evidence came from simulator CPU (F32-like) runs, so it described
+  F32 behavior. The phone was shipping F16, which C8 never measured. Rerun the held-out set on the
+  phone GPU with F32 as the P2 quality check.
+
+## Held-out quality on the phone GPU (F32) — 2026-09-29, run P2-phone-held-f32-1
+
+The same 40 held-out cases as C8, run through the production path on Ry's GPU with F32
+activations, scored with `score_objective.py`:
+
+| Run | Where | Objective pass | Link validity | Median s |
+| --- | --- | --- | --- | --- |
+| C8-M4Ls-held-2 | simulator CPU | 28/40 | 0.865 | 23.5 |
+| **P2-phone-held-f32-1** | **phone GPU, F32** | **26/40** | 0.869 | 24.5 |
+| C8-B0-held-2 (current model) | simulator CPU | 26/40 | — | — |
+
+- Only two cases changed, both phone losses on keyword checks: held-B1 (missing
+  "bind/obligation") and held-E5 (missing "Sentences"). There were no rejects and no crashes;
+  iOS logged only `diskwrites_resource` reports.
+- On the objective checks, E4B on the phone ties B0's simulator score. E4B's larger C8 advantage
+  came from the blind rubric review, which this run doesn't repeat.
+- The phone run should have been a like-for-like comparison with B0 on the phone. B0 on the phone
+  at F32 wasn't run.

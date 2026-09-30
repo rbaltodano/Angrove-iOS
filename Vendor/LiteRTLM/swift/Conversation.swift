@@ -86,9 +86,11 @@ public class Conversation {
     if let handle = handle {
       let handleToDelete = handle
       let owningEngine = engine
+      NativeActivityMonitor.report("conversation-delete", isBegin: true)
       Thread {
         litert_lm_conversation_delete(handleToDelete)
         withExtendedLifetime(owningEngine) {}
+        NativeActivityMonitor.report("conversation-delete", isBegin: false)
       }.start()
     }
   }
@@ -269,6 +271,11 @@ public class Conversation {
     }
     defer { litert_lm_conversation_optional_args_delete(optionalArgs) }
 
+    // A tool-call round reuses the context, so only its first send counts as a new stream.
+    if !context.reportsEnd {
+      NativeActivityMonitor.report("native-stream", isBegin: true)
+      context.reportsEnd = true
+    }
     let contextPtr = Unmanaged.passRetained(context).toOpaque()
 
     let status = litert_lm_conversation_send_message_stream(
@@ -431,12 +438,20 @@ public class Conversation {
     var toolCallCount: Int = 0
     var pendingToolCalls: [[String: Any]] = []
 
+    /// Set once the native stream starts; the native side releases this context only when it
+    /// finishes, so `deinit` marks the true end of native generation.
+    var reportsEnd = false
+
     init(
       continuation: AsyncThrowingStream<Message, Error>.Continuation,
       conversation: Conversation
     ) {
       self.continuation = continuation
       self.conversation = conversation
+    }
+
+    deinit {
+      if reportsEnd { NativeActivityMonitor.report("native-stream", isBegin: false) }
     }
   }
 }
