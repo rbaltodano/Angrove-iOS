@@ -141,7 +141,7 @@ struct ContentView: View {
     @AppStorage(SettingsStorageKey.conversationTextAlignment) private var conversationTextAlignment: ConversationTextAlignmentOption = .center
     @AppStorage("aquinas.settings.inputFont") private var inputFont: ConversationFontOption = .serif
     @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .sans
-    @AppStorage("aquinas.settings.conversationPersonality") private var conversationPersonality: ConversationPersonality = .balanced
+    @AppStorage("aquinas.settings.conversationPersonality") private var conversationPersonality: ConversationPersonality = .default
 
     // MARK: - Constants
 

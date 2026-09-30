@@ -110,7 +110,7 @@ struct LiteRTProbeFixture: Decodable, Equatable {
             }
             resolvedPersonality = value
         } else {
-            resolvedPersonality = .balanced
+            resolvedPersonality = .default
         }
         return ConversationContext(
             compactedContext: compactedContext,
