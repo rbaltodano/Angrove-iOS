@@ -17,7 +17,15 @@ import Observation
 @Observable
 final class CanvasModeModel {
     /// Whether the topic canvas overlay is currently presented.
-    var isTopicCanvasVisible: Bool = false
+    var isTopicCanvasVisible: Bool = false {
+        didSet {
+            guard !isTopicCanvasVisible else { return }
+            // Closing the canvas (including Quote and Fork) removes the tree that owns
+            // the Study session. Clear its shared chrome before returning to conversation.
+            isCanvasStudyMode = false
+            isCanvasStudyToolsActive = false
+        }
+    }
     var hasCanvasHover: Bool = false
     var hasHoveredCanvasInsight: Bool = false
 

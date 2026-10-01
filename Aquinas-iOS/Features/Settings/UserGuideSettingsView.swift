@@ -286,10 +286,10 @@ struct UserGuideTopic: Identifiable, Hashable {
         ),
         .init(
             id: "personalization", title: "Personalizing Aquinas", icon: "slider.horizontal.3",
-            intro: "You can make Aquinas more comfortable to read and change how it talks with you. Everything is in {gearshape|Settings}, at the bottom of the menu.",
-            overview: "Settings controls how the app looks, how conversations read, and the tone Aquinas uses.",
-            instructions: "Appearance switches between light and dark. Text & Display changes fonts, text size, and alignment. Model Behavior sets your name and Aquinas’s personality. App Experience sets your start screen and haptics, and Notifications sets reminders.",
-            example: "Choose larger text for long reading sessions, or pick a personality that suits you. Personality changes Aquinas’s tone, not how carefully it reasons."
+            intro: "You can make Aquinas more comfortable to read and tell it what to call you. Everything is in {gearshape|Settings}, at the bottom of the menu.",
+            overview: "Settings controls how the app looks and how conversations read.",
+            instructions: "Appearance switches between light and dark. Text & Display changes fonts, text size, and alignment. Model Behavior sets your name. App Experience sets your start screen and haptics, and Notifications sets reminders.",
+            example: "Choose larger text for long reading sessions, or a serif font for responses."
         ),
         .init(
             id: "privacy", title: "Privacy & Your Data", icon: "lock.shield",

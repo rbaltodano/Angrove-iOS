@@ -31,6 +31,10 @@ enum SlashCommandInvocation: Equatable {
     case compact
     case clear
     case rename(String?)
+    case newConversation
+    case tree
+    case topic
+    case insights
 }
 
 extension SlashCommand {
@@ -39,6 +43,10 @@ extension SlashCommand {
         SlashCommand(name: "/compact",    description: "Condense the conversation so far"),
         SlashCommand(name: "/clear",      description: "Clear the current conversation"),
         SlashCommand(name: "/rename",     description: "Rename the current conversation"),
+        SlashCommand(name: "/new",        description: "Start a new conversation"),
+        SlashCommand(name: "/tree",       description: "Open this conversation's Insight Tree"),
+        SlashCommand(name: "/topic",      description: "Choose a Study Topic for this conversation"),
+        SlashCommand(name: "/insights",   description: "Open the Insight library"),
     ]
 
     static func invocation(for text: String) -> SlashCommandInvocation? {
@@ -54,6 +62,14 @@ extension SlashCommand {
             return .rename(parts.count == 2
                 ? String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
                 : nil)
+        case "/new":
+            return parts.count == 1 ? .newConversation : nil
+        case "/tree":
+            return parts.count == 1 ? .tree : nil
+        case "/topic":
+            return parts.count == 1 ? .topic : nil
+        case "/insights":
+            return parts.count == 1 ? .insights : nil
         default:
             return nil
         }

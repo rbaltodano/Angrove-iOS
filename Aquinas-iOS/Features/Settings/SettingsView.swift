@@ -28,7 +28,6 @@ struct SettingsView: View {
             NavigationStack(path: $path) {
                 SettingsHubView(
                     colorSchemeOverride: colorSchemeOverride,
-                    conversationPersonality: conversationPersonality,
                     conversationFontSize: conversationFontSize,
                     responseFont: responseFont
                 ) { route in
@@ -44,7 +43,6 @@ struct SettingsView: View {
                         conversationTextAlignment: $conversationTextAlignment,
                         inputFont: $inputFont,
                         responseFont: $responseFont,
-                        conversationPersonality: $conversationPersonality,
                         collectedDefinitions: $collectedDefinitions,
                         onReset: resetSettings,
                         onClearInsightTree: onClearInsightTree,
@@ -141,7 +139,6 @@ private enum SettingsRoute: Hashable {
 /// each entry's current state noted beneath it.
 private struct SettingsHubView: View {
     let colorSchemeOverride: ColorScheme?
-    let conversationPersonality: ConversationPersonality
     let conversationFontSize: ConversationFontSizeOption
     let responseFont: ConversationFontOption
     let onSelect: (SettingsRoute) -> Void
@@ -191,7 +188,7 @@ private struct SettingsHubView: View {
             ("Model", [
                 SettingsHubItem(
                     title: "Model Behavior",
-                    detail: "\(conversationPersonality.displayName) voice",
+                    detail: "Your name",
                     iconName: "brain",
                     route: .modelBehavior
                 ),
@@ -359,7 +356,6 @@ private struct SettingsDestinationView: View {
     @Binding var conversationTextAlignment: ConversationTextAlignmentOption
     @Binding var inputFont: ConversationFontOption
     @Binding var responseFont: ConversationFontOption
-    @Binding var conversationPersonality: ConversationPersonality
     @Binding var collectedDefinitions: [ConceptDefinition]
     let onReset: () -> Void
     var onClearInsightTree: () -> Void = {}
@@ -376,10 +372,7 @@ private struct SettingsDestinationView: View {
         case .privacyAndData:
             PrivacyAndDataSettingsView(onClearInsightTree: onClearInsightTree)
         case .modelBehavior:
-            ModelBehaviorSettingsView(
-                userName: $userName,
-                conversationPersonality: $conversationPersonality
-            )
+            ModelBehaviorSettingsView(userName: $userName)
         case .modelActivity:
             ModelActivitySettingsView()
         case .textAndDisplay:

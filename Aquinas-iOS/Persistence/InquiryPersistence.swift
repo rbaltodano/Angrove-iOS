@@ -91,6 +91,15 @@ nonisolated struct InquirySnapshotFileStore {
                     var branch = snapshot.conversations[conversationIndex].branches[branchIndex]
                     guard let savedBranch = savedConversation.branches.first(where: { $0.id == branch.id }),
                           branch.topQuestionText == savedBranch.topQuestionText else { continue }
+                    // Preserve a title produced after this page's snapshot was captured.
+                    // Explicit renames set a branch title; clear replaces the branch identity.
+                    if branch.parentBranchID == nil, branch.generatedBranchTitle == nil,
+                       let title = savedBranch.generatedBranchTitle {
+                        branch.generatedBranchTitle = title
+                        if snapshot.conversations[conversationIndex].title == "New Conversation" {
+                            snapshot.conversations[conversationIndex].title = savedConversation.title
+                        }
+                    }
                     for index in branch.activeChatBlocks.indices {
                         guard branch.activeChatBlocks[index] == .text(""),
                               savedBranch.activeChatBlocks.indices.contains(index),

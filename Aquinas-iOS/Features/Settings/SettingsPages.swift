@@ -344,33 +344,15 @@ extension Notification.Name {
 
 struct ModelBehaviorSettingsView: View {
     @Binding var userName: String
-    @Binding var conversationPersonality: ConversationPersonality
 
     var body: some View {
         SettingsDetailScaffold(title: "Model Behavior") {
-            VStack(alignment: .leading, spacing: 24) {
-                SettingsControlCard {
-                    SettingsTextInputRow(
-                        title: "Name",
-                        placeholder: "John Appleseed",
-                        text: $userName
-                    )
-                }
-
-                SettingsControlCard {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Default Personality")
-                            .font(.custom("Figtree-Bold", size: 12))
-                            .foregroundStyle(AquinasTheme.Colors.paragraphText)
-
-                        PersonalitySegmentedControl(selection: $conversationPersonality)
-
-                        Text(conversationPersonality.shortDescription)
-                            .font(.custom("Figtree-Regular", size: 12))
-                            .foregroundStyle(AquinasTheme.Colors.paragraphText)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
+            SettingsControlCard {
+                SettingsTextInputRow(
+                    title: "Name",
+                    placeholder: "John Appleseed",
+                    text: $userName
+                )
             }
         }
     }

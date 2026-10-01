@@ -27,6 +27,9 @@ struct FlowLayout: Layout {
     var alignment: TextAlignment = .center
     /// Stretches every wrapped row except the last to the full width by widening the word gaps.
     var justified = false
+    /// Changes when a word other than the trailing one can have a new width (a plain word
+    /// turned into an Insight link), which drops every cached measurement.
+    var measurementKey = 0
 
     // MARK: - Cache
     //
@@ -44,10 +47,11 @@ struct FlowLayout: Layout {
     struct Cache {
         var sizes: [Int: CGSize] = [:]
         var subviewCount = 0
+        var measurementKey = 0
     }
 
     func makeCache(subviews: Subviews) -> Cache {
-        Cache(subviewCount: subviews.count)
+        Cache(subviewCount: subviews.count, measurementKey: measurementKey)
     }
 
     func updateCache(_ cache: inout Cache, subviews: Subviews) {
@@ -64,6 +68,10 @@ struct FlowLayout: Layout {
             $0.key < firstMutableIndex && $0.key < subviews.count
         }
         cache.subviewCount = subviews.count
+        if cache.measurementKey != measurementKey {
+            cache.sizes.removeAll()
+            cache.measurementKey = measurementKey
+        }
     }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {

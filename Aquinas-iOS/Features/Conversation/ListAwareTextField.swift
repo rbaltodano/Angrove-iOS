@@ -55,14 +55,15 @@ struct ListAwareTextField: UIViewRepresentable {
     var onTextChange: ((String) -> Void)? = nil
     /// Called when Return should submit the current question instead of inserting a newline.
     var onSubmit: (() -> Void)? = nil
-    /// Shrinks the reported width to the laid-out text (up to the proposal), so locked
-    /// questions can render as content-hugging chat bubbles.
+    /// Fits the live UIKit buffer up to the proposed width, then wraps.
     var hugsContentWidth: Bool = false
+    /// Width reserved for the placeholder only while the live editor is empty.
+    var minimumContentWidth: CGFloat = 0
 
     // MARK: - UIViewRepresentable
 
     func makeUIView(context: Context) -> UITextView {
-        let tv = UITextView()
+        let tv = CommandHighlightTextView()
         tv.delegate = context.coordinator
         tv.font = font
         tv.textColor = textColor
@@ -90,6 +91,7 @@ struct ListAwareTextField: UIViewRepresentable {
         relay?.replaceAll = { [weak tv] newText in
             guard let tv else { return }
             tv.text = newText
+            tv.updateCommandHighlight(baseColor: textColor)
             let end = tv.endOfDocument
             tv.selectedTextRange = tv.textRange(from: end, to: end)
             tv.invalidateIntrinsicContentSize()
@@ -100,6 +102,7 @@ struct ListAwareTextField: UIViewRepresentable {
             let end = tv.endOfDocument
             tv.selectedTextRange = tv.textRange(from: end, to: end)
         }
+        tv.updateCommandHighlight(baseColor: textColor)
         return tv
     }
 
@@ -124,16 +127,33 @@ struct ListAwareTextField: UIViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
         var width = proposal.width ?? uiView.bounds.width
         guard width > 0 else { return nil }
-        if hugsContentWidth, let attributedText = uiView.attributedText, attributedText.length > 0 {
-            let textRect = attributedText.boundingRect(
-                with: CGSize(width: width, height: .greatestFiniteMagnitude),
-                options: [.usesLineFragmentOrigin, .usesFontLeading],
-                context: nil
+        if hugsContentWidth {
+            width = Self.contentWidth(
+                for: uiView.attributedText ?? NSAttributedString(string: ""),
+                availableWidth: width,
+                minimumWidth: minimumContentWidth,
+                caretWidth: isLocked ? 0 : 2
             )
-            width = min(width, ceil(textRect.width))
         }
         let fittingSize = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
         return CGSize(width: width, height: max(fittingSize.height, uiView.font?.lineHeight ?? 20))
+    }
+
+    /// Measure without wrapping first so a growing draft reaches its maximum width
+    /// before adding lines. Read the text view's buffer, not the deferred binding.
+    static func contentWidth(
+        for text: NSAttributedString,
+        availableWidth: CGFloat,
+        minimumWidth: CGFloat,
+        caretWidth: CGFloat
+    ) -> CGFloat {
+        let naturalWidth = text.boundingRect(
+            with: CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            context: nil
+        ).width
+        let emptyWidth = text.length == 0 ? minimumWidth : 0
+        return min(availableWidth, max(1, emptyWidth, ceil(naturalWidth) + caretWidth))
     }
 
     func updateUIView(_ uiView: UITextView, context: Context) {
@@ -142,7 +162,6 @@ struct ListAwareTextField: UIViewRepresentable {
 
         // Always safe to update visual properties
         if uiView.font != font { uiView.font = font }
-        if uiView.textColor != textColor { uiView.textColor = textColor }
         if uiView.tintColor != textColor { uiView.tintColor = textColor }
         if uiView.backgroundColor != .clear { uiView.backgroundColor = .clear }
         if uiView.textAlignment != textAlignment {
@@ -158,7 +177,8 @@ struct ListAwareTextField: UIViewRepresentable {
             uiView.isEditable   = !isLocked
             uiView.isSelectable = !isLocked
         }
-        let attributes = makeTypingAttributes()
+        var attributes = makeTypingAttributes()
+        attributes.removeValue(forKey: .foregroundColor)
         if !isLocked {
             uiView.typingAttributes = attributes
         }
@@ -190,16 +210,22 @@ struct ListAwareTextField: UIViewRepresentable {
         relay?.replaceAll = { [weak uiView] newText in
             guard let uiView else { return }
             uiView.text = newText
+            (uiView as? CommandHighlightTextView)?.updateCommandHighlight(baseColor: textColor)
             let end = uiView.endOfDocument
             uiView.selectedTextRange = uiView.textRange(from: end, to: end)
             uiView.invalidateIntrinsicContentSize()
         }
+        (uiView as? CommandHighlightTextView)?.updateCommandHighlight(baseColor: textColor)
         relay?.focus = { [weak uiView] in
             guard let uiView else { return }
             uiView.becomeFirstResponder()
             let end = uiView.endOfDocument
             uiView.selectedTextRange = uiView.textRange(from: end, to: end)
         }
+    }
+
+    static func dismantleUIView(_ uiView: UITextView, coordinator: Coordinator) {
+        (uiView as? CommandHighlightTextView)?.stopCommandWave()
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
@@ -295,12 +321,14 @@ struct ListAwareTextField: UIViewRepresentable {
         }
 
         private func notifyChange(_ tv: UITextView) {
+            (tv as? CommandHighlightTextView)?.updateCommandHighlight(baseColor: parent.textColor)
             parent.onTextChange?(tv.text ?? "")
         }
 
         // MARK: - UITextViewDelegate
 
         func textViewDidChange(_ tv: UITextView) {
+            (tv as? CommandHighlightTextView)?.updateCommandHighlight(baseColor: parent.textColor)
             let current = tv.text ?? ""
             // Do NOT write to parent.text here — doing so mutates activeBranches on
             // every keystroke, which triggers an ActiveInquiryView re-render, which
@@ -333,6 +361,107 @@ struct ListAwareTextField: UIViewRepresentable {
         private func flushText(_ tv: UITextView) {
             parent.text = tv.text ?? ""
         }
+    }
+}
+
+// MARK: - One-shot command color wave
+
+/// Animates inside the live editor without duplicating text or moving the cursor.
+/// A soft green front sweeps once across the command, leaving solid green behind.
+final class CommandHighlightTextView: UITextView {
+    private var command: String?
+    private var commandRange: NSRange?
+    private var baseColor: UIColor = .aquinasPrimaryReadable
+    private var waveStart: CFTimeInterval?
+    private var displayLink: CADisplayLink?
+    private let waveDuration: CFTimeInterval = 1.0 // Matches ThinkingShimmer's sweep.
+
+    private final class WaveTarget: NSObject {
+        weak var textView: CommandHighlightTextView?
+        init(_ textView: CommandHighlightTextView) { self.textView = textView }
+        @objc func tick(_ link: CADisplayLink) { textView?.advanceCommandWave() }
+    }
+
+    func updateCommandHighlight(baseColor: UIColor) {
+        self.baseColor = baseColor
+        // Leave marked text alone while an input method is composing it.
+        guard markedTextRange == nil else { return }
+        let draft = text ?? ""
+        let token = draft.split(whereSeparator: \.isWhitespace).first.map(String.init)
+        let nextCommand = SlashCommand.invocation(for: draft) == nil ? nil : token?.lowercased()
+        if let token, nextCommand != nil {
+            commandRange = (draft as NSString).range(of: token)
+        } else {
+            commandRange = nil
+        }
+        if nextCommand != command {
+            stopCommandWave()
+            command = nextCommand
+            if nextCommand != nil, !UIAccessibility.isReduceMotionEnabled {
+                waveStart = CACurrentMediaTime()
+                let link = CADisplayLink(target: WaveTarget(self), selector: #selector(WaveTarget.tick(_:)))
+                link.add(to: .main, forMode: .common)
+                displayLink = link
+            }
+        }
+        advanceCommandWave()
+    }
+
+    func stopCommandWave() {
+        displayLink?.invalidate()
+        displayLink = nil
+        waveStart = nil
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        applyCommandColor(progress: waveProgress)
+    }
+
+    private var waveProgress: CGFloat {
+        guard let waveStart else { return 1 }
+        return CGFloat(min(1, (CACurrentMediaTime() - waveStart) / waveDuration))
+    }
+
+    private func advanceCommandWave() {
+        let progress = UIAccessibility.isReduceMotionEnabled ? 1 : waveProgress
+        if progress >= 1 { stopCommandWave() }
+        applyCommandColor(progress: progress)
+    }
+
+    private func applyCommandColor(progress: CGFloat) {
+        guard markedTextRange == nil else { return }
+        let fullRange = NSRange(location: 0, length: textStorage.length)
+        textStorage.addAttribute(.foregroundColor, value: baseColor, range: fullRange)
+        if let commandRange, NSMaxRange(commandRange) <= textStorage.length {
+            let green = UIColor(AquinasTheme.Colors.accentGreen).resolvedColor(with: traitCollection)
+            var color = green
+            if progress < 1, bounds.width > 0, bounds.height > 0 {
+                let glyphRange = layoutManager.glyphRange(forCharacterRange: commandRange, actualCharacterRange: nil)
+                let rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+                // Green trails the moving front; the normal text color lies ahead.
+                let band = max(rect.width * 0.4, 1)
+                let front = rect.minX - band + (rect.width + 2 * band) * progress
+                // The gradient is horizontal, so a one-point strip tiles vertically
+                // without allocating a full bitmap for a tall pasted draft.
+                let image = UIGraphicsImageRenderer(size: CGSize(width: bounds.width, height: 1)).image { context in
+                    let colors = [green.cgColor, baseColor.resolvedColor(with: traitCollection).cgColor] as CFArray
+                    guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) else { return }
+                    context.cgContext.drawLinearGradient(
+                        gradient,
+                        start: CGPoint(x: front - band + textContainerInset.left, y: 0),
+                        end: CGPoint(x: front + band + textContainerInset.left, y: 0),
+                        options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
+                    )
+                }
+                color = UIColor(patternImage: image)
+            }
+            textStorage.addAttribute(.foregroundColor, value: color, range: commandRange)
+        }
+        // New keystrokes, including /rename arguments, begin in the normal color.
+        var attributes = typingAttributes
+        attributes[.foregroundColor] = baseColor
+        typingAttributes = attributes
     }
 }
 

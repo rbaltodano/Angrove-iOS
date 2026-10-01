@@ -53,7 +53,12 @@ struct CompletedResponseSegments: View {
                 )
 
             case .heading(let level):
-                headingFlow(words: segment.words, visibleCount: available, level: level)
+                headingFlow(
+                    words: segment.words,
+                    visibleCount: available,
+                    level: level,
+                    globalWordStart: segment.wordStart
+                )
 
             case .orderedList(let items):
                 listView(
@@ -92,11 +97,19 @@ struct CompletedResponseSegments: View {
     }
 
     @ViewBuilder
-    private func headingFlow(words: [String], visibleCount: Int, level: Int) -> some View {
+    private func headingFlow(
+        words: [String],
+        visibleCount: Int,
+        level: Int,
+        globalWordStart: Int
+    ) -> some View {
         FlowLayout(spacing: 5, alignment: responseTextAlignment.textAlignment) {
             ForEach(Array(words.enumerated()), id: \.offset) { idx, word in
                 styledText(for: word, baseFont: headingFont(for: level), allowsInlineMarkdown: false)
                     .foregroundColor(AquinasTheme.Colors.headingText)
+                    .responseWordMenu(token: word) {
+                        displayedTokenLocation(forWordAt: globalWordStart + idx)
+                    }
                     .opacity(idx < visibleCount ? 1 : 0)
                     .offset(y: idx < visibleCount ? 0 : 10)
                     .blur(radius: idx < visibleCount ? 0 : 3)
@@ -159,13 +172,19 @@ struct CompletedResponseSegments: View {
         visibleCount: Int,
         globalWordStart: Int
     ) -> some View {
-        FlowLayout(alignment: responseTextAlignment.textAlignment, justified: responseTextAlignment == .center) {
+        FlowLayout(
+            alignment: responseTextAlignment.textAlignment,
+            justified: responseTextAlignment == .center,
+            // Define turns a plain word into a wider Insight link in place.
+            measurementKey: words.lazy.filter { $0.contains("](") }.count
+        ) {
             ForEach(Array(words.enumerated()), id: \.offset) { idx, word in
                 let globalWordIndex = globalWordStart + idx
                 let underlineDelay = insightLinkSequenceByWordStart[globalWordIndex]
                     .map { Double($0) * 0.1 } ?? 0
                 styledWord(
                     word,
+                    globalWordIndex: globalWordIndex,
                     isVisible: idx < visibleCount && showsInsightUnderlines,
                     underlineDelay: underlineDelay
                 )
@@ -182,14 +201,14 @@ struct CompletedResponseSegments: View {
     @ViewBuilder
     private func styledWord(
         _ word: String,
+        globalWordIndex: Int,
         isVisible: Bool,
         underlineDelay: Double
     ) -> some View {
         if let link = ParsedInsightLink(token: word), link.isCitation {
             ResponseCitationChip(
                 link: link,
-                textFont: responseFont.textFont(size: conversationFontSize),
-                fontSize: conversationFontSize.pointSize
+                textFont: responseFont.textFont(size: conversationFontSize)
             )
         } else if let link = ParsedInsightLink(token: word) {
             let isLoading = loadingInsightKey == insightLoadingKey(
@@ -226,7 +245,17 @@ struct CompletedResponseSegments: View {
                 allowsInlineMarkdown: true
             )
             .foregroundColor(AquinasTheme.Colors.bodyText)
+            .responseWordMenu(token: word) {
+                displayedTokenLocation(forWordAt: globalWordIndex)
+            }
         }
+    }
+
+    /// An inline Insight card occupies one slot in the flat word array but is not a word of the
+    /// response text, so it is left out of the index Define resolves against.
+    private func displayedTokenLocation(forWordAt globalWordIndex: Int) -> DefinedTermMarkup.Location {
+        let cardsBefore = segments.lazy.filter { $0.isInsight && $0.wordStart < globalWordIndex }.count
+        return .displayedToken(globalWordIndex - cardsBefore)
     }
 
     @ViewBuilder

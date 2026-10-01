@@ -30,7 +30,16 @@ already completed answers when a stale page still holds an empty slot for the sa
 Streaming, compaction, and
 cancellation callbacks may touch a view binding only while that column is visible and still has
 the original branch identity. Cleared/deleted response slots are not recreated by late results.
+Branch pages use bindings resolved by conversation and branch IDs. Writes from a removed page
+(including delayed response reveals and editor blur) cannot replace a new conversation's branch
+or a different branch at the same array position.
 
+
+Automatic conversation naming shares the first answer's tree-update job. Once seed processing
+finishes, `AquinasModel.conversationTitle(for:)` names the initial question. `ConversationSession`
+rechecks persisted conversation/branch identity, question, and title eligibility before saving
+only the title, keeping composer drafts and manual renames intact even after navigation. Stale
+page saves preserve an already generated title just as they preserve completed answers.
 
 Every Insight Tree is built on-device. The global Insight Library canvas is an in-memory semantic
 experience. The conversation tree asks the local model for each turn's subject
@@ -40,7 +49,9 @@ degraded last resort only when the MiniLM assets fail to load.
 
 Both canvases pass the app's shared `ModelTaskQueue` into `InsightTreeViewModel`. Cluster and
 suggestion labels use background `labelInsightTree` jobs (displayed as `Update Insight Tree`),
-separate from response-seeding and persisted-refresh deduplication. A cluster's generated
+separate from response-seeding and persisted-refresh deduplication. Initial label and child
+generation starts from the mounted tree's `.task`; constructing the tree during SwiftUI rendering
+must never enqueue work or mutate the shared task queue. A cluster's generated
 definition stays inside its label job. Blank title/definition placeholders are excluded from
 label input; an entirely blank cluster queues nothing. In-flight cluster deduplication survives
 foreground preemption, while explicit cancellation releases it and discards late output.
@@ -99,7 +110,8 @@ app no longer contains that client.)
 
 ## Current product constraints
 
-`/compact`, `/clear`, and `/rename` are supported slash commands. A cached contextual definition must
+`/compact`, `/clear`, `/rename`, `/new`, `/tree`, `/topic`, and `/insights` are the supported slash
+commands. A cached contextual definition must
 open immediately even while model work is active; queue a definition only on cache miss. The
 context control is a non-spinning gauge, while Model Status describes active work. Question of the
 Day generation is background consolidation work and remains queued when an active conversation is

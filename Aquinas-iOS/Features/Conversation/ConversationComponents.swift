@@ -174,9 +174,16 @@ struct ChatThreadColumn: View {
         return ceil(font.lineHeight + 8)
     }
 
-    /// Chat-bubble questions follow the paragraph size setting; the centered field stays fixed.
     private var questionFontSize: CGFloat {
-        conversationTextAlignment == .left ? conversationFontSize.pointSize : QuestionInputField.fontSize
+        conversationFontSize.pointSize
+    }
+
+    private var questionContextAlignment: Alignment {
+        conversationTextAlignment == .left ? .trailing : .center
+    }
+
+    private var questionContextHorizontalAlignment: HorizontalAlignment {
+        conversationTextAlignment == .left ? .trailing : .center
     }
 
     private var inputLineHeight: CGFloat {
@@ -226,6 +233,29 @@ struct ChatThreadColumn: View {
             return "pending"
         }
         return text == questionCanceledResponseText ? "canceled" : "standard"
+    }
+
+    /// Annotates the pressed word in the stored response, then defines it through the same
+    /// path as a tapped annotated term.
+    private func defineResponseWord(
+        _ request: ResponseWordDefinitionRequest,
+        inResponseAt responseIndex: Int
+    ) {
+        guard branchData.activeChatBlocks.indices.contains(responseIndex),
+              case .text(let response) = branchData.activeChatBlocks[responseIndex],
+              response != questionCanceledResponseText,
+              !isResponsePending(at: responseIndex, text: response),
+              !streamingResponseIndices.contains(responseIndex),
+              let defined = DefinedTermMarkup.defining(
+                  token: request.token,
+                  at: request.location,
+                  in: response
+              ) else {
+            return
+        }
+
+        branchData.activeChatBlocks[responseIndex] = .text(defined.text)
+        onInsightTap(defined.term, defined.text)
     }
 
     private func regenerateResponse(at responseIndex: Int) {
@@ -412,7 +442,9 @@ struct ChatThreadColumn: View {
         if let pinnedHeaderQuestion {
             return pinnedHeaderQuestion
         }
-        if !isQuestionOfTheDayPrompt, branchData.generatedBranchTitle != nil {
+        if !isQuestionOfTheDayPrompt,
+           branchData.generatedBranchTitle != nil
+            || (branchData.parentBranchID == nil && displayBranchTitle != "New Conversation") {
             return displayBranchTitle
         }
         return emptyPromptQuestion
@@ -963,7 +995,8 @@ struct ChatThreadColumn: View {
         // A pinned header (Question of the Day, Today in History) already fixed both the
         // in-conversation heading and the conversation's title at creation time -- an
         // auto-generated title from the user's typed answer must not overwrite either.
-        guard branchData.pinnedHeaderQuestion == nil,
+        guard branchData.parentBranchID != nil,
+              branchData.pinnedHeaderQuestion == nil,
               conversationTitlePolicy == .automatic,
               branchData.generatedBranchTitle == nil,
               let pendingQuestion = pendingGeneratedTitleQuestion else { return }
@@ -1005,8 +1038,8 @@ struct ChatThreadColumn: View {
         }
         switch conversationTitlePolicy {
         case .automatic:
-            // Title the conversation as soon as the question is asked, not after the answer:
-            // the title must not depend on this view still being mounted at completion.
+            // Fork chips retain their local label; the root conversation is named by the
+            // model after its first completed answer and Insight Tree processing.
             pendingGeneratedTitleQuestion = submittedQuestion
             finalizePendingGeneratedTitleIfNeeded()
         case .firstQuestion:
@@ -1081,9 +1114,10 @@ struct ChatThreadColumn: View {
         }
     }
 
-    /// Headline-to-body rhythm shared with Home's Today in History card: 8pt from eyebrow to
-    /// title, 14pt from title to the subtitle and the question field.
+    /// Keep the title/subtitle rhythm separate from the larger gap above the input.
     static let promptHeadlineSpacing: CGFloat = 14
+    static let threadSectionSpacing: CGFloat = AquinasTheme.Spacing.unit * 6
+    static let promptQuestionSpacing: CGFloat = threadSectionSpacing * 2 + ConversationSeparator.lineHeight
 
     private var newConversationPromptHeader: some View {
         VStack(
@@ -1121,42 +1155,61 @@ struct ChatThreadColumn: View {
                     }
                 }
 
-                if isEditingBigTitle {
-                    TextField("Conversation title", text: $bigTitleDraft)
+                ConversationHeading(
+                    title: newConversationHeaderTitle,
+                    layoutTitle: isEditingBigTitle
+                        ? (bigTitleDraft.isEmpty ? String(localized: "Conversation title") : bigTitleDraft)
+                        : nil
+                ) { title in
+                    Text(title)
                         .font(AquinasTheme.Typography.titleXLarge)
                         .foregroundColor(AquinasTheme.Colors.headingText)
                         .lineSpacing(14)
                         .multilineTextAlignment(conversationTextAlignment.textAlignment)
                         .frame(maxWidth: .infinity, alignment: conversationTextAlignment.frameAlignment)
-                        .focused($isBigTitleFocused)
-                        .submitLabel(.done)
-                        .onSubmit {
-                            isEditingBigTitle = false
-                            onConversationTitleChange(bigTitleDraft)
-                        }
-                } else {
-                    Text(newConversationHeaderTitle)
-                        .font(AquinasTheme.Typography.titleXLarge)
-                        .foregroundColor(AquinasTheme.Colors.headingText)
-                        .lineSpacing(14)
-                        .multilineTextAlignment(conversationTextAlignment.textAlignment)
-                        .frame(maxWidth: .infinity, alignment: conversationTextAlignment.frameAlignment)
-                        .id(newConversationHeaderTitle)
-                        .transition(.blurredTitleReplacement)
-                        .onTapGesture {
-                            // A Question of the Day is pinned permanently — not renameable,
-                            // since it isn't the conversation's title to begin with.
-                            guard pinnedHeaderQuestion == nil else { return }
-                            bigTitleDraft = newConversationHeaderTitle
-                            isEditingBigTitle = true
-                            isBigTitleFocused = true
-                        }
                 }
+                .onTapGesture {
+                    guard !isEditingBigTitle, pinnedHeaderQuestion == nil else { return }
+                    bigTitleDraft = newConversationHeaderTitle
+                    isEditingBigTitle = true
+                    isBigTitleFocused = true
+                }
+                .allowsHitTesting(!isEditingBigTitle)
+                .opacity(isEditingBigTitle ? 0 : 1)
+                .overlay(alignment: .top) {
+                    if isEditingBigTitle {
+                        // Keep the heading mounted underneath its editor so a committed rename
+                        // has the same replacement transition as a model or menu rename.
+                        TextField("Conversation title", text: $bigTitleDraft, axis: .vertical)
+                            .font(AquinasTheme.Typography.titleXLarge)
+                            .foregroundColor(AquinasTheme.Colors.headingText)
+                            .lineSpacing(14)
+                            .multilineTextAlignment(conversationTextAlignment.textAlignment)
+                            .scrollDisabled(true)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: conversationTextAlignment.frameAlignment)
+                            .focused($isBigTitleFocused)
+                            .submitLabel(.done)
+                            .onChange(of: bigTitleDraft) { _, newValue in
+                                guard newValue.contains("\n") else { return }
+                                bigTitleDraft = newValue.replacingOccurrences(of: "\n", with: "")
+                                isEditingBigTitle = false
+                                onConversationTitleChange(bigTitleDraft)
+                            }
+                            .transition(.blurFade)
+                    }
+                }
+                .animation(.easeInOut(duration: 0.3), value: isEditingBigTitle)
             }
 
             if !isEditingBigTitle, !newConversationHeaderSubtitle.isEmpty {
                 Text(newConversationHeaderSubtitle)
-                    .paragraphFont()
+                    // Use the editor's point size rather than independently scaling this
+                    // SwiftUI paragraph while the UIKit question editor stays fixed.
+                    .font(.custom(
+                        responseFont == .sans ? "Figtree-Regular" : "LibreBaskerville-Regular",
+                        fixedSize: questionFontSize
+                    ))
                     .foregroundColor(AquinasTheme.Colors.paragraphText)
                     .lineSpacing(7)
                     .multilineTextAlignment(conversationTextAlignment.textAlignment)
@@ -1215,7 +1268,7 @@ struct ChatThreadColumn: View {
                         .frame(height: 1)
                         .id(branchAnchor)
 
-                    VStack(alignment: .center, spacing: Self.promptHeadlineSpacing) {
+                    VStack(alignment: .center, spacing: Self.promptQuestionSpacing) {
                         newConversationPromptHeader
 
                         newConversationQuestionField
@@ -1228,12 +1281,12 @@ struct ChatThreadColumn: View {
                     )
                 }
             } else {
-                VStack(alignment: .center, spacing: 48) {
+                VStack(alignment: .center, spacing: Self.threadSectionSpacing) {
             // MARK: Branch Header
             // Cross, branch title, starting context chip, and the first editable/locked question.
             // The new-conversation headline keeps its prompt spacing to the question after
             // submission, so the question doesn't drift away from it.
-            VStack(spacing: usesNewConversationPromptHeader ? Self.promptHeadlineSpacing : 48) {
+            VStack(spacing: usesNewConversationPromptHeader ? Self.promptQuestionSpacing : Self.threadSectionSpacing) {
                 if usesNewConversationPromptHeader {
                     newConversationPromptHeader
                         .padding(.top, 84)
@@ -1246,33 +1299,34 @@ struct ChatThreadColumn: View {
                             .frame(width: 24, height: 24)
                             .foregroundColor(AquinasTheme.Colors.accent)
 
-                        if let branchKeyword {
-                            Text(createEditorialTitle(
-                                fullText: displayBranchTitle,
-                                keyword: branchKeyword,
-                                fontSize: 34,
-                                baseColor: AquinasTheme.Colors.primaryReadable,
-                                keywordColor: AquinasTheme.Colors.linkGreen
-                            ))
-                            .multilineTextAlignment(conversationTextAlignment.textAlignment)
-                            .frame(maxWidth: .infinity, alignment: conversationTextAlignment.frameAlignment)
-                        } else {
-                            Text(displayBranchTitle)
-                                .font(.custom("LibreBaskerville-Regular", size: 34))
-                                .foregroundColor(AquinasTheme.Colors.primaryReadable)
+                        ConversationHeading(title: displayBranchTitle) { title in
+                            if let branchKeyword {
+                                Text(createEditorialTitle(
+                                    fullText: title,
+                                    keyword: branchKeyword,
+                                    fontSize: 34,
+                                    baseColor: AquinasTheme.Colors.primaryReadable,
+                                    keywordColor: AquinasTheme.Colors.linkGreen
+                                ))
                                 .multilineTextAlignment(conversationTextAlignment.textAlignment)
                                 .frame(maxWidth: .infinity, alignment: conversationTextAlignment.frameAlignment)
-                                .id(displayBranchTitle)
-                                .transition(.blurredTitleReplacement)
+                            } else {
+                                Text(title)
+                                    .font(.custom("LibreBaskerville-Regular", size: 34))
+                                    .foregroundColor(AquinasTheme.Colors.primaryReadable)
+                                    .multilineTextAlignment(conversationTextAlignment.textAlignment)
+                                    .frame(maxWidth: .infinity, alignment: conversationTextAlignment.frameAlignment)
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.top, readingTopPadding)
                 }
 
-                VStack(spacing: 16) {
+                VStack(alignment: questionContextHorizontalAlignment, spacing: 16) {
                     UploadedFileStrip(
                         files: branchData.topQuestionSubmitted ? branchData.topQuestionUploads : visibleUploads,
+                        alignment: questionContextAlignment,
                         onRemove: branchData.topQuestionSubmitted ? nil : { file in
                             uploadedFiles.removeAll { $0.id == file.id }
                         }
@@ -1409,6 +1463,12 @@ struct ChatThreadColumn: View {
                                     onResponseCompleted(index)
                                 }
                     )
+                    .environment(
+                        \.defineResponseWord,
+                        textContent == questionCanceledResponseText
+                            ? nil
+                            : { request in defineResponseWord(request, inResponseAt: index) }
+                    )
                     .id(
                         "\(branchData.id)-response-\(index)-"
                             + responseIdentitySuffix(at: index, text: textContent)
@@ -1422,8 +1482,8 @@ struct ChatThreadColumn: View {
                 case .user(let questionText, let concept, let attachments):
                     ConversationSeparator()
 
-                    VStack(spacing: 16) {
-                        UploadedFileStrip(files: attachments)
+                    VStack(alignment: questionContextHorizontalAlignment, spacing: 16) {
+                        UploadedFileStrip(files: attachments, alignment: questionContextAlignment)
 
                         if let concept {
                             BranchContextChip(
@@ -1470,8 +1530,8 @@ struct ChatThreadColumn: View {
             if branchData.showBottomInput {
                 ConversationSeparator()
 
-                VStack(spacing: 16) {
-                        UploadedFileStrip(files: visibleUploads) { file in
+                VStack(alignment: questionContextHorizontalAlignment, spacing: 16) {
+                        UploadedFileStrip(files: visibleUploads, alignment: questionContextAlignment) { file in
                             uploadedFiles.removeAll { $0.id == file.id }
                         }
 
@@ -1655,13 +1715,14 @@ struct ChatThreadColumn: View {
 }
 
 private struct ConversationSeparator: View {
+    static let lineHeight: CGFloat = 1
     var verticalPadding: CGFloat = 0
     @State private var isExpanded = false
 
     var body: some View {
         Rectangle()
             .fill(AquinasTheme.Colors.brownBorder)
-            .frame(width: 84, height: 1)
+            .frame(width: 84, height: Self.lineHeight)
             .scaleEffect(x: isExpanded ? 1 : 0.5, y: 1, anchor: .center)
             .padding(.vertical, verticalPadding)
             .onAppear {
@@ -1677,19 +1738,15 @@ private struct ConversationSeparator: View {
 /// field). It intentionally uses a plain placeholder with no extra icon, hint animation, or
 /// container chrome.
 private struct QuestionInputField: View {
-    static let plainMaxWidth: CGFloat = 321
-    static let bubbleMaxWidth: CGFloat = 285
-    static let bubbleCornerRadius: CGFloat = 28
-    static let bubblePadding: CGFloat = 24
-    static let bubblePressedScale: CGFloat = 1.05
-    static let fontSize: CGFloat = 14
+    static let centeredMaxWidth: CGFloat = 321
+    static let quotedMaxWidth: CGFloat = 285
 
     let placeholder: String
     @Binding var text: String
     var isLocked: Bool = false
     let isEmpty: Bool
     let lineHeight: CGFloat
-    var fontSize: CGFloat = QuestionInputField.fontSize
+    let fontSize: CGFloat
     let textAlignment: InputTextAlignmentOption
     let fontOption: ConversationFontOption
     var placeholderColor: Color = AquinasTheme.Colors.placeholderText
@@ -1699,7 +1756,15 @@ private struct QuestionInputField: View {
     var onSubmit: (() -> Void)? = nil
     var onTapToFocus: (() -> Void)? = nil
 
-    @State private var isBubblePressed = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var questionCoordinateSpace
+    @State private var openingQuoteX: CGFloat = 0
+    @State private var openingQuoteY: CGFloat = 0
+    @State private var closingQuoteX: CGFloat = 0
+    @State private var closingQuoteY: CGFloat = 0
+    @State private var measuredPlaceholderIsEmpty: Bool?
+    @State private var animatesQuoteWidth = false
+    @State private var animatesQuoteHeight = false
 
     private var inputFont: UIFont {
         let fontName = fontOption == .sans
@@ -1725,84 +1790,106 @@ private struct QuestionInputField: View {
     }
 
     private var questionEditor: some View {
-        // Left-aligned bubbles trim the first line's top leading, so the placeholder sits on
-        // the text view's bottom edge to line up with typed glyphs.
-        ZStack(alignment: textAlignment == .left ? .bottomLeading : textAlignment.frameAlignment) {
+        ListAwareTextField(
+            text: $text,
+            font: inputFont,
+            lineHeight: lineHeight,
+            isLocked: isLocked,
+            textColor: .aquinasPrimaryReadable,
+            textAlignment: uiTextAlignment,
+            onFocusChange: onFocusChange,
+            relay: relay,
+            onTextChange: onTextChange,
+            onSubmit: onSubmit,
+            hugsContentWidth: true,
+            minimumContentWidth: isLocked ? 0 : placeholderWidth
+        )
+        .frame(minHeight: 22, alignment: textAlignment.frameAlignment)
+        .overlay(alignment: textAlignment == .left ? .bottomLeading : textAlignment.frameAlignment) {
             if isEmpty {
                 Text(placeholder)
                     .font(placeholderFont)
                     .foregroundStyle(placeholderColor)
                     .multilineTextAlignment(textAlignment.textAlignment)
-                    .frame(maxWidth: .infinity, alignment: textAlignment.frameAlignment)
                     .allowsHitTesting(false)
             }
-
-            ListAwareTextField(
-                text: $text,
-                font: inputFont,
-                lineHeight: lineHeight,
-                isLocked: isLocked,
-                textColor: .aquinasPrimaryReadable,
-                textAlignment: uiTextAlignment,
-                onFocusChange: onFocusChange,
-                relay: relay,
-                onTextChange: onTextChange,
-                onSubmit: onSubmit,
-                hugsContentWidth: hugsText
-            )
-            .frame(maxWidth: hugsText ? nil : .infinity, minHeight: 22, alignment: textAlignment.frameAlignment)
         }
-        .frame(maxWidth: hugsText ? nil : .infinity, minHeight: 22, alignment: textAlignment.frameAlignment)
     }
 
-    /// The fixed line height adds its extra leading above the first line's glyphs;
-    /// the bubble trims that from its top padding so the text sits visually centered.
-    private var firstLineLeading: CGFloat {
-        max(0, lineHeight - inputFont.lineHeight)
-    }
-
-    /// Submitted questions in the left-aligned chat layout shrink their bubble to the text.
-    private var hugsText: Bool {
-        isLocked && textAlignment == .left
+    private var placeholderWidth: CGFloat {
+        ceil((placeholder as NSString).size(withAttributes: [.font: inputFont]).width)
     }
 
     var body: some View {
-        switch textAlignment {
-        case .center:
-            questionEditor
-                .frame(maxWidth: Self.plainMaxWidth, alignment: textAlignment.frameAlignment)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .contentShape(Rectangle())
-                .onTapGesture { onTapToFocus?() }
-        case .left:
-            chatBubble
-        }
+        quotedQuestion
     }
 
-    /// Left alignment reads as a chat: the question sits in a trailing card-style bubble
-    /// inline with the thread. Locked questions hug their text; live fields keep full width.
-    private var chatBubble: some View {
-        let shape = RoundedRectangle(cornerRadius: Self.bubbleCornerRadius, style: .continuous)
-        return questionEditor
-            .padding(.horizontal, Self.bubblePadding)
-            .padding(.bottom, Self.bubblePadding)
-            .padding(.top, max(0, Self.bubblePadding - firstLineLeading))
-            // Like the context chips: outlined while drafting, filled once submitted.
-            .background(isLocked ? AquinasTheme.Colors.canvasSecondary : Color.clear, in: shape)
-            .overlay(shape.stroke(AquinasTheme.Colors.controlBorder, lineWidth: 1))
-            .contentShape(shape)
+    private var questionAlignment: Alignment {
+        textAlignment == .left ? .trailing : .center
+    }
+
+    private var maximumWidth: CGFloat {
+        textAlignment == .left ? Self.quotedMaxWidth : Self.centeredMaxWidth
+    }
+
+    /// Reserve only space for punctuation; the editor has no card fill, border, or inset.
+    /// Measure the actual editor rather than the binding, which does not update each keystroke.
+    private var quotedQuestion: some View {
+        questionEditor
+            .padding(.horizontal, quotationWidth + quotationGap)
+            .onGeometryChange(for: CGRect.self) { geometry in
+                geometry.frame(in: .named(questionCoordinateSpace))
+            } action: { bounds in
+                animatesQuoteWidth = measuredPlaceholderIsEmpty != nil
+                    && measuredPlaceholderIsEmpty != isEmpty && !reduceMotion
+                animatesQuoteHeight = measuredPlaceholderIsEmpty != nil && !reduceMotion
+                openingQuoteX = bounds.minX + quotationWidth / 2
+                openingQuoteY = bounds.minY + lineHeight / 2
+                closingQuoteX = bounds.maxX - quotationWidth / 2
+                closingQuoteY = bounds.maxY - lineHeight / 2
+                measuredPlaceholderIsEmpty = isEmpty
+            }
+            .contentShape(Rectangle())
             .onTapGesture { onTapToFocus?() }
-            // Draft bubbles swell slightly under the finger; submitted ones stay still.
-            .onLongPressGesture(
-                minimumDuration: .infinity,
-                maximumDistance: 12,
-                perform: {},
-                onPressingChanged: { pressing in isBubblePressed = pressing && !isLocked }
-            )
-            .scaleEffect(isBubblePressed ? Self.bubblePressedScale : 1)
-            .animation(.springBouncy, value: isBubblePressed)
-            .frame(maxWidth: Self.bubbleMaxWidth, alignment: .trailing)
-            .frame(maxWidth: .infinity, alignment: .trailing)
+            .frame(maxWidth: maximumWidth, alignment: questionAlignment)
+            .frame(maxWidth: .infinity, alignment: questionAlignment)
+            .overlay {
+                positionedQuotationMark("“", x: openingQuoteX, y: openingQuoteY)
+                positionedQuotationMark("”", x: closingQuoteX, y: closingQuoteY)
+            }
+            .coordinateSpace(name: questionCoordinateSpace)
+    }
+
+    /// Keep horizontal and vertical motion in separate modifiers: ordinary typing
+    /// updates X immediately, while wrapping can still animate the closing quote's Y.
+    private func positionedQuotationMark(_ symbol: String, x: CGFloat, y: CGFloat) -> some View {
+        quotationMark(symbol)
+            .position(x: x, y: 0)
+            .animation(animatesQuoteWidth ? .easeInOut(duration: 0.25) : nil, value: x)
+            .offset(y: y)
+            .animation(animatesQuoteHeight ? .springQuick : nil, value: y)
+            .opacity(measuredPlaceholderIsEmpty == nil ? 0 : 1)
+    }
+
+    private var quotationGap: CGFloat {
+        AquinasTheme.Spacing.unit / (isEmpty ? 4 : 2)
+    }
+
+    private var quotationWidth: CGFloat {
+        guard isEmpty else { return lineHeight * 0.5 }
+        let font = UIFont(name: inputFont.fontName, size: lineHeight * 1.12) ?? inputFont
+        let openingWidth = ("“" as NSString).size(withAttributes: [.font: font]).width
+        let closingWidth = ("”" as NSString).size(withAttributes: [.font: font]).width
+        return min(lineHeight * 0.5, ceil(max(openingWidth, closingWidth)))
+    }
+
+    private func quotationMark(_ symbol: String) -> some View {
+        Text(verbatim: symbol)
+            .font(.custom(inputFont.fontName, size: lineHeight * 1.12))
+            .foregroundStyle(AquinasTheme.Colors.primaryReadable)
+            .frame(width: quotationWidth, height: lineHeight)
+            .accessibilityHidden(true)
+            .allowsHitTesting(false)
     }
 }
 

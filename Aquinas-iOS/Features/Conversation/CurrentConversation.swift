@@ -127,6 +127,7 @@ struct CurrentConversationView: View {
     @State private var isBranchScrolledToTop: Bool = true
     @State private var isKeyboardOpen: Bool = false
     @State private var contextCardState = ContextCardState()
+    @State private var isRecentPhotosOpen = false
     @State private var studyTopics: [StudyTopic] = []
     @State private var conversationForTopicPicker: InquiryConversation? = nil
     @State private var hasTextToSubmit: Bool = false
@@ -151,8 +152,10 @@ struct CurrentConversationView: View {
     /// change before this fires (e.g. the user switches conversations mid-debounce).
     @State private var pendingLocalInsightTreeSeeds:
         [(conversationID: UUID, question: String, response: String)] = []
-    /// User messages that passed the cheap "Your Quote" pre-filter and await the model's
-    /// notability check, which runs in the same background tree task.
+    /// First answered questions to name after their tree processing.
+    @State private var pendingConversationTitles:
+        [(conversationID: UUID, branchID: UUID, question: String)] = []
+    /// User messages awaiting the model's "Your Quote" notability check.
     @State private var pendingQuoteCandidates: [(conversationID: UUID, message: String)] = []
     @State private var localInsightTreeSeedDebounceTask: Task<Void, Never>? = nil
     @State private var canvasFocusNodeID: UUID? = nil
@@ -295,6 +298,15 @@ struct CurrentConversationView: View {
             return
         }
 
+        if conversationTitlePolicy == .automatic,
+           branch.parentBranchID == nil,
+           responseIndex == 0,
+           session.needsAutomaticTitle(
+               conversationID: conversationID, branchID: branch.id, question: branch.topQuestionText
+           ) {
+            pendingConversationTitles.append((conversationID, branch.id, branch.topQuestionText))
+        }
+
         // "Your Quote" judges the user's own message, so it doesn't depend on the answer.
         if HomeDiscovery.isQuoteCandidate(question) {
             pendingQuoteCandidates.append((conversationID: conversationID, message: question))
@@ -327,7 +339,7 @@ struct CurrentConversationView: View {
     /// than stopping instantly), so avoiding the collision in the first place is far more
     /// reliable than depending on preemption to resolve cleanly every time.
     private func scheduleLocalInsightTreeSeedingAfterIdle() {
-        guard !pendingLocalInsightTreeSeeds.isEmpty || !pendingQuoteCandidates.isEmpty else {
+        guard !pendingLocalInsightTreeSeeds.isEmpty || !pendingQuoteCandidates.isEmpty || !pendingConversationTitles.isEmpty else {
             return
         }
         localInsightTreeSeedDebounceTask?.cancel()
@@ -364,7 +376,7 @@ struct CurrentConversationView: View {
     /// lightweight math the tree's own clustering already relies on, so it costs effectively
     /// nothing extra.
     private func enqueueLocalInsightTreeSeedingTask(runsNext: Bool = false) {
-        guard !pendingLocalInsightTreeSeeds.isEmpty || !pendingQuoteCandidates.isEmpty,
+        guard !pendingLocalInsightTreeSeeds.isEmpty || !pendingQuoteCandidates.isEmpty || !pendingConversationTitles.isEmpty,
               !modelTasks.contains(where: {
                   $0.kind == .updateInsightTree && $0.phase != .completed
               }) else {
@@ -372,6 +384,8 @@ struct CurrentConversationView: View {
         }
         let pending = pendingLocalInsightTreeSeeds
         pendingLocalInsightTreeSeeds.removeAll()
+        let titles = pendingConversationTitles
+        pendingConversationTitles.removeAll()
         let quoteCandidates = pendingQuoteCandidates
         pendingQuoteCandidates.removeAll()
 
@@ -453,6 +467,38 @@ struct CurrentConversationView: View {
                     nodeIDs: [newSeedID]
                 )
                 self.finishInsightTreeMutation(for: turn.conversationID)
+            }
+
+            // Tree mutations above are persisted before this separate naming call begins.
+            // Even exchanges excluded from the tree can receive a useful conversation title.
+            for request in titles {
+                guard !Task.isCancelled else { return }
+                guard conversationTitlePolicy == .automatic,
+                      session.needsAutomaticTitle(
+                          conversationID: request.conversationID,
+                          branchID: request.branchID, question: request.question
+                      ),
+                      let title = try? await aquinasModel.conversationTitle(for: request.question)
+                else { continue }
+                guard !Task.isCancelled, conversationTitlePolicy == .automatic else { return }
+                if session.applyAutomaticTitle(
+                    title, conversationID: request.conversationID,
+                    branchID: request.branchID, question: request.question
+                ) {
+                    // This job can outlive its page. Touch only the named conversation in
+                    // shell bindings, preserving the shell's current selection and newer list.
+                    if let index = sideMenuConversations.firstIndex(where: { $0.id == request.conversationID }) {
+                        sideMenuConversations[index].title = title
+                        if let branchIndex = sideMenuConversations[index].branches.firstIndex(where: {
+                            $0.id == request.branchID
+                        }) {
+                            sideMenuConversations[index].branches[branchIndex].generatedBranchTitle = title
+                        }
+                    }
+                    if sideMenuActiveConversationID == request.conversationID {
+                        sideMenuCurrentTitle = title
+                    }
+                }
             }
 
             for candidate in quoteCandidates {
@@ -592,10 +638,9 @@ struct CurrentConversationView: View {
     @ViewBuilder
     private func branchPager(in geo: GeometryProxy) -> some View {
         TabView(selection: focusedBranchSelection) {
-            ForEach($session.activeBranches) { branch in
-                let branchID = branch.wrappedValue.id
-                branchPage(branch: branch, geo: geo)
-                    .tag(Optional(branchID))
+            ForEach(session.activeBranches) { branch in
+                branchPage(branch: session.binding(for: branch), geo: geo)
+                    .tag(Optional(branch.id))
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
@@ -861,6 +906,7 @@ struct CurrentConversationView: View {
                     ))
                 }
             },
+            recentPhotosOpen: $isRecentPhotosOpen,
             canvasSearchText: Binding(
                 get: { canvasMode.canvasSearchQuery },
                 set: { canvasMode.canvasSearchQuery = $0 }
@@ -1205,8 +1251,8 @@ struct CurrentConversationView: View {
                     topicCanvasLayer
                 }
 
-                // Left-swipe trigger (UIKit-backed, passthrough)
-                if isPageVisible && !canvasMode.isTopicCanvasVisible && !isInsightLibraryOpen {
+                // The window-level canvas swipe must yield to the recent-photo strip.
+                if isPageVisible && !canvasMode.isTopicCanvasVisible && !isInsightLibraryOpen && !isRecentPhotosOpen {
                     RightEdgeCanvasSwipeTrigger {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         enterCanvasMode()
@@ -1666,6 +1712,13 @@ struct CurrentConversationView: View {
             // TabView fails to propagate the parent's .safeAreaInset inward.
             .contentMargins(.bottom, 120, for: .scrollContent)
             .coordinateSpace(name: "BranchScroll-\(b.id)")
+            // While the recent-photos card is open, a tap anywhere on the thread closes it.
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    withAnimation(.springStandard) { isRecentPhotosOpen = false }
+                },
+                including: isRecentPhotosOpen ? .all : .subviews
+            )
             .onChange(of: scrollToBottomRequest) { _, _ in
                 guard b.id == effectiveFocusedID else { return }
                 withAnimation(.springStandard) {
@@ -1839,6 +1892,16 @@ struct CurrentConversationView: View {
             } else {
                 renameDraft = activeTitle
                 isRenamePromptPresented = true
+            }
+        case .newConversation:
+            startNewConversation()
+        case .tree:
+            enterCanvasMode()
+        case .topic:
+            conversationForTopicPicker = session.conversations.first { $0.id == session.activeConversationID }
+        case .insights:
+            withAnimation(.springQuick) {
+                isInsightLibraryOpen = true
             }
         }
     }

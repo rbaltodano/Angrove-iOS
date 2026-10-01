@@ -5,6 +5,35 @@ import Testing
 @MainActor
 @Suite("Insight Tree label queue", .serialized)
 struct InsightTreeLabelQueueTests {
+    @Test("Opening a saved manual term builds the tree without mutating the shared queue during initialization")
+    func manualTermInitializationDefersModelWork() async throws {
+        let queue = ModelTaskQueue()
+        let model = LabelRecordingModel()
+        let source = concept(word: "Buddhism", meaning: "A tradition concerned with suffering and liberation.")
+        let scope = UUID()
+        let tree = InsightTreeViewModel(
+            insights: [source], model: model, modelTasks: queue,
+            modelTaskOriginPage: .conversation, midpointStoreScope: scope
+        )
+        #expect(tree.nodes.flatMap(\.insights).map(\.id) == [source.id])
+        #expect(!queue.isBusy)
+        #expect(queue.allTasks.isEmpty)
+        #expect(model.events.isEmpty)
+
+        tree.startModelWork()
+        tree.startModelWork()
+        #expect(queue.pendingCount == 1)
+        try await eventually { !queue.isBusy }
+        #expect(model.events == ["label", "definition"])
+        let reopened = InsightTreeViewModel(
+            insights: [source], model: model, modelTasks: queue, midpointStoreScope: scope
+        )
+        #expect(!queue.isBusy)
+        reopened.startModelWork()
+        try await eventually { !queue.isBusy }
+        #expect(reopened.nodes.first?.conceptLabel == "Generated Subject")
+    }
+
     @Test("Cold foreground question precedes visible labels in both trees", arguments: [false, true])
     func questionFirst(conversation: Bool) async throws {
         let driver = LabelLoadingDriver()
@@ -229,6 +258,7 @@ struct InsightTreeLabelQueueTests {
         model.label = "Moral Virtues"
         let tree = InsightTreeViewModel(insights: [source], model: model, modelTasks: queue,
                                         localSeedAnchors: seeds, midpointStoreScope: scope)
+        tree.startModelWork()
         #expect(queue.upcomingTasks.count == 1)
         #expect(tree.nodes.first?.id == originalNode.id)
         #expect(tree.nodes.first?.conceptLabel == "Exploring Prudence")
@@ -268,10 +298,12 @@ struct InsightTreeLabelQueueTests {
 
     private func makeTree(_ insights: [ConceptDefinition], model: LabelRecordingModel,
                           queue: ModelTaskQueue, scope: UUID? = nil) -> InsightTreeViewModel {
-        InsightTreeViewModel(insights: insights, showsAllClusterInsights: scope == nil,
+        let tree = InsightTreeViewModel(insights: insights, showsAllClusterInsights: scope == nil,
                              model: model, modelTasks: queue,
                              modelTaskOriginPage: scope == nil ? .insights : .conversation,
                              midpointStoreScope: scope)
+        tree.startModelWork()
+        return tree
     }
 
     private func eventually(_ condition: () async -> Bool) async throws {

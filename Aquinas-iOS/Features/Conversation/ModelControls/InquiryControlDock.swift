@@ -60,6 +60,8 @@ struct InquiryControlDock: View {
     /// Conversation threads retain Idle; standalone trees show status only during work.
     var keepsIdleModelStatus: Bool = false
     var onAttachRecentPhoto: ((Data) -> Void)? = nil
+    /// Owned by the conversation so a tap on its thread can close the recent-photos card.
+    var recentPhotosOpen: Binding<Bool> = .constant(false)
     var canvasSearchText: Binding<String>? = nil
     var isCanvasSearchActive: Binding<Bool>? = nil
     var canvasSearchResultIndex: Int = 0
@@ -88,7 +90,10 @@ struct InquiryControlDock: View {
     @State private var canvasActionDrawID = UUID()
     @State private var isScrollButtonVisible = false
     @State private var isControlButtonPressed = false
-    @State private var isRecentPhotosOpen = false
+    private var isRecentPhotosOpen: Bool {
+        get { recentPhotosOpen.wrappedValue }
+        nonmutating set { recentPhotosOpen.wrappedValue = newValue }
+    }
     @State private var addFlashOpacity: CGFloat = 1
     @AppStorage(SettingsStorageKey.modelActivityDisplay)
     private var activityDisplay: ModelActivityDisplayOption = .detailed

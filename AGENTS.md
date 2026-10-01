@@ -22,6 +22,11 @@ duplicate architecture specifications.
 ## Non-negotiable rules
 
 - Preserve unrelated and uncommitted work. Do not reset, discard, or overwrite it.
+- Before installing a special build on the owner's physical phone from any worktree other
+  than `~/Developer/Aquinas-iOS-main` on `main`, set its visible app name to
+  `<current main app name> – <work name>` and verify the exact signed app's
+  `CFBundleDisplayName` before installation. Follow the naming procedure in
+  [`Documentation/Development-Workflow.md`](Documentation/Development-Workflow.md).
 - Use `AquinasTheme` typography and color tokens. Do not introduce ad hoc system colors or raw
   visual constants when an existing semantic token applies.
 - All live generation goes through `AquinasModel` and the shared runtime/queue. `MockAquinasModel`

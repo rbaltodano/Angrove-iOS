@@ -1,3 +1,4 @@
+import ImageIO
 import Photos
 import SwiftUI
 import UIKit
@@ -10,12 +11,17 @@ struct RecentPhotosCard: View {
     @State private var library = RecentPhotosLibrary()
     @State private var dragY: CGFloat = 0
 
+    /// The card's side inset. The photo strip ignores it so thumbnails scroll to the card's
+    /// own edge, fading out across this width.
+    private static let horizontalInset: CGFloat = 32
+
     var body: some View {
         VStack(spacing: 16) {
             Text("Select photo")
                 .font(AquinasTheme.Typography.uiHeading)
                 .foregroundStyle(AquinasTheme.Colors.headingText)
                 .frame(maxWidth: .infinity)
+                .padding(.horizontal, Self.horizontalInset)
 
             if library.isLoading {
                 ProgressView()
@@ -32,6 +38,7 @@ struct RecentPhotosCard: View {
                         .foregroundStyle(AquinasTheme.Colors.lightGreen)
                         .frame(minHeight: AquinasTheme.Spacing.controlHeight)
                 }
+                .padding(.horizontal, Self.horizontalInset)
             } else {
                 ScrollView(.horizontal) {
                     HStack(spacing: 8) {
@@ -54,9 +61,18 @@ struct RecentPhotosCard: View {
                             .accessibilityLabel(Text("Photo from \(asset.creationDate ?? .distantPast, format: .dateTime.month().day().year())"))
                         }
                     }
+                    .padding(.horizontal, Self.horizontalInset)
                 }
                 .scrollIndicators(.hidden)
                 .frame(height: 80)
+                .overlay {
+                    HStack(spacing: 0) {
+                        edgeFade(startPoint: .leading, endPoint: .trailing)
+                        Spacer(minLength: 0)
+                        edgeFade(startPoint: .trailing, endPoint: .leading)
+                    }
+                    .allowsHitTesting(false)
+                }
             }
 
             if let error = library.error {
@@ -64,9 +80,10 @@ struct RecentPhotosCard: View {
                     .font(AquinasTheme.Typography.body)
                     .foregroundStyle(AquinasTheme.Colors.paragraphText)
                     .multilineTextAlignment(.center)
+                    .padding(.horizontal, Self.horizontalInset)
             }
         }
-        .padding(32)
+        .padding(.vertical, 32)
         .frame(maxWidth: 355)
         .background(AquinasTheme.Colors.canvasSecondary)
         .clipShape(RoundedRectangle(cornerRadius: 36, style: .continuous))
@@ -89,6 +106,18 @@ struct RecentPhotosCard: View {
         .accessibilityAction(.escape, onDismiss)
         .task { await library.load() }
         .onDisappear { library.cancelSelection() }
+    }
+
+    private func edgeFade(startPoint: UnitPoint, endPoint: UnitPoint) -> some View {
+        LinearGradient(
+            colors: [
+                AquinasTheme.Colors.canvasSecondary,
+                AquinasTheme.Colors.canvasSecondary.opacity(0)
+            ],
+            startPoint: startPoint,
+            endPoint: endPoint
+        )
+        .frame(width: Self.horizontalInset)
     }
 }
 
@@ -129,10 +158,8 @@ private final class RecentPhotosLibrary {
         options.isNetworkAccessAllowed = true
         selectionRequestID = PHImageManager.default().requestImageDataAndOrientation(
             for: asset,
-            options: options
-        ) { [weak self] data, _, _, info in
-            let cancelled = info?[PHImageCancelledKey] as? Bool == true
-            Task { @MainActor in
+            options: options,
+            resultHandler: RecentPhotoCallbacks.imageData { [weak self] data, cancelled in
                 guard let self, self.selectedAssetID == asset.localIdentifier else { return }
                 self.selectionRequestID = nil
                 self.selectedAssetID = nil
@@ -142,7 +169,7 @@ private final class RecentPhotosLibrary {
                 }
                 onSelect(data)
             }
-        }
+        )
     }
 
     func cancelSelection() {
@@ -180,14 +207,35 @@ private struct RecentPhotoThumbnail: View {
                 for: asset,
                 targetSize: CGSize(width: 80 * displayScale, height: 80 * displayScale),
                 contentMode: .aspectFill,
-                options: options
-            ) { result, _ in
-                Task { @MainActor in image = result }
-            }
+                options: options,
+                resultHandler: RecentPhotoCallbacks.image { result in image = result }
+            )
         }
         .onDisappear {
             if let requestID { PHImageManager.default().cancelImageRequest(requestID) }
             requestID = nil
+        }
+    }
+}
+
+/// Photos invokes its handlers on arbitrary queues, including when scrolling cancels a
+/// request. Create them outside main-actor isolation, then hop before touching view state.
+nonisolated enum RecentPhotoCallbacks {
+    static func image(
+        onResult: @escaping @MainActor @Sendable (UIImage?) -> Void
+    ) -> @Sendable (UIImage?, [AnyHashable: Any]?) -> Void {
+        { image, info in
+            guard info?[PHImageCancelledKey] as? Bool != true else { return }
+            Task { @MainActor in onResult(image) }
+        }
+    }
+
+    static func imageData(
+        onResult: @escaping @MainActor @Sendable (Data?, Bool) -> Void
+    ) -> @Sendable (Data?, String?, CGImagePropertyOrientation, [AnyHashable: Any]?) -> Void {
+        { data, _, _, info in
+            let cancelled = info?[PHImageCancelledKey] as? Bool == true
+            Task { @MainActor in onResult(data, cancelled) }
         }
     }
 }

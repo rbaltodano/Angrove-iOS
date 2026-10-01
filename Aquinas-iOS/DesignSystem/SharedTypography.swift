@@ -69,6 +69,13 @@ enum AquinasTheme {
             darkAlpha: 0.08
         )
         static let systemSelection = Color(light: 0xF0E9DA, dark: 0x181511)
+        /// A tint of `accentGreen` behind a response word while its Copy/Define menu is open.
+        static let wordHighlight = Color(
+            light: 0xA28F1E,
+            lightAlpha: 0.28,
+            dark: 0xB7AE78,
+            darkAlpha: 0.30
+        )
         static let accentRed = Color(light: 0xAF4949, dark: 0xAF4949)
         /// The "new" dot on an undiscovered Insight or Node Concept and on a conversation
         /// whose response finished while it wasn't open.
