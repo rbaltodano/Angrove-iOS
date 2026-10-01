@@ -1743,13 +1743,19 @@ private extension LiteRTAquinasModel {
         _ personality: ConversationPersonality
     ) -> String {
         #if DEBUG
-        // `--litert-scholarly-prompt-file <abs>` swaps the Scholarly prompt for voice evaluations.
+        // `--litert-scholarly-prompt-file <path>` swaps the Scholarly prompt for voice evaluations.
+        // A relative path resolves against Documents, for phone runs.
         if personality == .scholarly,
            let path = LiteRTProbeArguments.value(
                after: "--litert-scholarly-prompt-file",
                in: ProcessInfo.processInfo.arguments
            ),
-           let text = try? String(contentsOfFile: path, encoding: .utf8) {
+           let text = try? String(
+               contentsOf: path.hasPrefix("/")
+                   ? URL(filePath: path)
+                   : URL.documentsDirectory.appending(path: path),
+               encoding: .utf8
+           ) {
             return text.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         #endif
