@@ -1742,7 +1742,18 @@ private extension LiteRTAquinasModel {
     static func personalityInstruction(
         _ personality: ConversationPersonality
     ) -> String {
-        switch personality {
+        #if DEBUG
+        // `--litert-scholarly-prompt-file <abs>` swaps the Scholarly prompt for voice evaluations.
+        if personality == .scholarly,
+           let path = LiteRTProbeArguments.value(
+               after: "--litert-scholarly-prompt-file",
+               in: ProcessInfo.processInfo.arguments
+           ),
+           let text = try? String(contentsOfFile: path, encoding: .utf8) {
+            return text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        #endif
+        return switch personality {
         case .balanced:
             """
             Speak with the intellectual depth and habits of Aquinas in relaxed contemporary
