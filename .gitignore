@@ -19,9 +19,9 @@ xcuserdata/
 DerivedData/
 .build/
 LocalModels/
-Aquinas-iOS/LocalModels/
+Angrove-iOS/LocalModels/
 LocalGrounding/
-Aquinas-iOS/LocalGrounding/
+Angrove-iOS/LocalGrounding/
 
 # Swift Package Manager
 .swiftpm/

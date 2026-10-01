@@ -16,7 +16,7 @@ import Foundation
 import OSLog
 import CLiteRTLM
 
-/// Aquinas patch: tracks native work that outlives the Swift call that started it (engine and
+/// Angrove patch: tracks native work that outlives the Swift call that started it (engine and
 /// conversation deletes on detached threads, and streams that keep generating after their
 /// consumer stopped listening), so callers can wait for it before loading a new engine, and
 /// lifecycle tests can check that nothing overlaps. Kinds: "engine-delete",
@@ -175,7 +175,7 @@ public actor Engine {
       litert_lm_engine_settings_enable_benchmark(settings)
     }
     if let activationDataType = ExperimentalFlags.activationDataType {
-      // Aquinas addition: 0 = F32, 1 = F16 (see `ActivationDataType` in the C header).
+      // Angrove addition: 0 = F32, 1 = F16 (see `ActivationDataType` in the C header).
       litert_lm_engine_settings_set_activation_data_type(settings, activationDataType)
     }
     if let enableSpeculativeDecoding = ExperimentalFlags.enableSpeculativeDecoding {

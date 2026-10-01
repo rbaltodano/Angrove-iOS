@@ -36,7 +36,7 @@ or a different branch at the same array position.
 
 
 Automatic conversation naming shares the first answer's tree-update job. Once seed processing
-finishes, `AquinasModel.conversationTitle(for:)` names the initial question. `ConversationSession`
+finishes, `AngroveModel.conversationTitle(for:)` names the initial question. `ConversationSession`
 rechecks persisted conversation/branch identity, question, and title eligibility before saving
 only the title, keeping composer drafts and manual renames intact even after navigation. Stale
 page saves preserve an already generated title just as they preserve completed answers.
@@ -97,16 +97,16 @@ app no longer contains that client.)
 
 | Area | Primary location |
 | --- | --- |
-| App shell and page handoff | `Aquinas-iOS/App/ContentView.swift` |
+| App shell and page handoff | `Angrove-iOS/App/ContentView.swift` |
 | Conversation orchestration | `Features/Conversation/CurrentConversation.swift` |
 | Transcript and response lifecycle | `Features/Conversation/ConversationComponents.swift` |
 | Visible model tasks | `Features/Conversation/ModelTaskQueue.swift` |
 | Model status and context controls | `Features/Conversation/ModelControls/`: one app-wide bar (`ModelControlsHost.swift`, mounted by the shell). Pages publish their buttons to it (`InquiryControlDock`, `PageModelControls`, `LibraryModelControls`) and never render a bar of their own. |
-| Model boundary and local implementation | `Services/AquinasModel.swift`, `Services/LiteRTAquinasModel.swift` |
-| Runtime ownership | `Services/AquinasApplicationRuntime.swift`, `Services/LiteRTAquinasRuntime.swift` |
+| Model boundary and local implementation | `Services/AngroveModel.swift`, `Services/LiteRTAngroveModel.swift` |
+| Runtime ownership | `Services/AngroveApplicationRuntime.swift`, `Services/LiteRTAngroveRuntime.swift` |
 | On-device tree seeds | `Persistence/LocalInsightTreeSeedStore.swift` |
 | Home discovery cards | `Features/Home/HomeDiscoveryCards.swift`, `TodayInHistoryEntries.swift`, `Persistence/GlossedTermStore.swift`, `Persistence/FlaggedQuoteStore.swift` |
-| No-model fallback | `Services/UnavailableAquinasModel.swift` |
+| No-model fallback | `Services/UnavailableAngroveModel.swift` |
 
 ## Current product constraints
 

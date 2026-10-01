@@ -5,10 +5,10 @@
 Run commands from the repository root:
 
 ```sh
-xcodebuild -project Aquinas-iOS.xcodeproj -scheme Aquinas-iOS \
+xcodebuild -project Angrove-iOS.xcodeproj -scheme Angrove-iOS \
   -destination 'platform=iOS Simulator,name=iPhone 17' build
 
-xcodebuild -project Aquinas-iOS.xcodeproj -scheme Aquinas-iOS \
+xcodebuild -project Angrove-iOS.xcodeproj -scheme Angrove-iOS \
   -destination 'platform=iOS Simulator,name=iPhone 17,OS=27.0' test
 ```
 
@@ -19,7 +19,7 @@ bundled LiteRT framework. When working from a worktree, verify that the project 
 ## UI work
 
 Use the Figma source of truth when a design node is available; do not approximate it from a
-screenshot. Use `AquinasTheme` from `DesignSystem/SharedTypography.swift` for typography and
+screenshot. Use `AngroveTheme` from `DesignSystem/SharedTypography.swift` for typography and
 color. Before handing off UI work, check small phone widths, light and dark modes, navigation,
 and empty states.
 
@@ -42,13 +42,13 @@ branch name, such as `Photo Selector` or `Friend Voice`. Do not infer the task f
 worktree directory name or append a second suffix to a previously named special build.
 
 Set `INFOPLIST_KEY_CFBundleDisplayName` for the build, with the entire assignment passed as a
-single shell argument. For example, when the base name is `Aquinas-iOS`:
+single shell argument. For example, when the base name is `Angrove`:
 
 ```sh
-xcodebuild -project Aquinas-iOS.xcodeproj -scheme Aquinas-iOS \
+xcodebuild -project Angrove-iOS.xcodeproj -scheme Angrove-iOS \
   -destination 'platform=iOS,id=<device-id>' \
   -derivedDataPath '<worktree-specific-build-directory>' \
-  'INFOPLIST_KEY_CFBundleDisplayName=Aquinas-iOS – Photo Selector' build
+  'INFOPLIST_KEY_CFBundleDisplayName=Angrove – Photo Selector' build
 ```
 
 Before installing, inspect the exact signed app being installed:

@@ -83,7 +83,7 @@ The owner is handing this work to Codex. State as of commit `2776cc9` on `featur
   3. Finish C10:
      - Rollback check: B0's values are in the manifest comment; its file is at root `LocalModels/`.
      - Open a PR from this branch. Merge only if C9 passes.
-     - At merge, main's gitignored `Aquinas-iOS/LocalModels/` still holds E2B. Swap in
+     - At merge, main's gitignored `Angrove-iOS/LocalModels/` still holds E2B. Swap in
        `gemma-4-E4B-it.litertlm` (an APFS clone) and move E2B out, or the main build fails the
        manifest check.
   4. Apply `Documentation/Gemma4-E4B-MODEL-INTEGRATION-Update.md` to
@@ -97,7 +97,7 @@ The owner is handing this work to Codex. State as of commit `2776cc9` on `featur
   - Make Node has no UI entry; the owner is reworking it.
   - Pre-existing failing test: `MiniLMGroundingRetrievalTests.namedPassagesUseSourceTextAnchors`
     (accepted baseline).
-- **Parallel work:** the owner may change system prompts in `LiteRTAquinasModel.swift` on `main`.
+- **Parallel work:** the owner may change system prompts in `LiteRTAngroveModel.swift` on `main`.
   This branch doesn't modify that file relative to `main`.
 
 **Tools and evidence (gitignored, in `LocalModels/e4b-eval/`)**
@@ -183,8 +183,8 @@ and what options you recommend._
   locally. Nothing was pushed or posted.
 
 - ~~**2026-09-26: Merge the backend removal before C6.**~~ **Resolved 2026-09-27:** merged (`b6903b4`). C6 may need
-  E4B-specific adapter fixes in `LiteRTAquinasModel.swift`, and the owner's uncommitted work on
-  `main` rewrites that file (and deletes `BackendAquinasModel`, which this branch's quality probe
+  E4B-specific adapter fixes in `LiteRTAngroveModel.swift`, and the owner's uncommitted work on
+  `main` rewrites that file (and deletes `BackendAngroveModel`, which this branch's quality probe
   still uses as its fallback). Doing C6 on the old code would mean redoing the fixes after a
   conflicted merge. Recommended: commit the backend removal on `main`, then merge `main` into
   `feature/gemma4-e4b-qat`, rerun the build and tests, and then run C6 for M4-Ls.
@@ -213,7 +213,7 @@ and what options you recommend._
   - The raw probe accepts any prefill text through `--litert-probe-raw-question`.
   - It has **no decode cap**: LiteRT-LM v0.14.0's Swift API has no max-output setting, and
     breaking out of a stream without `Conversation.cancel()` leaves native decoding running
-    (see `LiteRTAquinasRuntime`'s notes on the cancel wedge).
+    (see `LiteRTAngroveRuntime`'s notes on the cancel wedge).
   - Before C5, decide whether "256-token decode" means (a) a prompt that asks for about 256
     tokens, measured with `--litert-probe-benchmark`, or (b) a new capped-decode option, which
     would be harness code and would need its own check.
@@ -240,7 +240,7 @@ and what options you recommend._
 | 2026-09-25 | Adopt plan D1–D6 (prebuilt package first, GPU, single engine, no fine-tune, 4,096 tokens, reversible promotion) | User + planning session | See plan §3 |
 | 2026-09-25 | Shelve all Gemma 4 12B research (rotated-ternary and llama.cpp IQ2_M) and remove its weights; E4B QAT becomes the model path | User | The 12B's modeled size exceeds what the base iPhone 17 survived; see `Aquinas-Foundations/research/rotated-ternary/STATUS.md`, "Shelving record" |
 | 2026-09-25 | Remove all Qwen weights except `Qwen3-4B-Aquinas-v3-Q4_K_M.gguf` in `Aquinas_Backend-llama-cpp-12b` | User | Disk space. Qwen is no longer a re-exportable fallback. |
-| 2026-09-26 | Don't commit or merge the owner's uncommitted backend removal on `main`; continue on this branch. Its model-path changes are only failure-fallback removal plus a new quote-notability task; conversation prompts are unchanged, so results carry over. Add quote notability to C6 after the merge | Claude Code session (owner delegated all decisions 2026-09-26) | `git diff` of `LiteRTAquinasModel.swift` on `main`; no edits there since 11:59 |
+| 2026-09-26 | Don't commit or merge the owner's uncommitted backend removal on `main`; continue on this branch. Its model-path changes are only failure-fallback removal plus a new quote-notability task; conversation prompts are unchanged, so results carry over. Add quote notability to C6 after the merge | Claude Code session (owner delegated all decisions 2026-09-26) | `git diff` of `LiteRTAngroveModel.swift` on `main`; no edits there since 11:59 |
 | 2026-09-27 | Owner delegated the C8 owner review to the session. The session applied only the evidence-based held-C2 reclassification (critical → non-critical, a corpus-induced locator), which it had recommended before any review; the held-out gate then passes. Caveat: the reviewer and the first-pass scorer are now the same assistant, so the plan's independent spot check didn't happen | Owner (delegation) + Claude Code session | "i don't have time to go through everything in that artifact. again i trust your judgment. continue" |
 | 2026-09-26 | **Run C8 before C7** (deviates from §5 order). C7 exercises the full app's UI, queue, lifecycle, and Insight Tree, which the owner's uncommitted backend removal rewrites (56 files, about 3.3k lines removed); C7 evidence gathered before that merge would be invalidated by it (§0 rule 5). C8 exercises the model prompt path, which that work leaves unchanged apart from failure fallback. Risk accepted: if C7 later forces a model-path change, the affected C8 results are rerun | Claude Code session (delegated) | Owner away with the phone; `main` still uncommitted |
 | 2026-09-26 | Run C8 on the **simulator CPU** for both arms (same backend, same numerics class: FLOAT16 activations). The phone GPU isn't available. Confirm the held-out set on the phone GPU when it is available, before C10 | Claude Code session (delegated) | Both standard packages fail the simulator's Metal delegate |
@@ -248,11 +248,11 @@ and what options you recommend._
 | 2026-09-26 | M4-L rejected at C5 (jetsam at 2K and 4K). Per C5's On failure branch, M4-Ls tried once on the GPU and passed; **M4-Ls is now the active candidate** for C6 onward (D1's fallback case). M4-L's failed results stand (plan §0 rule 5) | Plan branch, executed by Claude Code session | `C5-M4L-4`, `C5-M4L-5`, `C5-M4Ls-1..4` |
 | 2026-09-26 | Accept the pre-existing `MiniLMGroundingRetrievalTests.namedPassagesUseSourceTextAnchors` failure (fails identically on base `31aa476`, run `C3-basecheck-1`) as a known baseline failure for the C3 gate; C3 → `done` | User | Owner replied "phone is plugged in, go ahead and continue" to the recommended resolution. Recorded as acceptance of that recommendation |
 | 2026-09-27 | Pushed `main` (`b6903b4`) and `feature/gemma4-e4b-qat` to GitHub. GitHub CI (Xcode 26.6, iOS 26.5 simulator) failed one timing-sensitive test, `InquiryPersistenceStoreTests.threeConversationsKeepTheirAnswers` (25 s on the runner), which passes locally on iOS 27. The previous `main` CI run (`36164608561`, before these changes) failed three other timing tests. Per the owner, local iOS 27 runs are authoritative and CI flakiness doesn't block | Owner instruction | CI run `36286937989` |
-| 2026-09-27 | Owner asked the session to verify and commit the backend-removal and Home work on `main`, then merge. Verified (build; 182/183 tests, the one failure pre-existing; the app launches and Home renders), committed as `fdf3d72`, and merged into this branch. The one conflict (`AquinasApplicationRuntime`: `--force-backend-model` removed, DEBUG model override kept) was resolved, and the probes' dead backend fallbacks were removed. Merged code: build OK, 198/199 tests (same pre-existing failure). Two pre-existing Home bugs found (not from this work): an empty "Where You Left Off" section when no conversation is selected, and "On the Incarnation" (Athanasius) described as "outlined by Augustine of Hippo". One likely catalog error: Today in History 05-11 (the Didache manuscript's colophon dates the copy to 11 June 1056) | Owner request, executed by Claude Code session | `LocalModels/e4b-eval/main-verify-1`, `merge-verify-1` |
+| 2026-09-27 | Owner asked the session to verify and commit the backend-removal and Home work on `main`, then merge. Verified (build; 182/183 tests, the one failure pre-existing; the app launches and Home renders), committed as `fdf3d72`, and merged into this branch. The one conflict (`AngroveApplicationRuntime`: `--force-backend-model` removed, DEBUG model override kept) was resolved, and the probes' dead backend fallbacks were removed. Merged code: build OK, 198/199 tests (same pre-existing failure). Two pre-existing Home bugs found (not from this work): an empty "Where You Left Off" section when no conversation is selected, and "On the Incarnation" (Athanasius) described as "outlined by Augustine of Hippo". One likely catalog error: Today in History 05-11 (the Didache manuscript's colophon dates the copy to 11 June 1056) | Owner request, executed by Claude Code session | `LocalModels/e4b-eval/main-verify-1`, `merge-verify-1` |
 | 2026-09-27 | C7 on the simulator CPU. Run the stress cases through a DEBUG probe (`--litert-lifecycle-probe`) that drives the app's own runtime, queue, and model, plus manual UI runs for real suspension and memory warnings. Fix the three lifecycle bugs C7 found in this branch; they are runtime bugs, not model-specific | Claude Code session (delegated) | Hand-driven CPU timing is too coarse for preemption and cancel windows; the probe is repeatable. The bugs affect B0 as well, and C9 needs them fixed |
-| 2026-09-26 | Note only: the owner's **uncommitted** backend-removal work in the main checkout also edits this plan (C3 step 4 and C7 wording) and adds a decision row to its copy of this ledger. It doesn't affect C4 or C5. When it lands on `main`, merge it into `feature/gemma4-e4b-qat`; expect conflicts in `LiteRTDeviceProbe.swift`, `AquinasApplicationRuntime.swift`, and this ledger | Claude Code session | This branch predates that work; main's working tree is not touched |
+| 2026-09-26 | Note only: the owner's **uncommitted** backend-removal work in the main checkout also edits this plan (C3 step 4 and C7 wording) and adds a decision row to its copy of this ledger. It doesn't affect C4 or C5. When it lands on `main`, merge it into `feature/gemma4-e4b-qat`; expect conflicts in `LiteRTDeviceProbe.swift`, `AngroveApplicationRuntime.swift`, and this ledger | Claude Code session | This branch predates that work; main's working tree is not touched |
 | 2026-09-25 | Adopt plan v2 after independent review: conversion route blocked (D7); provenance labels but doesn't gate (D8); M2-L optional control (D9); early phone screen before quality; numeric memory cap; eval set 40 dev + 40 held-out with cross-model first-pass scoring and owner spot checks | User + planning session | [`Gemma4-E4B-QAT-Plan-Review.md`](Gemma4-E4B-QAT-Plan-Review.md), "Disposition" |
-| 2026-09-26 | Remove the app's HTTP backend client (`BackendAquinasModel`, `--force-backend-model`, tree and Home services). C3 and C7 no longer need to disable backend recovery | User | The app is fully on-device; plan steps C3 item 4 and C7 updated to match |
+| 2026-09-26 | Remove the app's HTTP backend client (`BackendAngroveModel`, `--force-backend-model`, tree and Home services). C3 and C7 no longer need to disable backend recovery | User | The app is fully on-device; plan steps C3 item 4 and C7 updated to match |
 
 ## Evidence
 
@@ -260,15 +260,15 @@ and what options you recommend._
 Run ID `C0-B0-1` (2026-09-25); evidence in `LocalModels/e4b-eval/C0-B0-1/`.
 - Worktree path / branch / base commit: `/Users/ryanbaltodano/Developer/Aquinas-iOS-e4b-qat` ·
   `feature/gemma4-e4b-qat` · `31aa4763f0930d0e25d72c83d5494a33bdfe5a51` (local `main`)
-- Excluded dirty files (main checkout): `Aquinas-iOS/Features/InsightTree/InsightTreeCanvasView.swift`
+- Excluded dirty files (main checkout): `Angrove-iOS/Features/InsightTree/InsightTreeCanvasView.swift`
   (modified). Never staged.
 - Provisioned ignored assets (source path → SHA-256): APFS clones (`cp -c`) from
   `/Users/ryanbaltodano/Developer/Aquinas-iOS-main/`; worktree hashes identical to source.
-  - `Aquinas-iOS/LocalModels/gemma-4-E2B-it.litertlm` → `9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282`
-  - `Aquinas-iOS/LocalGrounding/embeddings.bin` → `6b481153d2b456033cde2503a414a5a5292bbc0c0aa26cf7e148650f08e6316a`
-  - `Aquinas-iOS/LocalGrounding/passages.json` → `75fc02b45b4f458e60637a2bc41d08c68656e9b486d3458c1ca4f013ed5257e0`
-  - `Aquinas-iOS/LocalGrounding/vocab.txt` → `07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3`
-  - `Aquinas-iOS/LocalGrounding/MiniLM.mlpackage/Data/com.apple.CoreML/model.mlmodel` → `62bdbf45e70e5f66640fe65849207008adf86aa329e895d43895aabd171eeb27`
+  - `Angrove-iOS/LocalModels/gemma-4-E2B-it.litertlm` → `9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282`
+  - `Angrove-iOS/LocalGrounding/embeddings.bin` → `6b481153d2b456033cde2503a414a5a5292bbc0c0aa26cf7e148650f08e6316a`
+  - `Angrove-iOS/LocalGrounding/passages.json` → `75fc02b45b4f458e60637a2bc41d08c68656e9b486d3458c1ca4f013ed5257e0`
+  - `Angrove-iOS/LocalGrounding/vocab.txt` → `07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3`
+  - `Angrove-iOS/LocalGrounding/MiniLM.mlpackage/Data/com.apple.CoreML/model.mlmodel` → `62bdbf45e70e5f66640fe65849207008adf86aa329e895d43895aabd171eeb27`
   - `…/MiniLM.mlpackage/Data/com.apple.CoreML/weights/weight.bin` → `2761ce1e94d0146e207a4f8802b8f15c8744bdaf5e81e8bc71775cc163d06d0f`
   - `…/MiniLM.mlpackage/Manifest.json` → `cff0a4d99898f58855e84b56610035775d67f63cd67d4e67fb8e649871b66fa8`
 - LiteRT-LM iOS framework binary SHA-256: `ios-arm64/CLiteRTLM.framework/CLiteRTLM` →
@@ -278,7 +278,7 @@ Run ID `C0-B0-1` (2026-09-25); evidence in `LocalModels/e4b-eval/C0-B0-1/`.
   (`08720B72-C963-4711-94D4-3CCA9987B878`), iOS 27.0 (24A5355p) · host M4 Pro 24 GB, macOS 27.0 ·
   26 GiB free before build, 22 GiB after
 - B0 computed SHA-256 (matches manifest?): `9a6345f1…65282`, 3,862,121,696 bytes. **Matches**
-  `LiteRTModelManifest.aquinas`.
+  `LiteRTModelManifest.angrove`.
 - Build result: **BUILD SUCCEEDED** (`xcodebuild … -destination 'platform=iOS Simulator,name=iPhone 17'
   -derivedDataPath build/DerivedData build`). The built bundle contains the B0 package (same hash),
   `MiniLM.mlmodelc`, and grounding files with matching hashes, so no `NLEmbedding` fallback.
@@ -380,9 +380,9 @@ package inspection in `peek.txt`, `tflite-histogram.json`, `tflite-metadata.txt`
   - New files: `Services/LiteRTModelOverride.swift` (the one shared resolver),
     `Features/Developer/LiteRTProbeFixture.swift`, and `Features/Developer/LiteRTProbeReport.swift`
     (report, `task_vm_info` memory sampling, stderr tee for native log lines).
-  - Changed: `LiteRTDeviceProbe.swift`, `AquinasApplicationRuntime.swift` (DEBUG override),
-    `LiteRTAquinasRuntime.swift` (`maxNumTokens` constant, once-per-process loaded-model log), and
-    `Aquinas_iOSApp.swift` (lazy shared runtime).
+  - Changed: `LiteRTDeviceProbe.swift`, `AngroveApplicationRuntime.swift` (DEBUG override),
+    `LiteRTAngroveRuntime.swift` (`maxNumTokens` constant, once-per-process loaded-model log), and
+    `Angrove_iOSApp.swift` (lazy shared runtime).
 - Flags as built:
   - Raw mode: `--litert-probe-context <n>` (default 2048); `--litert-probe-greedy` (the default:
     production conversation sampler, topK 1 / topP 1 / temperature 0 / seed 0);
@@ -419,11 +419,11 @@ package inspection in `peek.txt`, `tflite-histogram.json`, `tflite-metadata.txt`
      after the log line. Release logs the manifest digest without rehashing.
   5. **The override fails loudly.** If a DEBUG override flag is present but can't be resolved,
      the app `fatalError`s rather than silently loading the bundled B0.
-  6. **`AquinasApplicationRuntime.shared` is now resolved lazily** (first `body` use). A
+  6. **`AngroveApplicationRuntime.shared` is now resolved lazily** (first `body` use). A
      `--litert-probe` process therefore no longer builds MiniLM, grounding, and a second runtime
      object, so probe memory numbers aren't inflated. Normal app launch behavior is unchanged in
      practice: the runtime is created on the first render.
-- Tests added (`Aquinas-iOSTests/LiteRTProbeHarnessTests.swift`, 13, all passing):
+- Tests added (`Angrove-iOSTests/LiteRTProbeHarnessTests.swift`, 13, all passing):
   `noFlagResolvesToNil`, `absolutePathResolves`, `documentNameResolves`,
   `missingFilesAreRejected`, `invalidOverrideValuesAreRejected`, `overrideStoreDerivesManifest`,
   `releaseIgnoresOverride`, `fixtureParsesToTranscript`, `fixtureWithoutTurns`,
@@ -578,7 +578,7 @@ itself is the decisive signal here. See *Open questions*.
 - Jetsam and pressure evidence: `C5-M4L-4/device-logs-new/JetsamEvent-2026-09-26-172323.ips` (the
   invalid overlap), `C5-M4L-4/device-logs-late/JetsamEvent-2026-09-26-172452.ips` (the 4K kill), and
   `C5-M4L-5/device-logs-late/JetsamEvent-2026-09-26-172730.ips` (the 2K kill).
-  - Each M4-L kill also took the suspended production Aquinas app (PID 32720) and many daemons
+  - Each M4-L kill also took the suspended production Angrove app (PID 32720) and many daemons
     (`vm-pageshortage`). The production app's data is on disk and backed up.
   - Device timestamps run about 30–60 s ahead of the host clock.
 - Harness fix during C5: `run-device-probe.sh` now force-kills and **verifies no probe process
@@ -638,7 +638,7 @@ this entry records it.)
      rejects image content ("Vision executor should not be null, please TryLoadingVisionExecutor()
      first"). That failed the turn *and every later turn* carrying the image in history (the
      simulator fell through to the backend-error text).
-     - Fixed in `d583c94`: when `LiteRTAquinasRuntime.supportsVision` is false, image turns go
+     - Fixed in `d583c94`: when `LiteRTAngroveRuntime.supportsVision` is false, image turns go
        to the engine as text plus a short note that the model can't view the image.
      - Test: `imagesBecomeTextNotesWithoutVision`.
 - Full suite after the fixes: 178/179 (`C6-tests-2`). The one failure is the accepted baseline
@@ -661,7 +661,7 @@ behavior doesn't depend on the backend. Build `fb02847`, with `--litert-diagnost
   - **Chat templates differ, and B0's is defective.** B0's embedded Jinja template renders the
     system message with `messages[0]['content'] | trim`. LiteRT-LM passes system content as a
     list, so **B0 has always received its system prompt as a JSON string**
-    (`[{"text": "You are Aquinas…", "type": "text"}]`). This holds for all 9 comparable
+    (`[{"text": "You are Angrove…", "type": "text"}]`). This holds for all 9 comparable
     generations (0 rendered prompts identical).
   - M4-Ls ships Google's newer template, which iterates the content list, so its system turn is
     plain text. It also adds the `'\n\n'` before tools and fixes tool-response handling.
@@ -671,7 +671,7 @@ behavior doesn't depend on the backend. Build `fb02847`, with `--litert-diagnost
   - **Truncation:** exceeding 4,096 is a **hard error**, not truncation. `C6-M4Ls-overflow-1`:
     "Input token ids are too long. Exceeding the maximum number of tokens allowed: 4730 >= 4096",
     then the send fails. That matches discussion #18.
-  - The app's guard (`AquinasContextBudget`: 4 bytes/token estimate, 1,400-token non-conversation
+  - The app's guard (`AngroveContextBudget`: 4 bytes/token estimate, 1,400-token non-conversation
     reserve, compaction at 3,200) under-reserves: the conversation system prompt alone is about
     1.9–2.7k tokens, more with grounding. The conservative 4-bytes estimate compensates, though.
     Grounded, history-carrying requests at app estimates of 2,537 / 3,003 / 3,174 all completed
@@ -965,7 +965,7 @@ its committed protocol; amendments require a new version committed before affect
   ignores UI updates; it cannot establish queue-to-visible-answer C9 timing. Existing lifecycle
   probe simulates queue inactivity, not OS suspension, and waits for native drain before
   enqueueing the post-cancel request. Add dedicated C9 instrumentation outside
-  `LiteRTAquinasModel.swift` before collecting results. The vendored conversation API has no
+  `LiteRTAngroveModel.swift` before collecting results. The vendored conversation API has no
   native prefill-boundary callbacks; benchmark metrics require benchmark mode, which changes
   execution settings. Record this limitation explicitly; do not substitute inferred timestamps.
   Device-interaction skill's session/synthesis tools are not available in this session.
@@ -1008,7 +1008,7 @@ is preserved as invalid/incomplete due to DEBUG hash memory overhead, fixed in `
 `C9-M4Ls-1` was a preflight thermal refusal with no candidate load. All run folders immutable.
 
 **On failure branch:** do not promote M4-Ls. Main still has the B0 manifest (verified with
-`git show main:Aquinas-iOS/Services/LiteRTModelStore.swift`); no merge, push, or PR. The branch
+`git show main:Angrove-iOS/Services/LiteRTModelStore.swift`); no merge, push, or PR. The branch
 retains owner-approved E4B promotion prework for review, but C10 cannot close while C9 failed.
 The production phone app remains on the earlier E4B build as a temporary personal trial,
 per the C9 closeout recommendation. C8's held-out phone GPU repeat and the C10 scratch rollback are not run because they
@@ -1021,7 +1021,7 @@ candidate/run IDs; this failed result stays intact.
 Owner authorized continuation. Protected Application Support now copies successfully under new
 run `C9-preflight-3` (9 persisted conversations); completing Documents/preferences backup before
 any install. Prepare DEBUG-only full-app queue timing instrumentation without editing
-`LiteRTAquinasModel.swift`. No production prompt, sampler, model, or vendor binary changes.
+`LiteRTAngroveModel.swift`. No production prompt, sampler, model, or vendor binary changes.
 Native prefill timestamps remain explicitly unavailable in production mode per frozen protocol.
 Stale worktree simulator products removed before device build; models/evidence preserved.
 
@@ -1091,7 +1091,7 @@ owner must adopt a new candidate/configuration with new run IDs; never erase C9'
 - Done on the branch:
   - The manifest points to `gemma-4-E4B-it.litertlm` (3,659,530,240 bytes, `0b2a8980…45bd52e0`),
     with a provenance comment.
-  - The seed is at `Aquinas-iOS/LocalModels/gemma-4-E4B-it.litertlm` (APFS clone); only E4B is
+  - The seed is at `Angrove-iOS/LocalModels/gemma-4-E4B-it.litertlm` (APFS clone); only E4B is
     bundled.
   - `visionBackend` comment updated (text-only; C12). `Model-Runtime.md` updated.
   - `MODEL-INTEGRATION.md` isn't edited: the Foundations repo has uncommitted owner changes.
@@ -1102,11 +1102,11 @@ owner must adopt a new candidate/configuration with new run IDs; never erase C9'
   `9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282`. The file has moved to the
   root `LocalModels/`; the values are also in the manifest comment.
 - Simulator no-override smoke (`C10-sim-nooverride-1`, CPU): the app loaded
-  `…/Aquinas-iOS.app/gemma-4-E4B-it.litertlm` with computed SHA-256 = manifest `0b2a8980…45bd52e0`.
+  `…/Angrove-iOS.app/gemma-4-E4B-it.litertlm` with computed SHA-256 = manifest `0b2a8980…45bd52e0`.
   The full lifecycle probe passed (all cases, 0 overlaps).
 - Build: pass. Tests: 199/200 (the known baseline failure).
 - No-override phone smoke (production app, Debug build of `2776cc9`'s parent `21479f3`, 2026-09-27):
-  it loaded `/private/var/containers/Bundle/Application/981F9234-…/Aquinas-iOS.app/gemma-4-E4B-it.litertlm`
+  it loaded `/private/var/containers/Bundle/Application/981F9234-…/Angrove-iOS.app/gemma-4-E4B-it.litertlm`
   with computed SHA-256 = manifest `0b2a8980…45bd52e0`. The same session surfaced the load/unload race
   fixed in `2776cc9` (then reinstalled). Repeat under C9 on the final build.
 - Rollback check result: not run after C9 failed (phone); B0 manifest values and root model

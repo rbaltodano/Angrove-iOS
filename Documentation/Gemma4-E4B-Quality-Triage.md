@@ -222,7 +222,7 @@ session, which clones the "iPhone 17" simulator and shuts it down. Probes now ru
 
 - **Evidence must name the subject.** A source-dependent question that names a person, place, or
   work now needs a reference that mentions it (a curated note, a cited chapter, or a passage
-  containing the name; "Aquinas" is also satisfied by his own text). Otherwise the app abstains.
+  containing the name; "Angrove" is also satisfied by his own text). Otherwise the app abstains.
   A curated note on Aquinas's life was added.
 - **Definitions** go first to the Summa article that defines the term, where one exists ("Whether
   justice is fittingly defined as…").

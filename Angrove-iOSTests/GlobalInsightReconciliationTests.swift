@@ -1,0 +1,104 @@
+import Foundation
+import Testing
+@testable import Angrove_iOS
+
+@Suite("Global Insight Tree reconciliation")
+struct GlobalInsightReconciliationTests {
+    /// Every text embeds identically — the worst case of an unavailable sentence model.
+    private let identicalEmbedding: (String) -> [Double]? = { _ in [1, 0, 0] }
+
+    @Test("A new Insight with an unrelated term is added even when embeddings look identical")
+    func unrelatedTermIsAdded() {
+        let charity = concept("Charity", "Love of God and neighbor.")
+        let photosynthesis = concept("Photosynthesis", "How plants turn sunlight into energy.")
+
+        let result = GlobalInsightReconciliation.reconcile(
+            existing: [charity],
+            incoming: [charity, photosynthesis],
+            embed: identicalEmbedding
+        )
+
+        #expect(result.map(\.id) == [charity.id, photosynthesis.id])
+        #expect(result.first?.meaning == charity.meaning)
+    }
+
+    @Test("A near-identical Insight with an overlapping term merges into the existing one")
+    func overlappingTermMerges() {
+        let grace = concept("Grace", "A gift.")
+        let divineGrace = concept("Divine Grace", "The free and undeserved gift of God's favor.")
+
+        let result = GlobalInsightReconciliation.reconcile(
+            existing: [grace],
+            incoming: [divineGrace],
+            embed: identicalEmbedding
+        )
+
+        #expect(result.map(\.id) == [grace.id])
+        #expect(result.first?.word == "Grace")
+        #expect(result.first?.meaning == divineGrace.meaning)
+    }
+
+    @Test("Term overlap ignores case, punctuation, and filler words")
+    func termOverlap() {
+        #expect(GlobalInsightReconciliation.termsOverlap("Grace", "divine grace"))
+        #expect(GlobalInsightReconciliation.termsOverlap("The Good", "good"))
+        #expect(!GlobalInsightReconciliation.termsOverlap("Charity", "Photosynthesis"))
+        #expect(!GlobalInsightReconciliation.termsOverlap("Natural Law", "Divine Law of Grace"))
+    }
+
+    private func concept(_ word: String, _ meaning: String) -> ConceptDefinition {
+        ConceptDefinition(word: word, partOfSpeech: "noun", pronunciation: "", meaning: meaning, example: "")
+    }
+}
+
+@Suite("Global Insight Tree update prompt")
+struct GlobalInsightTreeUpdatePromptTests {
+    private let first = UUID()
+    private let second = UUID()
+
+    @Test("Reopening with the same saved Insights does not ask again")
+    func unchangedLibraryIsNotOffered() {
+        #expect(!GlobalInsightTreeUpdatePrompt.shouldOffer(
+            libraryIDs: [first, second],
+            acknowledgedLibraryIDs: [first, second],
+            treeNeedsUpdate: true
+        ))
+    }
+
+    @Test("Saving or removing an Insight since the last answer asks again")
+    func changedLibraryIsOffered() {
+        #expect(GlobalInsightTreeUpdatePrompt.shouldOffer(
+            libraryIDs: [first, second],
+            acknowledgedLibraryIDs: [first],
+            treeNeedsUpdate: true
+        ))
+        #expect(GlobalInsightTreeUpdatePrompt.shouldOffer(
+            libraryIDs: [first],
+            acknowledgedLibraryIDs: [first, second],
+            treeNeedsUpdate: true
+        ))
+    }
+
+    @Test("A swap that keeps the count the same still asks")
+    func swappedInsightIsOffered() {
+        #expect(GlobalInsightTreeUpdatePrompt.shouldOffer(
+            libraryIDs: [second],
+            acknowledgedLibraryIDs: [first],
+            treeNeedsUpdate: true
+        ))
+    }
+
+    @Test("A never-answered prompt is offered, but not when the tree already matches")
+    func unansweredPrompt() {
+        #expect(GlobalInsightTreeUpdatePrompt.shouldOffer(
+            libraryIDs: [first],
+            acknowledgedLibraryIDs: nil,
+            treeNeedsUpdate: true
+        ))
+        #expect(!GlobalInsightTreeUpdatePrompt.shouldOffer(
+            libraryIDs: [first],
+            acknowledgedLibraryIDs: nil,
+            treeNeedsUpdate: false
+        ))
+    }
+}

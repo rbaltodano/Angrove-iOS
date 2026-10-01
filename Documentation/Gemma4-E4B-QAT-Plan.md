@@ -71,18 +71,18 @@ LiteRT-LM package, running on the existing LiteRT-LM runtime. Promote it only if
 
 - **Probe, raw mode** (`LiteRTDeviceProbe.swift`) is hard-coded to 2,048 context, **samples at
   temperature 0.2**, and asks "What is prudence?". `--litert-probe-cpu` affects only raw mode.
-- **Probe, quality mode** (`--litert-quality-probe`) uses the production `LiteRTAquinasModel` path
+- **Probe, quality mode** (`--litert-quality-probe`) uses the production `LiteRTAngroveModel` path
   and reads `--litert-probe-question`. It builds a **single-turn** transcript only.
 - **`LiteRTModelStore`** checks a `developmentModelURL` by **size only**. It prefers an
   Application Support copy over the bundle.
-- **`LiteRTAquinasRuntime`** deliberately **abandons** wedged native calls, leaving them running
+- **`LiteRTAngroveRuntime`** deliberately **abandons** wedged native calls, leaving them running
   (`abandoningStall`). It also skips `conversation.cancel()` on unload because of a native
   thread-pool wedge, and waits 400 ms for teardown to drain. With a larger model, an abandoned
   engine overlapping a reload is a real out-of-memory risk.
 - **Memory telemetry:** `ModelRuntimeLifecycle` already records resident memory at load/unload
   through OS signposts.
 
-**Baseline:** the bundled `Aquinas-iOS/LocalModels/gemma-4-E2B-it.litertlm` is the
+**Baseline:** the bundled `Angrove-iOS/LocalModels/gemma-4-E2B-it.litertlm` is the
 `dynamic_wi8_emb4_afp32` E2B fine-tune, 3,862,121,696 bytes, SHA-256 `9a6345f1…65282`. Some
 `MODEL-INTEGRATION.md` text calling it failed is stale; C0 establishes the truth.
 
@@ -92,7 +92,7 @@ LiteRT-LM package, running on the existing LiteRT-LM runtime. Promote it only if
   (M4-L). The standard package (M4-Ls) is tried only if M4-L cannot load on the phone.
 - **D2 — Use the GPU (Metal) backend.** CPU runs are diagnostic only.
 - **D3 — One process-scoped engine.** Switching models means changing
-  `LiteRTModelManifest.aquinas`, plus the DEBUG-only override from C3. Never add a second live
+  `LiteRTModelManifest.angrove`, plus the DEBUG-only override from C3. Never add a second live
   engine or a model picker.
 - **D4 — No fine-tuning in this plan.** Evaluate raw instruction checkpoints first
   (`MODEL-INTEGRATION.md` §8). Merging a LoRA adapter and re-exporting through our PTQ recipes
@@ -123,8 +123,8 @@ LiteRT-LM package, running on the existing LiteRT-LM runtime. Promote it only if
 - The main checkout has unrelated uncommitted work. Record the list of dirty files as
   *excluded* and never stage them.
 - **Ignored assets are not in a worktree.** Both of these are gitignored:
-  - the E2B baseline model, `Aquinas-iOS/LocalModels/gemma-4-E2B-it.litertlm`;
-  - the MiniLM/grounding assets, `Aquinas-iOS/LocalGrounding/` (`MiniLM.mlpackage`,
+  - the E2B baseline model, `Angrove-iOS/LocalModels/gemma-4-E2B-it.litertlm`;
+  - the MiniLM/grounding assets, `Angrove-iOS/LocalGrounding/` (`MiniLM.mlpackage`,
     `embeddings.bin`, `passages.json`, `vocab.txt`).
 
   Provision them explicitly: symlink or copy them from the main checkout, and record each source
@@ -237,7 +237,7 @@ Both continue; see D8.
    - load and generation seconds, and prefill and decode token counts, if available;
    - the peak physical footprint (`task_vm_info.phys_footprint`) and `os_proc_available_memory()`
      at launch, before load, and after generation.
-4. **DEBUG model override.** In `AquinasApplicationRuntime.init`, inside an `#if DEBUG` block,
+4. **DEBUG model override.** In `AngroveApplicationRuntime.init`, inside an `#if DEBUG` block,
    accept `--litert-model-path <abs>` or
    `--litert-model-document <name>`.
    - Resolve the file with **one shared resolver** used by both the probe and the app.
@@ -245,7 +245,7 @@ Both continue; see D8.
      developmentModelURL:)`.
    - Log the loaded URL and SHA-256 once at engine initialization.
    - Release builds ignore both flags.
-5. Make `LiteRTDeviceProbe.locateModel()` fall back to `LiteRTModelManifest.aquinas.fileName`.
+5. Make `LiteRTDeviceProbe.locateModel()` fall back to `LiteRTModelManifest.angrove.fileName`.
 6. **Tests.** The resolver resolves each flag form, and rejects missing files. The override is
    compiled out of Release. Parse fixtures, including a malformed fixture.
 7. Run the build and the full test suite.
@@ -474,11 +474,11 @@ becomes a new candidate.
 label.
 
 **Do**
-1. Update `LiteRTModelManifest.aquinas`: the file name, bytes, and SHA-256, plus a comment
+1. Update `LiteRTModelManifest.angrove`: the file name, bytes, and SHA-256, plus a comment
    stating the provenance classification.
-2. Place the package as the development seed at `Aquinas-iOS/LocalModels/<name>`. Keep B0's file
+2. Place the package as the development seed at `Angrove-iOS/LocalModels/<name>`. Keep B0's file
    in root `LocalModels/` until the owner signs off.
-3. Update the `visionBackend` comment in `LiteRTAquinasRuntime.swift`. Stay text-only.
+3. Update the `visionBackend` comment in `LiteRTAngroveRuntime.swift`. Stay text-only.
 4. Update the docs in the same change:
    - `MODEL-INTEGRATION.md`: add a dated checkpoint with the measurements, fix the stale `wi8`
      text, and update §2.

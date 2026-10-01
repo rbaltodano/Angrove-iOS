@@ -22,7 +22,7 @@ frozen before its runs, phone GPU quality confirmation, and owner approval.
 - Use Ry (base iPhone 17), DEBUG disposable bundle
   `com.ryanbaltodano.Aquinas-iOS.ModelProbe`, with `--litert-sustained-probe` and the bundled
   E4B file via the DEBUG model-path override. Do not install over or write into production
-  Aquinas. Verify production data backup and current Home counts before installing. Keep the
+  Angrove. Verify production data backup and current Home counts before installing. Keep the
   production process closed during measurements. Never use `--remove-existing-content` on it.
 - Raw evidence uses fresh immutable IDs `P1-M4Ls-<n>` in `LocalModels/e4b-eval/`, with exact
   commands, model hash, OS, effective settings, result JSON, lifecycle trace, stderr, and
@@ -44,7 +44,7 @@ frozen before its runs, phone GPU quality confirmation, and owner approval.
   If device control cannot perform them, record them as unverified and do not recommend
   promotion. Stop any run on jetsam, signal 9, critical thermal state, stale UI updates, or
   concurrent old native work and a new load.
-- Do not run the 40-case held-out GPU set, edit `LiteRTAquinasModel.swift`, update Foundations,
+- Do not run the 40-case held-out GPU set, edit `LiteRTAngroveModel.swift`, update Foundations,
   push, open a public PR, or merge under P1. Those steps belong to a later passing promotion
   plan. Keep the current production E4B installation as a personal trial only.
 
@@ -113,7 +113,7 @@ load, and background music stops (iOS is killing other apps to reclaim memory).
 **Likely cause (hypothesis, not yet verified on the phone): the installed build predates the
 SHA-256 fix.**
 - The production app on Ry is a Debug build of `2776cc9`, installed 2026-09-27.
-- DEBUG builds hash the loaded model once per process (`LiteRTAquinasRuntime.logLoadedModelOnce`
+- DEBUG builds hash the loaded model once per process (`LiteRTAngroveRuntime.logLoadedModelOnce`
   → `LiteRTModelInstaller.sha256`).
 - Before `a4fd7c0`, that hash kept the file's 8 MiB read buffers alive for the whole task. Codex
   reproduced a 3.87 GB peak (`C9-diagnostics-1`) and saw it on the phone (`C9-B0-1`, invalid).
@@ -127,7 +127,7 @@ SHA-256 fix.**
 1. Install a build that includes `a4fd7c0` into production, keeping data (the current branch
    HEAD, or a Release build, which skips the DEBUG hash entirely). Back up first.
 2. Verify with the owner's scenario: music playing, ask a question, and pull any JetsamEvent
-   reports. Record the jetsam resident count for the Aquinas process next to `phys_footprint`.
+   reports. Record the jetsam resident count for the Angrove process next to `phys_footprint`.
 3. If pressure persists with the fixed build, the model itself is too large for daily use. Then
    try a 2,048-token KV cache and a faster idle unload as a new candidate configuration, or
    revert the phone to `main`'s E2B build.
@@ -151,10 +151,10 @@ At C5's measured prefill rate (about 830 tokens/s on the phone GPU), prefill alo
 for both models. It also leaves little of the 4,096-token window for history and the answer
 (C6's thin compaction margin). Trimming the standing instructions is the single biggest
 latency lever, and it's model-independent. It belongs to the owner's system-prompt work on
-`main` (`LiteRTAquinasModel.swift`).
+`main` (`LiteRTAngroveModel.swift`).
 
 Release build of `ee3d5e2` for production is ready at
-`build/DerivedData/Build/Products/Release-iphoneos/Aquinas-iOS.app` (bundled model SHA-256
+`build/DerivedData/Build/Products/Release-iphoneos/Angrove-iOS.app` (bundled model SHA-256
 `0b2a8980…`). Not installed yet: the phone was unreachable.
 
 ## MTP (speculative decoding) — 2026-09-28, simulator CPU
@@ -231,7 +231,7 @@ and memory warning (idle and during generation) all passed.
 - Footprint right after each engine delete: 159–665 MB, fluctuating rather than rising
   steadily, against about 1.1–1.3 GB loaded. It doesn't return to the pre-load level within
   10%, likely because Metal/driver memory is released lazily. Watch it; it isn't a jetsam risk.
-- iOS logged `Aquinas-iOS.diskwrites_resource` (a disk-write resource report, not a crash),
+- iOS logged `Angrove-iOS.diskwrites_resource` (a disk-write resource report, not a crash),
   most likely from DEBUG lifecycle-trace writes. Release builds don't write the trace.
 
 ## GPU F16 misreads multi-digit numbers — 2026-09-29 (phone S2/S3)

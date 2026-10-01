@@ -5,11 +5,11 @@ first. This document records iOS-specific runtime boundaries and validation rule
 
 ## Runtime selection
 
-`AquinasApplicationRuntime` selects `LiteRTAquinasModel` when a verified local package is
-available and injects the same `LiteRTAquinasRuntime` into `ModelTaskQueue`. There must be one
+`AngroveApplicationRuntime` selects `LiteRTAngroveModel` when a verified local package is
+available and injects the same `LiteRTAngroveRuntime` into `ModelTaskQueue`. There must be one
 process-scoped live engine and queue. When no verified package is installed, the runtime uses
-`UnavailableAquinasModel`, which fails every action explicitly. There is no network fallback:
-a failed local generation surfaces as a failure and offers retry. `MockAquinasModel` is restricted
+`UnavailableAngroveModel`, which fails every action explicitly. There is no network fallback:
+a failed local generation surfaces as a failure and offers retry. `MockAngroveModel` is restricted
 to previews and tests.
 
 On-device conversation decoding is deterministic (greedy). That policy dates from the earlier
@@ -34,7 +34,7 @@ grounding corpus, model conversion, and evaluation.
 
 ## Model package and device safety
 
-On `feature/gemma4-e4b-qat`, `LiteRTModelManifest.aquinas` selects the standard LiteRT Community
+On `feature/gemma4-e4b-qat`, `LiteRTModelManifest.angrove` selects the standard LiteRT Community
 Gemma 4 E4B package, not a fine-tune. It runs text-only on the GPU with a 4,096-token KV cache.
 An earlier owner-approved build from this branch remains installed on Ry as a personal trial.
 **The migration is not promoted:** C9 failed the frozen physical-device latency gate, C10 is
