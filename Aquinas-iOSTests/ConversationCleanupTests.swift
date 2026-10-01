@@ -1,10 +1,62 @@
 import Foundation
+import SwiftUI
 import Testing
 @testable import Aquinas_iOS
 
 @MainActor
 @Suite("Conversation handoff and session")
 struct ConversationCleanupTests {
+    @Test("Late reveal and editor callbacks cannot copy an answered thread into a new conversation")
+    func stalePageBindingCannotOverwriteNewConversation() {
+        var originBranch = ChatBranch(startingConcept: nil)
+        originBranch.topQuestionText = "What is prudence?"
+        originBranch.topQuestionSubmitted = true
+        originBranch.activeChatBlocks = [.text("")]
+        let origin = InquiryConversation(branches: [originBranch])
+        var saved: InquiryPersistenceSnapshot?
+        let session = ConversationSession(loadSnapshot: { nil }, saveSnapshot: { saved = $0 })
+        session.conversations = [origin]
+        session.activate(origin)
+        let oldPage = session.binding(for: originBranch)
+
+        // The page was constructed with a placeholder; generation finishes before navigation.
+        oldPage.wrappedValue.activeChatBlocks[0] = .text("Completed answer")
+        session.saveActiveConversation(promotedInsightIDs: [])
+        let freshBranch = ChatBranch(startingConcept: nil)
+        let fresh = InquiryConversation(branches: [freshBranch])
+        session.conversations.insert(fresh, at: 0)
+        session.activate(fresh)
+
+        // The removed renderer finishes its animation and UIKit flushes the old editor.
+        oldPage.wrappedValue.showBottomInput = true
+        oldPage.wrappedValue.bottomQuestionText = "Old follow-up draft"
+        session.saveActiveConversation(promotedInsightIDs: [])
+        session.persist()
+
+        #expect(session.activeBranches == [freshBranch])
+        #expect(saved?.conversations.first?.branches == [freshBranch])
+        #expect(saved?.conversations.last?.branches[0].activeChatBlocks == [.text("Completed answer")])
+    }
+
+    @Test("Branch bindings follow identity through reorder and ignore removed branches")
+    func branchBindingFollowsIdentity() {
+        let root = ChatBranch(startingConcept: nil)
+        let fork = ChatBranch(startingConcept: nil, parentBranchID: root.id)
+        let conversation = InquiryConversation(branches: [root, fork])
+        let session = ConversationSession(loadSnapshot: { nil }, saveSnapshot: { _ in })
+        session.activate(conversation)
+        let rootPage = session.binding(for: root)
+        session.activeBranches.reverse()
+        rootPage.wrappedValue.topQuestionText = "Root draft"
+        #expect(session.activeBranches[0] == fork)
+        #expect(session.activeBranches[1].topQuestionText == "Root draft")
+        #expect(rootPage.wrappedValue.topQuestionText == "Root draft")
+
+        session.activeBranches.removeAll { $0.id == root.id }
+        rootPage.wrappedValue.showBottomInput = true
+        #expect(session.activeBranches == [fork])
+    }
+
     @Test("A request consumed by one page is not replayed when that page is recreated")
     func consumedRequestSurvivesRemount() throws {
         let shellRequests = NewConversationRequests()

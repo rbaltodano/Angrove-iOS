@@ -48,6 +48,7 @@ final class InsightTreeViewModel: ObservableObject {
     /// `AquinasModel`'s doc comment — swapping in the real model is one conforming type.
     private let model: AquinasModel
     private let modelTasks: ModelTaskQueue?
+    private var modelWorkStarted = false
     private let modelTaskOriginPage: ModelTaskOriginPage
     /// The source of insight embedding vectors. See `EmbeddingProvider`'s doc comment.
     private let embeddingProvider: EmbeddingProvider
@@ -165,6 +166,14 @@ final class InsightTreeViewModel: ObservableObject {
             self?.generateSuggestedNode(for: edge)
         }
 
+        rebuildTree()
+    }
+
+    /// StateObject initialization runs during SwiftUI rendering. Queue mutations must wait
+    /// until the mounted view's task, or AttributeGraph can abort while updating the view.
+    func startModelWork() {
+        guard !modelWorkStarted else { return }
+        modelWorkStarted = true
         rebuildTree()
     }
 
@@ -677,7 +686,7 @@ final class InsightTreeViewModel: ObservableObject {
 
     private func requestClusterLabels(for clusters: [NodeModel]) {
         // Previews without the shared queue remain static; never create a competing queue.
-        guard let modelTasks else { return }
+        guard modelWorkStarted, let modelTasks else { return }
         let seedLabels = Dictionary(localSeedAnchors.map { ($0.id, $0.label) }, uniquingKeysWith: { first, _ in first })
         // Make Node is an explicit promotion; its chosen title is intentional. Midpoints are
         // single Insights rendered without a parent circle, not automatically named clusters.
@@ -836,6 +845,7 @@ final class InsightTreeViewModel: ObservableObject {
     /// the identity-only children in place, then publishes readiness after the rebuilt nodes are
     /// available so the canvas can safely begin its camera tour.
     private func requestChildren(for insight: InsightModel, promotedNodeID: UUID) {
+        guard modelWorkStarted else { return }
         guard childGenerationInFlight.insert(promotedNodeID).inserted else { return }
         Task { @MainActor in
             do {

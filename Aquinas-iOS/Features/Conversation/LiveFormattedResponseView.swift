@@ -65,7 +65,7 @@ private struct LiveResponseBlockView: View {
                 loadingInsightKey: loadingInsightKey,
                 queuedInsightKeys: queuedInsightKeys,
                 onInsightTap: onInsightTap,
-                citationPointSize: conversationFontSize.pointSize
+                citationFont: responseFont.textFont(size: conversationFontSize)
             )
 
         case .heading(let level, let text):
@@ -81,7 +81,7 @@ private struct LiveResponseBlockView: View {
                 loadingInsightKey: loadingInsightKey,
                 queuedInsightKeys: queuedInsightKeys,
                 onInsightTap: onInsightTap,
-                citationPointSize: conversationFontSize.pointSize
+                citationFont: responseFont.textFont(size: conversationFontSize)
             )
 
         case .orderedList(let items):
@@ -119,7 +119,7 @@ private struct LiveResponseBlockView: View {
                         loadingInsightKey: loadingInsightKey,
                         queuedInsightKeys: queuedInsightKeys,
                         onInsightTap: onInsightTap,
-                        citationPointSize: conversationFontSize.pointSize
+                        citationFont: responseFont.textFont(size: conversationFontSize)
                     )
                 }
             }
@@ -169,7 +169,7 @@ private struct LiveTokenFlow: View {
     let loadingInsightKey: String?
     let queuedInsightKeys: Set<String>
     let onInsightTap: ((String, String) -> Void)?
-    let citationPointSize: CGFloat
+    let citationFont: Font
 
     @State private var visibleTokenCount = 0
     @Environment(\.openURL) private var openURL
@@ -210,7 +210,7 @@ private struct LiveTokenFlow: View {
     @ViewBuilder
     private func tokenView(_ token: LiveResponseToken) -> some View {
         if let citation = token.citation {
-            ResponseCitationChip(link: citation, textFont: font, fontSize: citationPointSize)
+            ResponseCitationChip(link: citation, textFont: citationFont)
         } else if let annotation = token.annotation {
             let insightKey = insightLoadingKey(for: annotation.title)
             let isLoading = loadingInsightKey == insightKey
@@ -242,6 +242,9 @@ private struct LiveTokenFlow: View {
                 allowsInlineMarkdown: allowsInlineMarkdown
             )
             .foregroundColor(color)
+            .responseWordMenu(token: token.source) {
+                .sourceToken(source: source, index: token.rawIndex)
+            }
         }
     }
 

@@ -1066,6 +1066,9 @@ struct ContentView: View {
             }
         )
         .onAppear {
+            // Personality selection is post-launch; without a control, keep every install on
+            // the default voice rather than a value stored by an earlier build.
+            conversationPersonality = .balanced
             modelTasks.setPersonality(conversationPersonality)
             modelTasks.setApplicationActive(scenePhase == .active)
             modelTasks.updateThermalPressure(

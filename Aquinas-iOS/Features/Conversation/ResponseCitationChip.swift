@@ -6,7 +6,6 @@ import SwiftUI
 struct ResponseCitationChip: View {
     let link: ParsedInsightLink
     let textFont: Font
-    let fontSize: CGFloat
 
     var body: some View {
         HStack(spacing: 0) {
@@ -15,7 +14,7 @@ struct ResponseCitationChip: View {
                 .foregroundColor(AquinasTheme.Colors.bodyText)
             Button(action: open) {
                 Text(link.title)
-                    .font(.custom("Figtree-Bold", size: max(12, fontSize - 3)))
+                    .font(textFont)
                     .foregroundStyle(AquinasTheme.Colors.lightGreen)
                     .lineLimit(1)
                     .truncationMode(.middle)

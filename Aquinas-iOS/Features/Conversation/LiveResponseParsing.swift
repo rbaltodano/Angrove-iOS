@@ -17,6 +17,8 @@ struct LiveResponseToken: Identifiable {
     /// Source chips take negative ids so inserting one at completion leaves every word's ordinal
     /// (and so its revealed state) unchanged.
     var citation: ParsedInsightLink? = nil
+    /// Position among the source's raw tokens, which is how Define finds a plain word again.
+    var rawIndex: Int = 0
 
     static func parse(
         _ source: String,
@@ -32,7 +34,7 @@ struct LiveResponseToken: Identifiable {
         var annotationSequence = annotationSequenceStart
         var citationCount = 0
 
-        for rawToken in rawTokens {
+        for (rawIndex, rawToken) in rawTokens.enumerated() {
             if let link = insightLink(from: rawToken), link.isCitation {
                 citationCount += 1
                 result.append(LiveResponseToken(
@@ -48,7 +50,8 @@ struct LiveResponseToken: Identifiable {
                     LiveResponseToken(
                         id: result.count - citationCount,
                         source: rawToken,
-                        annotation: nil
+                        annotation: nil,
+                        rawIndex: rawIndex
                     )
                 )
                 continue

@@ -51,36 +51,39 @@ struct BranchModeTopBar: View {
                                 isEditingTitle = false
                                 onCommitTitle(titleDraft)
                             }
+                            .transition(.blurFade)
                     } else if isInStudyTopic {
                         HStack(spacing: 4) {
                             Image(systemName: "square.stack")
                                 .font(.system(size: titleFontSize - 3, weight: .medium))
                                 .foregroundColor(AquinasTheme.Colors.lightGreen)
+                            ConversationHeading(title: title) { title in
+                                Text(title)
+                                    .font(.custom("LibreBaskerville-Regular", size: titleFontSize))
+                                    .foregroundColor(AquinasTheme.Colors.primaryReadable)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .transition(.blurFade)
+                        .onTapGesture(perform: onTapStudyTopicBadge)
+                    } else {
+                        ConversationHeading(title: title) { title in
                             Text(title)
                                 .font(.custom("LibreBaskerville-Regular", size: titleFontSize))
                                 .foregroundColor(AquinasTheme.Colors.primaryReadable)
                                 .lineLimit(1)
                         }
-                        .id(title)
-                        .transition(.blurredTitleReplacement)
-                        .onTapGesture(perform: onTapStudyTopicBadge)
-                    } else {
-                        Text(title)
-                            .font(.custom("LibreBaskerville-Regular", size: titleFontSize))
-                            .foregroundColor(AquinasTheme.Colors.primaryReadable)
-                            .lineLimit(1)
-                            .id(title)
-                            .transition(.blurredTitleReplacement)
-                            .onTapGesture {
-                                titleDraft = title
-                                isEditingTitle = true
-                                titleFieldFocused = true
-                            }
+                        .transition(.blurFade)
+                        .onTapGesture {
+                            titleDraft = title
+                            isEditingTitle = true
+                            titleFieldFocused = true
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity)
                 .opacity(titleOpacity)
-                .animation(.easeOut(duration: 0.22), value: title)
+                .animation(.easeInOut(duration: 0.3), value: isEditingTitle)
                 Spacer(minLength: 8)
                 CanvasModeToggleButton(
                     isActive: false,

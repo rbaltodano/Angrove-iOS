@@ -176,6 +176,7 @@ struct ConnectionContextChip: View {
 
 struct UploadedFileStrip: View {
     let files: [UploadedFile]
+    var alignment: Alignment = .center
     var onRemove: ((UploadedFile) -> Void)? = nil
 
     var body: some View {
@@ -187,7 +188,7 @@ struct UploadedFileStrip: View {
                     })
                 }
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: alignment)
             .padding(.vertical, 4)
             .transition(.scale(scale: 0.96).combined(with: .opacity))
         }

@@ -29,6 +29,9 @@ protocol AquinasModel {
         onUpdate: @escaping (ModelResponseUpdate) -> Void
     ) async -> ModelResponse
 
+    /// Names a conversation from its initial question after answer and tree processing finish.
+    func conversationTitle(for initialQuestion: String) async throws -> String
+
     /// Produces hidden, durable context that can replace older turns in future requests.
     func compact(_ context: ConversationContext) async -> String
 
@@ -108,6 +111,10 @@ enum AquinasModelActionError: Error {
 }
 
 extension AquinasModel {
+    func conversationTitle(for initialQuestion: String) async throws -> String {
+        throw AquinasModelActionError.unavailable
+    }
+
     func labelSubject(forTitles titles: [String], excludingInsightTitles: [String]) async throws -> String {
         let label = try await labelSubject(forTitles: titles)
         try Task.checkCancellation()

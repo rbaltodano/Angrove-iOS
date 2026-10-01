@@ -115,6 +115,10 @@ This outward transfer is the first visual metaphor for decomposition: a selected
 - The request tokens used to enter and exit it from the tree
 - The Branch count (2–6)
 
+Closing the conversation canvas, including quoting or forking an Insight into conversation,
+immediately clears its shared Study and Tools flags. The tree owns the Study session and is
+removed on close; returning to the tree starts in regular mode while retaining the Branch count.
+
 `InsightTreeView` coordinates Study with the Insight Tree's selection, docked cards, and back
 navigation. For a Node Concept it passes `studyNodeID`, the optional initially hovered Insight,
 and the slot frame reported by `StudyModeView` to `InsightTreeCanvasView`, which owns the 3D

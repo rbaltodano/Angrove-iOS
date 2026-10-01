@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftUI
 
 /// Conversation data operations, independent of presentation and shell-owned model jobs.
 /// Navigation changes the displayed session; it never cancels the shared task queue.
@@ -40,6 +41,42 @@ final class ConversationSession {
         if let rootIndex = activeBranches.firstIndex(where: { $0.parentBranchID == nil }) {
             activeBranches[rootIndex].generatedBranchTitle = trimmedTitle
             conversations[index].branches = activeBranches
+        }
+        return true
+    }
+
+    /// Resolve by captured IDs, then recheck after generation so a rename, clear, or deletion wins.
+    func needsAutomaticTitle(conversationID: UUID, branchID: UUID, question: String) -> Bool {
+        guard let conversation = loadSnapshot()?.conversations.first(where: { $0.id == conversationID }),
+              conversation.title == "New Conversation",
+              let branch = conversation.branches.first(where: { $0.id == branchID }),
+              case .text(let answer) = branch.activeChatBlocks.first,
+              !answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        return branch.parentBranchID == nil && branch.pinnedHeaderQuestion == nil
+            && branch.generatedBranchTitle == nil && branch.topQuestionSubmitted
+            && branch.topQuestionText == question
+    }
+
+    @discardableResult
+    func applyAutomaticTitle(_ title: String, conversationID: UUID, branchID: UUID, question: String) -> Bool {
+        guard let title = try? ConversationTitleValidation.validate(title),
+              needsAutomaticTitle(conversationID: conversationID, branchID: branchID, question: question),
+              var snapshot = loadSnapshot(),
+              let index = snapshot.conversations.firstIndex(where: { $0.id == conversationID }),
+              let branchIndex = snapshot.conversations[index].branches.firstIndex(where: { $0.id == branchID })
+        else { return false }
+        snapshot.conversations[index].title = title
+        snapshot.conversations[index].branches[branchIndex].generatedBranchTitle = title
+        saveSnapshot(snapshot)
+        if let index = conversations.firstIndex(where: { $0.id == conversationID }) {
+            conversations[index].title = title
+            if let branchIndex = conversations[index].branches.firstIndex(where: { $0.id == branchID }) {
+                conversations[index].branches[branchIndex].generatedBranchTitle = title
+            }
+        }
+        if activeConversationID == conversationID,
+           let index = activeBranches.firstIndex(where: { $0.id == branchID }) {
+            activeBranches[index].generatedBranchTitle = title
         }
         return true
     }
@@ -88,5 +125,38 @@ final class ConversationSession {
             ? [ChatBranch(startingConcept: nil)]
             : conversation.branches
         focusedBranchID = activeBranches.first?.id
+    }
+
+    /// A removed page can still receive editor-blur or response-reveal callbacks. Resolve
+    /// its branch by identity, never by the array position now occupied by another page.
+    func binding(for branch: ChatBranch) -> Binding<ChatBranch> {
+        let conversationID = activeConversationID
+        let branchID = branch.id
+        return Binding(
+            get: {
+                guard self.activeConversationID == conversationID else { return branch }
+                return self.activeBranches.first(where: { $0.id == branchID }) ?? branch
+            },
+            set: { updated in
+                guard self.activeConversationID == conversationID,
+                      updated.id == branchID,
+                      let index = self.activeBranches.firstIndex(where: { $0.id == branchID })
+                else { return }
+                self.activeBranches[index] = updated
+            }
+        )
+    }
+}
+
+nonisolated enum ConversationTitleValidation {
+    static func validate(_ raw: String) throws -> String {
+        let title = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty, title.count <= 48,
+              title.split(whereSeparator: \.isWhitespace).count <= 5,
+              !title.contains("\n"), !title.contains("\r"),
+              title.lowercased() != "new conversation" else {
+            throw AquinasModelActionError.invalidResponse
+        }
+        return title
     }
 }

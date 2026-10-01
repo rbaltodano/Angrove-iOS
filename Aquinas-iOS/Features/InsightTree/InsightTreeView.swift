@@ -838,6 +838,7 @@ struct InsightTreeView: View {
             restoreRequestedNodeSelection()
         }
         .task(id: conversationID) {
+            viewModel.startModelWork()
             enqueuePersistedTreeLoad(animateChanges: false)
         }
         .onChange(of: persistedTreeRefreshRequest) { _, _ in
