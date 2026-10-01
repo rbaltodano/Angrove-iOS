@@ -30,8 +30,8 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild \
-            -project Aquinas-iOS.xcodeproj \
-            -scheme Aquinas-iOS \
+            -project Angrove-iOS.xcodeproj \
+            -scheme Angrove-iOS \
             -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
             -resultBundlePath TestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO \

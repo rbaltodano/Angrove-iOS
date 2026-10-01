@@ -1,3 +1,3 @@
-# Aquinas iOS instructions
+# Angrove iOS instructions
 
 @AGENTS.md

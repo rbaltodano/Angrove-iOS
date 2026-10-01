@@ -1,0 +1,539 @@
+//
+//  MiniLMGroundingProvider.swift
+//  Angrove-iOS
+//
+
+import Foundation
+
+/// Real semantic grounding retrieval, replacing `LocalAngroveGroundingProvider`'s tiny hardcoded
+/// lexical index with an on-device MiniLM embedder searching the same corpus the backend uses
+/// (see Aquinas_Backend/grounding_retrieval.py and ingest_corpus.py) — bundled as a flat,
+/// pre-embedded export under `LocalGrounding/` rather than requiring the Mac backend.
+nonisolated final class MiniLMGroundingProvider: AngroveGroundingProviding {
+    private let embedder: MiniLMEmbedder
+    private let store: OnDeviceGroundingStore
+
+    init(embedder: MiniLMEmbedder, store: OnDeviceGroundingStore) {
+        self.embedder = embedder
+        self.store = store
+    }
+
+    convenience init(bundle: Bundle = .main) throws {
+        guard let modelURL = bundle.url(
+            forResource: "MiniLM",
+            withExtension: "mlmodelc",
+            subdirectory: "LocalGrounding"
+        ) ?? bundle.url(forResource: "MiniLM", withExtension: "mlmodelc") else {
+            throw MiniLMGroundingProviderError.resourceMissing("MiniLM.mlmodelc")
+        }
+        guard let vocabURL = bundle.url(
+            forResource: "vocab",
+            withExtension: "txt",
+            subdirectory: "LocalGrounding"
+        ) ?? bundle.url(forResource: "vocab", withExtension: "txt") else {
+            throw MiniLMGroundingProviderError.resourceMissing("vocab.txt")
+        }
+        guard let embeddingsURL = bundle.url(
+            forResource: "embeddings",
+            withExtension: "bin",
+            subdirectory: "LocalGrounding"
+        ) ?? bundle.url(forResource: "embeddings", withExtension: "bin") else {
+            throw MiniLMGroundingProviderError.resourceMissing("embeddings.bin")
+        }
+        guard let passagesURL = bundle.url(
+            forResource: "passages",
+            withExtension: "json",
+            subdirectory: "LocalGrounding"
+        ) ?? bundle.url(forResource: "passages", withExtension: "json") else {
+            throw MiniLMGroundingProviderError.resourceMissing("passages.json")
+        }
+
+        let embedder = try MiniLMEmbedder(modelURL: modelURL, vocabURL: vocabURL)
+        let store = try OnDeviceGroundingStore(
+            embeddingsURL: embeddingsURL,
+            passagesURL: passagesURL
+        )
+        self.init(embedder: embedder, store: store)
+    }
+
+    /// Grounding is assembled in five layers, most authoritative first, because semantic search
+    /// alone measurably fails two whole classes of question against this corpus:
+    ///
+    /// 1. **Curated facts.** The export carries almost no conciliar or creedal text, so council
+    ///    questions retrieve Roman history. Alias-matched curated entries cover that gap and are
+    ///    the only source of the stable ids (`nicaea-325`, `constantinople-381`, …) that
+    ///    `LiteRTAngroveModel.verifiedGroundedResponse` gates its verified answers on.
+    /// 2. **Explicit citations.** "John 14" is a lookup key, not a topic; resolved lexically
+    ///    against the corpus's own chapter tags. See `ScriptureCitation`.
+    /// 3. **Authority-section lookup.** A named doctrinal question such as Trent on justification
+    ///    resolves to a section heading in that primary source. The pointer only selects corpus
+    ///    text; it never supplies an answer.
+    /// 4. **Named source lookup.** A council, creed or work title is a document key, not a broad
+    ///    historical topic. It constrains semantic ranking to that real source.
+    /// 5. **Semantic search**, which is strong for doctrinal and conceptual questions, filling any
+    ///    remaining slots.
+    ///
+    /// Every layer can legitimately return nothing, and returning nothing is correct when the
+    /// corpus has no real answer — generation then proceeds ungrounded rather than grounded in
+    /// something false.
+    func references(
+        for question: String,
+        limit: Int
+    ) -> [AngroveGroundingReference] {
+        guard limit > 0,
+              !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return [] }
+        guard !CorpusScope.excludes(question) else { return [] }
+
+        var collected: [AngroveGroundingReference] = []
+        var seenPassages: Set<String> = []
+
+        func append(_ reference: AngroveGroundingReference) {
+            let passageKey = "\(reference.sourceName)\u{1F}\(reference.facts)"
+            guard collected.count < limit, seenPassages.insert(passageKey).inserted else { return }
+            collected.append(reference)
+        }
+
+        /// Summa articles already delivered, in order, as the corpus index of their opening chunk.
+        var summaArticles: [Int] = []
+        /// Where each delivered article sits in `collected`, so its answer can be re-cut once the
+        /// number of references is known.
+        var summaSlots: [(position: Int, start: Int, distance: Float, id: String)] = []
+
+        func appendSummaAnswer(_ answer: GroundingPassage, start: Int, id: String) {
+            let before = collected.count
+            append(Self.reference(for: answer, id: id))
+            guard collected.count > before else { return }
+            summaArticles.append(start)
+            summaSlots.append((before, start, answer.distance, id))
+        }
+
+        /// Adds a corpus passage. A passage from a Summa article is replaced by that article's
+        /// own answer, once per article; a chunk with no source text of its own is dropped.
+        func appendCorpus(_ passage: GroundingPassage, id: String) {
+            guard collected.count < limit else { return }
+            if let start = store.summaArticleStart(containing: passage) {
+                guard !summaArticles.contains(start) else { return }
+                if let answer = store.summaArticleAnswer(
+                    at: start,
+                    distance: passage.distance,
+                    characterBudget: Self.summaAnswerBudget
+                ) {
+                    let isFirstArticle = summaArticles.isEmpty
+                    appendSummaAnswer(answer, start: start, id: id)
+                    // The first article delivered brings the article that qualifies it, ahead of
+                    // lower-ranked matches.
+                    if isFirstArticle,
+                       let next = store.relatedNextSummaArticle(after: start),
+                       let qualification = store.summaArticleAnswer(
+                           at: next,
+                           distance: passage.distance,
+                           characterBudget: Self.summaAnswerBudget
+                       ) {
+                        appendSummaAnswer(qualification, start: next, id: "\(id)-next-article")
+                    }
+                    return
+                }
+            }
+            guard !OnDeviceGroundingStore.isContentless(passage) else { return }
+            append(Self.reference(for: passage, id: id))
+        }
+
+        for reference in LocalAngroveGroundingProvider.aliasMatchedReferences(
+            for: question,
+            // Curated notes anchor an answer; they must not crowd out the corpus itself.
+            limit: max(1, limit - 1)
+        ) {
+            append(reference)
+        }
+
+        // One passage from each cited chapter before a second from any: a named passage can point
+        // at several chapters (the resurrection is told in all four Gospels), and filling every
+        // slot from the first would deliver one witness instead of several.
+        let citedChapters = ScriptureCitation.citations(in: question).map { citation in
+            (citation: citation, passages: store.chapter(for: citation, limit: limit))
+        }
+        var depth = 0
+        while collected.count < limit, citedChapters.contains(where: { $0.passages.count > depth }) {
+            for (citation, passages) in citedChapters where passages.count > depth {
+                let passage = passages[depth]
+                append(Self.reference(for: passage, id: "citation-\(citation.bookCode)\(citation.chapter)-\(passage.sourceID)-\(collected.count)"))
+            }
+            depth += 1
+        }
+
+        if collected.count < limit {
+            do {
+                let queryEmbedding = try embedder.embed(question)
+                for route in AuthoritySection.routes(in: question) {
+                    guard collected.count < limit else { break }
+                    for (offset, passage) in store.section(
+                        sourceIDs: route.sourceIDs,
+                        requiredTerms: route.sectionTerms,
+                        limit: limit - collected.count
+                    ).enumerated() {
+                        appendCorpus(
+                            passage,
+                            id: "authority-section-\(passage.sourceID)-\(offset)"
+                        )
+                    }
+                }
+                // A definition request goes first to the article that defines the term.
+                if let term = LiteRTAngroveModel.definitionRequestTerm(
+                       in: [.user(question, nil, [])]
+                   ),
+                   let opening = store.summaDefiningArticleOpening(for: term) {
+                    appendCorpus(opening, id: "corpus-\(opening.sourceID)-definition")
+                }
+                for route in SubjectSection.routes(in: question) {
+                    guard collected.count < limit else { break }
+                    if route.sourceIDs == [SummaArticleIndex.sourceID],
+                       let opening = store.summaArticleOpening(
+                           questionContaining: route.sectionTerms
+                       ) {
+                        appendCorpus(opening, id: "subject-section-\(opening.sourceID)-0")
+                        continue
+                    }
+                    for (offset, passage) in store.section(
+                        sourceIDs: route.sourceIDs,
+                        requiredTerms: route.sectionTerms,
+                        limit: limit - collected.count
+                    ).enumerated() {
+                        appendCorpus(
+                            passage,
+                            id: "subject-section-\(passage.sourceID)-\(offset)"
+                        )
+                    }
+                }
+                let namedSourceIDs = NamedCorpusSource.sourceIDs(in: question)
+                if !namedSourceIDs.isEmpty {
+                    let sourceRankingQuery = NamedCorpusSource.rankingQuery(in: question)
+                    let sourceEmbedding = sourceRankingQuery == question
+                        ? queryEmbedding
+                        : try embedder.embed(sourceRankingQuery)
+                    for (offset, passage) in store.retrieve(
+                        queryEmbedding: sourceEmbedding,
+                        k: limit - collected.count,
+                        sourceIDs: namedSourceIDs,
+                        prioritizingTerms: NamedCorpusSource.searchTerms(in: question)
+                    ).enumerated() {
+                        appendCorpus(passage, id: "source-\(passage.sourceID)-\(offset)")
+                    }
+                }
+                // A single global floor cannot serve both jobs. Loose enough to retrieve ordinary
+                // narrative scripture (the Good Samaritan, the prodigal son) is also loose enough
+                // to admit the 0.554-similarity Livy passages on "what did the Council of Nicaea
+                // decide" -- measured, not hypothetical. So the floor depends on what the earlier
+                // layers already found: when nothing authoritative matched, semantic search is the
+                // only grounding available and uses the standard floor; when a curated fact or a
+                // cited chapter already answered the question, weak semantic passages are padding
+                // next to a confident answer, and padding is how a model ends up writing about
+                // John 4 when it was handed John 14.
+                let semanticMaxDistance: Float? = collected.isEmpty
+                    ? nil
+                    : Self.corroborationMaxDistance
+                // Several chunks of one article now count once, and header-only chunks not at
+                // all, so rank more candidates than there are slots.
+                let passages = store.retrieve(
+                    queryEmbedding: queryEmbedding,
+                    k: (limit - collected.count) * Self.semanticCandidatesPerSlot,
+                    maxDistance: semanticMaxDistance
+                )
+                for (offset, passage) in passages.enumerated() {
+                    appendCorpus(passage, id: "corpus-\(passage.sourceID)-\(offset)")
+                }
+            } catch {
+                // A failed embed leaves whatever the earlier layers found, which is still
+                // better grounding than none.
+            }
+        }
+
+        // Fewer references leave room for more of each answer: a lone article on just war is
+        // given in full, where three articles share the same space.
+        let otherCharacters = collected.indices
+            .filter { position in !summaSlots.contains { $0.position == position } }
+            .reduce(0) { $0 + collected[$1].facts.count }
+        if !summaSlots.isEmpty {
+            let budget = min(
+                Self.summaAnswerCeiling,
+                max(
+                    Self.summaAnswerBudget,
+                    (Self.referenceCharacterBudget - otherCharacters) / summaSlots.count
+                )
+            )
+            if budget > Self.summaAnswerBudget {
+                for slot in summaSlots {
+                    guard let answer = store.summaArticleAnswer(
+                        at: slot.start,
+                        distance: slot.distance,
+                        characterBudget: budget
+                    ) else { continue }
+                    collected[slot.position] = Self.reference(for: answer, id: slot.id)
+                }
+            }
+        }
+
+        return collected
+    }
+
+    /// Bar a semantic passage must clear to be added *alongside* an authoritative curated fact or
+    /// cited chapter, as opposed to standing on its own. Stricter than the store's default floor.
+    private static let corroborationMaxDistance: Float = 0.38
+
+    /// Characters of Aquinas's answer delivered per Summa article. Three references at this size
+    /// take about as much of the prompt as three raw chunks did.
+    private static let summaAnswerBudget = 1_300
+    /// Characters all references may take together, and the most one answer is given.
+    private static let referenceCharacterBudget = 3_900
+    private static let summaAnswerCeiling = 2_600
+    private static let semanticCandidatesPerSlot = 4
+
+    private static func reference(
+        for passage: GroundingPassage,
+        id: String
+    ) -> AngroveGroundingReference {
+        AngroveGroundingReference(
+            id: id,
+            title: passage.title,
+            sourceName: passage.title,
+            facts: passage.text,
+            retrievalAliases: [],
+            sourceID: passage.sourceID,
+            chunkIndex: passage.chunkIndex
+        )
+    }
+}
+
+/// The bundled sources end before Vatican II and contain no current ecclesial data. These are
+/// explicit corpus-boundary checks, not responses: they prevent unrelated historical passages from
+/// being presented as evidence for a question this fixed, offline corpus cannot substantiate.
+private enum CorpusScope {
+    static func excludes(_ question: String) -> Bool {
+        let normalized = question.folding(
+            options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX")
+        ).lowercased()
+        let words = Set(normalized.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init))
+        return (words.contains("current") && words.contains("pope"))
+            || normalized.contains("vatican ii")
+            || normalized.contains("vatican 2")
+            || normalized.contains("second vatican council")
+    }
+}
+
+private enum NamedCorpusSource {
+    /// A person's name may be the only meaningful lookup term in an otherwise generic question
+    /// ("Who was Arius?"). Document titles deliberately do not use this fallback: matching
+    /// "Roman" and "Catechism" throughout the Roman Catechism promotes front matter above its
+    /// actual teaching.
+    private static let personAliases: Set<String> = ["arius"]
+
+    private static let aliases: [(name: String, sourceIDs: Set<String>)] = [
+        ("council of trent", ["council-of-trent"]),
+        ("trent", ["council-of-trent"]),
+        ("roman catechism", ["roman-catechism-donovan"]),
+        ("catechism of the council of trent", ["roman-catechism-donovan"]),
+        ("tridentine catechism", ["roman-catechism-donovan"]),
+        ("didache", ["didache"]),
+        ("teaching of the twelve apostles", ["didache"]),
+        ("council of nicaea", ["seven-ecumenical-councils"]),
+        ("council of constantinople", ["seven-ecumenical-councils"]),
+        ("council of chalcedon", ["seven-ecumenical-councils"]),
+        ("arius", ["seven-ecumenical-councils"]),
+        ("nicene creed", ["ecumenical-creeds-schaff"]),
+        ("apostles' creed", ["ecumenical-creeds-schaff"]),
+        ("apostles creed", ["ecumenical-creeds-schaff"])
+    ]
+
+    static func sourceIDs(in question: String) -> Set<String> {
+        let normalized = normalized(question)
+        return aliases.reduce(into: []) { matched, entry in
+            if normalized.contains(entry.name) { matched.formUnion(entry.sourceIDs) }
+        }
+    }
+
+    /// Within a named source, topic-bearing query terms should outrank title and front-matter
+    /// chunks. For example, the Council of Trent source contains its own title on several early
+    /// pages, while the question's "justification" term identifies the actual decree. Source
+    /// aliases are stripped because the caller has already used them to choose the source.
+    static func searchTerms(in question: String) -> Set<String> {
+        let normalizedQuestion = normalized(question)
+        let matchingAliases = aliases.filter { normalizedQuestion.contains($0.name) }
+        let aliasWords = Set(matchingAliases.flatMap { entry in
+            entry.name.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
+        })
+        let stopWords: Set<String> = [
+            "about", "after", "against", "and", "before", "could", "does", "from", "have", "into",
+            "are", "council", "catechism", "decide", "did", "does", "is", "say", "should", "teach", "that", "the", "their", "these", "they", "this", "was", "what", "when", "who", "why",
+            "where", "which", "with", "would"
+        ]
+        let terms = Set(normalizedQuestion.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .map(String.init)
+            .filter { $0.count >= 3 && !stopWords.contains($0) })
+        let topicTerms = terms.subtracting(aliasWords)
+        // A person-only question (for example, "Who was Arius?") still needs the name to find a
+        // passage. When a document title is the whole question, preserve semantic source ranking
+        // instead; common title words would otherwise make its front matter a false lookup hit.
+        let matchesPersonAlias = matchingAliases.contains { personAliases.contains($0.name) }
+        return topicTerms.isEmpty && matchesPersonAlias ? terms : topicTerms
+    }
+
+    static func rankingQuery(in question: String) -> String {
+        let terms = searchTerms(in: question).sorted()
+        return terms.isEmpty ? question : terms.joined(separator: " ")
+    }
+
+    private static func normalized(_ text: String) -> String {
+        text.folding(
+            options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX")
+        ).lowercased()
+    }
+}
+
+/// Selects a primary text for a familiar moral subject when MiniLM's topical ranking misses the
+/// wording. Entries name only question terms and a literal phrase already in the bundled source;
+/// they are retrieval locations, never paraphrased answers.
+private enum SubjectSection {
+    /// A route applies when the question uses one of `questionTerms` and, if `alsoRequiring` is
+    /// not empty, one of those as well.
+    private static let table: [(
+        questionTerms: Set<String>,
+        alsoRequiring: Set<String>,
+        sourceIDs: Set<String>,
+        sectionTerms: Set<String>
+    )] = [
+        (
+            questionTerms: ["lie", "lying"],
+            alsoRequiring: [],
+            sourceIDs: ["summa-theologica"],
+            sectionTerms: ["whether every lie is a sin"]
+        ),
+        (
+            questionTerms: ["forgive", "forgiveness"],
+            alsoRequiring: [],
+            sourceIDs: ["web-bible"],
+            sectionTerms: ["if your brother sins against you"]
+        ),
+        (
+            questionTerms: ["trust"],
+            alsoRequiring: [],
+            sourceIDs: ["summa-theologica"],
+            sectionTerms: ["knowledge revealed by god besides philosophical science"]
+        ),
+        // The Summa asks these in its own vocabulary ("erring reason", "wage war"), which a
+        // question in ordinary words does not retrieve: "a conscience that is mistaken" found
+        // only the article on what conscience is, and "just war" found Livy and Augustine.
+        (
+            questionTerms: ["conscience"],
+            alsoRequiring: ["mistaken", "erring", "erroneous", "errs", "err", "wrong", "error"],
+            sourceIDs: ["summa-theologica"],
+            sectionTerms: ["the will is evil when it is at variance with erring reason"]
+        ),
+        (
+            questionTerms: ["war", "wars", "warfare"],
+            alsoRequiring: ["just", "justly", "unjust", "justified", "lawful", "sinful", "sin"],
+            sourceIDs: ["summa-theologica"],
+            sectionTerms: ["it is always sinful to wage war"]
+        )
+    ]
+
+    static func routes(in question: String) -> [(sourceIDs: Set<String>, sectionTerms: Set<String>)] {
+        let words = Set(question.folding(
+            options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX")
+        ).lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init))
+        return table.compactMap { route in
+            guard !route.questionTerms.isDisjoint(with: words),
+                  route.alsoRequiring.isEmpty || !route.alsoRequiring.isDisjoint(with: words)
+            else { return nil }
+            return (route.sourceIDs, route.sectionTerms)
+        }
+    }
+}
+
+/// Maps a well-known doctrinal formulation to the heading that contains it in an imported
+/// primary source. This is retrieval metadata: it identifies the source text to read, and never
+/// carries a paraphrase, conclusion, or negative example for the language model to repeat.
+private enum AuthoritySection {
+    private static let table: [(
+        authorityTerms: [String],
+        topicTerms: Set<String>,
+        sourceIDs: Set<String>,
+        sectionTerms: Set<String>
+    )] = [
+        (
+            authorityTerms: ["trent"],
+            topicTerms: ["justification", "justified"],
+            sourceIDs: ["council-of-trent"],
+            sectionTerms: ["what the justification of the impious is"]
+        ),
+        (
+            authorityTerms: ["trent"],
+            topicTerms: ["communion", "eucharist", "host", "presence"],
+            sourceIDs: ["council-of-trent"],
+            sectionTerms: ["on the real presence of our lord"]
+        ),
+        (
+            authorityTerms: ["trent"],
+            topicTerms: ["absolution", "confession", "penance"],
+            sourceIDs: ["council-of-trent"],
+            sectionTerms: ["doctrine on the sacrament of penance"]
+        ),
+        (
+            authorityTerms: ["roman", "catechism"],
+            topicTerms: ["baptism", "baptized", "baptize"],
+            sourceIDs: ["roman-catechism-donovan"],
+            sectionTerms: ["define baptism as we may"]
+        ),
+        (
+            authorityTerms: ["roman", "catechism"],
+            topicTerms: ["communion", "eucharist"],
+            sourceIDs: ["roman-catechism-donovan"],
+            sectionTerms: ["on the sacrament of the eucharist"]
+        ),
+        (
+            authorityTerms: ["roman", "catechism"],
+            topicTerms: ["absolution", "confession", "penance"],
+            sourceIDs: ["roman-catechism-donovan"],
+            sectionTerms: ["penance may be administered and becomes necessary"]
+        ),
+        (
+            authorityTerms: ["nicaea"],
+            topicTerms: ["christ", "consubstantial", "father", "homoousios", "jesus", "son"],
+            sourceIDs: ["seven-ecumenical-councils"],
+            sectionTerms: ["very god of very god"]
+        ),
+        (
+            authorityTerms: ["chalcedon"],
+            topicTerms: ["christ", "incarnation", "nature", "natures"],
+            sourceIDs: ["seven-ecumenical-councils"],
+            sectionTerms: ["in two natures"]
+        )
+    ]
+
+    static func routes(in question: String) -> [(sourceIDs: Set<String>, sectionTerms: Set<String>)] {
+        let words = Set(
+            question.folding(
+                options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX")
+            )
+            .lowercased()
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .map(String.init)
+        )
+        return table.compactMap { route in
+            guard route.authorityTerms.allSatisfy(words.contains),
+                  !route.topicTerms.isDisjoint(with: words)
+            else { return nil }
+            return (sourceIDs: route.sourceIDs, sectionTerms: route.sectionTerms)
+        }
+    }
+}
+
+enum MiniLMGroundingProviderError: LocalizedError {
+    case resourceMissing(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .resourceMissing(let name):
+            "The on-device grounding corpus is missing \(name)."
+        }
+    }
+}

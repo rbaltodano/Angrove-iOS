@@ -1,7 +1,7 @@
 import Foundation
 
 /// Repeatable microbenchmark for the inner loop used by Insight Tree clustering and MDS.
-/// Run from `Aquinas-iOS/` with:
+/// Run from `Angrove-iOS/` with:
 /// `swift scripts/benchmark_cosine_similarity.swift`
 ///
 /// The 384 dimensions match all-MiniLM-L6-v2 embeddings. Both variants are run against

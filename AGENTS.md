@@ -1,4 +1,4 @@
-# Aquinas iOS repository guide
+# Angrove iOS repository guide
 
 This is the canonical instruction file for coding agents. `CLAUDE.md` imports it so Claude Code
 and Codex follow the same project guidance. Keep this file short: it routes work; it does not
@@ -27,9 +27,9 @@ duplicate architecture specifications.
   `<current main app name> – <work name>` and verify the exact signed app's
   `CFBundleDisplayName` before installation. Follow the naming procedure in
   [`Documentation/Development-Workflow.md`](Documentation/Development-Workflow.md).
-- Use `AquinasTheme` typography and color tokens. Do not introduce ad hoc system colors or raw
+- Use `AngroveTheme` typography and color tokens. Do not introduce ad hoc system colors or raw
   visual constants when an existing semantic token applies.
-- All live generation goes through `AquinasModel` and the shared runtime/queue. `MockAquinasModel`
+- All live generation goes through `AngroveModel` and the shared runtime/queue. `MockAngroveModel`
   is for previews and tests only; live actions fail explicitly rather than inventing fallback
   content.
 - User-facing approach summaries are safe public explanations, never hidden chain-of-thought.
@@ -44,9 +44,9 @@ duplicate architecture specifications.
 
 ## Working conventions
 
-- The app source lives in `Aquinas-iOS/`; focused tests are in `Aquinas-iOSTests/`.
+- The app source lives in `Angrove-iOS/`; focused tests are in `Angrove-iOSTests/`.
 - Prefer small SwiftUI views with narrow inputs. Keep feature code under
-  `Aquinas-iOS/Features/<Feature>/` and shared visual primitives under `DesignSystem/`.
+  `Angrove-iOS/Features/<Feature>/` and shared visual primitives under `DesignSystem/`.
 - Add behavior-oriented regression coverage for logic with meaningful regression risk.
 - Before handing off a visible change, inspect small-phone layouts, light/dark appearance,
   navigation, and empty states as applicable.
@@ -59,14 +59,14 @@ Run from the repository root. Always use a concrete arm64 simulator; the bundled
 does not support the generic simulator destination.
 
 ```sh
-xcodebuild -project Aquinas-iOS.xcodeproj -scheme Aquinas-iOS \
+xcodebuild -project Angrove-iOS.xcodeproj -scheme Angrove-iOS \
   -destination 'platform=iOS Simulator,name=iPhone 17' build
 ```
 
 Run focused tests when relevant:
 
 ```sh
-xcodebuild -project Aquinas-iOS.xcodeproj -scheme Aquinas-iOS \
+xcodebuild -project Angrove-iOS.xcodeproj -scheme Angrove-iOS \
   -destination 'platform=iOS Simulator,name=iPhone 17,OS=27.0' test
 ```
 

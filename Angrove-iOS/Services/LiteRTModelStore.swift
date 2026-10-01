@@ -1,0 +1,197 @@
+//
+//  LiteRTModelStore.swift
+//  Angrove-iOS
+//
+
+import Foundation
+
+nonisolated struct LiteRTModelManifest: Sendable, Equatable {
+    // Gemma 4 E4B instruction-tuned, LiteRT Community standard package (M4-Ls in the E4B
+    // migration ledger). Mixed INT4/INT2/INT8 weights, consistent with QAT, but Google hasn't
+    // confirmed its provenance, so it's labelled "LiteRT Community" rather than "QAT" (plan D8).
+    // Not fine-tuned. Text-only here (see LiteRTAngroveRuntime).
+    // Rollback: the fine-tuned E2B package, "gemma-4-E2B-it.litertlm",
+    // 3_862_121_696 bytes, SHA-256 9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282.
+    static let angrove = LiteRTModelManifest(
+        fileName: "gemma-4-E4B-it.litertlm",
+        byteCount: 3_659_530_240,
+        sha256: "0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0"
+    )
+
+    let fileName: String
+    let byteCount: Int64
+    let sha256: String
+}
+
+nonisolated enum LiteRTModelStoreError: LocalizedError, Sendable {
+    case modelMissing
+    case invalidModelSize(expected: Int64, actual: Int64)
+    case invalidModelDigest
+    case missingVerificationReceipt
+    case cacheUnavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .modelMissing:
+            "The Angrove on-device model has not been installed."
+        case let .invalidModelSize(expected, actual):
+            "The installed Angrove model is incomplete (\(actual) of \(expected) bytes)."
+        case .invalidModelDigest:
+            "The Angrove model did not pass its integrity check."
+        case .missingVerificationReceipt:
+            "The downloaded Angrove model has not been verified."
+        case .cacheUnavailable:
+            "The app could not create the LiteRT model cache."
+        }
+    }
+}
+
+/// Resolves a post-install model before the development-only bundled seed. Production delivery
+/// writes the verified package to Application Support; the bundled path keeps device development
+/// usable while that downloader and hosting endpoint are brought online.
+nonisolated struct LiteRTModelStore: Sendable {
+    let manifest: LiteRTModelManifest
+    private let developmentModelURL: URL?
+
+    init(
+        manifest: LiteRTModelManifest = .angrove,
+        developmentModelURL: URL? = nil
+    ) {
+        self.manifest = manifest
+        self.developmentModelURL = developmentModelURL
+    }
+
+    func installedModelURL() throws -> URL {
+        let fileManager = FileManager.default
+        if let developmentModelURL {
+            try validateModel(at: developmentModelURL)
+            return developmentModelURL
+        }
+        if let downloaded = applicationSupportModelURL(
+            fileManager: fileManager
+        ), fileManager.fileExists(atPath: downloaded.path) {
+            try validateModel(at: downloaded)
+            let receiptURL = verificationReceiptURL(for: downloaded)
+            guard let data = try? Data(contentsOf: receiptURL),
+                  let receipt = try? JSONDecoder().decode(
+                    LiteRTModelVerificationReceipt.self,
+                    from: data
+                  ),
+                  receipt.byteCount == manifest.byteCount,
+                  receipt.sha256 == manifest.sha256 else {
+                throw LiteRTModelStoreError.missingVerificationReceipt
+            }
+            return downloaded
+        }
+        if let bundled = bundledModelURL(),
+           fileManager.fileExists(atPath: bundled.path) {
+            try validateModel(at: bundled)
+            return bundled
+        }
+        throw LiteRTModelStoreError.modelMissing
+    }
+
+    func hasInstalledModel() -> Bool {
+        (try? installedModelURL()) != nil
+    }
+
+    func cacheDirectory() throws -> URL {
+        guard let root = FileManager.default.urls(
+            for: .cachesDirectory,
+            in: .userDomainMask
+        ).first else {
+            throw LiteRTModelStoreError.cacheUnavailable
+        }
+        var directory = root.appending(path: "LiteRTLM")
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--litert-sustained-probe"),
+           Bundle.main.bundleIdentifier == "com.ryanbaltodano.Aquinas-iOS.ModelProbe" {
+            // Keep both arms' caches independent during alternating cold/cached C9 trials.
+            directory = root.appending(path: "LiteRTLM-C9").appending(path: manifest.fileName)
+        }
+#endif
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        return directory
+    }
+
+    func postInstallDestinationURL() throws -> URL {
+        guard let root = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first else {
+            throw LiteRTModelStoreError.modelMissing
+        }
+        let directory = root.appending(path: "Models")
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        return directory.appending(path: manifest.fileName)
+    }
+
+    func validateModel(at url: URL) throws {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: url.path) else {
+            throw LiteRTModelStoreError.modelMissing
+        }
+        let size = try url.resourceValues(
+            forKeys: [.fileSizeKey]
+        ).fileSize.map(Int64.init) ?? 0
+        guard size == manifest.byteCount else {
+            throw LiteRTModelStoreError.invalidModelSize(
+                expected: manifest.byteCount,
+                actual: size
+            )
+        }
+    }
+
+    func verificationReceiptURL(for modelURL: URL) -> URL {
+        modelURL.appendingPathExtension("verified.json")
+    }
+
+    private func applicationSupportModelURL(
+        fileManager: FileManager
+    ) -> URL? {
+        if let applicationSupport = fileManager.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first {
+            return applicationSupport
+                .appending(path: "Models")
+                .appending(path: manifest.fileName)
+        }
+        return nil
+    }
+
+    private func bundledModelURL() -> URL? {
+        if let bundled = Bundle.main.url(
+            forResource: manifest.fileName.deletingPathExtension,
+            withExtension: manifest.fileName.pathExtension,
+            subdirectory: "LocalModels"
+        ) ?? Bundle.main.url(
+            forResource: manifest.fileName.deletingPathExtension,
+            withExtension: manifest.fileName.pathExtension
+        ) {
+            return bundled
+        }
+        return nil
+    }
+}
+
+nonisolated struct LiteRTModelVerificationReceipt: Codable, Sendable, Equatable {
+    let byteCount: Int64
+    let sha256: String
+}
+
+private extension String {
+    nonisolated var deletingPathExtension: String {
+        (self as NSString).deletingPathExtension
+    }
+
+    nonisolated var pathExtension: String {
+        (self as NSString).pathExtension
+    }
+}

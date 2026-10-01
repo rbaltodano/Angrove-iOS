@@ -37,7 +37,7 @@ the same phone, with the same build.
 | M10 | 1 memory warning during generation, then a request | Next request succeeds |
 | M11 | Phone-GPU quality: the frozen 40-case held-out set | No worse than C8's simulator result for E4B (critical ≤ 1; mean accuracy ≥ 3.6) |
 
-Any jetsam of the Aquinas process, or any failed recovery, fails P2 outright.
+Any jetsam of the Angrove process, or any failed recovery, fails P2 outright.
 
 ## Run order
 

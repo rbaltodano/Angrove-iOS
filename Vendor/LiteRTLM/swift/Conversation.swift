@@ -71,7 +71,7 @@ public class Conversation {
     // device console capture, to hang indefinitely inside the same upstream deadlock as
     // `litert_lm_conversation_create`. Unlike a function call, `deinit` can't be `async` and
     // has no caller to `await` it — it fires implicitly on whatever thread/executor happens to
-    // drop the last reference (here, `LiteRTAquinasRuntime`'s own actor executor). A hang here
+    // drop the last reference (here, `LiteRTAngroveRuntime`'s own actor executor). A hang here
     // would silently freeze that entire actor, including its own stall-detection watchdog,
     // forever. Firing the delete on a disposable thread means a hang costs one throwaway
     // thread, never the caller.

@@ -1,4 +1,4 @@
-# Aquinas on-device model strategy: biggest reliable model in about 4 GB
+# Angrove on-device model strategy: biggest reliable model in about 4 GB
 
 > Status: proposal, 2026-09-28. Written after reviewing open-source practice and published
 > benchmarks, with nothing about the current E4B work treated as fixed. Sources are at the end.
@@ -109,7 +109,7 @@ phone benchmark run before promising a number.
 
 ### Phase 2: integrate a challenger only if it wins (about 1–2 weeks)
 
-1. Add a second runtime behind the existing `ModelRuntimeDriver`/`AquinasModel` seam (MLX
+1. Add a second runtime behind the existing `ModelRuntimeDriver`/`AngroveModel` seam (MLX
    Swift is likely the better iPhone path for a hybrid 9B). Keep one process-scoped engine, per
    AGENTS.md.
 2. Rerun C6 (contracts), C7 (lifecycle) and the P2 phone checks: music keeps playing, warm
@@ -118,7 +118,7 @@ phone benchmark run before promising a number.
 
 ### Phase 3: fine-tune the winner (after it's in the app)
 
-1. LoRA on the Aquinas voice and behavior data.
+1. LoRA on the Angrove voice and behavior data.
 2. Re-quantize carefully:
    - Gemma: QAT-aware fine-tune (train on the QAT checkpoint, then export with the LiteRT-LM
      mixed recipe). Naive QLoRA on a QAT checkpoint discards its calibration.
