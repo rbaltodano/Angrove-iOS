@@ -1,5 +1,11 @@
 <p align="center">
   <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Documentation/Brand/angrove-app-icon-dark.png">
+    <img src="Documentation/Brand/angrove-app-icon-light.png" alt="Angrove app icon" width="128">
+  </picture>
+</p>
+<p align="center">
+  <picture>
     <source media="(prefers-color-scheme: dark)" srcset="Documentation/Brand/angrove-logo-light-text.png">
     <img src="Documentation/Brand/angrove-logo-dark-text.png" alt="Angrove" width="360">
   </picture>
