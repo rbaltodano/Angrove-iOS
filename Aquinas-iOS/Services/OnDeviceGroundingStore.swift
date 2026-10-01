@@ -17,6 +17,8 @@ struct GroundingPassage {
     let distance: Float
     /// The passage's position in its source, so a citation can open the Library reader there.
     var chunkIndex: Int? = nil
+    /// The passage's position in the whole corpus.
+    var corpusIndex: Int? = nil
 }
 
 private typealias PassageRecord = LibraryPassage
@@ -36,6 +38,7 @@ final class OnDeviceGroundingStore {
     /// corpus's own leading `[JHN14]` locator tags. Lets an explicit citation
     /// be resolved as a lookup key instead of a semantic query.
     private let chapterRanges: [String: Range<Int>]
+    private let summaArticles: SummaArticleIndex
 
     /// Cosine distance on MiniLM embeddings is a ranking signal, not a
     /// calibrated probability (see MODEL-INTEGRATION.md), so this is a
@@ -77,6 +80,92 @@ final class OnDeviceGroundingStore {
         }
         self.chapterRanges = Self.indexChapters(in: passages)
         self.sourceIndices = corpus.indicesBySource
+        self.summaArticles = SummaArticleIndex(
+            passages: corpus.passages,
+            indices: corpus.indicesBySource[SummaArticleIndex.sourceID] ?? []
+        )
+    }
+
+    /// The Summa article a retrieved passage belongs to, as the corpus index of its opening chunk.
+    func summaArticleStart(containing passage: GroundingPassage) -> Int? {
+        guard passage.sourceID == SummaArticleIndex.sourceID,
+              let index = passage.corpusIndex
+        else { return nil }
+        return summaArticles.articleStart(containing: index, in: passages)
+    }
+
+    /// The opening chunk of the Summa article whose question contains every one of `phrases`.
+    func summaArticleOpening(questionContaining phrases: Set<String>) -> GroundingPassage? {
+        guard let first = phrases.sorted().first,
+              let start = summaArticles.articleStart(questionContaining: first, in: passages),
+              phrases.allSatisfy({ passages[start].text.localizedCaseInsensitiveContains($0) })
+        else { return nil }
+        let record = passages[start]
+        return GroundingPassage(
+            text: record.text,
+            title: record.title,
+            sourceID: record.sourceId,
+            distance: 0,
+            chunkIndex: record.chunkIndex,
+            corpusIndex: start
+        )
+    }
+
+    /// The opening chunk of the Summa article that defines `term`, if there is one.
+    func summaDefiningArticleOpening(for term: String) -> GroundingPassage? {
+        guard let start = summaArticles.definingArticleStart(for: term, in: passages) else {
+            return nil
+        }
+        let record = passages[start]
+        return GroundingPassage(
+            text: record.text,
+            title: record.title,
+            sourceID: record.sourceId,
+            distance: 0,
+            chunkIndex: record.chunkIndex,
+            corpusIndex: start
+        )
+    }
+
+    /// The following article, when its question shares a subject with the one at `start`.
+    func relatedNextSummaArticle(after start: Int) -> Int? {
+        summaArticles.relatedNextArticle(after: start, in: passages)
+    }
+
+    /// Aquinas's own answer to the article opening at `start`, as one passage. `nil` when the
+    /// article has no recognizable answer, in which case the caller keeps the raw chunk.
+    func summaArticleAnswer(
+        at start: Int,
+        distance: Float,
+        characterBudget: Int
+    ) -> GroundingPassage? {
+        guard let evidence = summaArticles.evidence(
+            forArticleAt: start,
+            in: passages,
+            characterBudget: characterBudget
+        ) else { return nil }
+        let record = passages[evidence.answerIndex]
+        return GroundingPassage(
+            text: [
+                "Question: \(evidence.question)",
+                evidence.conclusion.map { "Aquinas's conclusion: \($0)" },
+                "Aquinas's own answer: \(evidence.answer)"
+            ].compactMap { $0 }.joined(separator: "\n"),
+            title: record.title,
+            sourceID: record.sourceId,
+            distance: distance,
+            chunkIndex: record.chunkIndex,
+            corpusIndex: evidence.answerIndex
+        )
+    }
+
+    /// Whether a passage carries no source text of its own: a page header, or a fragment left by
+    /// a page break ("salva-").
+    static func isContentless(_ passage: GroundingPassage) -> Bool {
+        if passage.sourceID == SummaArticleIndex.sourceID {
+            return SummaArticleIndex.cleaned(passage.text).count < 40
+        }
+        return passage.text.trimmingCharacters(in: .whitespacesAndNewlines).count < 40
     }
 
     /// Chapters are chunked across several passages, but only the first chunk
@@ -196,7 +285,8 @@ final class OnDeviceGroundingStore {
                     title: record.title,
                     sourceID: record.sourceId,
                     distance: 0,
-                    chunkIndex: record.chunkIndex
+                    chunkIndex: record.chunkIndex,
+                    corpusIndex: index
                 )
             }
     }
@@ -277,7 +367,8 @@ final class OnDeviceGroundingStore {
                 title: record.title,
                 sourceID: record.sourceId,
                 distance: entry.distance,
-                chunkIndex: record.chunkIndex
+                chunkIndex: record.chunkIndex,
+                corpusIndex: entry.index
             )
         }
     }

@@ -152,6 +152,98 @@ nonisolated struct LocalAquinasGroundingProvider: AquinasGroundingProviding {
                 "psalm 23", "the lord is my shepherd", "valley of the shadow of death",
                 "green pastures"
             ]
+        ),
+        // Facts about Aquinas's works and scholastic vocabulary that the bundled sources do not
+        // state about themselves. Without them the app either abstained ("In what year did
+        // Aquinas finish the Summa?") or the model answered from memory and got the order of an
+        // article, or the sense of "transcendental", wrong. Aliases are specific phrases: a bare
+        // "summa" would attach these to every question about the Summa's teaching.
+        AquinasGroundingReference(
+            id: "aquinas-life",
+            title: "Thomas Aquinas: life",
+            sourceName: "Aquinas curated reference note",
+            facts: "Thomas Aquinas was born about 1225 at Roccasecca, near Aquino in southern Italy. He joined the Dominican order about 1244 and studied under Albert the Great at Paris and Cologne. He became a master of theology at Paris in 1256 and taught there in 1256–1259 and 1268–1272; he also taught at Orvieto, at Rome, and at Naples. He died on 7 March 1274 at the abbey of Fossanova, on his way to the Second Council of Lyon. Pope John XXII canonized him on 18 July 1323, and Pope Pius V declared him a Doctor of the Church in 1567.",
+            retrievalAliases: [
+                "canonized aquinas", "canonised aquinas", "aquinas canonized", "aquinas canonised",
+                "canonization of aquinas", "aquinas born", "born aquinas", "aquinas's birth",
+                "aquinas die", "aquinas died", "aquinas's death", "death of aquinas",
+                "who was aquinas", "who was thomas aquinas", "who is thomas aquinas",
+                "aquinas's life", "life of aquinas", "aquinas teach", "aquinas taught",
+                "aquinas study", "aquinas studied", "doctor of the church"
+            ]
+        ),
+        AquinasGroundingReference(
+            id: "summa-theologiae-composition",
+            title: "The Summa Theologiae: composition",
+            sourceName: "Aquinas curated reference note",
+            facts: "Thomas Aquinas wrote the Summa Theologiae between about 1265 and 1273. The work is unfinished. He stopped writing in December 1273, partway through the Third Part's treatment of the sacrament of penance, and died in March 1274. His followers compiled a Supplement from his earlier Commentary on the Sentences to complete the plan. The Summa has three parts, the second divided in two; each part is divided into questions, and each question into articles.",
+            retrievalAliases: [
+                "finish the summa", "finished the summa", "complete the summa",
+                "completed the summa", "completion of the summa", "summa unfinished",
+                "finish writing the summa", "stop writing the summa", "stopped writing the summa",
+                "when was the summa written", "write the summa", "wrote the summa",
+                "what is the summa", "parts of the summa"
+            ]
+        ),
+        AquinasGroundingReference(
+            id: "summa-article-structure",
+            title: "The structure of an article in the Summa Theologiae",
+            sourceName: "Aquinas curated reference note",
+            facts: "Every article of the Summa Theologiae follows the same order. First, a question beginning \"Whether\". Second, the objections: arguments against the conclusion Aquinas will reach, each introduced \"It would seem that\". Third, \"On the contrary\" (sed contra), which cites an authority against the objections. Fourth, Aquinas's own answer in the body of the article, beginning \"I answer that\" (respondeo). Fifth, a reply to each objection in turn.",
+            retrievalAliases: [
+                "article structured", "articles structured", "structure of an article",
+                "structure of each article", "structure of the articles", "structure of the summa",
+                "sed contra", "respondeo", "objections and replies"
+            ]
+        ),
+        AquinasGroundingReference(
+            id: "aquinas-commentary-on-the-sentences",
+            title: "Peter Lombard's Sentences and Aquinas's commentary",
+            sourceName: "Aquinas curated reference note",
+            facts: "Peter Lombard (c. 1096–1160), bishop of Paris, compiled the Four Books of Sentences around 1150. It became the standard theology textbook of the medieval universities. Thomas Aquinas wrote a commentary on it, the Scriptum super libros Sententiarum (Commentary on the Sentences), from his lectures at Paris in about 1252–1256. It was his first major work: commenting on the Sentences was the normal requirement for becoming a master of theology.",
+            retrievalAliases: [
+                "peter lombard", "lombard's sentences", "sentences of peter lombard",
+                "commentary on the sentences", "book of sentences", "books of sentences"
+            ]
+        ),
+        // The primary text reaches the model too (I–II q.19 a.5–6, via a subject route), but
+        // Aquinas's answer there opens with a view he rejects and speaks of "erring reason" and
+        // "the will". Given only that, the model answered about when error excuses and never
+        // said that conscience binds, or reversed it outright (held-B1).
+        AquinasGroundingReference(
+            id: "erring-conscience",
+            title: "Aquinas on a mistaken conscience",
+            sourceName: "Aquinas curated reference note",
+            facts: "Aquinas treats a mistaken conscience in Summa Theologiae I–II, question 19, articles 5 and 6, and his answer has two parts. First, conscience binds even when it is mistaken: a person who acts against what their reason judges to be right does wrong, whether that judgment is correct or in error, because they choose what they take to be evil. Second, following a mistaken conscience is not thereby good. If the mistake comes from ignorance the person is responsible for, such as negligence or ignorance of the divine law they are bound to know, the act is still wrong. If it comes from blameless ignorance of a circumstance, the person is excused. So the duty is both to follow conscience and to form it well.",
+            retrievalAliases: [
+                "mistaken conscience", "erring conscience", "erroneous conscience",
+                "conscience that is mistaken", "conscience is mistaken", "conscience that is wrong",
+                "conscience is wrong", "conscience errs", "conscience that errs",
+                "conscience be wrong", "conscience be mistaken", "wrong conscience",
+                "conscience bind", "conscience binds"
+            ]
+        ),
+        AquinasGroundingReference(
+            id: "substance-and-accident",
+            title: "Substance and accident",
+            sourceName: "Aquinas curated reference note",
+            facts: "In Aristotle and the scholastics, a substance is what exists in itself and not in another as in a subject: this man, this horse, this tree. An accident is what exists only in a substance, as a feature of it: its color, size, shape, position, or activity. The difference is one of dependence. A substance has being in its own right and underlies change; an accident has being only by inhering in a substance, and can come or go while the substance remains the same thing. Aristotle lists nine kinds of accident, including quantity, quality, and relation.",
+            retrievalAliases: [
+                "substance and accident", "accident and substance", "substance and accidents",
+                "accidents and substance", "substance from accident", "substance versus accident",
+                "substance vs accident"
+            ]
+        ),
+        AquinasGroundingReference(
+            id: "scholastic-transcendentals",
+            title: "The transcendentals in scholastic philosophy",
+            sourceName: "Aquinas curated reference note",
+            facts: "In scholastic philosophy the transcendentals are the properties that belong to every being simply because it is a being, so they are not confined to any one category of things. The usual list is being, one, true, and good; Aquinas's fuller list in De veritate q.1 a.1 is being, thing, one, something, true, and good. They are coextensive with being: whatever is, is one, true, and good in some respect. Each adds to \"being\" only a further aspect under which the same thing is considered.",
+            retrievalAliases: [
+                "transcendentals", "transcendental in scholastic", "scholastic transcendental",
+                "transcendental in thomis", "transcendental in aquinas",
+                "transcendental properties of being", "transcendental property of being"
+            ]
         )
     ]
 

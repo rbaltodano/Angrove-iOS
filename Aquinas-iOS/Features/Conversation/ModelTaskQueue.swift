@@ -200,7 +200,7 @@ final class ModelTaskQueue {
     private(set) var currentTask: ModelTaskSnapshot?
     private(set) var upcomingTasks: [ModelTaskSnapshot] = []
     private(set) var isRuntimeLoading = false
-    private(set) var personality: ConversationPersonality = .balanced
+    private(set) var personality: ConversationPersonality = .default
     /// User-question completions that have not yet been viewed in their conversation.
     private(set) var completedUserQuestionBranchIDs: Set<UUID> = []
 

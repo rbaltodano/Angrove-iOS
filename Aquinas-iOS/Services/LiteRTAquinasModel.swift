@@ -37,12 +37,19 @@ struct LiteRTAquinasModel: AquinasModel {
 
     static func startsFreshTopic(
         latestQuestion: String,
-        previousQuestion: String
+        previousQuestion: String,
+        previousAnswer: String? = nil
     ) -> Bool {
         isLikelyTopicShift(
             latestQuestion: latestQuestion,
-            previousQuestion: previousQuestion
+            previousQuestion: previousQuestion,
+            previousAnswer: previousAnswer
         )
+    }
+
+    /// The latest user message exactly as a request for `context` would send it.
+    static func latestRequestMessage(for context: ConversationContext) -> Message? {
+        conversationRequest(from: context)?.latest
     }
 
     static func repeatsEarlierAnswer(
@@ -180,6 +187,50 @@ struct LiteRTAquinasModel: AquinasModel {
         return false
     }
 
+    /// Whether the references are about what a source-dependent question names. True when the
+    /// question names nothing, when a curated note or cited chapter was matched, or when a named
+    /// person, place, or work appears in a reference. "Aquinas" is also satisfied by his own text.
+    static func referencesNameSubject(
+        of question: String,
+        in references: [AquinasGroundingReference]
+    ) -> Bool {
+        let names = namedSubjects(in: question)
+        guard !names.isEmpty else { return true }
+        if references.contains(where: { $0.sourceID == nil || $0.id.hasPrefix("citation-") }) {
+            return true
+        }
+        let text = references
+            .map { "\($0.title) \($0.facts)" }
+            .joined(separator: " ")
+            .lowercased()
+        let hasSumma = references.contains { $0.sourceID == SummaArticleIndex.sourceID }
+        return names.contains { name in
+            text.contains(name.lowercased()) || (name == "Aquinas" && hasSumma)
+        }
+    }
+
+    /// Capitalized words that aren't the first word of the question and aren't a term so common
+    /// in this corpus that it identifies nothing.
+    static func namedSubjects(in question: String) -> [String] {
+        let generic: Set<String> = [
+            "God", "Summa", "Theologiae", "Theologica", "Christian", "Christians", "Christ",
+            "Jesus", "Bible", "Scripture", "Church", "Catholic", "Gospel", "Gospels", "Letter",
+            "Book", "Council", "War", "Wars", "Saint", "Lord", "Holy", "Spirit", "Father", "Son"
+        ]
+        let words = question
+            .split(whereSeparator: { !$0.isLetter && $0 != "'" && $0 != "’" && $0 != "-" })
+            .map(String.init)
+        return words.dropFirst().compactMap { word -> String? in
+            let name = word
+                .replacingOccurrences(of: "’s", with: "")
+                .replacingOccurrences(of: "'s", with: "")
+            guard name.count > 2, name.first?.isUppercase == true, !generic.contains(name) else {
+                return nil
+            }
+            return name
+        }
+    }
+
     /// The compact on-device model is reliable for ordinary definitions, but not for unfamiliar,
     /// highly technical labels when retrieval has no direct evidence. Require a passage for those
     /// terms rather than presenting a fluent invented definition as knowledge.
@@ -200,11 +251,17 @@ struct LiteRTAquinasModel: AquinasModel {
         text.trimmingCharacters(in: .whitespacesAndNewlines) == corpusScopeAbstentionText
     }
 
-    /// A Question of the Day is stored as a leading user prompt, followed immediately by the
-    /// person's reflective reply. The reply alone is often personal language with little source
-    /// vocabulary ("I should be more gracious"), so retrieve from the whole prompt-and-reply
-    /// exchange. Ordinary turns alternate user/model blocks and still retrieve from the latest
-    /// question alone, preserving the corpus-scope abstention for unrelated questions.
+    /// The text retrieval searches with.
+    ///
+    /// - A Question of the Day is stored as a leading user prompt, followed immediately by the
+    ///   person's reflective reply. The reply alone is often personal language with little source
+    ///   vocabulary ("I should be more gracious"), so retrieve from the whole prompt-and-reply
+    ///   exchange.
+    /// - A follow-up that depends on the previous exchange ("Did Aquinas comment on his work?"
+    ///   after "Who was Peter Lombard?") carries no retrievable subject of its own, so the previous
+    ///   question is searched with it (held-E5 retrieved nothing about Lombard).
+    /// - Any other turn retrieves from the latest question alone, preserving the corpus-scope
+    ///   abstention for unrelated questions.
     static func groundingQuery(for context: ConversationContext) -> String {
         guard let latestIndex = context.transcript.lastIndex(where: { block in
             if case .user = block { return true }
@@ -215,15 +272,31 @@ struct LiteRTAquinasModel: AquinasModel {
         }
 
         let latest = latestQuestion.trimmed
-        guard latestIndex > 0,
-              case .user(let precedingPrompt, _, _) = context.transcript[latestIndex - 1]
-        else {
-            return latest
+        guard latestIndex > 0 else { return latest }
+        if case .user(let precedingPrompt, _, _) = context.transcript[latestIndex - 1] {
+            let prompt = precedingPrompt.trimmed
+            return prompt.isEmpty ? latest : "\(prompt)\n\n\(latest)"
         }
 
-        let prompt = precedingPrompt.trimmed
-        guard !prompt.isEmpty else { return latest }
-        return "\(prompt)\n\n\(latest)"
+        let earlier = context.transcript[..<latestIndex]
+        guard let previousQuestion = earlier.reversed().compactMap({ block -> String? in
+            guard case .user(let question, _, _) = block else { return nil }
+            return question.trimmed
+        }).first, !previousQuestion.isEmpty else {
+            return latest
+        }
+        let previousAnswer = earlier.reversed().compactMap { block -> String? in
+            guard case .text(let answer) = block else { return nil }
+            return InlineInsightMarkup.plainText(from: answer)
+        }.first
+        guard followUpDependsOnContext(
+            latestQuestion: latest,
+            previousQuestion: previousQuestion,
+            previousAnswer: previousAnswer
+        ) else {
+            return latest
+        }
+        return "\(previousQuestion)\n\n\(latest)"
     }
 
     /// For a definition, accept semantic retrieval only if a passage explicitly names the term.
@@ -234,12 +307,29 @@ struct LiteRTAquinasModel: AquinasModel {
     ) -> [AquinasGroundingReference] {
         let normalizedTerm = normalizedDefinitionEvidenceText(term)
         guard !normalizedTerm.isEmpty else { return [] }
+        let termWords = definitionEvidenceWords(in: normalizedTerm)
         return references.filter { reference in
-            normalizedDefinitionEvidenceText(
-                "\(reference.title) \(reference.facts)"
-            )
-            .contains(normalizedTerm)
+            let text = normalizedDefinitionEvidenceText("\(reference.title) \(reference.facts)")
+            if text.contains(normalizedTerm) { return true }
+            // "a transcendental in scholastic philosophy" is named by a passage on "the
+            // transcendentals in scholastic philosophy": every word of the term, allowing a
+            // plural, rather than the exact phrase.
+            guard !termWords.isEmpty else { return false }
+            let words = definitionEvidenceWords(in: text)
+            return termWords.allSatisfy { word in
+                words.contains(word) || words.contains(word + "s")
+            }
         }
+    }
+
+    private static func definitionEvidenceWords(in normalizedText: String) -> Set<String> {
+        let fillers: Set<String> = ["a", "an", "the", "of", "in", "and", "or", "to", "for"]
+        return Set(
+            normalizedText
+                .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+                .map(String.init)
+                .filter { !fillers.contains($0) }
+        )
     }
 
     private static func normalizedDefinitionEvidenceText(_ text: String) -> String {
@@ -285,7 +375,12 @@ struct LiteRTAquinasModel: AquinasModel {
             let evidenceBasis: ResponseEvidenceBasis = responseReferences.isEmpty
                 ? .generalKnowledge
                 : .corpusGrounded
-            guard !responseReferences.isEmpty || !Self.requiresCorpusEvidence(latestQuestion) else {
+            // Some passage always comes back, so "a passage was retrieved" is not evidence. Asked
+            // which pope canonized Aquinas, retrieval returned notes on a canon of Constantinople,
+            // and the model answered, labeled corpus-grounded, that no single pope had (seal-D5).
+            let hasEvidence = !responseReferences.isEmpty
+                && Self.referencesNameSubject(of: latestQuestion, in: responseReferences)
+            guard hasEvidence || !Self.requiresCorpusEvidence(latestQuestion) else {
                 let response = ModelResponse(
                     text: Self.corpusScopeAbstentionText,
                     thinkingSummary: thinkingEnabled ? [
@@ -1229,7 +1324,7 @@ private extension LiteRTAquinasModel {
         case .balanced:
             "Warm, casual, articulate, and personal—like a loving older mentor."
         case .scholarly:
-            "Learned, orderly, humane, and warmly Thomistic without sounding archaic."
+            "Learned and warmly enthusiastic, like a scholar friend, never archaic."
         case .socratic:
             "Clear and gently Socratic where a question genuinely helps understanding."
         case .fun:
@@ -1669,7 +1764,24 @@ private extension LiteRTAquinasModel {
     static func personalityInstruction(
         _ personality: ConversationPersonality
     ) -> String {
-        switch personality {
+        #if DEBUG
+        // `--litert-scholarly-prompt-file <path>` swaps the Scholarly prompt for voice evaluations.
+        // A relative path resolves against Documents, for phone runs.
+        if personality == .scholarly,
+           let path = LiteRTProbeArguments.value(
+               after: "--litert-scholarly-prompt-file",
+               in: ProcessInfo.processInfo.arguments
+           ),
+           let text = try? String(
+               contentsOf: path.hasPrefix("/")
+                   ? URL(filePath: path)
+                   : URL.documentsDirectory.appending(path: path),
+               encoding: .utf8
+           ) {
+            return text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        #endif
+        return switch personality {
         case .balanced:
             """
             Speak with the intellectual depth and habits of Aquinas in relaxed contemporary
@@ -1716,16 +1828,36 @@ private extension LiteRTAquinasModel {
             """
         case .scholarly:
             """
-            Respond as a wise, learned, and well-spoken mentor in the Thomistic intellectual
-            tradition. Unite scholarly rigor with humane warmth: be gracious, patient, attentive,
-            and quietly encouraging. Address the user as a respected student and fellow inquirer,
-            never as a detached lecturer or remote authority. Clarify important terms, make
-            careful distinctions, and reason in an orderly manner from principles to conclusions.
-            Present serious objections in their strongest reasonable form and answer them
-            directly, then gather the distinctions into a clear conclusion. Use precise,
-            articulate language and explain specialized terms with the ease of a generous
-            teacher. Let the prose carry measured gravity without stiffness. Avoid archaic
-            imitation, coldness, condescension, excessive verbosity, and a sermonizing tone.
+            Respond as a learned friend talking with the user over coffee: someone who has spent
+            years with Aquinas, the Fathers, and Scripture and still lights up at these questions.
+            Write the way such a friend actually talks. Open with the answer itself, never with a
+            remark about the question, and begin with yes or no only when the question asks for one.
+            Speak to the user as "you" at least once, and share the reasoning as something you are
+            seeing together. Stay every bit a scholar: use the exact term and say what it means,
+            draw the distinction that decides the matter, and say how Aquinas or the tradition
+            framed it when you know. Give one vivid, concrete image. The prose should be rich and
+            graceful, a little ornate, never stiff, archaic, gushing, or preachy. Aquinas usually
+            speaks of what was fitting rather than strictly necessary for God; keep that
+            distinction.
+
+            Here is the register to aim for, on a different question. Question: Why does Aquinas say
+            the soul is the form of the body? Answer: Because for him the soul is not a passenger
+            riding inside you but the very thing that makes your body a living, human body at all.
+            Take the soul away and what remains is not you minus something; it is a corpse, which is
+            a different kind of thing altogether. That is the force of the word form: the principle
+            that makes a thing what it is. Notice how much this rescues. Plato had pictured us as
+            souls imprisoned in flesh, but Aquinas will not let you be split in two. Your thinking,
+            your hunger, the ache in your knee after a long walk all belong to one person, the way
+            the music and the instrument belong to one performance. So when you ask who you are, he
+            answers: not a ghost in a machine, but one living whole.
+
+            Match the length to the question: a simple factual or everyday question gets a direct
+            answer in a sentence or two; a substantial question gets about 150 to 220 words in two
+            to four plain prose paragraphs. Never use markdown, headings, bold, italics, bullet
+            points, or mathematical notation, and never address the user as "student" or by any
+            title. Name a specific work, question, article, or chapter only when a reference passage
+            shows it; otherwise speak of what the author teaches without a locator. If you are
+            unsure of a detail, say so briefly rather than supplying one.
             """
         case .socratic:
             "Guide understanding through well-chosen questions when that advances the inquiry."
@@ -1740,11 +1872,7 @@ private extension LiteRTAquinasModel {
         guard let latestIndex = context.transcript.lastIndex(where: { block in
             if case .user = block { return true }
             return false
-        }),
-        let latest = liteRTMessage(
-            context.transcript[latestIndex],
-            isLatestUserRequest: true
-        ) else {
+        }) else {
             return nil
         }
         let earlierTranscript = context.transcript[..<latestIndex]
@@ -1770,12 +1898,29 @@ private extension LiteRTAquinasModel {
         } else {
             latestQuestion = ""
         }
+        let previousAnswer = earlierTranscript.reversed().compactMap { block -> String? in
+            guard case .text(let answer) = block else { return nil }
+            return InlineInsightMarkup.plainText(from: answer)
+        }.first
         let startsFreshTopic = previousQuestion.map {
             isLikelyTopicShift(
                 latestQuestion: latestQuestion,
-                previousQuestion: $0
+                previousQuestion: $0,
+                previousAnswer: previousAnswer
             )
         } ?? false
+        let followUpNote = startsFreshTopic
+            ? ""
+            : previousQuestion.map {
+                pronounNote(latestQuestion: latestQuestion, previousQuestion: $0)
+            } ?? ""
+        guard let latest = liteRTMessage(
+            context.transcript[latestIndex],
+            isLatestUserRequest: true,
+            followUpNote: followUpNote
+        ) else {
+            return nil
+        }
         return ConversationRequest(
             history: startsFreshTopic
                 ? []
@@ -1787,7 +1932,8 @@ private extension LiteRTAquinasModel {
 
     static func liteRTMessage(
         _ block: ChatBlock,
-        isLatestUserRequest: Bool = false
+        isLatestUserRequest: Bool = false,
+        followUpNote: String = ""
     ) -> Message? {
         switch block {
         case .text(let text):
@@ -1812,7 +1958,7 @@ private extension LiteRTAquinasModel {
                 When an <insight_quote> appears before the question, treat it as the Insight the
                 user deliberately selected and resolve references such as "this" or "that idea"
                 against its title and definition.
-
+                \(followUpNote)
                 User question:
                 \(prompt)
                 """
@@ -1921,15 +2067,13 @@ private extension LiteRTAquinasModel {
 
     static func isLikelyTopicShift(
         latestQuestion: String,
-        previousQuestion: String
+        previousQuestion: String,
+        previousAnswer: String? = nil
     ) -> Bool {
         // A word that points back into the conversation ("Why was *that* council important?",
         // "Is *it* still taught?") makes the question a continuation.
-        let referringWords: Set<String> = [
-            "also", "but", "further", "more", "that", "this", "these", "those", "it", "its",
-            "they", "them", "their", "he", "him", "his", "she", "her", "why", "such", "same"
-        ]
         if !words(in: latestQuestion).isDisjoint(with: referringWords) { return false }
+        if latestQuestion.lowercased().contains("which one") { return false }
         // A question with no subject of its own once generic follow-up wording is removed
         // ("Can you give a concrete example?", "Explain more simply") can only be about the
         // conversation so far. Treating it as a new topic dropped all history, so the model
@@ -1938,7 +2082,77 @@ private extension LiteRTAquinasModel {
         guard !latest.isEmpty else { return false }
         let previous = topicWords(in: previousQuestion)
         guard latest.count >= 2, previous.count >= 2 else { return false }
-        return latest.isDisjoint(with: previous)
+        guard latest.isDisjoint(with: previous) else { return false }
+        // A follow-up can pick up a subject the previous *answer* introduced: after "What is the
+        // Summa Theologiae?" was answered with "...organized into questions and articles", "How
+        // is each article structured?" shares no word with the earlier question but continues
+        // the answer (held-E2 lost its history this way).
+        return !continuesAnswer(latest, previousAnswer: previousAnswer)
+    }
+
+    /// Words that point back into the conversation rather than naming a subject.
+    private static let referringWords: Set<String> = [
+        "also", "but", "further", "more", "that", "this", "these", "those", "it", "its",
+        "they", "them", "their", "he", "him", "his", "she", "her", "why", "such", "same",
+        // "Which one governs the others?" after a list of the cardinal virtues was treated as
+        // a new topic and answered about forms of government (seal-E1).
+        "others", "ones", "former", "latter", "either", "neither", "both"
+    ]
+
+    /// Pronouns whose referent must come from earlier in the conversation.
+    private static let pronouns: Set<String> = [
+        "that", "this", "these", "those", "it", "its", "they", "them", "their", "he", "him",
+        "his", "she", "her", "others", "ones", "former", "latter", "either", "neither", "both"
+    ]
+
+    /// Whether a substantive word of the latest question also appears in the previous answer.
+    /// Short words are ignored, and plural forms count as the same word.
+    private static func continuesAnswer(
+        _ latestTopicWords: Set<String>,
+        previousAnswer: String?
+    ) -> Bool {
+        guard let previousAnswer, !previousAnswer.isEmpty else { return false }
+        let answerStems = Set(topicWords(in: previousAnswer).map(singularStem))
+        return latestTopicWords.contains { word in
+            let stem = singularStem(word)
+            return stem.count >= 5 && answerStems.contains(stem)
+        }
+    }
+
+    private static func singularStem(_ word: String) -> String {
+        word.count > 3 && word.hasSuffix("s") ? String(word.dropLast()) : word
+    }
+
+    /// Tells the model what a pronoun in a follow-up points at. After "Who was Peter Lombard?",
+    /// "Did Aquinas comment on his work?" was read as Aquinas commenting on his own work
+    /// (held-E5), even with the history in front of the model.
+    static func pronounNote(latestQuestion: String, previousQuestion: String) -> String {
+        let previous = previousQuestion.trimmed
+        guard !previous.isEmpty,
+              !words(in: latestQuestion).isDisjoint(with: pronouns)
+        else { return "" }
+        return """
+
+        This question continues the conversation. The previous question was: “\(previous)” \
+        Read a pronoun in the new question as pointing to what that question asked about.
+
+        """
+    }
+
+    /// Whether the latest question can only be understood, and so only be retrieved for, together
+    /// with the previous exchange: it uses a pronoun, names no subject of its own, or continues a
+    /// subject the previous answer introduced.
+    static func followUpDependsOnContext(
+        latestQuestion: String,
+        previousQuestion: String,
+        previousAnswer: String?
+    ) -> Bool {
+        if !words(in: latestQuestion).isDisjoint(with: pronouns) { return true }
+        if latestQuestion.lowercased().contains("which one") { return true }
+        let latest = topicWords(in: latestQuestion).subtracting(followUpWords)
+        if latest.isEmpty { return true }
+        return latest.isDisjoint(with: topicWords(in: previousQuestion))
+            && continuesAnswer(latest, previousAnswer: previousAnswer)
     }
 
     /// Wording that asks for more of what was just discussed rather than naming a subject.

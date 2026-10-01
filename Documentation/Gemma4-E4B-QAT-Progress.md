@@ -13,6 +13,11 @@
 > training, export, or app-behavior change was performed. Next: context and evidence delivery
 > fixes before a separate fine-tuning decision; preserve the old score and use a fresh sealed
 > set for independent acceptance after development on these cases.
+>
+> **Later on September 30:** the context, evidence, and scorer fixes are implemented on
+> `fix/e4b-quality-triage`. Simulator CPU development runs: 34/40 (scorer v1) and 37/40 (scorer
+> v2) in `Q3-held-sim-1`, against 28 and 29 before. Phone verification and a fresh sealed set are
+> still to do. Details are in the triage document's *Implementation* section.
 
 > This is the **mutable** record for [`Gemma4-E4B-QAT-Plan.md`](Gemma4-E4B-QAT-Plan.md) (plan v2).
 > Update it at the start and end of every checkpoint and commit each update on

@@ -109,7 +109,7 @@ struct InsightQuestionBar: View {
 
     @StateObject private var viewModel = InsightQuestionBarViewModel()
     @AppStorage("aquinas.settings.conversationPersonality")
-    private var conversationPersonality: ConversationPersonality = .balanced
+    private var conversationPersonality: ConversationPersonality = .default
     @State private var isExpanded: Bool = false
     @State private var isBarOpen: Bool = false      // drives layout; focus fires after render
     @FocusState private var isInputFocused: Bool

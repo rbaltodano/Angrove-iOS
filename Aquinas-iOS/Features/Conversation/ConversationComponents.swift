@@ -105,7 +105,7 @@ struct ChatThreadColumn: View {
     var inputFont: ConversationFontOption = .serif
     var responseFont: ConversationFontOption = .sans
     var conversationTitlePolicy: ConversationTitleOption = .automatic
-    var personality: ConversationPersonality = .balanced
+    var personality: ConversationPersonality = .default
     var loadingInsightKey: String? = nil
     var queuedInsightKeys: Set<String> = []
     var savedInsightIDs: Set<UUID> = []

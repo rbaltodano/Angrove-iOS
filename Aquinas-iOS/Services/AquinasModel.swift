@@ -201,6 +201,11 @@ enum ConversationPersonality: String, CaseIterable, Identifiable, Codable {
 
     var id: Self { self }
 
+    /// The voice Aquinas uses unless the person picks another. Scholarly since 2026-09-30: the
+    /// fine-tuning dataset (Aquinas_Backend docs/Aquinas-Voice-Dataset.md) is written in this
+    /// voice and trained under this personality's instruction.
+    static let `default`: ConversationPersonality = .scholarly
+
     var displayName: String {
         switch self {
         case .balanced:
@@ -237,7 +242,7 @@ struct ConversationContext {
     init(
         compactedContext: String? = nil,
         transcript: [ChatBlock] = [],
-        personality: ConversationPersonality = .balanced
+        personality: ConversationPersonality = .default
     ) {
         self.compactedContext = compactedContext
         self.transcript = transcript

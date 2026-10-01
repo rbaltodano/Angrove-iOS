@@ -85,7 +85,8 @@ struct MiniLMGroundingRetrievalTests {
             ),
             (
                 question: "What do the Gospels say about the resurrection of Jesus?",
-                sourceText: "he isn't here, but is risen"
+                // Luke 24:6. The bundled text spells "isn’t" with a typographic apostrophe.
+                sourceText: "here, but is risen"
             )
         ]
 

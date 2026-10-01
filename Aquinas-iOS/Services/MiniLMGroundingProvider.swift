@@ -94,6 +94,51 @@ nonisolated final class MiniLMGroundingProvider: AquinasGroundingProviding {
             collected.append(reference)
         }
 
+        /// Summa articles already delivered, in order, as the corpus index of their opening chunk.
+        var summaArticles: [Int] = []
+        /// Where each delivered article sits in `collected`, so its answer can be re-cut once the
+        /// number of references is known.
+        var summaSlots: [(position: Int, start: Int, distance: Float, id: String)] = []
+
+        func appendSummaAnswer(_ answer: GroundingPassage, start: Int, id: String) {
+            let before = collected.count
+            append(Self.reference(for: answer, id: id))
+            guard collected.count > before else { return }
+            summaArticles.append(start)
+            summaSlots.append((before, start, answer.distance, id))
+        }
+
+        /// Adds a corpus passage. A passage from a Summa article is replaced by that article's
+        /// own answer, once per article; a chunk with no source text of its own is dropped.
+        func appendCorpus(_ passage: GroundingPassage, id: String) {
+            guard collected.count < limit else { return }
+            if let start = store.summaArticleStart(containing: passage) {
+                guard !summaArticles.contains(start) else { return }
+                if let answer = store.summaArticleAnswer(
+                    at: start,
+                    distance: passage.distance,
+                    characterBudget: Self.summaAnswerBudget
+                ) {
+                    let isFirstArticle = summaArticles.isEmpty
+                    appendSummaAnswer(answer, start: start, id: id)
+                    // The first article delivered brings the article that qualifies it, ahead of
+                    // lower-ranked matches.
+                    if isFirstArticle,
+                       let next = store.relatedNextSummaArticle(after: start),
+                       let qualification = store.summaArticleAnswer(
+                           at: next,
+                           distance: passage.distance,
+                           characterBudget: Self.summaAnswerBudget
+                       ) {
+                        appendSummaAnswer(qualification, start: next, id: "\(id)-next-article")
+                    }
+                    return
+                }
+            }
+            guard !OnDeviceGroundingStore.isContentless(passage) else { return }
+            append(Self.reference(for: passage, id: id))
+        }
+
         for reference in LocalAquinasGroundingProvider.aliasMatchedReferences(
             for: question,
             // Curated notes anchor an answer; they must not crowd out the corpus itself.
@@ -102,11 +147,19 @@ nonisolated final class MiniLMGroundingProvider: AquinasGroundingProviding {
             append(reference)
         }
 
-        for citation in ScriptureCitation.citations(in: question) {
-            guard collected.count < limit else { break }
-            for passage in store.chapter(for: citation, limit: limit - collected.count) {
+        // One passage from each cited chapter before a second from any: a named passage can point
+        // at several chapters (the resurrection is told in all four Gospels), and filling every
+        // slot from the first would deliver one witness instead of several.
+        let citedChapters = ScriptureCitation.citations(in: question).map { citation in
+            (citation: citation, passages: store.chapter(for: citation, limit: limit))
+        }
+        var depth = 0
+        while collected.count < limit, citedChapters.contains(where: { $0.passages.count > depth }) {
+            for (citation, passages) in citedChapters where passages.count > depth {
+                let passage = passages[depth]
                 append(Self.reference(for: passage, id: "citation-\(citation.bookCode)\(citation.chapter)-\(passage.sourceID)-\(collected.count)"))
             }
+            depth += 1
         }
 
         if collected.count < limit {
@@ -119,23 +172,37 @@ nonisolated final class MiniLMGroundingProvider: AquinasGroundingProviding {
                         requiredTerms: route.sectionTerms,
                         limit: limit - collected.count
                     ).enumerated() {
-                        append(Self.reference(
-                            for: passage,
+                        appendCorpus(
+                            passage,
                             id: "authority-section-\(passage.sourceID)-\(offset)"
-                        ))
+                        )
                     }
+                }
+                // A definition request goes first to the article that defines the term.
+                if let term = LiteRTAquinasModel.definitionRequestTerm(
+                       in: [.user(question, nil, [])]
+                   ),
+                   let opening = store.summaDefiningArticleOpening(for: term) {
+                    appendCorpus(opening, id: "corpus-\(opening.sourceID)-definition")
                 }
                 for route in SubjectSection.routes(in: question) {
                     guard collected.count < limit else { break }
+                    if route.sourceIDs == [SummaArticleIndex.sourceID],
+                       let opening = store.summaArticleOpening(
+                           questionContaining: route.sectionTerms
+                       ) {
+                        appendCorpus(opening, id: "subject-section-\(opening.sourceID)-0")
+                        continue
+                    }
                     for (offset, passage) in store.section(
                         sourceIDs: route.sourceIDs,
                         requiredTerms: route.sectionTerms,
                         limit: limit - collected.count
                     ).enumerated() {
-                        append(Self.reference(
-                            for: passage,
+                        appendCorpus(
+                            passage,
                             id: "subject-section-\(passage.sourceID)-\(offset)"
-                        ))
+                        )
                     }
                 }
                 let namedSourceIDs = NamedCorpusSource.sourceIDs(in: question)
@@ -150,7 +217,7 @@ nonisolated final class MiniLMGroundingProvider: AquinasGroundingProviding {
                         sourceIDs: namedSourceIDs,
                         prioritizingTerms: NamedCorpusSource.searchTerms(in: question)
                     ).enumerated() {
-                        append(Self.reference(for: passage, id: "source-\(passage.sourceID)-\(offset)"))
+                        appendCorpus(passage, id: "source-\(passage.sourceID)-\(offset)")
                     }
                 }
                 // A single global floor cannot serve both jobs. Loose enough to retrieve ordinary
@@ -165,17 +232,44 @@ nonisolated final class MiniLMGroundingProvider: AquinasGroundingProviding {
                 let semanticMaxDistance: Float? = collected.isEmpty
                     ? nil
                     : Self.corroborationMaxDistance
+                // Several chunks of one article now count once, and header-only chunks not at
+                // all, so rank more candidates than there are slots.
                 let passages = store.retrieve(
                     queryEmbedding: queryEmbedding,
-                    k: limit - collected.count,
+                    k: (limit - collected.count) * Self.semanticCandidatesPerSlot,
                     maxDistance: semanticMaxDistance
                 )
                 for (offset, passage) in passages.enumerated() {
-                    append(Self.reference(for: passage, id: "corpus-\(passage.sourceID)-\(offset)"))
+                    appendCorpus(passage, id: "corpus-\(passage.sourceID)-\(offset)")
                 }
             } catch {
                 // A failed embed leaves whatever the earlier layers found, which is still
                 // better grounding than none.
+            }
+        }
+
+        // Fewer references leave room for more of each answer: a lone article on just war is
+        // given in full, where three articles share the same space.
+        let otherCharacters = collected.indices
+            .filter { position in !summaSlots.contains { $0.position == position } }
+            .reduce(0) { $0 + collected[$1].facts.count }
+        if !summaSlots.isEmpty {
+            let budget = min(
+                Self.summaAnswerCeiling,
+                max(
+                    Self.summaAnswerBudget,
+                    (Self.referenceCharacterBudget - otherCharacters) / summaSlots.count
+                )
+            )
+            if budget > Self.summaAnswerBudget {
+                for slot in summaSlots {
+                    guard let answer = store.summaArticleAnswer(
+                        at: slot.start,
+                        distance: slot.distance,
+                        characterBudget: budget
+                    ) else { continue }
+                    collected[slot.position] = Self.reference(for: answer, id: slot.id)
+                }
             }
         }
 
@@ -185,6 +279,14 @@ nonisolated final class MiniLMGroundingProvider: AquinasGroundingProviding {
     /// Bar a semantic passage must clear to be added *alongside* an authoritative curated fact or
     /// cited chapter, as opposed to standing on its own. Stricter than the store's default floor.
     private static let corroborationMaxDistance: Float = 0.38
+
+    /// Characters of Aquinas's answer delivered per Summa article. Three references at this size
+    /// take about as much of the prompt as three raw chunks did.
+    private static let summaAnswerBudget = 1_300
+    /// Characters all references may take together, and the most one answer is given.
+    private static let referenceCharacterBudget = 3_900
+    private static let summaAnswerCeiling = 2_600
+    private static let semanticCandidatesPerSlot = 4
 
     private static func reference(
         for passage: GroundingPassage,
@@ -291,25 +393,46 @@ private enum NamedCorpusSource {
 /// wording. Entries name only question terms and a literal phrase already in the bundled source;
 /// they are retrieval locations, never paraphrased answers.
 private enum SubjectSection {
+    /// A route applies when the question uses one of `questionTerms` and, if `alsoRequiring` is
+    /// not empty, one of those as well.
     private static let table: [(
         questionTerms: Set<String>,
+        alsoRequiring: Set<String>,
         sourceIDs: Set<String>,
         sectionTerms: Set<String>
     )] = [
         (
             questionTerms: ["lie", "lying"],
+            alsoRequiring: [],
             sourceIDs: ["summa-theologica"],
             sectionTerms: ["whether every lie is a sin"]
         ),
         (
             questionTerms: ["forgive", "forgiveness"],
+            alsoRequiring: [],
             sourceIDs: ["web-bible"],
             sectionTerms: ["if your brother sins against you"]
         ),
         (
             questionTerms: ["trust"],
+            alsoRequiring: [],
             sourceIDs: ["summa-theologica"],
             sectionTerms: ["knowledge revealed by god besides philosophical science"]
+        ),
+        // The Summa asks these in its own vocabulary ("erring reason", "wage war"), which a
+        // question in ordinary words does not retrieve: "a conscience that is mistaken" found
+        // only the article on what conscience is, and "just war" found Livy and Augustine.
+        (
+            questionTerms: ["conscience"],
+            alsoRequiring: ["mistaken", "erring", "erroneous", "errs", "err", "wrong", "error"],
+            sourceIDs: ["summa-theologica"],
+            sectionTerms: ["the will is evil when it is at variance with erring reason"]
+        ),
+        (
+            questionTerms: ["war", "wars", "warfare"],
+            alsoRequiring: ["just", "justly", "unjust", "justified", "lawful", "sinful", "sin"],
+            sourceIDs: ["summa-theologica"],
+            sectionTerms: ["it is always sinful to wage war"]
         )
     ]
 
@@ -318,7 +441,9 @@ private enum SubjectSection {
             options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX")
         ).lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init))
         return table.compactMap { route in
-            guard !route.questionTerms.isDisjoint(with: words) else { return nil }
+            guard !route.questionTerms.isDisjoint(with: words),
+                  route.alsoRequiring.isEmpty || !route.alsoRequiring.isDisjoint(with: words)
+            else { return nil }
             return (route.sourceIDs, route.sectionTerms)
         }
     }
