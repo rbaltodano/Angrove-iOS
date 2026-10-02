@@ -29,6 +29,8 @@ enum LiteRTEvalBatchProbe {
         /// abstention) was returned without generating.
         let generationCount: Int?
         let firstGenerationIndex: Int?
+        /// The model's native thought lines when the run enables thinking; empty otherwise.
+        let thinking: [String]
         let error: String?
     }
 
@@ -42,6 +44,8 @@ enum LiteRTEvalBatchProbe {
         var evalFileSHA256: String?
         var model: LiteRTProbeReport.Model?
         let usesCPU: Bool
+        /// `--litert-eval-thinking`: every case runs with the native thought channel on.
+        let thinkingEnabled: Bool
         var loadSeconds: Double?
         var caseCount = 0
         var failedCount = 0
@@ -53,13 +57,15 @@ enum LiteRTEvalBatchProbe {
         let arguments = ProcessInfo.processInfo.arguments
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
         let usesCPU = arguments.contains("--litert-probe-cpu")
+        let thinkingEnabled = Self.thinkingEnabled
         var summary = Summary(
             runID: LiteRTProbeArguments.value(after: "--litert-probe-run-id", in: arguments),
             startedAt: Date.now.ISO8601Format(),
             device: .current,
             launchArguments: arguments,
             evalFile: evalFile,
-            usesCPU: usesCPU
+            usesCPU: usesCPU,
+            thinkingEnabled: thinkingEnabled
         )
         let resultsURL = documents?.appending(path: "litert-eval-results.jsonl")
         if let resultsURL {
@@ -127,6 +133,9 @@ enum LiteRTEvalBatchProbe {
         }
     }
 
+    private static let thinkingEnabled = ProcessInfo.processInfo.arguments
+        .contains("--litert-eval-thinking")
+
     private static func run(_ evalCase: EvalCase, model: LiteRTAngroveModel) async -> CaseResult {
         var transcript: [ChatBlock] = evalCase.turns.map { turn in
             turn.role == "assistant" ? .text(turn.text) : .user(turn.text, nil, [])
@@ -138,7 +147,7 @@ enum LiteRTEvalBatchProbe {
         let clock = ContinuousClock.now
         let response = await model.respond(
             to: ConversationContext(transcript: transcript),
-            thinkingEnabled: false,
+            thinkingEnabled: thinkingEnabled,
             onUpdate: { _ in }
         )
         let elapsed = seconds(since: clock)
@@ -161,6 +170,7 @@ enum LiteRTEvalBatchProbe {
             evidenceBasis: response.evidenceBasis.map { String(describing: $0) },
             generationCount: generationCount,
             firstGenerationIndex: firstIndex,
+            thinking: response.thinkingSummary,
             error: failed ? "local generation failed" : nil
         )
     }
