@@ -476,7 +476,7 @@ struct LiteRTAngroveModel: AngroveModel {
                     thoughtStream.answerStarted = true
                     onUpdate(.responseText(text))
                 } : nil,
-                onThought: thinkingEnabled ? { @MainActor thought in
+                onThought: thinkingEnabled && Self.usesNativeThinking ? { @MainActor thought in
                     thoughtStream.text = thought
                     onUpdate(.thought(thought))
                 } : nil
@@ -1772,6 +1772,20 @@ private extension LiteRTAngroveModel {
         ]
         return metaPhrases.contains { normalized.contains($0) }
     }
+
+    /// Gemma's native thought channel is off by default: on the held-out and sealed-1 sets it left
+    /// accuracy unchanged (74/80 either way) and roughly doubled answer time (Angrove-Eval runs
+    /// `T2-*`, 2026-10-02). Thinking still shows the approach line and retrieved sources. A future
+    /// user toggle belongs here; DEBUG runs can opt in with `--litert-native-thinking` (the eval
+    /// batch's `--litert-eval-thinking` implies it).
+    static let usesNativeThinking: Bool = {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("--litert-native-thinking") || arguments.contains("--litert-eval-thinking")
+        #else
+        return false
+        #endif
+    }()
 
     static func personalityInstruction(
         _ personality: ConversationPersonality

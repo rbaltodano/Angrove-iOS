@@ -18,7 +18,11 @@ the policy hasn't changed. Local decoding currently yields completed text rather
 deltas. When a caller passes `onThought`, `streamText` sends `extraContext: ["enable_thinking":
 true]`, which makes the Gemma 4 chat template prepend `<|think|>`; LiteRT-LM then streams the
 model's reasoning in each chunk's `channels["thought"]`, separate from the answer text. Only the
-first conversation-answer pass enables it; retries, audits, and structured calls do not.
+first conversation-answer pass can enable it; retries, audits, and structured calls do not.
+`LiteRTAngroveModel.usesNativeThinking` gates it and is **off** by default: on held-out and
+sealed-1 it left accuracy unchanged (74/80 either way) and roughly doubled answer time (23 s to
+44–48 s median in the simulator; Angrove-Eval runs `T2-*`, 2026-10-02). DEBUG builds opt in with
+`--litert-native-thinking`; the eval batch's `--litert-eval-thinking` implies it.
 
 ## Insight Tree runtime
 
