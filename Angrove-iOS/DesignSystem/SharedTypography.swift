@@ -156,6 +156,15 @@ enum AngroveTheme {
         static let bodyLarge = Font.custom("Figtree-Regular", size: 16)
         static let inlineInsight = Font.custom("Figtree-Bold", size: 16)
         static let chipLabel = Font.custom("Figtree-Bold", size: 12)
+
+        // Settings subpages follow the iPhone's Text Size setting.
+        static let settingsTitle = Font.custom("LibreBaskerville-Regular", size: 28, relativeTo: .title)
+        static let settingsGuideTitle = Font.custom("LibreBaskerville-Regular", size: 34, relativeTo: .largeTitle)
+        static let settingsHeading = Font.custom("Figtree-Bold", size: 17, relativeTo: .headline)
+        static let settingsLabel = Font.custom("Figtree-Bold", size: 17, relativeTo: .body)
+        static let settingsBody = Font.custom("Figtree-Regular", size: 17, relativeTo: .body)
+        static let settingsSerifBody = Font.custom("LibreBaskerville-Regular", size: 17, relativeTo: .body)
+        static let settingsDetail = Font.custom("Figtree-Regular", size: 13, relativeTo: .footnote)
     }
 
     // MARK: Spacing and Shape
@@ -551,14 +560,14 @@ struct ParagraphFontModifier: ViewModifier {
     }
 
     let role: Role
-    @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .sans
+    @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .serif
     @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .medium
 
     func body(content: Content) -> some View {
         let size = role.baseSize + (fontSize.pointSize - ConversationFontSizeOption.medium.pointSize)
         switch responseFont {
-        case .sans: content.font(.custom("Figtree-Regular", size: size))
-        case .serif: content.font(.custom("LibreBaskerville-Regular", size: size))
+        case .sans: content.font(.custom("Figtree-Regular", fixedSize: size))
+        case .serif: content.font(.custom("LibreBaskerville-Regular", fixedSize: size))
         }
     }
 }

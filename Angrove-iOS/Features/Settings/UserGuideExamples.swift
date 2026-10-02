@@ -24,7 +24,7 @@ struct UserGuideExampleView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Try It")
-                .font(AngroveTheme.Typography.uiHeading)
+                .font(AngroveTheme.Typography.settingsHeading)
                 .foregroundStyle(AngroveTheme.Colors.headingText)
                 .accessibilityAddTraits(.isHeader)
 
@@ -50,7 +50,7 @@ private struct UserGuideExampleCaption: View {
 
     var body: some View {
         UserGuideText.text(text)
-            .paragraphFont()
+            .font(AngroveTheme.Typography.settingsBody)
             .foregroundStyle(AngroveTheme.Colors.paragraphText)
             .lineSpacing(FlowLayout.rowSpacing)
             .fixedSize(horizontal: false, vertical: true)
@@ -68,8 +68,8 @@ private struct UserGuideDefinitionsExample: View {
     @State private var hasStartedReveal = false
     // The same reading settings a conversation uses, so the example text matches a real answer.
     @AppStorage("aquinas.settings.conversationFontSize") private var conversationFontSize: ConversationFontSizeOption = .medium
-    @AppStorage(SettingsStorageKey.conversationTextAlignment) private var conversationTextAlignment: ConversationTextAlignmentOption = .center
-    @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .sans
+    @AppStorage(SettingsStorageKey.conversationTextAlignment) private var conversationTextAlignment: ConversationTextAlignmentOption = .left
+    @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .serif
 
     private static let passage = """
     For Aquinas, virtue is a [habit](aq://habit) that disposes us to act well, formed by \
@@ -286,13 +286,13 @@ private struct UserGuideMidpointExample: View {
             if isMidpointMode {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("EXAMPLE RESULT")
-                        .font(AngroveTheme.Typography.uiLabel)
+                        .font(AngroveTheme.Typography.settingsDetail)
                         .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     Text(result.title)
-                        .font(AngroveTheme.Typography.uiHeading)
+                        .font(AngroveTheme.Typography.settingsHeading)
                         .foregroundStyle(AngroveTheme.Colors.headingText)
                     Text(result.definition)
-                        .paragraphFont()
+                        .font(AngroveTheme.Typography.settingsBody)
                         .foregroundStyle(AngroveTheme.Colors.paragraphText)
                         .lineSpacing(FlowLayout.rowSpacing)
                         .fixedSize(horizontal: false, vertical: true)
@@ -391,7 +391,7 @@ private struct UserGuideMidpointExample: View {
                 Image(systemName: icon)
                     .font(.system(size: 13, weight: .semibold))
                 Text(title)
-                    .font(.custom("Figtree-Bold", size: 14))
+                    .font(AngroveTheme.Typography.settingsLabel)
             }
             .foregroundStyle(AngroveTheme.Colors.lightGreen)
             .frame(maxWidth: .infinity, minHeight: 48)
@@ -511,7 +511,7 @@ private struct UserGuideModelTasksExample: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Add Practice Tasks")
-                    .font(AngroveTheme.Typography.uiSubheading)
+                    .font(AngroveTheme.Typography.settingsLabel)
                     .foregroundStyle(AngroveTheme.Colors.headingText)
                     .accessibilityAddTraits(.isHeader)
                 UserGuideExampleCaption(text: "Tap these to add a few tasks to the card above. Add several so some are waiting in line.")
@@ -553,7 +553,7 @@ private struct UserGuideModelTasksExample: View {
                 Image(systemName: "plus")
                     .font(.system(size: 12, weight: .bold))
                 Text(title)
-                    .font(.custom("Figtree-Bold", size: 14))
+                    .font(AngroveTheme.Typography.settingsLabel)
                 Spacer(minLength: 8)
                 Image(systemName: icon)
                     .font(.system(size: 13, weight: .semibold))

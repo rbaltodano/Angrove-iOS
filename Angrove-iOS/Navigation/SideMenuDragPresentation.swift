@@ -16,13 +16,16 @@ private struct SideMenuDragPresentation: ViewModifier {
     let onDismiss: () -> Void
     let menu: AnyView
 
+    @State private var attachmentScrollBounds: [CGRect] = []
     @State private var dragOffset: CGFloat = 0
     @State private var isDragging = false
     @State private var hasFiredOpenHaptic = false
 
     func body(content: Content) -> some View {
         ZStack(alignment: .top) {
-            content.simultaneousGesture(dragGesture)
+            content
+                .onPreferenceChange(AttachmentScrollBoundsKey.self) { attachmentScrollBounds = $0 }
+                .simultaneousGesture(dragGesture)
 
             let progress = isPresented ? 1.0 : min(1.0, Double(dragOffset / 345))
             AngroveTheme.Colors.scrim.opacity(0.16 * progress)
@@ -44,9 +47,10 @@ private struct SideMenuDragPresentation: ViewModifier {
     }
 
     private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 10, coordinateSpace: .local)
+        DragGesture(minimumDistance: 10, coordinateSpace: .global)
             .onChanged { value in
-                guard !isPresented, !isBlocked,
+                guard !AttachmentScrollBoundsKey.contains(value.startLocation, in: attachmentScrollBounds),
+                      !isPresented, !isBlocked,
                       !(activePage == .studyTopics && isStudyTopicDetailVisible),
                       !(activePage == .settings && isSettingsDetailVisible),
                       abs(value.translation.width) > abs(value.translation.height) else { return }

@@ -9,6 +9,7 @@ import UIKit
 // MARK: - Shared Layout
 
 struct SettingsPageScaffold<Content: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let title: LocalizedStringResource
     @ViewBuilder let content: Content
 
@@ -20,12 +21,12 @@ struct SettingsPageScaffold<Content: View>: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .center, spacing: 48) {
                     Text(title)
-                        .font(.custom("LibreBaskerville-Regular", size: 28))
+                        .font(AngroveTheme.Typography.settingsTitle)
                         .foregroundStyle(AngroveTheme.Colors.headingText)
                         .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.8)
+                        .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity)
+                        .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? -24 : 0)
 
                     content
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -52,13 +53,16 @@ struct SettingsDetailScaffold<Content: View>: View {
 }
 
 struct SettingsControlCard<Content: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ViewBuilder let content: Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             content
         }
-        .padding(24)
+        .padding(dynamicTypeSize.isAccessibilitySize
+            ? AngroveTheme.Spacing.screenPadding
+            : AngroveTheme.Spacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(AngroveTheme.Colors.canvasSecondary)
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
@@ -72,7 +76,7 @@ struct SettingsSubsection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(AngroveTheme.Typography.uiHeading)
+                .font(AngroveTheme.Typography.settingsHeading)
                 .foregroundStyle(AngroveTheme.Colors.headingText)
 
             SettingsControlCard {
@@ -87,20 +91,30 @@ struct SettingsLabeledControl<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Text(title)
-                .font(.custom("Figtree-Bold", size: 12))
-                .foregroundStyle(AngroveTheme.Colors.paragraphText)
-
-            Spacer(minLength: 8)
-
-            content
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 12) {
+                Text(title)
+                    .font(AngroveTheme.Typography.settingsLabel)
+                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                    .fixedSize()
+                Spacer(minLength: 8)
+                content.fixedSize()
+            }
+            VStack(alignment: .leading, spacing: 12) {
+                Text(title)
+                    .font(AngroveTheme.Typography.settingsLabel)
+                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                    .fixedSize(horizontal: false, vertical: true)
+                content
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, minHeight: 32)
+        .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
     }
 }
 
 struct SettingsChoiceRow<Option: SettingsChoice>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let title: LocalizedStringResource
     var detail: LocalizedStringResource?
     @Binding var selection: Option
@@ -119,21 +133,23 @@ struct SettingsChoiceRow<Option: SettingsChoice>: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        settingsRowLayout(isVertical: dynamicTypeSize.isAccessibilitySize).callAsFunction {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.custom("Figtree-Bold", size: 12))
+                    .font(AngroveTheme.Typography.settingsLabel)
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
 
                 if let detail {
                     Text(detail)
-                        .font(.custom("Figtree-Regular", size: 11))
+                        .font(AngroveTheme.Typography.settingsDetail)
                         .foregroundStyle(AngroveTheme.Colors.placeholderText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
-            Spacer(minLength: 8)
+            if !dynamicTypeSize.isAccessibilitySize {
+                Spacer(minLength: 8)
+            }
 
             Menu {
                 ForEach(options) { option in
@@ -152,18 +168,18 @@ struct SettingsChoiceRow<Option: SettingsChoice>: View {
             } label: {
                 HStack(spacing: 4) {
                     BlurSwapText(Text(selection.title), value: selection)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: 8, weight: .bold))
                 }
-                .font(.custom("Figtree-Bold", size: 12))
+                .font(AngroveTheme.Typography.settingsLabel)
                 .foregroundStyle(AngroveTheme.Colors.primaryReadable)
                 .animation(.springStandard, value: selection)
             }
             .buttonStyle(.plain)
             .pulsesOnChange(of: selection, anchor: .trailing)
         }
-        .frame(maxWidth: .infinity, minHeight: 32)
+        .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
     }
 }
 
@@ -186,12 +202,12 @@ struct SettingsToggleRow: View {
         Toggle(isOn: $isOn) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.custom("Figtree-Bold", size: 12))
+                    .font(AngroveTheme.Typography.settingsLabel)
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
 
                 if let detail {
                     Text(detail)
-                        .font(.custom("Figtree-Regular", size: 11))
+                        .font(AngroveTheme.Typography.settingsDetail)
                         .foregroundStyle(AngroveTheme.Colors.placeholderText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -205,22 +221,25 @@ struct SettingsToggleRow: View {
 }
 
 struct SettingsTextInputRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let title: LocalizedStringResource
     let placeholder: LocalizedStringResource
     @Binding var text: String
 
     var body: some View {
-        HStack(spacing: 12) {
+        settingsRowLayout(isVertical: dynamicTypeSize.isAccessibilitySize).callAsFunction {
             Text(title)
-                .font(.custom("Figtree-Bold", size: 12))
+                .font(AngroveTheme.Typography.settingsLabel)
                 .foregroundStyle(AngroveTheme.Colors.paragraphText)
 
-            Spacer(minLength: 8)
+            if !dynamicTypeSize.isAccessibilitySize {
+                Spacer(minLength: 8)
+            }
 
             TextField("", text: $text, prompt: Text(placeholder))
-                .font(.custom("Figtree-Regular", size: 14))
+                .font(AngroveTheme.Typography.settingsBody)
                 .foregroundStyle(AngroveTheme.Colors.primaryReadable)
-                .multilineTextAlignment(.trailing)
+                .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
                 .tint(AngroveTheme.Colors.darkGreen)
         }
         .frame(minHeight: 32)
@@ -235,12 +254,12 @@ struct SettingsNavigationLabel: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.custom("Figtree-Bold", size: 12))
+                    .font(AngroveTheme.Typography.settingsLabel)
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
 
                 if let detail {
                     Text(detail)
-                        .font(.custom("Figtree-Regular", size: 11))
+                        .font(AngroveTheme.Typography.settingsDetail)
                         .foregroundStyle(AngroveTheme.Colors.placeholderText)
                 }
             }
@@ -263,7 +282,7 @@ struct SettingsUnavailableActionRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Text(title)
-                .font(.custom("Figtree-Bold", size: 12))
+                .font(AngroveTheme.Typography.settingsLabel)
                 .foregroundStyle(
                     isDestructive
                         ? AngroveTheme.Colors.accentRed.opacity(0.45)
@@ -273,7 +292,7 @@ struct SettingsUnavailableActionRow: View {
             Spacer()
 
             Text("Coming Soon")
-                .font(.custom("Figtree-Regular", size: 10))
+                .font(AngroveTheme.Typography.settingsDetail)
                 .foregroundStyle(AngroveTheme.Colors.placeholderText)
         }
         .frame(maxWidth: .infinity, minHeight: 28)
@@ -315,9 +334,10 @@ struct AppearanceButton: View {
 struct PersonalitySegmentedControl: View {
     @Binding var selection: ConversationPersonality
     @Namespace private var selectionNamespace
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(spacing: 4) {
+        settingsSegmentLayout(isVertical: dynamicTypeSize.isAccessibilitySize).callAsFunction {
             ForEach(ConversationPersonality.allCases) { option in
                 Button {
                     guard selection != option else { return }
@@ -327,10 +347,9 @@ struct PersonalitySegmentedControl: View {
                     }
                 } label: {
                     Text(option.displayName)
-                        .font(.custom("Figtree-Bold", size: 11))
+                        .font(AngroveTheme.Typography.settingsLabel)
                         .foregroundStyle(AngroveTheme.Colors.primaryReadable)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
+                        .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, minHeight: 34)
                         .background {
                             if selection == option {
@@ -402,9 +421,10 @@ struct ConversationAlignmentSegmentedControl: View {
 struct FontSizeSegmentedControl: View {
     @Binding var selection: ConversationFontSizeOption
     @Namespace private var selectionNamespace
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(spacing: 4) {
+        settingsSegmentLayout(isVertical: dynamicTypeSize.isAccessibilitySize).callAsFunction {
             ForEach(ConversationFontSizeOption.allCases) { option in
                 Button {
                     guard selection != option else { return }
@@ -414,9 +434,10 @@ struct FontSizeSegmentedControl: View {
                     }
                 } label: {
                     Text(option.rawValue)
-                        .font(.custom("Figtree-Bold", size: 11))
+                        .font(AngroveTheme.Typography.settingsLabel)
                         .foregroundStyle(AngroveTheme.Colors.primaryReadable)
-                        .frame(width: 54, height: 30)
+                        .padding(.horizontal, 8)
+                        .frame(minWidth: 54, minHeight: 30)
                         .background {
                             if selection == option {
                                 Capsule()
@@ -443,9 +464,10 @@ struct FontSizeSegmentedControl: View {
 struct FontSegmentedControl: View {
     @Binding var selection: ConversationFontOption
     @Namespace private var selectionNamespace
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(spacing: 4) {
+        settingsSegmentLayout(isVertical: dynamicTypeSize.isAccessibilitySize).callAsFunction {
             ForEach(ConversationFontOption.allCases) { option in
                 Button {
                     guard selection != option else { return }
@@ -455,9 +477,10 @@ struct FontSegmentedControl: View {
                     }
                 } label: {
                     Text(option.rawValue)
-                        .font(.custom("Figtree-Bold", size: 11))
+                        .font(AngroveTheme.Typography.settingsLabel)
                         .foregroundStyle(AngroveTheme.Colors.primaryReadable)
-                        .frame(width: 54, height: 30)
+                        .padding(.horizontal, 8)
+                        .frame(minWidth: 54, minHeight: 30)
                         .background {
                             if selection == option {
                                 Capsule()
@@ -481,6 +504,18 @@ struct FontSegmentedControl: View {
     }
 }
 
+private func settingsSegmentLayout(isVertical: Bool) -> AnyLayout {
+    isVertical
+        ? AnyLayout(VStackLayout(spacing: 4))
+        : AnyLayout(HStackLayout(spacing: 4))
+}
+
+private func settingsRowLayout(isVertical: Bool) -> AnyLayout {
+    isVertical
+        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+        : AnyLayout(HStackLayout(alignment: .center, spacing: 12))
+}
+
 enum SettingsHaptics {
     static var isEnabled: Bool {
         let defaults = UserDefaults.standard
@@ -493,5 +528,19 @@ enum SettingsHaptics {
     static func playSelection() {
         guard isEnabled else { return }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    static func playDoubleSelection() async {
+        guard isEnabled else { return }
+        let feedback = UIImpactFeedbackGenerator(style: .light)
+        feedback.prepare()
+        feedback.impactOccurred()
+        do {
+            try await Task.sleep(for: .milliseconds(100))
+        } catch {
+            return
+        }
+        guard isEnabled else { return }
+        feedback.impactOccurred()
     }
 }

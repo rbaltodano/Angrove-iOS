@@ -8,6 +8,7 @@ import UIKit
 
 final class CanvasSwipeView: UIView {
     var onTriggered: (() -> Void)?
+    var excludedScrollBounds: [CGRect] = []
     fileprivate var windowPan: UIPanGestureRecognizer?
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? { nil }
@@ -37,6 +38,10 @@ final class CanvasSwipeView: UIView {
 }
 
 extension CanvasSwipeView: UIGestureRecognizerDelegate {
+    func gestureRecognizer(_ gr: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        !AttachmentScrollBoundsKey.contains(touch.location(in: nil), in: excludedScrollBounds)
+    }
+
     func gestureRecognizer(_ gr: UIGestureRecognizer,
                            shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool { false }
     func gestureRecognizer(_ gr: UIGestureRecognizer,
@@ -44,15 +49,18 @@ extension CanvasSwipeView: UIGestureRecognizerDelegate {
 }
 
 struct RightEdgeCanvasSwipeTrigger: UIViewRepresentable {
+    var excludedScrollBounds: [CGRect] = []
     var onTriggered: () -> Void
     func makeUIView(context: Context) -> CanvasSwipeView {
         let v = CanvasSwipeView()
         v.backgroundColor = .clear
         v.onTriggered = onTriggered
+        v.excludedScrollBounds = excludedScrollBounds
         return v
     }
     func updateUIView(_ uiView: CanvasSwipeView, context: Context) {
         uiView.onTriggered = onTriggered
+        uiView.excludedScrollBounds = excludedScrollBounds
     }
     static func dismantleUIView(_ uiView: CanvasSwipeView, coordinator: ()) {
         uiView.windowPan?.view?.removeGestureRecognizer(uiView.windowPan!)

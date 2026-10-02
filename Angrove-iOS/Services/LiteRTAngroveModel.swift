@@ -463,11 +463,23 @@ struct LiteRTAngroveModel: AngroveModel {
                 explicitCorrection: correction,
                 groundingReferences: responseReferences
             )
+            // With thinking on, Gemma reasons in its native thought channel before answering; that
+            // reasoning streams to the live Thinking display and is kept for Show Thinking.
+            let thoughtStream = ThoughtStream()
             var raw = try await runtime.generate(
                 systemInstruction: systemInstruction,
                 initialMessages: request.history,
                 message: request.latest,
-                sampling: .conversation
+                sampling: .conversation,
+                onText: thinkingEnabled ? { @MainActor text in
+                    guard !thoughtStream.answerStarted, !text.isEmpty else { return }
+                    thoughtStream.answerStarted = true
+                    onUpdate(.responseText(text))
+                } : nil,
+                onThought: thinkingEnabled ? { @MainActor thought in
+                    thoughtStream.text = thought
+                    onUpdate(.thought(thought))
+                } : nil
             )
             try Task.checkCancellation()
             // The model marks key terms inline in the same pass ({{term}}) instead of a
@@ -583,7 +595,7 @@ struct LiteRTAngroveModel: AngroveModel {
             // fallback. A turn with no markers legitimately has zero highlighted terms.
             return ModelResponse(
                 text: responseText,
-                thinkingSummary: fallbackThinkingSummary,
+                thinkingSummary: fallbackThinkingSummary + ModelThought.lines(in: thoughtStream.text),
                 keyTerms: responseReferences.isEmpty ? [] : keyTerms,
                 evidenceBasis: evidenceBasis,
                 citations: ResponseCitationMatcher.citations(
@@ -2589,4 +2601,11 @@ private enum LiteRTPatterns {
 
 private struct ConversationTitlePayload: Decodable {
     let title: String
+}
+
+/// Collects one generation's streamed thought, and whether answer text has begun, across the
+/// runtime's streaming callbacks.
+private final class ThoughtStream {
+    var text = ""
+    var answerStarted = false
 }

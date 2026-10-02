@@ -15,8 +15,10 @@ to previews and tests.
 On-device conversation decoding is deterministic (greedy). That policy dates from the earlier
 4-bit E2B checkpoint, which sampling corrupted; the E4B package passed a sampled check in C8, but
 the policy hasn't changed. Local decoding currently yields completed text rather than reliable token
-deltas. The app may present a safe, question-specific approach summary, but it must never expose
-provider scratch work or chain-of-thought.
+deltas. When a caller passes `onThought`, `streamText` sends `extraContext: ["enable_thinking":
+true]`, which makes the Gemma 4 chat template prepend `<|think|>`; LiteRT-LM then streams the
+model's reasoning in each chunk's `channels["thought"]`, separate from the answer text. Only the
+first conversation-answer pass enables it; retries, audits, and structured calls do not.
 
 ## Insight Tree runtime
 

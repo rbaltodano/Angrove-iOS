@@ -271,6 +271,12 @@ struct StudyTopicsView: View {
         .onChange(of: pendingTreeUpdateTopicID) { _, _ in
             reportControls()
         }
+        .onChange(of: conversations.isEmpty) { _, isEmpty in
+            if isEmpty {
+                isExistingConversationPickerOpen = false
+            }
+            reportControls()
+        }
         .onAppear {
             reportControls()
             let selectionRequest = requestedTreeSelection
@@ -558,7 +564,7 @@ struct StudyTopicsView: View {
             StudyTopicsPageControls(
                 isVisible: !topicCanvasMode.isTopicCanvasVisible,
                 actionTitle: selectedTopicID == nil ? "New Study Topic" : "New Conversation",
-                secondaryActionTitle: selectedTopicID == nil ? nil : "Add Conversation",
+                secondaryActionTitle: selectedTopicID == nil || conversations.isEmpty ? nil : "Add Conversation",
                 action: performPrimaryControlAction,
                 secondaryAction: {
                     if let selectedTopicID {

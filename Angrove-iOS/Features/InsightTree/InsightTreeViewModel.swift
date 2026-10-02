@@ -86,6 +86,16 @@ final class InsightTreeViewModel: ObservableObject {
     /// Insight actually added or removed; everyone else's Node stays exactly where it was.
     private var insightClusterAssignments: [UUID: UUID] = [:]
     private static let insightClusterAssignmentStoreKey = "aquinas.insight-tree.insight-cluster-assignments.v1"
+    private var scopedClusterAssignmentStoreKey: String {
+        Self.clusterAssignmentStoreKey(scope: midpointStoreScope)
+    }
+    private static func clusterAssignmentStoreKey(scope: UUID?) -> String {
+        guard let scope else { return Self.insightClusterAssignmentStoreKey }
+        // Legacy assignments mixed Global and conversation ownership, including assignments made
+        // before MiniLM was ready. Recompute conversation membership once in a clean scope.
+        return "aquinas.insight-tree.insight-cluster-assignments.v2:\(scope.uuidString)"
+    }
+    private var embeddingRefreshGeneration = 0
     /// Minimum cosine similarity for an Insight to attach to an existing local Node. The bundled
     /// provider is MiniLM, matching the grounding corpus's embedding space. This value is centralized as a
     /// calibration constant so real-conversation evaluation can change it without touching layout.
@@ -148,7 +158,7 @@ final class InsightTreeViewModel: ObservableObject {
             storageKey: Self.clusterDefinitionStoreKey
         )
         insightClusterAssignments = Self.loadUUIDMapping(
-            storageKey: Self.insightClusterAssignmentStoreKey
+            storageKey: Self.clusterAssignmentStoreKey(scope: midpointStoreScope)
         )
         placedMidpoints = Self.loadPlacedMidpoints(
             storageKey: "\(Self.placedMidpointStoreKeyPrefix):\(midpointStoreScope?.uuidString ?? "global")"
@@ -175,13 +185,21 @@ final class InsightTreeViewModel: ObservableObject {
         guard !modelWorkStarted else { return }
         modelWorkStarted = true
         rebuildTree()
+        refreshEmbeddingsIfNeeded()
     }
 
     func updateInsights(_ concepts: [ConceptDefinition], promotedInsightIDs: [UUID]? = nil) {
 #if DEBUG
         print("Angrove updateInsights: incoming \(concepts.count) concept(s) \(concepts.map(\.word))")
 #endif
-        insights = Self.deduplicated(concepts.map { InsightModel(concept: $0) })
+        embeddingRefreshGeneration += 1
+        let previous = Dictionary(uniqueKeysWithValues: insights.map { ($0.id, $0) })
+        insights = Self.deduplicated(concepts.map { concept in
+            let next = InsightModel(concept: concept)
+            if let existing = previous[next.id], existing.title == next.title,
+               existing.definition == next.definition { return existing }
+            return next
+        })
         if let promotedInsightIDs {
             self.promotedInsightIDs = promotedInsightIDs
             let retainedNodeIDs = Set(promotedInsightIDs.map {
@@ -211,8 +229,10 @@ final class InsightTreeViewModel: ObservableObject {
         print("Angrove setLocalSeedAnchors: incoming \(seeds.map { "\($0.label)[emb=\($0.embedding?.count.description ?? "nil")]" }), unchanged=\(localSeedAnchors == seeds)")
 #endif
         guard localSeedAnchors != seeds else { return }
+        embeddingRefreshGeneration += 1
         localSeedAnchors = seeds
         rebuildTree()
+        refreshEmbeddingsIfNeeded()
     }
 
     /// Drops any later entry that repeats an earlier one's id, keeping first-seen order. Callers
@@ -240,16 +260,39 @@ final class InsightTreeViewModel: ObservableObject {
     /// recomputing any that are missing or were produced by a different provider (a source swap).
     /// `rebuildTree`'s own embedding step above is a synchronous same-provider fallback only (it
     /// keeps the tree usable immediately, including during `init`); this is the versioned,
-    /// async-capable path that becomes load-bearing once a non-`NLEmbeddingProvider` is configured.
-    /// A no-op today: everything `rebuildTree` just tagged already matches, so this rebuilds
-    /// nothing further.
+    /// async-capable path used by the live MiniLM provider. Membership is committed only after
+    /// these vectors are ready.
     private func refreshEmbeddingsIfNeeded() {
-        Task { @MainActor in
-            let corrected = await ensureEmbeddings(for: insights)
-            guard corrected != insights else { return }
-            insights = corrected
-            rebuildTree()
+        Task { @MainActor in await prepareSemanticTree() }
+    }
+
+    /// Publish a snapshot only after Insights and seeds share the configured vector space.
+    /// Reject an older asynchronous result if a bookmark or seed changed while it was embedding.
+    func prepareSemanticTree() async {
+        let generation = embeddingRefreshGeneration
+        let originalInsights = insights
+        let originalSeeds = localSeedAnchors
+        let corrected = await ensureEmbeddings(for: originalInsights)
+        var correctedSeeds: [LocalInsightTreeSeed] = []
+        for seed in originalSeeds {
+            if seed.embedding != nil,
+               (seed.embeddingVersion ?? NLEmbeddingProvider.version) == embeddingProvider.version {
+                correctedSeeds.append(seed)
+            } else {
+                let embedding = await embeddingProvider.embed("\(seed.label). \(seed.summary)")
+                correctedSeeds.append(LocalInsightTreeSeed(
+                    id: seed.id, label: seed.label, summary: seed.summary,
+                    embedding: embedding, embeddingVersion: embeddingProvider.version,
+                    createdAt: seed.createdAt
+                ))
+            }
         }
+        guard generation == embeddingRefreshGeneration,
+              insights == originalInsights, localSeedAnchors == originalSeeds else { return }
+        guard corrected != insights || correctedSeeds != localSeedAnchors else { return }
+        insights = corrected
+        localSeedAnchors = correctedSeeds
+        rebuildTree()
     }
 
     private func ensureEmbeddings(for insights: [InsightModel]) async -> [InsightModel] {
@@ -437,7 +480,7 @@ final class InsightTreeViewModel: ObservableObject {
         // the versioned, async-capable path layered on top (see its doc comment).
         let embeddedInsights = insights.map { insight -> InsightModel in
             var copy = insight
-            guard copy.embedding == nil else { return copy }
+            guard copy.embedding == nil, embeddingProvider.version == NLEmbeddingProvider.version else { return copy }
             copy.embedding = computeEmbedding(for: "\(insight.title). \(insight.definition)")
             copy.embeddingVersion = NLEmbeddingProvider.version
             return copy
@@ -459,9 +502,15 @@ final class InsightTreeViewModel: ObservableObject {
         // Node's description that it happens to resemble.
         let placedMidpointIDs = Set(placedMidpoints.map { $0.concept.id })
         let attachedMakeNodeIDs = activeMakeNodeBookmarkIDs
+        let seedsReady = localSeedAnchors.allSatisfy {
+            $0.embedding != nil
+                && ($0.embeddingVersion ?? NLEmbeddingProvider.version) == embeddingProvider.version
+        }
         var (nextNodes, nextEdges) = makeClusteredTree(
             from: embeddedInsights.filter {
-                !placedMidpointIDs.contains($0.id) && !attachedMakeNodeIDs.contains($0.id)
+                let semanticReady = seedsReady && (embeddingProvider.version == NLEmbeddingProvider.version
+                    || ($0.embedding != nil && $0.embeddingVersion == embeddingProvider.version))
+                return semanticReady && !placedMidpointIDs.contains($0.id) && !attachedMakeNodeIDs.contains($0.id)
             }
         )
         appendPromotedNodes(to: &nextNodes, edges: &nextEdges, from: embeddedInsights)
@@ -535,7 +584,8 @@ final class InsightTreeViewModel: ObservableObject {
             Cluster(
                 id: seed.id,
                 insights: [],
-                embedding: seed.embedding ?? [],
+                embedding: (seed.embeddingVersion ?? NLEmbeddingProvider.version) == embeddingProvider.version
+                    ? (seed.embedding ?? []) : [],
                 seedLabel: seed.label,
                 seedSummary: seed.summary
             )
@@ -553,7 +603,15 @@ final class InsightTreeViewModel: ObservableObject {
                 targetClusterID = assigned
             } else {
                 let best = clusters.indices
-                    .map { ($0, cosineSimilarity(embedding, clusters[$0].embedding)) }
+                    .map { index in
+                        let memberSimilarity = cosineSimilarity(embedding, clusters[index].embedding)
+                        let seedSimilarity = localSeedAnchors.first { $0.id == clusters[index].id }
+                            .map { seed in
+                                guard (seed.embeddingVersion ?? NLEmbeddingProvider.version) == embeddingProvider.version else { return -1.0 }
+                                return cosineSimilarity(embedding, seed.embedding ?? [])
+                            } ?? -1
+                        return (index, max(memberSimilarity, seedSimilarity))
+                    }
                     .max { $0.1 < $1.1 }
                 if let best, best.1 >= localMembershipThreshold {
                     targetClusterID = clusters[best.0].id
@@ -570,6 +628,11 @@ final class InsightTreeViewModel: ObservableObject {
                 clusters[index].insights.append(insight)
                 clusters[index].embedding = centroid(
                     clusters[index].insights.compactMap(\.embedding)
+                        + (localSeedAnchors.first(where: { $0.id == targetClusterID })
+                            .flatMap { seed -> [Double]? in
+                                guard (seed.embeddingVersion ?? NLEmbeddingProvider.version) == embeddingProvider.version else { return nil }
+                                return seed.embedding
+                            }.map { [$0] } ?? [])
                 )
             } else {
                 clusters.append(
@@ -581,7 +644,7 @@ final class InsightTreeViewModel: ObservableObject {
                 )
             }
         }
-        let liveInsightIDs = Set(insights.map(\.id))
+        let liveInsightIDs = Set(self.insights.map(\.id))
         insightClusterAssignments = insightClusterAssignments.filter { liveInsightIDs.contains($0.key) }
         persistInsightClusterAssignments()
 #if DEBUG
@@ -1360,7 +1423,7 @@ final class InsightTreeViewModel: ObservableObject {
         )
         InsightTreeLocalStateStore.save(
             stored,
-            key: Self.insightClusterAssignmentStoreKey
+            key: scopedClusterAssignmentStoreKey
         )
     }
 

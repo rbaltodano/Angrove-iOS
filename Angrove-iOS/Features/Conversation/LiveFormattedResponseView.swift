@@ -141,17 +141,17 @@ private struct LiveResponseBlockView: View {
         case 1:
             .custom(
                 "LibreBaskerville-Regular",
-                size: conversationFontSize.pointSize + 8
+                fixedSize: conversationFontSize.pointSize + 8
             )
         case 2:
             .custom(
                 "LibreBaskerville-Regular",
-                size: conversationFontSize.pointSize + 4
+                fixedSize: conversationFontSize.pointSize + 4
             )
         default:
             .custom(
                 "Figtree-Bold",
-                size: conversationFontSize.pointSize + 1
+                fixedSize: conversationFontSize.pointSize + 1
             )
         }
     }

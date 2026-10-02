@@ -48,6 +48,8 @@ struct ListAwareTextField: UIViewRepresentable {
     var textColor: UIColor = .angrovePrimaryReadable
     var textAlignment: NSTextAlignment = .natural
     var onFocusChange: (Bool) -> Void = { _ in }
+    /// Observes finger contact without taking over text editing gestures.
+    var onPressChange: ((Bool) -> Void)? = nil
     /// Optional relay that exposes the UITextView's live text for synchronous
     /// reads at submit time (avoids per-keystroke binding writes).
     var relay: TextInputRelay? = nil
@@ -65,6 +67,16 @@ struct ListAwareTextField: UIViewRepresentable {
     func makeUIView(context: Context) -> UITextView {
         let tv = CommandHighlightTextView()
         tv.delegate = context.coordinator
+        if onPressChange != nil {
+            let press = TextFieldContactRecognizer()
+            press.cancelsTouchesInView = false
+            press.delaysTouchesBegan = false
+            press.delaysTouchesEnded = false
+            press.onContactChange = { [weak coordinator = context.coordinator] isPressed in
+                coordinator?.parent.onPressChange?(isPressed)
+            }
+            tv.addGestureRecognizer(press)
+        }
         tv.font = font
         tv.textColor = textColor
         tv.tintColor = textColor
@@ -374,6 +386,11 @@ final class CommandHighlightTextView: UITextView {
     private var baseColor: UIColor = .angrovePrimaryReadable
     private var waveStart: CFTimeInterval?
     private var displayLink: CADisplayLink?
+    private var fadeStart: CFTimeInterval?
+    private var fadeRange: NSRange?
+    private var fadeColor: UIColor?
+    private var lastCommandColor: UIColor?
+    private let fadeDuration: CFTimeInterval = 0.3
     private let waveDuration: CFTimeInterval = 1.0 // Matches ThinkingShimmer's sweep.
 
     private final class WaveTarget: NSObject {
@@ -389,19 +406,41 @@ final class CommandHighlightTextView: UITextView {
         let draft = text ?? ""
         let token = draft.split(whereSeparator: \.isWhitespace).first.map(String.init)
         let nextCommand = SlashCommand.invocation(for: draft) == nil ? nil : token?.lowercased()
-        if let token, nextCommand != nil {
-            commandRange = (draft as NSString).range(of: token)
-        } else {
-            commandRange = nil
-        }
+        let previousRange = commandRange
+        let previousColor = lastCommandColor
         if nextCommand != command {
+            let wasRecognized = command != nil
             stopCommandWave()
             command = nextCommand
-            if nextCommand != nil, !UIAccessibility.isReduceMotionEnabled {
-                waveStart = CACurrentMediaTime()
-                let link = CADisplayLink(target: WaveTarget(self), selector: #selector(WaveTarget.tick(_:)))
-                link.add(to: .main, forMode: .common)
-                displayLink = link
+            if !UIAccessibility.isReduceMotionEnabled {
+                if nextCommand != nil {
+                    waveStart = CACurrentMediaTime()
+                } else if wasRecognized, let token, let previousRange, let previousColor {
+                    fadeStart = CACurrentMediaTime()
+                    fadeRange = NSRange(
+                        location: (draft as NSString).range(of: token).location,
+                        length: min(previousRange.length, (token as NSString).length)
+                    )
+                    fadeColor = previousColor
+                }
+                if waveStart != nil || fadeStart != nil {
+                    let link = CADisplayLink(target: WaveTarget(self), selector: #selector(WaveTarget.tick(_:)))
+                    link.add(to: .main, forMode: .common)
+                    displayLink = link
+                }
+            }
+        }
+        commandRange = nextCommand != nil ? token.map { (draft as NSString).range(of: $0) } : nil
+        // Keep a fade bounded to the remaining token while the user continues editing.
+        // Do not restart it on each keystroke or color newly appended invalid characters.
+        if let currentFadeRange = fadeRange {
+            if let token {
+                fadeRange = NSRange(
+                    location: (draft as NSString).range(of: token).location,
+                    length: min(currentFadeRange.length, (token as NSString).length)
+                )
+            } else {
+                stopCommandWave()
             }
         }
         advanceCommandWave()
@@ -411,6 +450,9 @@ final class CommandHighlightTextView: UITextView {
         displayLink?.invalidate()
         displayLink = nil
         waveStart = nil
+        fadeStart = nil
+        fadeRange = nil
+        fadeColor = nil
     }
 
     override func layoutSubviews() {
@@ -425,7 +467,13 @@ final class CommandHighlightTextView: UITextView {
 
     private func advanceCommandWave() {
         let progress = UIAccessibility.isReduceMotionEnabled ? 1 : waveProgress
-        if progress >= 1 { stopCommandWave() }
+        if UIAccessibility.isReduceMotionEnabled {
+            stopCommandWave()
+        } else if let fadeStart {
+            if CACurrentMediaTime() - fadeStart >= fadeDuration { stopCommandWave() }
+        } else if progress >= 1 {
+            stopCommandWave()
+        }
         applyCommandColor(progress: progress)
     }
 
@@ -456,7 +504,25 @@ final class CommandHighlightTextView: UITextView {
                 }
                 color = UIColor(patternImage: image)
             }
+            lastCommandColor = color
             textStorage.addAttribute(.foregroundColor, value: color, range: commandRange)
+        } else if let fadeStart, let fadeRange, let fadeColor,
+                  NSMaxRange(fadeRange) <= textStorage.length {
+            let elapsed = CGFloat(min(1, (CACurrentMediaTime() - fadeStart) / fadeDuration))
+            let eased = elapsed * elapsed * (3 - 2 * elapsed)
+            // Crossfade the last displayed color, including a partially completed gradient.
+            // Only color attributes change; text, layout, selection, and typing stay intact.
+            let image = UIGraphicsImageRenderer(size: CGSize(width: max(bounds.width, 1), height: 1)).image { context in
+                let rect = CGRect(x: 0, y: 0, width: max(bounds.width, 1), height: 1)
+                baseColor.resolvedColor(with: traitCollection).setFill()
+                context.cgContext.fill(rect)
+                context.cgContext.setAlpha(1 - eased)
+                fadeColor.setFill()
+                context.cgContext.fill(rect)
+            }
+            textStorage.addAttribute(.foregroundColor, value: UIColor(patternImage: image), range: fadeRange)
+        } else {
+            lastCommandColor = nil
         }
         // New keystrokes, including /rename arguments, begin in the normal color.
         var attributes = typingAttributes
@@ -503,5 +569,45 @@ private extension UITextView {
         guard let start = textView.position(from: textView.beginningOfDocument, offset: nsRange.location),
               let end   = textView.position(from: start, offset: nsRange.length) else { return nil }
         return textView.textRange(from: start, to: end)
+    }
+}
+
+/// Tracks contact for visual feedback while allowing caret, selection, and scrolling gestures.
+private final class TextFieldContactRecognizer: UIGestureRecognizer {
+    var onContactChange: ((Bool) -> Void)?
+    private var contacts: Set<UITouch> = []
+
+    override func canPrevent(_ preventedGestureRecognizer: UIGestureRecognizer) -> Bool { false }
+    override func canBePrevented(by preventingGestureRecognizer: UIGestureRecognizer) -> Bool { false }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        let wasEmpty = contacts.isEmpty
+        contacts.formUnion(touches)
+        state = wasEmpty ? .began : .changed
+        if wasEmpty { onContactChange?(true) }
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+        state = .changed
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        contacts.subtract(touches)
+        if contacts.isEmpty {
+            onContactChange?(false)
+            state = .ended
+        }
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+        contacts.removeAll()
+        onContactChange?(false)
+        state = .cancelled
+    }
+
+    override func reset() {
+        super.reset()
+        if !contacts.isEmpty { onContactChange?(false) }
+        contacts.removeAll()
     }
 }

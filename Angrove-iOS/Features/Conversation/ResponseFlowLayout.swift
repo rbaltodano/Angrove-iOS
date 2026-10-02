@@ -48,6 +48,7 @@ struct FlowLayout: Layout {
         var sizes: [Int: CGSize] = [:]
         var subviewCount = 0
         var measurementKey = 0
+        var availableWidth: CGFloat?
     }
 
     func makeCache(subviews: Subviews) -> Cache {
@@ -84,7 +85,7 @@ struct FlowLayout: Layout {
             subview.place(
                 at: CGPoint(x: bounds.minX + result.points[index].x,
                             y: bounds.minY + result.points[index].y),
-                proposal: .unspecified
+                proposal: ProposedViewSize(result.sizes[index])
             )
         }
     }
@@ -92,6 +93,7 @@ struct FlowLayout: Layout {
     struct FlowResult {
         var size: CGSize = .zero
         var points: [CGPoint] = []
+        var sizes: [CGSize] = []
 
         init(
             in maxWidth: CGFloat,
@@ -101,6 +103,11 @@ struct FlowLayout: Layout {
             justified: Bool,
             cache: inout Cache
         ) {
+            // A long citation's height depends on the current response width.
+            if cache.availableWidth != maxWidth {
+                cache.sizes.removeAll()
+                cache.availableWidth = maxWidth
+            }
             var currentX: CGFloat = 0
             var currentY: CGFloat = 0
             var lineHeight: CGFloat = 0
@@ -115,7 +122,12 @@ struct FlowLayout: Layout {
                 if !isTrailingToken, let hit = cache.sizes[idx] {
                     wordSize = hit
                 } else {
-                    wordSize = subview.sizeThatFits(.unspecified)
+                    let idealSize = subview.sizeThatFits(.unspecified)
+                    if maxWidth > 0, maxWidth.isFinite, idealSize.width > maxWidth {
+                        wordSize = subview.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
+                    } else {
+                        wordSize = idealSize
+                    }
                     if !isTrailingToken {
                         cache.sizes[idx] = wordSize
                     }
@@ -129,6 +141,7 @@ struct FlowLayout: Layout {
                     currentY += lineHeight + FlowLayout.rowSpacing
                     lineHeight = 0
                 }
+                sizes.append(wordSize)
                 points.append(CGPoint(x: currentX, y: currentY))
                 lineHeight = max(lineHeight, wordSize.height)
                 currentX += wordSize.width + spacing

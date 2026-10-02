@@ -19,22 +19,26 @@ struct AppearanceSettingsView: View {
 
     var body: some View {
         SettingsDetailScaffold(title: "Appearance") {
-            SettingsControlCard {
-                SettingsLabeledControl(title: "Color Scheme") {
-                    HStack(spacing: 8) {
-                        ForEach(AppearanceOption.allCases) { option in
-                            AppearanceButton(
-                                option: option,
-                                isSelected: option == selectedAppearance
-                            ) {
-                                SettingsHaptics.playSelection()
-                                withAnimation(.springQuick) {
-                                    colorSchemeOverride = option.colorScheme
+            VStack(alignment: .leading, spacing: 24) {
+                SettingsControlCard {
+                    SettingsLabeledControl(title: "Color Scheme") {
+                        HStack(spacing: 8) {
+                            ForEach(AppearanceOption.allCases) { option in
+                                AppearanceButton(
+                                    option: option,
+                                    isSelected: option == selectedAppearance
+                                ) {
+                                    SettingsHaptics.playSelection()
+                                    withAnimation(.springQuick) {
+                                        colorSchemeOverride = option.colorScheme
+                                    }
                                 }
                             }
                         }
                     }
                 }
+
+                AppIconSettingsCard()
             }
         }
     }
@@ -70,7 +74,7 @@ struct AppExperienceSettingsView: View {
                         showsResetConfirmation = true
                     } label: {
                         Text("Reset Settings")
-                            .font(.custom("Figtree-Bold", size: 12))
+                            .font(AngroveTheme.Typography.settingsLabel)
                             .foregroundStyle(AngroveTheme.Colors.accentRed)
                             .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
                     }
@@ -227,7 +231,7 @@ struct PrivacyAndDataSettingsView: View {
                         showsClearInsightTreeConfirmation = true
                     } label: {
                         Text("Clear Insight Tree")
-                            .font(.custom("Figtree-Bold", size: 12))
+                            .font(AngroveTheme.Typography.settingsLabel)
                             .foregroundStyle(AngroveTheme.Colors.accentRed)
                             .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
                     }
@@ -414,13 +418,13 @@ private struct ModelActivityPreview: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Preview")
-                .font(.custom("Figtree-Bold", size: 12))
+                .font(AngroveTheme.Typography.settingsLabel)
                 .foregroundStyle(AngroveTheme.Colors.paragraphText)
 
             switch display {
             case .detailed:
                 Text("Thinking...")
-                    .font(.custom("Figtree-Regular", size: 14))
+                    .font(AngroveTheme.Typography.settingsBody)
                     .foregroundStyle(AngroveTheme.Colors.primaryReadable)
             case .compact:
                 HStack(spacing: 3) {
@@ -433,7 +437,7 @@ private struct ModelActivityPreview: View {
                 .accessibilityLabel("Model active")
             case .hidden:
                 Text("No visual activity indicator")
-                    .font(.custom("Figtree-Regular", size: 12))
+                    .font(AngroveTheme.Typography.settingsDetail)
                     .foregroundStyle(AngroveTheme.Colors.placeholderText)
             }
         }
@@ -529,7 +533,7 @@ struct SettingsInformationView: View {
         SettingsDetailScaffold(title: title) {
             SettingsControlCard {
                 Text(message)
-                    .font(.custom("Figtree-Regular", size: 14))
+                    .font(AngroveTheme.Typography.settingsBody)
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
                     .fixedSize(horizontal: false, vertical: true)
             }

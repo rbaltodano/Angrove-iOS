@@ -1,0 +1,71 @@
+{
+  "fill": {
+    "solid": "srgb:0.16309,0.14457,0.12725,1.00000"
+  },
+  "groups": [
+    {
+      "name": "Leaf",
+      "layers": [
+        {
+          "image-name": "leaf.png",
+          "name": "Painted grape leaf",
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.15
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      },
+      "specular": false
+    },
+    {
+      "name": "Background",
+      "layers": [
+        {
+          "name": "Dark dotted background",
+          "image-name": "dark-background.svg",
+          "glass": false,
+          "opacity-specializations": [
+            {
+              "value": 1
+            },
+            {
+              "appearance": "dark",
+              "value": 1
+            }
+          ]
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      },
+      "specular": false
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  },
+  "fill-specializations": [
+    {
+      "appearance": "dark",
+      "value": {
+        "solid": "srgb:0.16309,0.14457,0.12725,1.00000"
+      }
+    }
+  ]
+}

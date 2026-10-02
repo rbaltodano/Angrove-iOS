@@ -6,77 +6,165 @@
 import SwiftUI
 import UIKit
 
+/// Shared timing for conversation and Insight action entrances.
+enum ResponseRevealTiming {
+    static let actionStagger = 0.10
+    static let actionDuration = 0.28
+    static let finishingDuration = 0.35
+    static let actionAnimation = Animation.easeOut(duration: actionDuration)
+    static let finishingAnimation = Animation.easeOut(duration: finishingDuration)
+}
+
+private struct ResponseActionEntrance: ViewModifier {
+    var isVisible: Bool
+    var animates: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(isVisible ? 1 : 0)
+            .blur(radius: isVisible ? 0 : 4)
+            .scaleEffect(isVisible ? 1 : 0.88)
+            .animation(animates ? ResponseRevealTiming.actionAnimation : nil, value: isVisible)
+            .allowsHitTesting(isVisible)
+            .accessibilityHidden(!isVisible)
+    }
+}
+
 // MARK: - Model Response Footer
 
-/// The compact disclaimer and copy control shown beneath every completed model response.
+/// Reveals staggered response actions alongside the word-by-word disclaimer.
 struct ModelResponseFooter: View {
     let copyText: String
     var evidenceBasis: ResponseEvidenceBasis? = nil
     var responseTextAlignment: ResponseTextAlignmentOption = .left
     var onRegenerate: (() -> Void)? = nil
     var onBranch: (() -> Void)? = nil
+    var shouldAnimateOnAppear = false
+    var onRevealComplete: (() -> Void)? = nil
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsCopiedConfirmation = false
+    @State private var visibleActionCount = 0
+    @State private var visibleDisclaimerWords = 0
+
+    private var disclaimerWords: [String] {
+        String(localized: "AI can make mistakes, verify important details")
+            .split(whereSeparator: \.isWhitespace).map(String.init)
+    }
+
+    private var actionCount: Int {
+        1 + (onRegenerate == nil ? 0 : 1) + (onBranch == nil ? 0 : 1)
+    }
 
     var body: some View {
         VStack(alignment: responseTextAlignment.horizontalAlignment, spacing: 6) {
             HStack(spacing: 8) {
-                Button(action: copyResponse) {
-                    Image(systemName: showsCopiedConfirmation ? "checkmark" : "doc.on.doc")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(AngroveTheme.Colors.responseButton)
-                        .frame(width: 14, height: 16)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(showsCopiedConfirmation ? "Response copied" : "Copy response")
-
+                actionButton(
+                    symbol: showsCopiedConfirmation ? "checkmark" : "doc.on.doc",
+                    index: 0,
+                    label: showsCopiedConfirmation ? String(localized: "Response copied") : String(localized: "Copy response"),
+                    action: copyResponse
+                )
                 if let onRegenerate {
-                    Button(action: onRegenerate) {
-                        Image(systemName: "arrow.trianglehead.2.clockwise")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(AngroveTheme.Colors.responseButton)
-                            .frame(width: 14, height: 16)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Regenerate response")
+                    actionButton(
+                        symbol: "arrow.trianglehead.2.clockwise", index: 1,
+                        label: String(localized: "Regenerate response"), action: onRegenerate
+                    )
                 }
-
                 if let onBranch {
-                    Button(action: onBranch) {
-                        Image(systemName: "arrow.trianglehead.branch")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(AngroveTheme.Colors.responseButton)
-                            .frame(width: 14, height: 16)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Branch conversation")
+                    actionButton(
+                        symbol: "arrow.trianglehead.branch", index: onRegenerate == nil ? 1 : 2,
+                        label: String(localized: "Branch conversation"), action: onBranch
+                    )
                 }
             }
 
-            Text("AI can make mistakes, verify important details")
-                .font(.custom("Figtree-SemiBold", size: 10))
-                .foregroundStyle(AngroveTheme.Colors.placeholderText)
-                .frame(height: 20)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
+            FlowLayout(spacing: 2, alignment: responseTextAlignment.textAlignment) {
+                ForEach(Array(disclaimerWords.enumerated()), id: \.offset) { index, word in
+                    Text(verbatim: word)
+                        .font(.custom("Figtree-SemiBold", size: 10))
+                        .foregroundStyle(AngroveTheme.Colors.placeholderText)
+                        .opacity(index < visibleDisclaimerWords ? 1 : 0)
+                        .offset(y: index < visibleDisclaimerWords ? 0 : 10)
+                        .blur(radius: index < visibleDisclaimerWords ? 0 : 3)
+                        .accessibilityHidden(index >= visibleDisclaimerWords)
+                }
+            }
+            .frame(minHeight: 20)
+            .animation(shouldAnimateOnAppear && !reduceMotion ? ResponseRevealTiming.finishingAnimation : nil, value: visibleDisclaimerWords)
         }
         .frame(maxWidth: .infinity, alignment: responseTextAlignment.frameAlignment)
+        .task(id: shouldAnimateOnAppear) {
+            await revealFooter()
+        }
+    }
+
+    private func actionButton(symbol: String, index: Int, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            actionIcon(symbol)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .modifier(ResponseActionEntrance(
+            isVisible: index < visibleActionCount,
+            animates: shouldAnimateOnAppear && !reduceMotion
+        ))
+        .frame(width: 14, height: 16)
+    }
+
+    private func actionIcon(_ symbol: String) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(AngroveTheme.Colors.responseButton)
+            .frame(width: 14, height: 16)
+            .contentShape(Rectangle())
+    }
+
+    private func revealFooter() async {
+        guard shouldAnimateOnAppear && !reduceMotion else {
+            visibleActionCount = actionCount
+            visibleDisclaimerWords = disclaimerWords.count
+            onRevealComplete?()
+            return
+        }
+        visibleActionCount = 0
+        visibleDisclaimerWords = 0
+        do {
+            // Merge both schedules so their first visible elements share the same frame.
+            let actionEvents = (1...actionCount).map {
+                (time: Double($0 - 1) * ResponseRevealTiming.actionStagger, actions: $0, words: 0)
+            }
+            let wordEvents = stride(from: 0, to: disclaimerWords.count, by: 4).enumerated().map {
+                (time: Double($0.offset) * 0.055, actions: 0, words: min($0.element + 4, disclaimerWords.count))
+            }
+            let events = (actionEvents + wordEvents).sorted { $0.time < $1.time }
+            var elapsed = 0.0
+            for event in events {
+                if event.time > elapsed {
+                    try await Task.sleep(for: .seconds(event.time - elapsed))
+                }
+                try Task.checkCancellation()
+                visibleActionCount = max(visibleActionCount, event.actions)
+                visibleDisclaimerWords = max(visibleDisclaimerWords, event.words)
+                elapsed = event.time
+            }
+            let settleTime = max(
+                (actionEvents.last?.time ?? 0) + ResponseRevealTiming.actionDuration,
+                (wordEvents.last?.time ?? 0) + ResponseRevealTiming.finishingDuration
+            )
+            try await Task.sleep(for: .seconds(settleTime - elapsed))
+            try Task.checkCancellation()
+            onRevealComplete?()
+        } catch {
+            // A removed or regenerated answer cannot reveal another answer's composer.
+        }
     }
 
     private func copyResponse() {
         UIPasteboard.general.string = copyText
-
-        withAnimation(.springBouncy) {
-            showsCopiedConfirmation = true
-        }
-
+        withAnimation(.springBouncy) { showsCopiedConfirmation = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            withAnimation {
-                showsCopiedConfirmation = false
-            }
+            withAnimation { showsCopiedConfirmation = false }
         }
     }
 }
@@ -100,6 +188,7 @@ struct ResponseButtons: View {
     var onFork: (() -> Void)? = nil
 
     @State private var visibleActionCount = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showCopied = false
     @State private var revealRunID = UUID()
 
@@ -128,22 +217,16 @@ struct ResponseButtons: View {
     var body: some View {
         HStack(spacing: 12) {
             ForEach(Array(actions.enumerated()), id: \.offset) { index, action in
-                ZStack {
+                Button {
+                    handle(action)
+                } label: {
                     buttonIcon(for: action)
-                        .hidden()
-                        .accessibilityHidden(true)
-
-                    if visibleActionCount > index {
-                        Button {
-                            handle(action)
-                        } label: {
-                            buttonIcon(for: action)
-                                .sfSymbolDrawOn()
-                        }
-                        .buttonStyle(.plain)
-                        .transition(.scale(scale: 0.88).combined(with: .opacity))
-                    }
                 }
+                .buttonStyle(.plain)
+                .modifier(ResponseActionEntrance(
+                    isVisible: visibleActionCount > index,
+                    animates: !reduceMotion
+                ))
                 .frame(width: 16, height: 16)
             }
         }
@@ -197,14 +280,16 @@ struct ResponseButtons: View {
     private func revealButtons() {
         let runID = UUID()
         revealRunID = runID
+        guard !reduceMotion else {
+            visibleActionCount = actions.count
+            return
+        }
         visibleActionCount = 0
 
         for index in actions.indices {
-            DispatchQueue.main.asyncAfter(deadline: .now() + (Double(index) * 0.10)) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + (Double(index) * ResponseRevealTiming.actionStagger)) {
                 guard revealRunID == runID else { return }
-                withAnimation(.easeOut(duration: 0.28)) {
-                    visibleActionCount = max(visibleActionCount, index + 1)
-                }
+                visibleActionCount = max(visibleActionCount, index + 1)
             }
         }
     }

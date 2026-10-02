@@ -486,12 +486,7 @@ private struct FooterDivider: View {
                 .scaleEffect(x: showsDivider ? 1 : 0.75, y: 1, anchor: .trailing)
                 .opacity(showsDivider ? 1 : 0)
 
-            Image("cross-1")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 16, height: 16)
-                .foregroundColor(AngroveTheme.Colors.lightGreen)
+            AppIconImage(size: 16)
                 .rotationEffect(.degrees(showsDivider ? 0 : -45))
                 .opacity(showsDivider ? 1 : 0)
 

@@ -33,6 +33,7 @@ struct StreamingMessageView: View {
     var onInlineInsightFork: ((ConceptDefinition) -> Void)? = nil
     var onInlineInsightToggleSaved: ((ConceptDefinition) -> Void)? = nil
     var onRevealStart: (() -> Void)? = nil
+    var onBodyRevealComplete: (() -> Void)? = nil
     var onFinish: (() -> Void)? = nil
     /// Reports how many words have been revealed so far — lets a parent keep a live word/token
     /// estimate counting up throughout the actual streaming, not just during the thinking phase.
@@ -59,13 +60,19 @@ struct StreamingMessageView: View {
     @State private var hasReportedRevealStart = false
     @State private var showsInsightUnderlines: Bool
 
+    private struct PresentationTaskID: Equatable {
+        let text: String
+        let shouldStream: Bool
+        let usesIncrementalStream: Bool
+    }
+
     init(
         fullText: String,
         shouldStream: Bool = true,
         isReceivingStream: Bool = false,
         usesIncrementalStream: Bool = false,
-        responseTextAlignment: ResponseTextAlignmentOption = .center,
-        responseFont: ConversationFontOption = .sans,
+        responseTextAlignment: ResponseTextAlignmentOption = .left,
+        responseFont: ConversationFontOption = .serif,
         conversationFontSize: ConversationFontSizeOption = .large,
         loadingInsightKey: String? = nil,
         queuedInsightKeys: Set<String> = [],
@@ -80,6 +87,7 @@ struct StreamingMessageView: View {
         onInlineInsightFork: ((ConceptDefinition) -> Void)? = nil,
         onInlineInsightToggleSaved: ((ConceptDefinition) -> Void)? = nil,
         onRevealStart: (() -> Void)? = nil,
+        onBodyRevealComplete: (() -> Void)? = nil,
         onFinish: (() -> Void)? = nil,
         onRevealedWordCountChange: ((Int) -> Void)? = nil
     ) {
@@ -103,6 +111,7 @@ struct StreamingMessageView: View {
         self.onInlineInsightFork = onInlineInsightFork
         self.onInlineInsightToggleSaved = onInlineInsightToggleSaved
         self.onRevealStart = onRevealStart
+        self.onBodyRevealComplete = onBodyRevealComplete
         self.onFinish = onFinish
         self.onRevealedWordCountChange = onRevealedWordCountChange
 
@@ -150,11 +159,22 @@ struct StreamingMessageView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: responseTextAlignment.frameAlignment)
-        .task(id: usesIncrementalStream ? "incremental-stream" : fullText) {
+        .task(id: PresentationTaskID(
+            text: usesIncrementalStream ? "incremental-stream" : fullText,
+            shouldStream: shouldStream,
+            usesIncrementalStream: usesIncrementalStream
+        )) {
             if usesIncrementalStream, !isReceivingStream {
                 finishIncrementalResponse()
             } else if shouldStream && !usesIncrementalStream {
                 await streamText()
+            } else if !usesIncrementalStream {
+                // State initializers run only when this renderer is first mounted. A restored
+                // answer can replace its empty placeholder in the same view identity after
+                // navigation, so reconcile the visible words with the completed text as well.
+                displayedWords = responseWords
+                isFinished = true
+                showsInsightUnderlines = true
             }
         }
         .onChange(of: isReceivingStream) { wasReceiving, isReceiving in
@@ -217,18 +237,22 @@ struct StreamingMessageView: View {
             evidenceBasis: evidenceBasis,
             responseTextAlignment: responseTextAlignment,
             onRegenerate: onRegenerate,
-            onBranch: onBranch
-        )
-        .transition(
-            .move(edge: .top)
-            .combined(with: .opacity)
-            .combined(with: .scale(scale: 0.95))
+            onBranch: onBranch,
+            shouldAnimateOnAppear: shouldStream || usesIncrementalStream,
+            onRevealComplete: {
+                if shouldStream || usesIncrementalStream { reportFinishIfNeeded() }
+            }
         )
     }
 
     private func finishIncrementalResponse() {
         displayedWords = responseWords
         isFinished = true
+        onBodyRevealComplete?()
+        if !showsResponseActions { reportFinishIfNeeded() }
+    }
+
+    private func reportFinishIfNeeded() {
         guard !hasReportedFinish else { return }
         hasReportedFinish = true
         onFinish?()
@@ -251,10 +275,14 @@ struct StreamingMessageView: View {
 
     private func streamText() async {
         displayedWords = []
+        hasReportedFinish = false
         isFinished = false
         showsInsightUnderlines = false
         guard !responseWords.isEmpty else {
             reportRevealStartIfNeeded()
+            isFinished = true
+            onBodyRevealComplete?()
+            reportFinishIfNeeded()
             return
         }
 
@@ -263,6 +291,7 @@ struct StreamingMessageView: View {
         let words = responseWords
 
         for batchStart in stride(from: 0, to: words.count, by: streamBatchSize) {
+            guard !Task.isCancelled else { return }
             let batchEnd = min(batchStart + streamBatchSize, words.count)
             reportRevealStartIfNeeded()
             displayedWords.append(contentsOf: words[batchStart..<batchEnd])
@@ -281,13 +310,9 @@ struct StreamingMessageView: View {
             guard !Task.isCancelled else { return }
         }
 
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.7, blendDuration: 0)) {
-            isFinished = true
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            onFinish?()
-        }
+        isFinished = true
+        onBodyRevealComplete?()
+        if !showsResponseActions { reportFinishIfNeeded() }
     }
 
     private func reportRevealStartIfNeeded() {

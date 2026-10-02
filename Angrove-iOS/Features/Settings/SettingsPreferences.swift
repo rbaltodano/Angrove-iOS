@@ -590,9 +590,9 @@ enum ConversationFontOption: String, CaseIterable, Identifiable {
     func textFont(size: ConversationFontSizeOption) -> Font {
         switch self {
         case .sans:
-            .custom("Figtree-Regular", size: size.pointSize)
+            .custom("Figtree-Regular", fixedSize: size.pointSize)
         case .serif:
-            .custom("LibreBaskerville-Regular", size: size.pointSize)
+            .custom("LibreBaskerville-Regular", fixedSize: size.pointSize)
         }
     }
 }

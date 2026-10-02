@@ -32,7 +32,9 @@ duplicate architecture specifications.
 - All live generation goes through `AngroveModel` and the shared runtime/queue. `MockAngroveModel`
   is for previews and tests only; live actions fail explicitly rather than inventing fallback
   content.
-- User-facing approach summaries are safe public explanations, never hidden chain-of-thought.
+- The Thinking display shows the app's approach line and retrieved sources, then Gemma 4's own
+  native `thought` channel (one line at a time live, in full under **Show Thinking**). Never
+  invent or paraphrase reasoning the model did not produce.
 - Keep the LiteRT runtime process-scoped. Do not create competing live engines or queues.
 - Automatic response analysis can create a Node Concept, never an automatic Insight. Manual
   definition saves create Insights.

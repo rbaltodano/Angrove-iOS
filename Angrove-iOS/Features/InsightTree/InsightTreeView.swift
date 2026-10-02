@@ -732,6 +732,7 @@ struct InsightTreeView: View {
         content
         .onChange(of: insights) { oldValue, newValue in
             viewModel.updateInsights(newValue, promotedInsightIDs: promotedInsightIDs)
+            enqueuePersistedTreeLoad(animateChanges: true)
             restoreRequestedInsightSelection()
             if let selectedInsight,
                !newValue.contains(where: { $0.id == selectedInsight.id }) {
@@ -1894,7 +1895,12 @@ struct InsightTreeView: View {
 
         guard loadGeneration == persistedTreeLoadGeneration else { return }
         applyLocalSeedTreeIfAvailable(conversationID: conversationID)
+        await viewModel.prepareSemanticTree()
+        guard loadGeneration == persistedTreeLoadGeneration else { return }
         persistedTreePresentationRevision += 1
+        if animateChanges {
+            animatedPersistedTreePresentationRevision = persistedTreePresentationRevision
+        }
         if animateChanges {
             onPersistedTreeRefreshCompleted?()
         }
@@ -1913,31 +1919,11 @@ struct InsightTreeView: View {
         viewModel.setLocalSeedAnchors(localSeeds)
     }
 
-    /// Tree refreshes run through the shared queue so they are ordered after the foreground model
-    /// work that produced their seeds. Deduplicated: every appearance of the tree canvas (and
-    /// every `persistedTreeRefreshRequest` bump) would otherwise queue another
-    /// `.refreshInsightTree` job while one is already pending.
+    /// Loading saved seeds and preparing embeddings performs no generative model work. Apply
+    /// bookmark changes immediately rather than waiting behind definition/label queue jobs.
     private func enqueuePersistedTreeLoad(animateChanges: Bool) {
         guard conversationID != nil else { return }
-        guard let modelTasks else {
-            Task { await loadPersistedTree(animateChanges: animateChanges) }
-            return
-        }
-        guard !modelTasks.contains(where: {
-            $0.kind == .refreshInsightTree
-                && $0.conversationID == conversationID
-                && $0.phase != .completed
-        }) else {
-            return
-        }
-        modelTasks.enqueue(
-            kind: .refreshInsightTree,
-            originPage: modelTaskOriginPage,
-            conversationID: conversationID,
-            priority: .background
-        ) {
-            await loadPersistedTree(animateChanges: animateChanges)
-        }
+        Task { await loadPersistedTree(animateChanges: animateChanges) }
     }
 
     private func quoteTarget(for node: NodeModel) -> ConceptDefinition? {

@@ -23,8 +23,36 @@ struct SlashCommandTests {
 
         editor.text = "/renameNext"
         editor.updateCommandHighlight(baseColor: .angrovePrimaryReadable)
+        #expect((editor.textStorage.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor) != .angrovePrimaryReadable)
+        #expect((editor.textStorage.attribute(.foregroundColor, at: 8, effectiveRange: nil) as? UIColor) == .angrovePrimaryReadable)
+        try await Task.sleep(for: .milliseconds(150))
+        editor.layoutSubviews()
+        #expect((editor.textStorage.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor) != .angrovePrimaryReadable)
+        try await Task.sleep(for: .milliseconds(250))
+        editor.layoutSubviews()
         #expect((editor.textStorage.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor) == .angrovePrimaryReadable)
+        #expect(editor.text == "/renameNext")
         editor.stopCommandWave()
+    }
+
+    @Test("Recognizing a command during its fade cancels the fade", arguments: [UIUserInterfaceStyle.light, .dark])
+    @MainActor
+    func recognitionInterruptsFade(style: UIUserInterfaceStyle) async throws {
+        let editor = CommandHighlightTextView(frame: CGRect(x: 0, y: 0, width: 220, height: 80))
+        editor.overrideUserInterfaceStyle = style
+        defer { editor.stopCommandWave() }
+        editor.text = "/clear"
+        editor.updateCommandHighlight(baseColor: .angrovePrimaryReadable)
+        try await Task.sleep(for: .milliseconds(1100))
+        editor.text = "/clea"
+        editor.updateCommandHighlight(baseColor: .angrovePrimaryReadable)
+        editor.text = "/clear"
+        editor.updateCommandHighlight(baseColor: .angrovePrimaryReadable)
+        try await Task.sleep(for: .milliseconds(1100))
+        editor.layoutSubviews()
+        let green = UIColor(AngroveTheme.Colors.accentGreen).resolvedColor(with: editor.traitCollection)
+        #expect((editor.textStorage.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor) == green)
+        #expect(editor.text == "/clear")
     }
 
     @Test("Rename accepts a prompt or a name while preserving the name's case")

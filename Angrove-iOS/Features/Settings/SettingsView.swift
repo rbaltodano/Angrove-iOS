@@ -112,9 +112,9 @@ struct SettingsView: View {
         userName = ""
         customInstructions = ""
         conversationFontSize = .medium
-        conversationTextAlignment = .center
+        conversationTextAlignment = .left
         inputFont = .serif
-        responseFont = .sans
+        responseFont = .serif
         conversationPersonality = .default
     }
 }
@@ -322,12 +322,7 @@ private struct SettingsColophon: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            Image("cross-1")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 14, height: 14)
-                .foregroundStyle(AngroveTheme.Colors.lightGreen)
+            AppIconImage(size: 14)
                 .accessibilityHidden(true)
                 .padding(.bottom, 4)
 

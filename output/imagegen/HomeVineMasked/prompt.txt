@@ -1,0 +1,3 @@
+Built-in imagegen; transparent_background=true.
+
+Use case: background-extraction. Edit target: the attached painting of a hanging ivy vine against purple. Remove ONLY the purple background, including every purple hole between stems and leaves, to genuine alpha transparency. Preserve the exact existing vine, all leaves, delicate tendrils, painterly texture, deep green shadows, golden highlights, orientation, composition and original square canvas. Keep the branch touching the right edge exactly where it is. Do not redraw, restyle, recolor, rearrange, crop, add leaves or add shadows. Clean antialiased edges without purple fringes. One transparent PNG cutout, no backdrop or checkerboard.

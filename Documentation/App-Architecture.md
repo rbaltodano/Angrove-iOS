@@ -5,6 +5,18 @@ contracts remain in [`MODEL-INTEGRATION.md`](../../Aquinas-Foundations/MODEL-INT
 
 ## Composition and ownership
 
+`BootPresentation` keeps the shell mounted beneath a launch mask while startup stores and the
+selected destination are restored. The dots fade in while the initial painted-leaf sprite
+fades in from blur over 0.5 seconds. It then plays the five sprites once, with the transparent
+dotted background rotating behind them. Once ready, the grown leaf fades out into blur and
+the dots fade out together over 0.5 seconds, then it reveals the whole destination
+from top to bottom through a gradient spanning 120% of the viewport. During the 1.5-second
+reveal, the destination rises 32 points into place using the `(0.55, 0, 0.17, 1)` timing curve
+shared by the wipe. Readiness is UI restoration, not completion of background model tasks.
+The launch presentation does not replay on navigation or foregrounding. Reduce Motion uses
+a static grown leaf and a uniform fade. The system launch screen uses `LaunchCanvas`, whose
+light/dark values mirror `AngroveTheme.Colors.canvas` to avoid a pre-render background flash.
+
 `ContentView` owns the app shell: global navigation, settings, the global Insight Library canvas,
 and handoff into `CurrentConversationView`. It conditionally mounts the conversation screen, so
 state that must survive changing pages belongs at the shell level and is passed down through a
@@ -49,7 +61,10 @@ degraded last resort only when the MiniLM assets fail to load.
 
 Both canvases pass the app's shared `ModelTaskQueue` into `InsightTreeViewModel`. Cluster and
 suggestion labels use background `labelInsightTree` jobs (displayed as `Update Insight Tree`),
-separate from response-seeding and persisted-refresh deduplication. Initial label and child
+separate from response-seeding. Local bookmark/seed snapshot refreshes bypass the generative queue
+and await matching-provider embeddings before advancing the canvas presentation revision. Cluster
+ownership is persisted per tree scope; a seed remains a membership anchor as its members change.
+Initial label and child
 generation starts from the mounted tree's `.task`; constructing the tree during SwiftUI rendering
 must never enqueue work or mutate the shared task queue. A cluster's generated
 definition stays inside its label job. Blank title/definition placeholders are excluded from
@@ -64,10 +79,30 @@ whose name repeats a member is relabelled through the queue with its ID, members
 preserved. The new label overrides the seed's presentation and receives a fresh definition.
 Explicit Make Node promotions and placed Midpoints retain their intentional titles.
 
+Response presentation metadata persists optional `thinkingDurationSeconds`, measured from
+generation start to the first nonempty answer text (or completion when no text update arrives).
+The disclosure reads “Thought for Xm Ys”, omitting minutes below one minute; older saves
+without timing read “Thought”. The thinking footer shows elapsed time only during loading
+and animates out with the loading view before the answer starts its reveal.
+
+Question fields scale to 105% during finger contact, returning to their normal size on release
+or cancellation. A passive UIKit contact recognizer preserves native editing gestures.
+
+Conversation question and response fonts use the exact point sizes selected in app settings;
+iOS Dynamic Type does not rescale them. Settings-driven paragraph text follows the same policy.
+Settings subpage labels and explanatory text use semantic fonts relative to iOS text styles,
+so they follow the iPhone's Text Size setting independently of conversation font sizing.
+
 Response formatting is split by responsibility: `ResponseParsing` and `LiveResponseParsing`
 prepare completed and incremental text; `ResponseFlowLayout` lays out words;
 `CompletedResponseSegments` and `LiveFormattedResponseView` render them; `StreamingMessageView`
-coordinates reveal progress and completion. `ResponseTextFormatting` shares Insight-markup
+coordinates reveal progress and completion. Completed answers reveal Copy, Regenerate, and Branch
+icons with the Insight controls’ shared 0.10-second stagger and 0.28-second blur/fade/scale
+entrance. Disclaimer words and the next composer begin alongside the buttons. Disclaimer
+and composer entrances settle over 0.35 seconds. The
+composer's saved availability is set at model completion; body-reveal completion gates only its
+presentation and is skipped for restored answers and Reduce Motion. Body-reveal completion
+hides response metrics independently of footer completion. `ResponseTextFormatting` shares Insight-markup
 removal while retaining the different emphasis policies for previews and definition context.
 
 The tree canvas retains geometry-dependent interactions and physics. `InsightTreeRevealState`

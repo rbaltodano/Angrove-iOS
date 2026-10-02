@@ -3,7 +3,10 @@ import SwiftUI
 /// Explicit tap/hold routing avoids competing with Menu's own long-press presentation.
 struct PhotoAttachmentControl: View {
     @Binding var isPressed: Bool
+    /// While the recent photos card is open, a tap closes it instead of opening the menu.
+    let isRecentPhotosOpen: Bool
     let onHold: () -> Void
+    let onCloseRecentPhotos: () -> Void
     let onCamera: () -> Void
     let onPhoto: () -> Void
     let onFile: () -> Void
@@ -12,11 +15,13 @@ struct PhotoAttachmentControl: View {
     @State private var pendingAction: Task<Void, Never>?
 
     var body: some View {
-        Button { isMenuOpen.toggle() } label: {
+        Button(action: handleTap) {
             Image(systemName: "plus")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 .frame(width: 16, height: 16)
+                .rotationEffect(.degrees(isRecentPhotosOpen ? 45 : 0))
+                .animation(.springStandard, value: isRecentPhotosOpen)
         }
         .buttonStyle(FloatingControlButtonStyle(isPressed: $isPressed))
         .highPriorityGesture(
@@ -29,7 +34,7 @@ struct PhotoAttachmentControl: View {
                         isMenuOpen = false
                         onHold()
                     case .second:
-                        isMenuOpen.toggle()
+                        handleTap()
                     }
                 }
         )
@@ -42,10 +47,20 @@ struct PhotoAttachmentControl: View {
             )
             .presentationCompactAdaptation(.popover)
         }
-        .accessibilityLabel("Add attachment")
-        .accessibilityHint("Touch and hold to select a recent photo.")
+        .accessibilityLabel(isRecentPhotosOpen ? Text("Close recent photos") : Text("Add attachment"))
+        .accessibilityHint(isRecentPhotosOpen
+            ? Text("Tap to close the recent photos card.")
+            : Text("Touch and hold to select a recent photo."))
         .accessibilityAction(named: Text("Select recent photo"), onHold)
         .onDisappear { pendingAction?.cancel() }
+    }
+
+    private func handleTap() {
+        if isRecentPhotosOpen {
+            onCloseRecentPhotos()
+        } else {
+            isMenuOpen.toggle()
+        }
     }
 
     private func select(_ action: @escaping () -> Void) {

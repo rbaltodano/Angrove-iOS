@@ -178,18 +178,26 @@ struct UploadedFileStrip: View {
     let files: [UploadedFile]
     var alignment: Alignment = .center
     var onRemove: ((UploadedFile) -> Void)? = nil
+    @State private var stripWidth: CGFloat = 0
 
     var body: some View {
         if !files.isEmpty {
-            HStack(alignment: .center, spacing: 18) {
-                ForEach(files) { file in
-                    UploadedFileThumbnail(file: file, onRemove: onRemove.map { remove in
-                        { remove(file) }
-                    })
+            ScrollView(.horizontal) {
+                HStack(alignment: .center, spacing: 18) {
+                    ForEach(files) { file in
+                        UploadedFileThumbnail(file: file, onRemove: onRemove.map { remove in
+                            { remove(file) }
+                        })
+                    }
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 18)
+                .frame(minWidth: stripWidth, alignment: alignment)
             }
-            .frame(maxWidth: .infinity, alignment: alignment)
-            .padding(.vertical, 4)
+            .scrollIndicators(.hidden)
+            .frame(height: 138)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { stripWidth = $0 }
+            .attachmentScrollRegion()
             .transition(.scale(scale: 0.96).combined(with: .opacity))
         }
     }
@@ -238,19 +246,47 @@ struct UploadedFileThumbnail: View {
                 }) {
                     Image(systemName: "xmark")
                         .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(AngroveTheme.Colors.canvasInverse)
-                        .sfSymbolDrawOn()
+                        .foregroundStyle(AngroveTheme.Colors.deepSurface)
                         .frame(width: 22, height: 22)
                         .background(AngroveTheme.Colors.uploadBorder)
                         .clipShape(Circle())
                         .overlay(Circle().stroke(AngroveTheme.Colors.quietBorder, lineWidth: 1))
                         .shadow(color: AngroveTheme.Colors.mediaShadow, radius: 8, x: 0, y: 4)
+                        .frame(width: AngroveTheme.Spacing.controlHeight, height: AngroveTheme.Spacing.controlHeight)
+                        .contentShape(Rectangle())
                 }
-                .offset(x: 7, y: -7)
+                .offset(x: 18, y: -18)
+                .accessibilityLabel("Remove \(file.name)")
                 .buttonStyle(.plain)
             }
         }
         .rotationEffect(.degrees(file.rotationDegrees))
         .accessibilityLabel(file.name)
+    }
+}
+
+/// Window coordinates let both shell and canvas navigation yield to attachment scrolling.
+struct AttachmentScrollBoundsKey: PreferenceKey {
+    static let defaultValue: [CGRect] = []
+
+    static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) {
+        value.append(contentsOf: nextValue())
+    }
+
+    static func contains(_ point: CGPoint, in bounds: [CGRect]) -> Bool {
+        bounds.contains { $0.contains(point) }
+    }
+}
+
+extension View {
+    func attachmentScrollRegion() -> some View {
+        background {
+            GeometryReader { geometry in
+                Color.clear.preference(
+                    key: AttachmentScrollBoundsKey.self,
+                    value: [geometry.frame(in: .global)]
+                )
+            }
+        }
     }
 }

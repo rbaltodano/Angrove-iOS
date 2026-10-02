@@ -121,11 +121,11 @@ struct CompletedResponseSegments: View {
     private func headingFont(for level: Int) -> Font {
         switch level {
         case 1:
-            return .custom("LibreBaskerville-Regular", size: conversationFontSize.pointSize + 8)
+            return .custom("LibreBaskerville-Regular", fixedSize: conversationFontSize.pointSize + 8)
         case 2:
-            return .custom("LibreBaskerville-Regular", size: conversationFontSize.pointSize + 4)
+            return .custom("LibreBaskerville-Regular", fixedSize: conversationFontSize.pointSize + 4)
         default:
-            return .custom("Figtree-Bold", size: conversationFontSize.pointSize + 1)
+            return .custom("Figtree-Bold", fixedSize: conversationFontSize.pointSize + 1)
         }
     }
 

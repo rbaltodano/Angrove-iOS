@@ -13,7 +13,7 @@ struct UserGuideSettingsView: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Using Angrove")
-                        .font(AngroveTheme.Typography.uiHeading)
+                        .font(AngroveTheme.Typography.settingsHeading)
                         .foregroundStyle(AngroveTheme.Colors.headingText)
                         .accessibilityAddTraits(.isHeader)
 
@@ -72,7 +72,7 @@ private struct UserGuidePageScaffold<Content: View>: View {
                 VStack(alignment: .leading, spacing: 0) {
                     VStack(alignment: .leading, spacing: 20) {
                         Text(title)
-                            .font(AngroveTheme.Typography.titleXLarge)
+                            .font(AngroveTheme.Typography.settingsGuideTitle)
                             .foregroundStyle(AngroveTheme.Colors.primaryReadable)
                             .lineSpacing(18)
                             .fixedSize(horizontal: false, vertical: true)
@@ -80,7 +80,7 @@ private struct UserGuidePageScaffold<Content: View>: View {
 
                         if let subtitle {
                             UserGuideText.text(subtitle)
-                                .font(AngroveTheme.Typography.body)
+                                .font(AngroveTheme.Typography.settingsBody)
                                 .foregroundStyle(AngroveTheme.Colors.paragraphText)
                                 .lineSpacing(FlowLayout.rowSpacing)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -110,7 +110,7 @@ private struct UserGuideQuickStart: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             Text("Your First Five Minutes")
-                .font(AngroveTheme.Typography.uiHeading)
+                .font(AngroveTheme.Typography.settingsHeading)
                 .foregroundStyle(AngroveTheme.Colors.headingText)
                 .accessibilityAddTraits(.isHeader)
             UserGuideParagraph(title: "1. Ask a question", text: "Tap {plus|New Conversation} and type something you want to understand, like “What makes an action virtuous?” Then ask a follow-up as the idea develops.")
@@ -132,7 +132,7 @@ private struct UserGuideTopicRow: View {
                     .frame(width: 20)
                     .accessibilityHidden(true)
                 Text(topic.title)
-                    .font(AngroveTheme.Typography.body)
+                    .font(AngroveTheme.Typography.settingsBody)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
@@ -156,11 +156,11 @@ private struct UserGuideParagraph: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(AngroveTheme.Typography.uiSubheading)
+                .font(AngroveTheme.Typography.settingsLabel)
                 .foregroundStyle(AngroveTheme.Colors.headingText)
                 .accessibilityAddTraits(.isHeader)
             UserGuideText.text(text)
-                .font(AngroveTheme.Typography.body)
+                .font(AngroveTheme.Typography.settingsBody)
                 .foregroundStyle(AngroveTheme.Colors.paragraphText)
                 .lineSpacing(FlowLayout.rowSpacing)
                 .fixedSize(horizontal: false, vertical: true)

@@ -83,6 +83,8 @@ nonisolated struct ResponsePresentationMetadata: Codable, Equatable {
     let responseIndex: Int
     let showsThinking: Bool
     let thinkingSummary: [String]
+    /// Actual elapsed preparation time before the first answer text. Missing in older saves.
+    var thinkingDurationSeconds: TimeInterval? = nil
     /// The passages retrieval actually supplied for this answer, kept so **Show Thinking** can
     /// list them again after the fact. Optional because synthesized `Codable` decoding fails on a
     /// missing key rather than falling back to a property's default value, so presentations

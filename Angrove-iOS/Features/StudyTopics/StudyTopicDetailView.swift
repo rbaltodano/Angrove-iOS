@@ -270,7 +270,8 @@ struct StudyTopicDetailView: View {
                     .frame(width: geometry.size.width, alignment: .leading)
                 }
                 .scrollDismissesKeyboard(.interactively)
-                .scrollClipDisabled()
+                .attachmentScrollRegion()
+            .scrollClipDisabled()
             }
 
             // Insight Tree: saved insights from this topic's conversations.
@@ -798,6 +799,7 @@ private struct StudyTopicFilesSection: View {
             }
             // Disable the scroll view's own clip rect so rotated thumbnails and
             // drop shadows render freely outside the container's frame.
+            .attachmentScrollRegion()
             .scrollClipDisabled()
             // Edge fades: opaque canvas colour → transparent, drawn on top of the
             // scroll content. Using overlay (not mask) avoids re-clipping overflow.

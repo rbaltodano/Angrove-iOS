@@ -21,8 +21,8 @@ protocol AngroveModel {
     /// compatibility and validation-repair fallback for the streaming overload below.
     func respond(to context: ConversationContext) async -> ModelResponse
 
-    /// Streams approved, user-facing progress while a response is generated. Implementations
-    /// must never surface a provider's private scratch work or hidden chain-of-thought.
+    /// Streams user-facing progress while a response is generated, including the model's own
+    /// native thought channel when `thinkingEnabled`.
     func respond(
         to context: ConversationContext,
         thinkingEnabled: Bool,
@@ -393,6 +393,8 @@ struct LibraryNavigationRequest: Equatable {
 enum ModelResponseUpdate {
     case generationStarted
     case thinkingSummary([String])
+    /// The model's own reasoning so far (Gemma 4's native `thought` channel), accumulated.
+    case thought(String)
     case groundingSources([GroundingSourceSummary])
     case responseText(String)
 }

@@ -409,10 +409,7 @@ private struct BranchMapPreviewView: View {
 
     private var header: some View {
         VStack(spacing: 10) {
-            Image("cross-1")
-                .renderingMode(.template).resizable().scaledToFit()
-                .frame(width: 18, height: 18)
-                .foregroundColor(AngroveTheme.Colors.accent)
+            AppIconImage(size: 18)
 
             HStack(spacing: 8) {
                 if branch.parentBranchID != nil {
@@ -552,8 +549,7 @@ private struct BranchIconPreviewView: View {
     var body: some View {
         VStack(spacing: 18) {
             VStack(spacing: 8) {
-                Image("cross-1").renderingMode(.template).resizable().scaledToFit()
-                    .frame(width: 16, height: 16).foregroundColor(AngroveTheme.Colors.accent)
+                AppIconImage(size: 16)
                 Text(title)
                     .font(.custom("LibreBaskerville-Regular", size: 24))
                     .foregroundColor(AngroveTheme.Colors.primaryReadable)

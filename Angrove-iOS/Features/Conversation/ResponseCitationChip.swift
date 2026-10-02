@@ -8,7 +8,7 @@ struct ResponseCitationChip: View {
     let textFont: Font
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(alignment: .lastTextBaseline, spacing: 0) {
             Text(link.leadingPunctuation)
                 .font(textFont)
                 .foregroundColor(AngroveTheme.Colors.bodyText)
@@ -16,8 +16,9 @@ struct ResponseCitationChip: View {
                 Text(link.title)
                     .font(textFont)
                     .foregroundStyle(AngroveTheme.Colors.lightGreen)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                    .multilineTextAlignment(.leading)
+                    .lineSpacing(FlowLayout.rowSpacing)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 10)
                     // The capsule overhangs the text vertically without taking layout space, so
                     // the chip keeps the line's height and its punctuation stays on the prose baseline.

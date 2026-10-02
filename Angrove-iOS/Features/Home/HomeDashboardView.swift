@@ -195,6 +195,19 @@ struct HomeDashboardView: View {
 
 // MARK: - Figma Home Sections
 
+/// Transparent painted ivy, sized independently of the dashboard's reading layout.
+private struct HomeVine: View {
+    var body: some View {
+        Image("HomeVineMasked")
+            .renderingMode(.original)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 128, height: 128)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
 private struct HomeFigmaOpeningSection: View {
     let greeting: String
     let userName: String

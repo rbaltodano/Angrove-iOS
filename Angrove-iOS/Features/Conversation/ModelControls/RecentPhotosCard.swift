@@ -63,6 +63,7 @@ struct RecentPhotosCard: View {
                     }
                     .padding(.horizontal, Self.horizontalInset)
                 }
+                .attachmentScrollRegion()
                 .scrollIndicators(.hidden)
                 .frame(height: 80)
                 .overlay {

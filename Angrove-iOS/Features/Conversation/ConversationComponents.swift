@@ -101,9 +101,9 @@ struct ChatThreadColumn: View {
     @Binding var targetSpawnResponseIndex: Int?
     var externalSubmitTrigger: Int = 0
     var conversationFontSize: ConversationFontSizeOption = .large
-    var conversationTextAlignment: ConversationTextAlignmentOption = .center
+    var conversationTextAlignment: ConversationTextAlignmentOption = .left
     var inputFont: ConversationFontOption = .serif
-    var responseFont: ConversationFontOption = .sans
+    var responseFont: ConversationFontOption = .serif
     var conversationTitlePolicy: ConversationTitleOption = .automatic
     var personality: ConversationPersonality = .default
     var loadingInsightKey: String? = nil
@@ -280,11 +280,14 @@ struct ChatThreadColumn: View {
 
     @State private var responseViewLifetime = ConversationResponseViewLifetime()
     @State private var animatedResponseIndices: Set<Int> = []
+    @State private var composerReadyResponseIndices: Set<Int> = []
     @State private var pendingResponseIndices: Set<Int> = []
     @State private var streamingResponseIndices: Set<Int> = []
     @State private var modelQueuedResponseIndices: Set<Int> = []
     @State private var responseThinkingIntroByIndex: [Int: Bool] = [:]
     @State private var responseThinkingSummaryByIndex: [Int: [String]] = [:]
+    /// The model's current line of reasoning while it is still thinking, by response index.
+    @State private var responseLiveThoughtByIndex: [Int: String] = [:]
     /// Retrieved grounding passages per response index, held from the moment retrieval finishes
     /// so the loading state can show them, then persisted onto the response presentation so
     /// **Show Thinking** can list the same sources again later.
@@ -514,6 +517,7 @@ struct ChatThreadColumn: View {
         let responseLifetime = responseViewLifetime
         let model = angroveModel
 
+        composerReadyResponseIndices.remove(responseIndex)
         animatedResponseIndices.insert(responseIndex)
         pendingResponseIndices.insert(responseIndex)
         responseRevealGatesByIndex[responseIndex] = revealGate
@@ -522,6 +526,7 @@ struct ChatThreadColumn: View {
         }
         responseThinkingIntroByIndex[responseIndex] = thinkingEnabled
         responseThinkingSummaryByIndex.removeValue(forKey: responseIndex)
+        responseLiveThoughtByIndex.removeValue(forKey: responseIndex)
         responseGroundingSourcesByIndex.removeValue(forKey: responseIndex)
         branchData.removeResponsePresentation(at: responseIndex)
         withAnimation(.springRelaxed) {
@@ -582,6 +587,8 @@ struct ChatThreadColumn: View {
             var responseContext = context
             // Keep result metadata with the job; view-local State may be unmounted mid-generation.
             var generatedGroundingSources: [GroundingSourceSummary] = []
+            var generationStartedAt: Date?
+            var thinkingDurationSeconds: TimeInterval?
             if AngroveContextBudget.shouldCompact(context),
                let split = AngroveContextBudget.historyAndLatestTurn(in: context) {
                 let summary = await model.compact(split.history)
@@ -608,6 +615,16 @@ struct ChatThreadColumn: View {
                 thinkingEnabled: thinkingEnabled
             ) { update in
                 guard !Task.isCancelled else { return }
+                switch update {
+                case .generationStarted:
+                    generationStartedAt = Date()
+                case .responseText(let text) where !text.isEmpty:
+                    if thinkingDurationSeconds == nil, let generationStartedAt {
+                        thinkingDurationSeconds = max(0, Date().timeIntervalSince(generationStartedAt))
+                    }
+                default:
+                    break
+                }
                 if case .groundingSources(let sources) = update {
                     generatedGroundingSources = sources
                 }
@@ -624,6 +641,11 @@ struct ChatThreadColumn: View {
                     break
                 case .thinkingSummary(let summary):
                     responseThinkingSummaryByIndex[responseIndex] = summary
+                case .thought(let thought):
+                    if let line = ModelThought.currentLine(in: thought),
+                       responseLiveThoughtByIndex[responseIndex] != line {
+                        responseLiveThoughtByIndex[responseIndex] = line
+                    }
                 case .groundingSources(let sources):
                     responseGroundingSourcesByIndex[responseIndex] = sources
                 case .responseText(let streamedText):
@@ -634,6 +656,9 @@ struct ChatThreadColumn: View {
                     guard !streamedText.isEmpty else { return }
                     streamingResponseIndices.insert(responseIndex)
                 }
+            }
+            if thinkingDurationSeconds == nil, let generationStartedAt {
+                thinkingDurationSeconds = max(0, Date().timeIntervalSince(generationStartedAt))
             }
             let destination = ConversationResponseStatePolicy.completionDestination(
                 isCancelled: Task.isCancelled,
@@ -669,6 +694,7 @@ struct ChatThreadColumn: View {
                             responseIndex: responseIndex,
                             showsThinking: thinkingEnabled && !summary.isEmpty,
                             thinkingSummary: summary,
+                            thinkingDurationSeconds: thinkingDurationSeconds,
                             groundingSources: sources,
                             evidenceBasis: response.evidenceBasis
                         )
@@ -682,11 +708,13 @@ struct ChatThreadColumn: View {
                 ? response.thinkingSummary
                 : []
             responseThinkingSummaryByIndex[responseIndex] = persistedThinkingSummary
+            responseLiveThoughtByIndex.removeValue(forKey: responseIndex)
             let persistedGroundingSources = thinkingEnabled ? generatedGroundingSources : []
             let completedPresentation = ResponsePresentationMetadata(
                 responseIndex: responseIndex,
                 showsThinking: thinkingEnabled && !persistedThinkingSummary.isEmpty,
                 thinkingSummary: persistedThinkingSummary,
+                thinkingDurationSeconds: thinkingDurationSeconds,
                 groundingSources: persistedGroundingSources,
                 evidenceBasis: response.evidenceBasis
             )
@@ -746,6 +774,7 @@ struct ChatThreadColumn: View {
         animatedResponseIndices.remove(responseIndex)
         responseThinkingIntroByIndex.removeValue(forKey: responseIndex)
         responseThinkingSummaryByIndex.removeValue(forKey: responseIndex)
+        responseLiveThoughtByIndex.removeValue(forKey: responseIndex)
         responseGroundingSourcesByIndex.removeValue(forKey: responseIndex)
 
         guard branchData.activeChatBlocks.indices.contains(responseIndex) else {
@@ -776,6 +805,7 @@ struct ChatThreadColumn: View {
         streamingResponseIndices.remove(responseIndex)
         responseThinkingIntroByIndex.removeValue(forKey: responseIndex)
         responseThinkingSummaryByIndex.removeValue(forKey: responseIndex)
+        responseLiveThoughtByIndex.removeValue(forKey: responseIndex)
         responseGroundingSourcesByIndex.removeValue(forKey: responseIndex)
         branchData.removeResponsePresentation(at: responseIndex)
 
@@ -1117,7 +1147,17 @@ struct ChatThreadColumn: View {
     /// Keep the title/subtitle rhythm separate from the larger gap above the input.
     static let promptHeadlineSpacing: CGFloat = 14
     static let threadSectionSpacing: CGFloat = AngroveTheme.Spacing.unit * 6
-    static let promptQuestionSpacing: CGFloat = threadSectionSpacing * 2 + ConversationSeparator.lineHeight
+    static let promptQuestionSpacing: CGFloat = threadSectionSpacing * 2 + ConversationGap.height
+
+    private var promptSubtitleFont: Font {
+        // A pinned daily question is question text, so match the editable question's
+        // typeface as well as its point size. Other prompt descriptions remain response text.
+        let option = isQuestionOfTheDayPrompt ? inputFont : responseFont
+        return .custom(
+            option == .sans ? "Figtree-Regular" : "LibreBaskerville-Regular",
+            fixedSize: questionFontSize
+        )
+    }
 
     private var newConversationPromptHeader: some View {
         VStack(
@@ -1204,12 +1244,7 @@ struct ChatThreadColumn: View {
 
             if !isEditingBigTitle, !newConversationHeaderSubtitle.isEmpty {
                 Text(newConversationHeaderSubtitle)
-                    // Use the editor's point size rather than independently scaling this
-                    // SwiftUI paragraph while the UIKit question editor stays fixed.
-                    .font(.custom(
-                        responseFont == .sans ? "Figtree-Regular" : "LibreBaskerville-Regular",
-                        fixedSize: questionFontSize
-                    ))
+                    .font(promptSubtitleFont)
                     .foregroundColor(AngroveTheme.Colors.paragraphText)
                     .lineSpacing(7)
                     .multilineTextAlignment(conversationTextAlignment.textAlignment)
@@ -1292,12 +1327,7 @@ struct ChatThreadColumn: View {
                         .padding(.top, 84)
                 } else {
                     VStack(spacing: 16) {
-                        Image("cross-1")
-                            .renderingMode(.template)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 24, height: 24)
-                            .foregroundColor(AngroveTheme.Colors.accent)
+                        AppIconImage(size: 24)
 
                         ConversationHeading(title: displayBranchTitle) { title in
                             if let branchKeyword {
@@ -1408,7 +1438,7 @@ struct ChatThreadColumn: View {
             }
 
             if branchData.topQuestionSubmitted {
-                ConversationSeparator()
+                ConversationGap()
                     .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .top)))
             }
 
@@ -1427,6 +1457,8 @@ struct ChatThreadColumn: View {
                                 isQueuedForModel: isResponseQueued(at: index),
                                 usesIncrementalStream: false,
                                 thinkingSummary: responseThinkingSummary(at: index),
+                                liveThought: responseLiveThoughtByIndex[index],
+                                thinkingDurationSeconds: branchData.responsePresentation(at: index)?.thinkingDurationSeconds,
                                 groundingSources: responseGroundingSources(at: index),
                                 evidenceBasis: responseEvidenceBasis(at: index),
                                 funStatusText: funStatusText(for: index),
@@ -1457,9 +1489,16 @@ struct ChatThreadColumn: View {
                                 onRevealStart: {
                                     responseRevealGatesByIndex[index]?.markStarted()
                                 },
+                                onBodyRevealComplete: {
+                                    withAnimation(ResponseRevealTiming.finishingAnimation) {
+                                        composerReadyResponseIndices.insert(index)
+                                    }
+                                },
                                 onFinish: {
-                                    animatedResponseIndices.remove(index)
-                                    withAnimation(.springLively) { branchData.showBottomInput = true }
+                                    withAnimation(ResponseRevealTiming.finishingAnimation) {
+                                        animatedResponseIndices.remove(index)
+                                        branchData.showBottomInput = true
+                                    }
                                     onResponseCompleted(index)
                                 }
                     )
@@ -1480,7 +1519,7 @@ struct ChatThreadColumn: View {
                     )
 
                 case .user(let questionText, let concept, let attachments):
-                    ConversationSeparator()
+                    ConversationGap()
 
                     VStack(alignment: questionContextHorizontalAlignment, spacing: 16) {
                         UploadedFileStrip(files: attachments, alignment: questionContextAlignment)
@@ -1521,14 +1560,16 @@ struct ChatThreadColumn: View {
                     }
                     .frame(maxWidth: .infinity)
 
-                    ConversationSeparator()
+                    ConversationGap()
                 }
             }
 
             // MARK: Follow-up Input
             // Appears after the latest model response finishes.
-            if branchData.showBottomInput {
-                ConversationSeparator()
+            if branchData.showBottomInput
+                && (!animatedResponseIndices.contains(branchData.activeChatBlocks.count - 1)
+                    || composerReadyResponseIndices.contains(branchData.activeChatBlocks.count - 1)) {
+                ConversationGap()
 
                 VStack(alignment: questionContextHorizontalAlignment, spacing: 16) {
                         UploadedFileStrip(files: visibleUploads, alignment: questionContextAlignment) { file in
@@ -1614,7 +1655,7 @@ struct ChatThreadColumn: View {
                     // no change event fires). Re-syncing here restores the placeholder.
                     bottomFieldIsEmpty = branchData.bottomQuestionText.isEmpty
                 }
-                .transition(.move(edge: .top).combined(with: .opacity).combined(with: .scale(scale: 0.95)))
+                .transition(.modifier(active: FollowUpFieldEntrance(isVisible: false), identity: FollowUpFieldEntrance(isVisible: true)))
             }
                 }
                 .overlay(alignment: .top) {
@@ -1714,22 +1755,25 @@ struct ChatThreadColumn: View {
     }
 }
 
-private struct ConversationSeparator: View {
-    static let lineHeight: CGFloat = 1
-    var verticalPadding: CGFloat = 0
-    @State private var isExpanded = false
+private struct FollowUpFieldEntrance: ViewModifier {
+    let isVisible: Bool
+    func body(content: Content) -> some View {
+        content
+            .opacity(isVisible ? 1 : 0)
+            .blur(radius: isVisible ? 0 : 3)
+            .scaleEffect(isVisible ? 1 : 0.95)
+    }
+}
+
+/// Preserve the thread's vertical rhythm without drawing a divider between turns.
+private struct ConversationGap: View {
+    static let height: CGFloat = 1
 
     var body: some View {
-        Rectangle()
-            .fill(AngroveTheme.Colors.brownBorder)
-            .frame(width: 84, height: Self.lineHeight)
-            .scaleEffect(x: isExpanded ? 1 : 0.5, y: 1, anchor: .center)
-            .padding(.vertical, verticalPadding)
-            .onAppear {
-                withAnimation(.springStandard) {
-                    isExpanded = true
-                }
-            }
+        Color.clear
+            .frame(height: Self.height)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 
@@ -1758,6 +1802,7 @@ private struct QuestionInputField: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var questionCoordinateSpace
+    @State private var isPressed = false
     @State private var openingQuoteX: CGFloat = 0
     @State private var openingQuoteY: CGFloat = 0
     @State private var closingQuoteX: CGFloat = 0
@@ -1777,7 +1822,7 @@ private struct QuestionInputField: View {
         let fontName = fontOption == .sans
             ? "Figtree-Regular"
             : "LibreBaskerville-Regular"
-        return .custom(fontName, size: fontSize)
+        return .custom(fontName, fixedSize: fontSize)
     }
 
     private var uiTextAlignment: NSTextAlignment {
@@ -1798,6 +1843,7 @@ private struct QuestionInputField: View {
             textColor: .angrovePrimaryReadable,
             textAlignment: uiTextAlignment,
             onFocusChange: onFocusChange,
+            onPressChange: { isPressed = $0 },
             relay: relay,
             onTextChange: onTextChange,
             onSubmit: onSubmit,
@@ -1822,6 +1868,9 @@ private struct QuestionInputField: View {
 
     var body: some View {
         quotedQuestion
+            .scaleEffect(isPressed ? 1.05 : 1, anchor: questionAlignment == .trailing ? .trailing : .center)
+            .animation(reduceMotion ? nil : .springMicro, value: isPressed)
+            .onDisappear { isPressed = false }
     }
 
     private var questionAlignment: Alignment {
@@ -1865,9 +1914,9 @@ private struct QuestionInputField: View {
     private func positionedQuotationMark(_ symbol: String, x: CGFloat, y: CGFloat) -> some View {
         quotationMark(symbol)
             .position(x: x, y: 0)
-            .animation(animatesQuoteWidth ? .easeInOut(duration: 0.25) : nil, value: x)
+            .animation(animatesQuoteWidth ? .springCamera : nil, value: x)
             .offset(y: y)
-            .animation(animatesQuoteHeight ? .springQuick : nil, value: y)
+            .animation(animatesQuoteHeight ? .springCamera : nil, value: y)
             .opacity(measuredPlaceholderIsEmpty == nil ? 0 : 1)
     }
 
@@ -1885,7 +1934,7 @@ private struct QuestionInputField: View {
 
     private func quotationMark(_ symbol: String) -> some View {
         Text(verbatim: symbol)
-            .font(.custom(inputFont.fontName, size: lineHeight * 1.12))
+            .font(.custom(inputFont.fontName, fixedSize: lineHeight * 1.12))
             .foregroundStyle(AngroveTheme.Colors.primaryReadable)
             .frame(width: quotationWidth, height: lineHeight)
             .accessibilityHidden(true)
@@ -1906,6 +1955,8 @@ struct TrackedResponseCard: View {
     let isQueuedForModel: Bool
     let usesIncrementalStream: Bool
     let thinkingSummary: [String]
+    var liveThought: String? = nil
+    var thinkingDurationSeconds: TimeInterval? = nil
     let groundingSources: [GroundingSourceSummary]
     let evidenceBasis: ResponseEvidenceBasis?
     let funStatusText: String?
@@ -1927,6 +1978,7 @@ struct TrackedResponseCard: View {
     var onInlineInsightToggleSaved: (ConceptDefinition) -> Void = { _ in }
     var showsResponseActions: Bool = true
     var onRevealStart: () -> Void = {}
+    var onBodyRevealComplete: () -> Void = {}
     var onFinish: () -> Void
 
     @State private var myYCenter: CGFloat = 0
@@ -1955,6 +2007,8 @@ struct TrackedResponseCard: View {
             isQueuedForModel: isQueuedForModel,
             usesIncrementalStream: usesIncrementalStream,
             thinkingSummary: thinkingSummary,
+            liveThought: liveThought,
+            thinkingDurationSeconds: thinkingDurationSeconds,
             groundingSources: groundingSources,
             evidenceBasis: evidenceBasis,
             funStatusText: funStatusText,
@@ -1976,6 +2030,7 @@ struct TrackedResponseCard: View {
             onInlineInsightToggleSaved: onInlineInsightToggleSaved,
             showsResponseActions: showsResponseActions,
             onRevealStart: onRevealStart,
+            onBodyRevealComplete: onBodyRevealComplete,
             onFinish: {
                 hasFinishedStreaming = true
                 onCenterChange(responseIndex, myYCenter)

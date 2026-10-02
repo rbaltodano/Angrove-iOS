@@ -21,6 +21,9 @@ struct ModelResponseCard: View {
     let isQueuedForModel: Bool
     let usesIncrementalStream: Bool
     let thinkingSummary: [String]
+    /// The model's current line of reasoning while it thinks; `nil` once it starts answering.
+    let liveThought: String?
+    let thinkingDurationSeconds: TimeInterval?
     /// Retrieved grounding passages for the turn currently generating, rendered as expandable
     /// Source rows in the loading state. Empty once the response is complete.
     let groundingSources: [GroundingSourceSummary]
@@ -40,6 +43,7 @@ struct ModelResponseCard: View {
     var onInlineInsightToggleSaved: ((ConceptDefinition) -> Void)? = nil
     var showsResponseActions: Bool = true
     var onRevealStart: (() -> Void)? = nil
+    var onBodyRevealComplete: (() -> Void)? = nil
     var onFinish: (() -> Void)? = nil
 
     @State private var isThinking: Bool
@@ -54,8 +58,6 @@ struct ModelResponseCard: View {
     @State private var isThinkingCollapsing: Bool = false
     @State private var hasStartedFinishThinking: Bool = false
     @State private var thinkingStartedAt: Date
-    @State private var revealedResponseWordCount: Int = 0
-    @State private var isResponseFullyRevealed: Bool = false
 
     let brandBrown = AngroveTheme.Colors.primaryReadable
     /// The narrated "Consulting …" lines are dropped once the same retrieval is listed as
@@ -66,13 +68,6 @@ struct ModelResponseCard: View {
     }
     private var presentsThinkingUI: Bool {
         showsThinkingIntro || !thinkingSummary.isEmpty
-    }
-    /// Continues the thinking phase's word-based token estimate (see `LiveThinkingProgressView`)
-    /// into the actual response streaming, so the count keeps climbing as words are revealed
-    /// instead of freezing once the initial thinking/chain-of-thought phase ends.
-    private var totalEstimatedTokenCount: Int {
-        let thinkingWordCount = thinkingSummary.joined(separator: " ").split(separator: " ").count
-        return Int(Double(thinkingWordCount + revealedResponseWordCount) * 1.3)
     }
     private var canShowThinkingSummaryButton: Bool {
         !thinkingSummary.isEmpty
@@ -100,11 +95,13 @@ struct ModelResponseCard: View {
         isQueuedForModel: Bool = false,
         usesIncrementalStream: Bool = false,
         thinkingSummary: [String] = [],
+        liveThought: String? = nil,
+        thinkingDurationSeconds: TimeInterval? = nil,
         groundingSources: [GroundingSourceSummary] = [],
         evidenceBasis: ResponseEvidenceBasis? = nil,
         funStatusText: String? = nil,
-        responseTextAlignment: ResponseTextAlignmentOption = .center,
-        responseFont: ConversationFontOption = .sans,
+        responseTextAlignment: ResponseTextAlignmentOption = .left,
+        responseFont: ConversationFontOption = .serif,
         conversationFontSize: ConversationFontSizeOption = .large,
         loadingInsightKey: String? = nil,
         queuedInsightKeys: Set<String> = [],
@@ -117,6 +114,7 @@ struct ModelResponseCard: View {
         onInlineInsightToggleSaved: ((ConceptDefinition) -> Void)? = nil,
         showsResponseActions: Bool = true,
         onRevealStart: (() -> Void)? = nil,
+        onBodyRevealComplete: (() -> Void)? = nil,
         onFinish: (() -> Void)? = nil
     ) {
         self.title = title
@@ -128,6 +126,8 @@ struct ModelResponseCard: View {
         self.isQueuedForModel = isQueuedForModel
         self.usesIncrementalStream = usesIncrementalStream
         self.thinkingSummary = thinkingSummary
+        self.liveThought = liveThought
+        self.thinkingDurationSeconds = thinkingDurationSeconds
         self.groundingSources = groundingSources
         self.evidenceBasis = evidenceBasis
         self.funStatusText = funStatusText
@@ -145,6 +145,7 @@ struct ModelResponseCard: View {
         self.onInlineInsightToggleSaved = onInlineInsightToggleSaved
         self.showsResponseActions = showsResponseActions
         self.onRevealStart = onRevealStart
+        self.onBodyRevealComplete = onBodyRevealComplete
         self.onFinish = onFinish
         let shouldShowThinking = showsThinkingIntro
             && (isAwaitingResponse || shouldAnimateOnAppear)
@@ -158,7 +159,6 @@ struct ModelResponseCard: View {
         // every word visible and therefore does not run the reveal task or call `onFinish`.
         // Treat it as finished up front so a timer/token footer from the interrupted renderer
         // cannot survive a navigate-away / navigate-back cycle.
-        _isResponseFullyRevealed = State(initialValue: !shouldAnimateOnAppear)
     }
 
     var body: some View {
@@ -174,6 +174,7 @@ struct ModelResponseCard: View {
                     if isThinking {
                         LiveThinkingProgressView(
                             summaryLines: thinkingSummary,
+                            liveThought: liveThought,
                             groundingSources: groundingSources,
                             isWritingResponse: isShowingWritingStatus,
                             isQueuedForModel: isQueuedForModel,
@@ -199,13 +200,8 @@ struct ModelResponseCard: View {
                             }
                         }) {
                             HStack(spacing: 6) {
-                                Text("Show Thinking")
-                                    .font(
-                                        .custom(
-                                            "Figtree-Bold",
-                                            size: conversationFontSize.pointSize
-                                        )
-                                    )
+                                Text(ResponseThinkingDuration.label(seconds: thinkingDurationSeconds))
+                                    .font(responseFont.textFont(size: conversationFontSize))
 
                                 Image(systemName: isThinkingExpanded ? "chevron.down" : "chevron.right")
                                     .font(.system(size: 10, weight: .bold))
@@ -215,7 +211,8 @@ struct ModelResponseCard: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(isThinkingExpanded ? "Hide Thinking" : "Show Thinking")
+                        .accessibilityLabel(ResponseThinkingDuration.label(seconds: thinkingDurationSeconds))
+                        .accessibilityValue(isThinkingExpanded ? "Expanded" : "Collapsed")
                         .frame(maxWidth: .infinity, alignment: responseTextAlignment.frameAlignment)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                     }
@@ -247,7 +244,7 @@ struct ModelResponseCard: View {
                                 )
                                 .opacity(isThinkingDescriptionVisible ? 1 : 0)
                             ForEach(Array(thinkingSummaryLines.enumerated()), id: \.offset) { index, line in
-                                Text(line)
+                                ApproachSummaryRow(line: line, number: index + 1, alignment: responseTextAlignment)
                                     .font(responseFont.textFont(size: conversationFontSize))
                                     .lineSpacing(8)
                                     .multilineTextAlignment(responseTextAlignment.textAlignment)
@@ -286,13 +283,12 @@ struct ModelResponseCard: View {
                         }) {
                             HStack(spacing: 6) {
                                 Text("Hide Thinking")
-                                    .paragraphFont(.large)
-                                    .fontWeight(.bold)
+                                    .font(AngroveTheme.Typography.uiSubheading)
 
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 10, weight: .bold))
                             }
-                            .foregroundColor(brandBrown.opacity(0.5))
+                            .foregroundStyle(AngroveTheme.Colors.headingText)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
@@ -363,27 +359,14 @@ struct ModelResponseCard: View {
                         onInlineInsightFork: onInlineInsightFork,
                         onInlineInsightToggleSaved: onInlineInsightToggleSaved,
                         onRevealStart: onRevealStart,
-                        onFinish: {
-                            withAnimation(.easeOut(duration: 0.25)) {
-                                isResponseFullyRevealed = true
-                            }
-                            onFinish?()
+                        onBodyRevealComplete: {
+                            onBodyRevealComplete?()
                         },
-                        onRevealedWordCountChange: { count in
-                            revealedResponseWordCount = count
-                        }
+                        onFinish: onFinish
                     )
                     .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
 
-                    if !isResponseFullyRevealed {
-                        ThinkingMetricsFooter(
-                            startedAt: thinkingStartedAt,
-                            estimatedTokenCount: totalEstimatedTokenCount,
-                            color: brandBrown
-                        )
-                        .frame(maxWidth: .infinity, alignment: responseTextAlignment.frameAlignment)
-                        .transition(.opacity)
-                    }
+
                 }
             }
             .frame(
@@ -457,8 +440,6 @@ struct ModelResponseCard: View {
         isThinkingDescriptionVisible = false
         visibleThinkingLineCount = 0
         isThinkingCollapsing = false
-        revealedResponseWordCount = 0
-        isResponseFullyRevealed = false
         withAnimation(.springRelaxed) {
             isThinking = true
             isThinkingDocked = false
@@ -534,8 +515,46 @@ struct ModelResponseCard: View {
     }
 }
 
+/// Numbered public preparation notes. Legacy summaries without a label still render intact.
+private struct ApproachSummaryRow: View {
+    let line: String
+    let number: Int
+    let alignment: ResponseTextAlignmentOption
+
+    private var parts: (heading: String?, detail: String) {
+        guard let separator = line.range(of: ": "),
+              line.distance(from: line.startIndex, to: separator.lowerBound) < 24 else {
+            return (nil, line)
+        }
+        return (String(line[..<separator.lowerBound]), String(line[separator.upperBound...]))
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(number, format: .number)
+                .font(AngroveTheme.Typography.chipLabel)
+                .foregroundStyle(AngroveTheme.Colors.lightGreen)
+                .padding(.top, 3)
+                .accessibilityHidden(true)
+            VStack(alignment: alignment.horizontalAlignment, spacing: 4) {
+                if let heading = parts.heading {
+                    Text(heading)
+                        .fontWeight(.bold)
+                        .foregroundStyle(AngroveTheme.Colors.headingText)
+                }
+                Text(parts.detail)
+                    .foregroundStyle(AngroveTheme.Colors.placeholderText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: alignment.frameAlignment)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
 private struct LiveThinkingProgressView: View {
     let summaryLines: [String]
+    let liveThought: String?
     let groundingSources: [GroundingSourceSummary]
     let isWritingResponse: Bool
     let isQueuedForModel: Bool
@@ -554,22 +573,16 @@ private struct LiveThinkingProgressView: View {
 
     private var showsDetailedProgress: Bool {
         !summaryLines.isEmpty || !groundingSources.isEmpty || isWritingResponse
+            || currentThought != nil
     }
 
-    /// Streaming can begin a beat after source retrieval finishes. Once sources are visible,
-    /// show the writing state immediately instead of waiting for that later stream flag.
+    /// The live reasoning line, hidden once answer text starts arriving.
+    private var currentThought: String? {
+        isWritingResponse ? nil : liveThought
+    }
+
     private var showsWritingResponse: Bool {
-        isWritingResponse || !groundingSources.isEmpty
-    }
-
-    /// Rough word-count-based proxy for tokens spent so far — this build has no live model API
-    /// wired in (responses are simulated), so there's no real token count to report. This gives
-    /// the user a live-feeling number without claiming it's an authoritative usage count.
-    private var estimatedTokenCount: Int {
-        var text = summaryLines.joined(separator: " ")
-        if isWritingResponse { text += " " + (funStatusText ?? "Writing response...") }
-        let wordCount = text.split(separator: " ").count
-        return Int(Double(wordCount) * 1.3)
+        isWritingResponse
     }
 
     var body: some View {
@@ -578,7 +591,7 @@ private struct LiveThinkingProgressView: View {
                 if showsDetailedProgress {
                     VStack(alignment: responseTextAlignment.horizontalAlignment, spacing: 8) {
                         ForEach(Array(visibleSummaryLines.enumerated()), id: \.offset) { index, line in
-                            Text(line)
+                            ApproachSummaryRow(line: line, number: index + 1, alignment: responseTextAlignment)
                                 .font(font)
                                 .lineSpacing(8)
                                 .multilineTextAlignment(responseTextAlignment.textAlignment)
@@ -586,7 +599,7 @@ private struct LiveThinkingProgressView: View {
                                 .modifier(
                                     ThinkingShimmer(
                                         isActive: !isWritingResponse
-                                            && groundingSources.isEmpty
+                                            && currentThought == nil
                                             && index == visibleSummaryLines.count - 1,
                                         color: color
                                     )
@@ -602,6 +615,21 @@ private struct LiveThinkingProgressView: View {
                             .transition(.glideFadeUp)
                         }
 
+                        // The model's own reasoning, one line at a time: each completed line
+                        // replaces the last rather than accumulating.
+                        if let currentThought {
+                            Text(currentThought)
+                                .font(font)
+                                .lineSpacing(8)
+                                .lineLimit(3)
+                                .multilineTextAlignment(responseTextAlignment.textAlignment)
+                                .foregroundStyle(AngroveTheme.Colors.placeholderText)
+                                .modifier(ThinkingShimmer(isActive: true, color: color))
+                                .frame(maxWidth: .infinity, alignment: responseTextAlignment.frameAlignment)
+                                .id(currentThought)
+                                .transition(.asymmetric(insertion: .glideFadeUp, removal: .opacity))
+                                .accessibilityLabel("Thinking: \(currentThought)")
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: responseTextAlignment.frameAlignment)
                     .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading)))
@@ -629,18 +657,16 @@ private struct LiveThinkingProgressView: View {
             if showsDetailedProgress {
                 ThinkingMetricsFooter(
                     startedAt: startedAt,
-                    estimatedTokenCount: estimatedTokenCount,
                     color: color
                 )
                 .frame(maxWidth: .infinity, alignment: responseTextAlignment.frameAlignment)
                 .transition(.opacity)
             }
 
-            // This is intentionally below the source rows: it becomes visible as soon as
-            // retrieval results are rendered, even if the stream flag has not arrived yet.
+            // Only actual answer text advances the progress to writing.
             if showsWritingResponse {
                 HStack(alignment: .center, spacing: 14) {
-                    WritingResponseQuill(color: color)
+                    WritingResponseLeaf()
 
                     Text("Writing Response...")
                         .font(font)
@@ -655,7 +681,8 @@ private struct LiveThinkingProgressView: View {
                 .accessibilityLabel("Writing response")
             }
         }
-        .animation(.easeOut(duration: 0.3), value: summaryLines.count)
+        .animation(.easeOut(duration: 0.3), value: summaryLines)
+        .animation(.easeOut(duration: 0.3), value: currentThought)
         .animation(.easeOut(duration: 0.3), value: groundingSources.count)
         .animation(.easeOut(duration: 0.3), value: isWritingResponse)
         .animation(.easeInOut(duration: 0.25), value: isQueuedForModel)
@@ -805,39 +832,46 @@ private struct GroundingSourceRow: View {
 }
 
 /// Small animated writing mark shown only while the model is composing its response.
-private struct WritingResponseQuill: View {
-    let color: Color
+private struct WritingResponseLeaf: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var stage = 1
+
+    private var shouldAnimate: Bool {
+        !reduceMotion && scenePhase == .active
+    }
 
     var body: some View {
-        TimelineView(.animation) { context in
-            let cycle = context.date.timeIntervalSinceReferenceDate
-                .truncatingRemainder(dividingBy: 2.0)
-            let progress = cycle / 2.0
-            let angle = sin(progress * 2.0 * .pi * 6.0) * 4.0
-            let x = 49.0 + ((progress < 0.833 ? progress / 0.833 : (1.0 - progress) / 0.167) * 26.0)
-            let y = 28.0 + abs(sin(progress * 2.0 * .pi * 7.2)) * 2.0
+        Image("WritingLeaf\(reduceMotion ? 5 : stage)")
+            .renderingMode(.original)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 24, height: 24)
+            .accessibilityHidden(true)
+            .transaction { $0.animation = nil }
+            .task(id: shouldAnimate) {
+                stage = 1
+                guard shouldAnimate else { return }
 
-            Image("Quill")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 16, height: 16)
-                .foregroundStyle(color)
-                .rotationEffect(.radians(angle * .pi / 180.0), anchor: .bottomLeading)
-                .offset(x: CGFloat((x - 49.0) * 0.28), y: CGFloat((y - 28.0) * 0.35))
-                .accessibilityHidden(true)
-        }
-        .frame(width: 16, height: 16)
+                do {
+                    while !Task.isCancelled {
+                        // Grow through sprites 1–4 over 1.2s, then hold the grown leaf for 0.6s.
+                        for (nextStage, milliseconds) in [(1, 300), (2, 300), (3, 300), (4, 300), (5, 600)] {
+                            try Task.checkCancellation()
+                            stage = nextStage
+                            try await Task.sleep(for: .milliseconds(milliseconds))
+                        }
+                    }
+                } catch {
+                    // SwiftUI cancels the loop when the writing row disappears or pauses.
+                }
+            }
     }
 }
 
-/// Persistent readout pinned below the thinking/writing text — elapsed time always reflects
-/// reality (driven by wall-clock time via `TimelineView`), while the token count is a rough
-/// word-based estimate since responses in this build are simulated, not fetched from a live
-/// model API that would report real usage.
+/// Elapsed time pinned below the thinking/writing text.
 private struct ThinkingMetricsFooter: View {
     let startedAt: Date
-    let estimatedTokenCount: Int
     let color: Color
 
     var body: some View {
@@ -852,17 +886,11 @@ private struct ThinkingMetricsFooter: View {
                     // every second as the digit count changes, e.g. "9s" → "10s" → "1:00".
                     .frame(width: 28, alignment: .leading)
 
-                Text("·")
-                    .font(.custom("Figtree-Regular", size: 18))
 
-                Text("~\(estimatedTokenCount) tokens")
-                    .monospacedDigit()
-                    .contentTransition(.numericText(value: Double(estimatedTokenCount)))
             }
             .font(.custom("Figtree-Regular", size: 12))
             .foregroundColor(color.opacity(0.4))
             .animation(.easeOut(duration: 0.35), value: elapsedSeconds)
-            .animation(.easeOut(duration: 0.35), value: estimatedTokenCount)
         }
     }
 
@@ -928,5 +956,17 @@ extension View {
         } else {
             self
         }
+    }
+}
+
+/// Formats recorded preparation time without inventing durations for older responses.
+enum ResponseThinkingDuration {
+    static func label(seconds: TimeInterval?) -> String {
+        guard let seconds, seconds.isFinite else { return String(localized: "Thought") }
+        let total = Int(min(max(0, seconds), Double(Int.max / 2)))
+        if total < 60 {
+            return String(localized: "Thought for \(total)s")
+        }
+        return String(localized: "Thought for \(total / 60)m \(total % 60)s")
     }
 }

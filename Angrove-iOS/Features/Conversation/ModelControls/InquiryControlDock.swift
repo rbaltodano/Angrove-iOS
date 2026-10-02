@@ -528,7 +528,11 @@ struct InquiryControlDock: View {
         if onAttachRecentPhoto != nil {
             PhotoAttachmentControl(
                 isPressed: $isControlButtonPressed,
+                isRecentPhotosOpen: isRecentPhotosOpen,
                 onHold: toggleRecentPhotos,
+                onCloseRecentPhotos: {
+                    withAnimation(.springStandard) { isRecentPhotosOpen = false }
+                },
                 onCamera: { isRecentPhotosOpen = false; showCamera = true },
                 onPhoto: { isRecentPhotosOpen = false; showPhotoPicker = true },
                 onFile: { isRecentPhotosOpen = false; showFilePicker = true },

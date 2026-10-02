@@ -1017,7 +1017,7 @@ private struct LibraryTextSection: View {
     @AppStorage("aquinas.settings.conversationFontSize")
     private var conversationFontSize: ConversationFontSizeOption = .medium
     @AppStorage("aquinas.settings.responseFont")
-    private var responseFont: ConversationFontOption = .sans
+    private var responseFont: ConversationFontOption = .serif
 
     /// "Book II: Nature of Stock" reads as a small-caps kicker over a serif chapter title.
     private var titleParts: (kicker: String?, heading: String) {
@@ -1065,12 +1065,7 @@ private struct LibraryTextSection: View {
                 return .handled
             })
 
-            Image("cross-1")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 14, height: 14)
-                .foregroundStyle(AngroveTheme.Colors.lightGreen)
+            AppIconImage(size: 14)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 8)
                 .accessibilityHidden(true)

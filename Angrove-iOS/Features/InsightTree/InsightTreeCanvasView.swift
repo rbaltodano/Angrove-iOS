@@ -1041,7 +1041,7 @@ struct InsightTreeCanvasView: View {
         let nextScale = targetScale ?? cameraState.scale
         let target = focusFlatTarget(elevation: 0, scale: nextScale, in: size)
 
-        withAnimation(.spring(response: 0.58, dampingFraction: 0.64, blendDuration: 0.08)) {
+        withAnimation(.springCamera) {
             cameraState.scale = nextScale
             cameraState.offset = CGSize(
                 width: target.x - size.width / 2 - (worldPosition.x * nextScale),
@@ -1059,7 +1059,7 @@ struct InsightTreeCanvasView: View {
         let nextScale = clamp(max(cameraState.scale, 1.15), lower: 0.28, upper: 2.6)
         let target = focusFlatTarget(elevation: elevation, scale: nextScale, in: size)
 
-        withAnimation(.spring(response: 0.58, dampingFraction: 0.64, blendDuration: 0.08)) {
+        withAnimation(.springCamera) {
             cameraState.scale = nextScale
             cameraState.offset = CGSize(
                 width: target.x - size.width / 2 - (worldPosition.x * nextScale),
@@ -1087,7 +1087,7 @@ struct InsightTreeCanvasView: View {
     private func restorePreFocusCamera() {
         guard let snapshot = cameraState.preFocusSnapshot else { return }
 
-        withAnimation(.spring(response: 0.58, dampingFraction: 0.64, blendDuration: 0.08)) {
+        withAnimation(.springCamera) {
             cameraState.scale = snapshot.scale
             cameraState.offset = snapshot.offset
         }
@@ -4077,7 +4077,7 @@ struct InsightTreeCanvasView: View {
         let centerY = center?.y ?? (minY + maxY) / 2
 
         rememberCameraBeforeFocusIfNeeded()
-        withAnimation(.spring(response: 0.58, dampingFraction: 0.64, blendDuration: 0.08)) {
+        withAnimation(.springCamera) {
             cameraState.scale = targetScale
             cameraState.offset = CGSize(width: -(centerX * targetScale), height: centerY * targetScale)
         }

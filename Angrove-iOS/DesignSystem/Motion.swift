@@ -12,6 +12,8 @@ extension Animation {
     static let springLively = Animation.spring(response: 0.36, dampingFraction: 0.78)
     /// Slow, large movements such as camera and page transitions.
     static let springRelaxed = Animation.spring(response: 0.5, dampingFraction: 0.8)
+    /// The Insight Tree focus curve, also used for quotation-marker movement.
+    static let springCamera = Animation.spring(response: 0.58, dampingFraction: 0.64, blendDuration: 0.08)
     /// Visible bounce for playful confirmations.
     static let springBouncy = Animation.spring(response: 0.4, dampingFraction: 0.68)
 }

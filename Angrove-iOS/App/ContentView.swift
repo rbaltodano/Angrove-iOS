@@ -19,6 +19,7 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
+    @State private var isStartupReady = false
     @State private var questionText: String = ""
     @State private var isAtBottom: Bool = false
     @FocusState private var isKeyboardVisible: Bool
@@ -138,9 +139,9 @@ struct ContentView: View {
     @State private var dailyQuestionGenerationRetryNotBefore = Date.distantPast
     @State private var isDailyQuestionGenerationErrorPresented: Bool = false
     @AppStorage("aquinas.settings.conversationFontSize") private var conversationFontSize: ConversationFontSizeOption = .medium
-    @AppStorage(SettingsStorageKey.conversationTextAlignment) private var conversationTextAlignment: ConversationTextAlignmentOption = .center
+    @AppStorage(SettingsStorageKey.conversationTextAlignment) private var conversationTextAlignment: ConversationTextAlignmentOption = .left
     @AppStorage("aquinas.settings.inputFont") private var inputFont: ConversationFontOption = .serif
-    @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .sans
+    @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .serif
     @AppStorage("aquinas.settings.conversationPersonality") private var conversationPersonality: ConversationPersonality = .default
 
     // MARK: - Constants
@@ -661,7 +662,10 @@ struct ContentView: View {
     // MARK: - Body
 
     var body: some View {
-        shellObservers(shellBody)
+        BootPresentation(isReady: isStartupReady) {
+            shellObservers(shellBody)
+        }
+        .preferredColorScheme(colorSchemeOverride)
     }
 
     /// The trailing observers, split out of the main modifier chain, which is past the type
@@ -1087,6 +1091,7 @@ struct ContentView: View {
             questionOfTheDay = HomeQuestionOfTheDayStore.loadPending()
             Task { @MainActor in
                 await Task.yield()
+                isStartupReady = true
                 scheduleDailyQuestionRefreshIfNeeded()
             }
         }

@@ -128,6 +128,7 @@ struct CurrentConversationView: View {
     @State private var isKeyboardOpen: Bool = false
     @State private var contextCardState = ContextCardState()
     @State private var isRecentPhotosOpen = false
+    @State private var attachmentScrollBounds: [CGRect] = []
     @State private var studyTopics: [StudyTopic] = []
     @State private var conversationForTopicPicker: InquiryConversation? = nil
     @State private var hasTextToSubmit: Bool = false
@@ -1253,7 +1254,7 @@ struct CurrentConversationView: View {
 
                 // The window-level canvas swipe must yield to the recent-photo strip.
                 if isPageVisible && !canvasMode.isTopicCanvasVisible && !isInsightLibraryOpen && !isRecentPhotosOpen {
-                    RightEdgeCanvasSwipeTrigger {
+                    RightEdgeCanvasSwipeTrigger(excludedScrollBounds: attachmentScrollBounds) {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         enterCanvasMode()
                     }
@@ -1301,6 +1302,7 @@ struct CurrentConversationView: View {
             }
             .onChange(of: geo.size) { _, s in viewportSize = s }
         }
+        .onPreferenceChange(AttachmentScrollBoundsKey.self) { attachmentScrollBounds = $0 }
         // Publishes to the shell's single Model Controls bar; renders nothing here.
         .background {
             bottomInquiryControlDock
@@ -2462,6 +2464,12 @@ struct CurrentConversationView: View {
                 from: conversationID
             )
             manuallySavedConversationInsightIDs.remove(concept.id)
+        }
+        if isSaved && !wasSavedToConversation {
+            InsightDiscoveryStore.markPendingTreePresentation(insightIDs: [concept.id], nodeIDs: [])
+        }
+        if !canvasMode.isTopicCanvasVisible {
+            insightTreeUpdateSignal += 1
         }
     }
 

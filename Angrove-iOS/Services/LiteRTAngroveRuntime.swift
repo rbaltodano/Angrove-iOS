@@ -245,7 +245,8 @@ actor LiteRTAngroveRuntime: ModelRuntimeDriver {
         initialMessages: [Message] = [],
         message: Message,
         sampling: LiteRTSampling = .conversation,
-        onText: (@Sendable (String) async -> Void)? = nil
+        onText: (@Sendable (String) async -> Void)? = nil,
+        onThought: (@Sendable (String) async -> Void)? = nil
     ) async throws -> String {
 #if DEBUG
         let sampling = sampling.isStructured ? sampling : (evidenceConversationSampling ?? sampling)
@@ -256,7 +257,8 @@ actor LiteRTAngroveRuntime: ModelRuntimeDriver {
                 initialMessages: initialMessages,
                 message: message,
                 sampling: attemptSampling,
-                onText: onText
+                onText: onText,
+                onThought: onThought
             )
         }
     }
@@ -520,7 +522,8 @@ actor LiteRTAngroveRuntime: ModelRuntimeDriver {
         initialMessages: [Message],
         message: Message,
         sampling: LiteRTSampling,
-        onText: (@Sendable (String) async -> Void)?
+        onText: (@Sendable (String) async -> Void)?,
+        onThought: (@Sendable (String) async -> Void)?
     ) async throws -> String {
         guard let engine, await engine.isInitialized() else {
             throw lastLoadError ?? LiteRTAngroveRuntimeError.modelNotLoaded
@@ -565,7 +568,8 @@ actor LiteRTAngroveRuntime: ModelRuntimeDriver {
                         // guard exists to prevent. Structured calls are short and bounded already;
                         // skip it.
                         appliesDegenerateOutputGuard: !sampling.isStructured,
-                        onText: onText
+                        onText: onText,
+                        onThought: onThought
                     )
                 }
             }
@@ -779,13 +783,26 @@ actor LiteRTAngroveRuntime: ModelRuntimeDriver {
         on conversation: Conversation,
         message: Message,
         appliesDegenerateOutputGuard: Bool,
-        onText: (@Sendable (String) async -> Void)?
+        onText: (@Sendable (String) async -> Void)?,
+        onThought: (@Sendable (String) async -> Void)?
     ) async throws -> String {
         var accumulated = ""
+        var thought = ""
+        // Gemma 4's native thinking mode: the chat template prepends `<|think|>` to the system
+        // turn, and LiteRT-LM routes the reasoning into the `thought` channel, separate from the
+        // answer text. Only requested when a caller wants to display it.
+        let extraContext: [String: Any]? = onThought == nil ? nil : ["enable_thinking": true]
         do {
-            for try await chunk in conversation.sendMessageStream(message) {
+            for try await chunk in conversation.sendMessageStream(
+                message,
+                extraContext: extraContext
+            ) {
                 try Task.checkCancellation()
                 lastTokenAt = .now
+                if let onThought, let thoughtDelta = chunk.channels["thought"], !thoughtDelta.isEmpty {
+                    thought += thoughtDelta
+                    await onThought(thought)
+                }
                 let text = chunk.toString
                 guard !text.isEmpty else { continue }
                 accumulated += text
