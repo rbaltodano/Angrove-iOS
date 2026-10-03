@@ -12,6 +12,7 @@ private let insightTreeCanvasColor = AngroveTheme.Colors.canvas
 let insightTreeInsightColor = AngroveTheme.Colors.canvasSecondary
 
 struct InsightTreeView: View {
+    @AppStorage(SettingsStorageKey.insightTreeBackground) private var insightTreeBackground: CanvasBackgroundOption = .system
     let insights: [ConceptDefinition]
     let conversationID: UUID?
     var selectionRequest: Int = 0
@@ -461,6 +462,7 @@ struct InsightTreeView: View {
 
     var body: some View {
         treeAlerts(treeRequestObservers(treeScreen))
+            .canvasAppearance(insightTreeBackground)
     }
 
     /// The tree, its overlays, and the docked bottom area. The observers and alerts are split

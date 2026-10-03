@@ -15,6 +15,8 @@ extension SettingsChoice {
 }
 
 enum SettingsStorageKey {
+    static let conversationBackground = "aquinas.settings.conversationBackground"
+    static let insightTreeBackground = "aquinas.settings.insightTreeBackground"
     static let customInstructions = "aquinas.settings.customInstructions"
     static let hapticFeedback = "aquinas.settings.hapticFeedback"
     static let defaultStartScreen = "aquinas.settings.defaultStartScreen"
@@ -43,6 +45,8 @@ enum SettingsStorageKey {
     static let legacyResponseTextAlignment = "aquinas.settings.responseTextAlignment"
 
     static let allResettableKeys = [
+        conversationBackground,
+        insightTreeBackground,
         customInstructions,
         hapticFeedback,
         defaultStartScreen,

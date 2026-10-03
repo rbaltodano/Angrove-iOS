@@ -8,7 +8,8 @@ contracts remain in [`MODEL-INTEGRATION.md`](../../Aquinas-Foundations/MODEL-INT
 `BootPresentation` keeps the shell mounted beneath a launch mask while startup stores and the
 selected destination are restored. The dots fade in while the initial painted-leaf sprite
 fades in from blur over 0.5 seconds. It then plays the five sprites once, with the transparent
-dotted background rotating behind them. Once ready, the grown leaf fades out into blur and
+dotted background rotating behind them. The app title is centered 24 points below the dot
+grid and shares the marks’ entrance and exit fades. Once ready, the grown leaf fades out into blur and
 the dots fade out together over 0.5 seconds, then it reveals the whole destination
 from top to bottom through a gradient spanning 120% of the viewport. During the 1.5-second
 reveal, the destination rises 32 points into place using the `(0.55, 0, 0.17, 1)` timing curve
@@ -92,6 +93,15 @@ Conversation question and response fonts use the exact point sizes selected in a
 iOS Dynamic Type does not rescale them. Settings-driven paragraph text follows the same policy.
 Settings subpage labels and explanatory text use semantic fonts relative to iOS text styles,
 so they follow the iPhone's Text Size setting independently of conversation font sizing.
+
+Appearance stores independent `CanvasBackgroundOption` preferences for the conversation thread
+and Insight Tree in `@AppStorage`. Both default to System, following the app's color scheme;
+Light and Dark override only their surface. Clouds bundles the website's `thinking-sky.jpg`
+with its dark tint and cream palette. `CanvasBackground` stays stationary beneath scrolling
+or camera movement. `canvasAppearance` preserves the inherited app scheme through nested
+surfaces, so a System tree never picks up the thread's independent override. The tree setting
+applies to the global library, conversation trees, and Study Topic canvases. Reset Settings
+removes both background keys.
 
 Response formatting is split by responsibility: `ResponseParsing` and `LiveResponseParsing`
 prepare completed and incremental text; `ResponseFlowLayout` lays out words;

@@ -68,6 +68,8 @@ final class ConversationDefinitionState {
 }
 
 struct CurrentConversationView: View {
+    @AppStorage(SettingsStorageKey.conversationBackground) private var conversationBackground: CanvasBackgroundOption = .system
+    @AppStorage(SettingsStorageKey.insightTreeBackground) private var insightTreeBackground: CanvasBackgroundOption = .system
     var onOpenMenu: () -> Void = {}
     var onCanvasModeChange: (Bool) -> Void = { _ in }
     /// Reports whether the Insight drawer is up so the shell can ignore swipes that land on it.
@@ -945,6 +947,7 @@ struct CurrentConversationView: View {
     // MARK: Body
     var body: some View {
         conversationWithStateSync
+        .canvasAppearance(canvasMode.isTopicCanvasVisible ? insightTreeBackground : conversationBackground)
         .onDisappear {
             persistenceTask?.cancel()
             localInsightTreeSeedDebounceTask?.cancel()
@@ -1235,17 +1238,21 @@ struct CurrentConversationView: View {
         GeometryReader { geo in
             let usesCompactVerticalLayout = verticalSizeClass == .compact
             ZStack(alignment: .top) {
-                AngroveTheme.Colors.canvas.ignoresSafeArea()
+                CanvasBackground(option: canvasMode.isTopicCanvasVisible ? insightTreeBackground : conversationBackground)
+                    .ignoresSafeArea()
 
                 // Horizontal branch pager
                 branchPager(in: geo)
 
-                ConversationScrollFades(
-                    topHeight: ConversationScrollFades.topFadeHeight(compact: usesCompactVerticalLayout),
-                    bottomHeight: geo.size.height * (usesCompactVerticalLayout ? 0.28 : 0.4),
-                    topOpacity: topConversationChromeOpacity,
-                    showsBottomFade: !canvasMode.isTopicCanvasVisible
-                )
+                // Photo backgrounds carry their own scrim, so the canvas-colored fades are skipped.
+                if !(canvasMode.isTopicCanvasVisible ? insightTreeBackground : conversationBackground).isPhoto {
+                    ConversationScrollFades(
+                        topHeight: ConversationScrollFades.topFadeHeight(compact: usesCompactVerticalLayout),
+                        bottomHeight: geo.size.height * (usesCompactVerticalLayout ? 0.28 : 0.4),
+                        topOpacity: topConversationChromeOpacity,
+                        showsBottomFade: !canvasMode.isTopicCanvasVisible
+                    )
+                }
 
                 // Canvas Mode: per-conversation Insight Tree
                 if canvasMode.isTopicCanvasVisible {

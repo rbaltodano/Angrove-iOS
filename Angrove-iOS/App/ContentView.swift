@@ -75,6 +75,8 @@ struct ContentView: View {
     @State private var newConversationRequests = NewConversationRequests()
     @State private var deletedConversationID: UUID? = nil
     @State private var colorSchemeOverride: ColorScheme? = nil
+    @AppStorage(SettingsStorageKey.conversationBackground) private var conversationBackground: CanvasBackgroundOption = .system
+    @AppStorage(SettingsStorageKey.insightTreeBackground) private var insightTreeBackground: CanvasBackgroundOption = .system
     @State private var requestedForkConcept: ConceptDefinition? = nil
     @AppStorage("aquinas.settings.userName") private var userName: String = ""
     @AppStorage(SettingsStorageKey.customInstructions) private var customInstructions: String = ""
@@ -553,6 +555,7 @@ struct ContentView: View {
             embeddingProvider: embeddingProvider
         )
         .background(canvasColor)
+        .canvasAppearance(insightTreeBackground)
         // Top/side notch bleed only — keyboard safe area and the global Model Controls bar's
         // bottom inset (applied on an ancestor container) must still be respected, or the
         // docked Insight card renders behind the bar instead of stacking above it.
@@ -661,6 +664,15 @@ struct ContentView: View {
 
     // MARK: - Body
 
+    private var visibleCanvasBackground: CanvasBackgroundOption {
+        switch displayedPage {
+        case .conversation: isConversationCanvasMode ? insightTreeBackground : conversationBackground
+        case .insights: insightTreeBackground
+        case .studyTopics: studyTopicsControls.isCanvasVisible ? insightTreeBackground : .system
+        default: .system
+        }
+    }
+
     var body: some View {
         BootPresentation(isReady: isStartupReady) {
             shellObservers(shellBody)
@@ -713,6 +725,7 @@ struct ContentView: View {
         AnyView(GeometryReader { _ in
             ZStack(alignment: .top) {
                 rootSafeAreaColor
+                    .canvasAppearance(visibleCanvasBackground)
                     .ignoresSafeArea()
                     .animation(.easeInOut(duration: 0.2), value: isConversationCanvasMode)
 
@@ -914,7 +927,11 @@ struct ContentView: View {
                     }
                     // Matches the pages' canvas so the slide offset during page transitions
                     // doesn't reveal a differently tinted strip behind the page.
-                    .background(canvasColor)
+                    .background {
+                        CanvasBackground(option: visibleCanvasBackground)
+                            .canvasAppearance(visibleCanvasBackground)
+                            .ignoresSafeArea()
+                    }
                     .background {
                         globalModelControlsBar(usesLandscapeInsightSplit: usesLandscapeInsightSplit)
                     }
@@ -927,6 +944,7 @@ struct ContentView: View {
                     }
                     .overlayPreferenceValue(ModelControlsPreferenceKey.self, alignment: .bottom) { configuration in
                         ModelControlsHost(configuration: configuration)
+                            .canvasAppearance(visibleCanvasBackground)
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
                                 modelControlsHeight = height
                             }
@@ -1035,6 +1053,7 @@ struct ContentView: View {
                 // content that ignores the safe area (e.g. fade gradients).
                 if activePage == .insights && !isGlobalSideMenuOpen {
                     globalInsightMenuControls
+                        .canvasAppearance(insightTreeBackground)
                     .padding(.leading, 24)
                     .padding(.top, 24)
                     .transition(.scale(scale: 0.92).combined(with: .opacity))

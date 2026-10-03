@@ -115,13 +115,19 @@ private struct AppIconChoiceButton: View {
                     .frame(width: 84, height: 84)
                     .accessibilityHidden(true)
 
+                // The title is centered on its own; the checkmark only joins (and nudges it left)
+                // while this icon is the selected one.
                 HStack(spacing: 6) {
                     Text(option.title)
-                        .font(AngroveTheme.Typography.settingsLabel)
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 12, weight: .semibold))
-                        .opacity(isSelected ? 1 : 0)
+                        .settingsText(.label)
+                    if isSelected {
+                        // Draw On is a symbol transition effect: it runs as the icon is inserted.
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .transition(.symbolEffect(.drawOn).combined(with: CheckmarkBlurFadeTransition()))
+                    }
                 }
+                .animation(.springQuick, value: isSelected)
                 .foregroundStyle(AngroveTheme.Colors.lightGreen)
             }
             .contentShape(Rectangle())
@@ -129,5 +135,14 @@ private struct AppIconChoiceButton: View {
         .buttonStyle(.plain)
         .accessibilityLabel(Text(option.accessibilityTitle))
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+}
+
+/// Same blur-and-fade the nav icons use, as a `Transition` so it composes with the draw-on effect.
+private struct CheckmarkBlurFadeTransition: Transition {
+    func body(content: Content, phase: TransitionPhase) -> some View {
+        content
+            .opacity(phase.isIdentity ? 1 : 0)
+            .blur(radius: phase.isIdentity ? 0 : 8)
     }
 }

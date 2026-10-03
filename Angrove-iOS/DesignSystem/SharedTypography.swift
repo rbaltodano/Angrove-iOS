@@ -143,7 +143,7 @@ enum AngroveTheme {
     enum Typography {
         static let title = Font.custom("LibreBaskerville-Regular", size: 24)
         static let titleLarge = Font.custom("LibreBaskerville-Regular", size: 34)
-        static let titleHome = Font.custom("LibreBaskerville-Regular", size: 36)
+        static let titleHome = Font.custom("LibreBaskerville-Regular", size: 40)
         static let titleXLarge = Font.custom("LibreBaskerville-Regular", size: 40)
         static let heading = Font.custom("LibreBaskerville-Regular", size: 20)
         static let quote = Font.custom("LibreBaskerville-Italic", size: 16)
@@ -582,5 +582,39 @@ extension View {
     /// Shared soft glow for cards that float over the canvas.
     func cardGlow(yOffset: CGFloat = 0) -> some View {
         shadow(color: AngroveTheme.Colors.cardGlow, radius: 24, x: 0, y: yOffset)
+    }
+}
+
+// MARK: - Settings text
+
+/// Settings-page text that follows the user's conversation font size. Paragraphs also follow
+/// the response font; labels, controls, and details stay in the UI sans face.
+struct SettingsTextModifier: ViewModifier {
+    enum Role {
+        case label, control, paragraph, detail
+    }
+
+    let role: Role
+    @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .serif
+    @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .medium
+
+    func body(content: Content) -> some View {
+        let base = fontSize.pointSize
+        switch role {
+        case .label: content.font(.custom("Figtree-Bold", fixedSize: base))
+        case .control: content.font(.custom("Figtree-Regular", fixedSize: base))
+        case .detail: content.font(.custom("Figtree-Regular", fixedSize: max(base - 2, 11)))
+        case .paragraph:
+            switch responseFont {
+            case .sans: content.font(.custom("Figtree-Regular", fixedSize: base))
+            case .serif: content.font(.custom("LibreBaskerville-Regular", fixedSize: base))
+            }
+        }
+    }
+}
+
+extension View {
+    func settingsText(_ role: SettingsTextModifier.Role) -> some View {
+        modifier(SettingsTextModifier(role: role))
     }
 }

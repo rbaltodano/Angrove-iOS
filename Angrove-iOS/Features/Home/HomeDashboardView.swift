@@ -156,8 +156,13 @@ struct HomeDashboardView: View {
                 }
                 .padding(.horizontal, usesLandscapeLayout ? 48 : 36)
                 .frame(maxWidth: usesLandscapeLayout ? 1_120 : .infinity, alignment: .center)
+                // The vine hangs from the right edge behind the greeting and scrolls away with it.
+                .background(alignment: .topTrailing) {
+                    HomeVineWind()
+                        .padding(.top, usesLandscapeLayout ? 0 : 24)
+                }
             }
-            .refreshable {
+            .leafRefreshable {
                 refreshContent()
             }
 
@@ -231,11 +236,15 @@ private struct HomeFigmaOpeningSection: View {
                             .foregroundColor(AngroveTheme.Colors.lightGreen)
 
                         VStack(alignment: .leading, spacing: 0) {
-                            Text("\(greeting),")
-                                .font(AngroveTheme.Typography.titleHome)
+                            // One word per line ("Good" / "Morning," / name), so even
+                            // "Afternoon," keeps the full 40pt on a 402pt phone.
+                            ForEach(Array("\(greeting),".split(separator: " ").enumerated()), id: \.offset) { _, word in
+                                Text(word)
+                                    .font(AngroveTheme.Typography.titleHome)
+                            }
 
                             Text(userName)
-                                .font(.custom("LibreBaskerville-Italic", size: 36))
+                                .font(.custom("LibreBaskerville-Italic", size: 40))
                         }
                         .foregroundColor(AngroveTheme.Colors.primaryReadable)
                     }

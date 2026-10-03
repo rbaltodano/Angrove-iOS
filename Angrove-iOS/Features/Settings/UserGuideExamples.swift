@@ -50,7 +50,7 @@ private struct UserGuideExampleCaption: View {
 
     var body: some View {
         UserGuideText.text(text)
-            .font(AngroveTheme.Typography.settingsBody)
+            .settingsText(.paragraph)
             .foregroundStyle(AngroveTheme.Colors.paragraphText)
             .lineSpacing(FlowLayout.rowSpacing)
             .fixedSize(horizontal: false, vertical: true)
@@ -286,13 +286,13 @@ private struct UserGuideMidpointExample: View {
             if isMidpointMode {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("EXAMPLE RESULT")
-                        .font(AngroveTheme.Typography.settingsDetail)
+                        .settingsText(.detail)
                         .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     Text(result.title)
                         .font(AngroveTheme.Typography.settingsHeading)
                         .foregroundStyle(AngroveTheme.Colors.headingText)
                     Text(result.definition)
-                        .font(AngroveTheme.Typography.settingsBody)
+                        .settingsText(.paragraph)
                         .foregroundStyle(AngroveTheme.Colors.paragraphText)
                         .lineSpacing(FlowLayout.rowSpacing)
                         .fixedSize(horizontal: false, vertical: true)
@@ -391,7 +391,7 @@ private struct UserGuideMidpointExample: View {
                 Image(systemName: icon)
                     .font(.system(size: 13, weight: .semibold))
                 Text(title)
-                    .font(AngroveTheme.Typography.settingsLabel)
+                    .settingsText(.label)
             }
             .foregroundStyle(AngroveTheme.Colors.lightGreen)
             .frame(maxWidth: .infinity, minHeight: 48)
@@ -511,7 +511,7 @@ private struct UserGuideModelTasksExample: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Add Practice Tasks")
-                    .font(AngroveTheme.Typography.settingsLabel)
+                    .settingsText(.label)
                     .foregroundStyle(AngroveTheme.Colors.headingText)
                     .accessibilityAddTraits(.isHeader)
                 UserGuideExampleCaption(text: "Tap these to add a few tasks to the card above. Add several so some are waiting in line.")
@@ -553,7 +553,7 @@ private struct UserGuideModelTasksExample: View {
                 Image(systemName: "plus")
                     .font(.system(size: 12, weight: .bold))
                 Text(title)
-                    .font(AngroveTheme.Typography.settingsLabel)
+                    .settingsText(.label)
                 Spacer(minLength: 8)
                 Image(systemName: icon)
                     .font(.system(size: 13, weight: .semibold))

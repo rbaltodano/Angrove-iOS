@@ -8,6 +8,8 @@ import UniformTypeIdentifiers
 
 struct AppearanceSettingsView: View {
     @Binding var colorSchemeOverride: ColorScheme?
+    @AppStorage(SettingsStorageKey.conversationBackground) private var conversationBackground: CanvasBackgroundOption = .system
+    @AppStorage(SettingsStorageKey.insightTreeBackground) private var insightTreeBackground: CanvasBackgroundOption = .system
 
     private var selectedAppearance: AppearanceOption {
         switch colorSchemeOverride {
@@ -35,6 +37,17 @@ struct AppearanceSettingsView: View {
                                 }
                             }
                         }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Backgrounds")
+                        .font(AngroveTheme.Typography.settingsHeading)
+                        .foregroundStyle(AngroveTheme.Colors.headingText)
+
+                    VStack(spacing: 12) {
+                        BackgroundSettingsCard(title: "Conversation", surface: .conversation, selection: $conversationBackground)
+                        BackgroundSettingsCard(title: "Insight Tree", surface: .insightTree, selection: $insightTreeBackground)
                     }
                 }
 
@@ -74,7 +87,7 @@ struct AppExperienceSettingsView: View {
                         showsResetConfirmation = true
                     } label: {
                         Text("Reset Settings")
-                            .font(AngroveTheme.Typography.settingsLabel)
+                            .settingsText(.label)
                             .foregroundStyle(AngroveTheme.Colors.accentRed)
                             .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
                     }
@@ -231,7 +244,7 @@ struct PrivacyAndDataSettingsView: View {
                         showsClearInsightTreeConfirmation = true
                     } label: {
                         Text("Clear Insight Tree")
-                            .font(AngroveTheme.Typography.settingsLabel)
+                            .settingsText(.label)
                             .foregroundStyle(AngroveTheme.Colors.accentRed)
                             .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
                     }
@@ -418,13 +431,13 @@ private struct ModelActivityPreview: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Preview")
-                .font(AngroveTheme.Typography.settingsLabel)
+                .settingsText(.label)
                 .foregroundStyle(AngroveTheme.Colors.paragraphText)
 
             switch display {
             case .detailed:
                 Text("Thinking...")
-                    .font(AngroveTheme.Typography.settingsBody)
+                    .settingsText(.control)
                     .foregroundStyle(AngroveTheme.Colors.primaryReadable)
             case .compact:
                 HStack(spacing: 3) {
@@ -437,7 +450,7 @@ private struct ModelActivityPreview: View {
                 .accessibilityLabel("Model active")
             case .hidden:
                 Text("No visual activity indicator")
-                    .font(AngroveTheme.Typography.settingsDetail)
+                    .settingsText(.detail)
                     .foregroundStyle(AngroveTheme.Colors.placeholderText)
             }
         }
@@ -533,7 +546,7 @@ struct SettingsInformationView: View {
         SettingsDetailScaffold(title: title) {
             SettingsControlCard {
                 Text(message)
-                    .font(AngroveTheme.Typography.settingsBody)
+                    .settingsText(.paragraph)
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
                     .fixedSize(horizontal: false, vertical: true)
             }

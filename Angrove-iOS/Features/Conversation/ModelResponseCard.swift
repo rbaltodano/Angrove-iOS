@@ -24,6 +24,10 @@ struct ModelResponseCard: View {
     /// The model's current line of reasoning while it thinks; `nil` once it starts answering.
     let liveThought: String?
     let thinkingDurationSeconds: TimeInterval?
+    /// The summary as it stood when the model began thinking. The finished response appends the
+    /// full thought to `thinkingSummary`; without this the live view would flash every line just
+    /// before collapsing.
+    @State private var liveSummarySnapshot: [String]?
     /// Retrieved grounding passages for the turn currently generating, rendered as expandable
     /// Source rows in the loading state. Empty once the response is complete.
     let groundingSources: [GroundingSourceSummary]
@@ -173,7 +177,7 @@ struct ModelResponseCard: View {
                     // ── "Thinking…" / expandable thinking summary ─────────────
                     if isThinking {
                         LiveThinkingProgressView(
-                            summaryLines: thinkingSummary,
+                            summaryLines: liveSummarySnapshot ?? thinkingSummary,
                             liveThought: liveThought,
                             groundingSources: groundingSources,
                             isWritingResponse: isShowingWritingStatus,
@@ -244,7 +248,7 @@ struct ModelResponseCard: View {
                                 )
                                 .opacity(isThinkingDescriptionVisible ? 1 : 0)
                             ForEach(Array(thinkingSummaryLines.enumerated()), id: \.offset) { index, line in
-                                ApproachSummaryRow(line: line, number: index + 1, alignment: responseTextAlignment)
+                                ApproachSummaryRow(line: line, alignment: responseTextAlignment)
                                     .font(responseFont.textFont(size: conversationFontSize))
                                     .lineSpacing(8)
                                     .multilineTextAlignment(responseTextAlignment.textAlignment)
@@ -417,6 +421,15 @@ struct ModelResponseCard: View {
                 isThinkingDocked = true
             }
         }
+        .onChange(of: liveThought != nil) { _, isThinkingLive in
+            if isThinkingLive, liveSummarySnapshot == nil {
+                liveSummarySnapshot = thinkingSummary
+            }
+        }
+        .onChange(of: thinkingSummary.isEmpty) { _, isEmpty in
+            // A regenerate clears the summary; start the next answer's snapshot fresh.
+            if isEmpty { liveSummarySnapshot = nil }
+        }
         .onChange(of: thinkingSummary.count) { _, count in
             guard count > 0, isThinking else { return }
             withAnimation(.springStandard) {
@@ -515,11 +528,12 @@ struct ModelResponseCard: View {
     }
 }
 
-/// Numbered public preparation notes. Legacy summaries without a label still render intact.
+/// One thinking line, with a short "Heading:" prefix set in bold. Legacy summaries without a
+/// label still render intact. `inheritsStyle` lets a live row take the shimmer's gradient.
 private struct ApproachSummaryRow: View {
     let line: String
-    let number: Int
     let alignment: ResponseTextAlignmentOption
+    var inheritsStyle: Bool = false
 
     private var parts: (heading: String?, detail: String) {
         guard let separator = line.range(of: ": "),
@@ -530,25 +544,31 @@ private struct ApproachSummaryRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(number, format: .number)
-                .font(AngroveTheme.Typography.chipLabel)
-                .foregroundStyle(AngroveTheme.Colors.lightGreen)
-                .padding(.top, 3)
-                .accessibilityHidden(true)
-            VStack(alignment: alignment.horizontalAlignment, spacing: 4) {
-                if let heading = parts.heading {
-                    Text(heading)
-                        .fontWeight(.bold)
-                        .foregroundStyle(AngroveTheme.Colors.headingText)
-                }
-                Text(parts.detail)
-                    .foregroundStyle(AngroveTheme.Colors.placeholderText)
-                    .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: alignment.horizontalAlignment, spacing: 4) {
+            if let heading = parts.heading {
+                Text(heading)
+                    .fontWeight(.bold)
+                    .modifier(RowForeground(color: inheritsStyle ? nil : AngroveTheme.Colors.headingText))
             }
-            .frame(maxWidth: .infinity, alignment: alignment.frameAlignment)
+            Text(parts.detail)
+                .modifier(RowForeground(color: inheritsStyle ? nil : AngroveTheme.Colors.placeholderText))
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: alignment.frameAlignment)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// Applies a fixed color, or leaves the inherited foreground (such as the shimmer) alone.
+private struct RowForeground: ViewModifier {
+    let color: Color?
+
+    func body(content: Content) -> some View {
+        if let color {
+            content.foregroundStyle(color)
+        } else {
+            content
+        }
     }
 }
 
@@ -585,13 +605,16 @@ private struct LiveThinkingProgressView: View {
         isWritingResponse
     }
 
+    @State private var revealedSourceCount = 0
+    private static let sourceRevealDelay: Duration = .milliseconds(150)
+
     var body: some View {
         VStack(alignment: responseTextAlignment.horizontalAlignment, spacing: 8) {
             Group {
                 if showsDetailedProgress {
                     VStack(alignment: responseTextAlignment.horizontalAlignment, spacing: 8) {
                         ForEach(Array(visibleSummaryLines.enumerated()), id: \.offset) { index, line in
-                            ApproachSummaryRow(line: line, number: index + 1, alignment: responseTextAlignment)
+                            ApproachSummaryRow(line: line, alignment: responseTextAlignment, inheritsStyle: true)
                                 .font(font)
                                 .lineSpacing(8)
                                 .multilineTextAlignment(responseTextAlignment.textAlignment)
@@ -607,7 +630,9 @@ private struct LiveThinkingProgressView: View {
                                 .transition(.glideFadeUp)
                         }
 
-                        ForEach(groundingSources) { source in
+                        // Sources arrive together, but read as a sequence: each one follows the last
+                        // after a short beat.
+                        ForEach(groundingSources.prefix(revealedSourceCount)) { source in
                             GroundingSourceRow(
                                 source: source,
                                 responseTextAlignment: responseTextAlignment
@@ -618,12 +643,15 @@ private struct LiveThinkingProgressView: View {
                         // The model's own reasoning, one line at a time: each completed line
                         // replaces the last rather than accumulating.
                         if let currentThought {
-                            Text(currentThought)
+                            ApproachSummaryRow(
+                                line: currentThought,
+                                alignment: responseTextAlignment,
+                                inheritsStyle: true
+                            )
                                 .font(font)
                                 .lineSpacing(8)
                                 .lineLimit(3)
                                 .multilineTextAlignment(responseTextAlignment.textAlignment)
-                                .foregroundStyle(AngroveTheme.Colors.placeholderText)
                                 .modifier(ThinkingShimmer(isActive: true, color: color))
                                 .frame(maxWidth: .infinity, alignment: responseTextAlignment.frameAlignment)
                                 .id(currentThought)
@@ -666,7 +694,7 @@ private struct LiveThinkingProgressView: View {
             // Only actual answer text advances the progress to writing.
             if showsWritingResponse {
                 HStack(alignment: .center, spacing: 14) {
-                    WritingResponseLeaf()
+                    LeafLoadingAnimation()
 
                     Text("Writing Response...")
                         .font(font)
@@ -683,7 +711,17 @@ private struct LiveThinkingProgressView: View {
         }
         .animation(.easeOut(duration: 0.3), value: summaryLines)
         .animation(.easeOut(duration: 0.3), value: currentThought)
-        .animation(.easeOut(duration: 0.3), value: groundingSources.count)
+        .animation(.easeOut(duration: 0.3), value: revealedSourceCount)
+        .task(id: groundingSources.map(\.id)) {
+            revealedSourceCount = min(revealedSourceCount, groundingSources.count)
+            while revealedSourceCount < groundingSources.count {
+                if revealedSourceCount > 0 {
+                    try? await Task.sleep(for: Self.sourceRevealDelay)
+                    guard !Task.isCancelled else { return }
+                }
+                revealedSourceCount += 1
+            }
+        }
         .animation(.easeOut(duration: 0.3), value: isWritingResponse)
         .animation(.easeInOut(duration: 0.25), value: isQueuedForModel)
     }
@@ -731,7 +769,13 @@ private struct GroundingSourceRow: View {
                     isExpanded.toggle()
                 }
             } label: {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    // The Library's icon for this work's genre, so a source reads the same here as
+                    // on its shelf. Curated notes and older saves have no work and use the default.
+                    Image(systemName: LibrarySubject.of(workID: source.sourceID ?? "").systemImage)
+                        .font(.system(size: 13, weight: .medium))
+                        .accessibilityHidden(true)
+
                     Text(source.title)
                         .paragraphFont()
                         .lineSpacing(6)
@@ -832,43 +876,6 @@ private struct GroundingSourceRow: View {
 }
 
 /// Small animated writing mark shown only while the model is composing its response.
-private struct WritingResponseLeaf: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.scenePhase) private var scenePhase
-    @State private var stage = 1
-
-    private var shouldAnimate: Bool {
-        !reduceMotion && scenePhase == .active
-    }
-
-    var body: some View {
-        Image("WritingLeaf\(reduceMotion ? 5 : stage)")
-            .renderingMode(.original)
-            .resizable()
-            .scaledToFit()
-            .frame(width: 24, height: 24)
-            .accessibilityHidden(true)
-            .transaction { $0.animation = nil }
-            .task(id: shouldAnimate) {
-                stage = 1
-                guard shouldAnimate else { return }
-
-                do {
-                    while !Task.isCancelled {
-                        // Grow through sprites 1–4 over 1.2s, then hold the grown leaf for 0.6s.
-                        for (nextStage, milliseconds) in [(1, 300), (2, 300), (3, 300), (4, 300), (5, 600)] {
-                            try Task.checkCancellation()
-                            stage = nextStage
-                            try await Task.sleep(for: .milliseconds(milliseconds))
-                        }
-                    }
-                } catch {
-                    // SwiftUI cancels the loop when the writing row disappears or pauses.
-                }
-            }
-    }
-}
-
 /// Elapsed time pinned below the thinking/writing text.
 private struct ThinkingMetricsFooter: View {
     let startedAt: Date

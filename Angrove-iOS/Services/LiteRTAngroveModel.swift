@@ -2342,7 +2342,8 @@ private extension LiteRTAngroveModel {
                 id: reference.id,
                 title: reference.title,
                 sourceName: reference.sourceName,
-                passage: reference.facts.trimmingCharacters(in: .whitespacesAndNewlines)
+                passage: reference.facts.trimmingCharacters(in: .whitespacesAndNewlines),
+                sourceID: reference.sourceID
             )
         }
     }

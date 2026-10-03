@@ -60,6 +60,7 @@ struct NewStudyTopicSheet: View {
 /// decides its content (selected topic, canvas mode, pending tree-update confirmation) stays
 /// owned locally here exactly as before.
 struct StudyTopicsPageControls {
+    var isCanvasVisible: Bool = false
     var isVisible: Bool = false
     var actionTitle: String? = nil
     var secondaryActionTitle: String? = nil
@@ -71,6 +72,7 @@ struct StudyTopicsPageControls {
 }
 
 struct StudyTopicsView: View {
+    @AppStorage(SettingsStorageKey.insightTreeBackground) private var insightTreeBackground: CanvasBackgroundOption = .system
     let conversations: [InquiryConversation]
     let activeConversationID: UUID?
     @Binding var savedInsights: [ConceptDefinition]
@@ -240,6 +242,7 @@ struct StudyTopicsView: View {
                 }
                 .animation(.springStandard, value: topicCanvasMode.isCanvasStudyMode)
                 .animation(.springStandard, value: selectedTopicID)
+                .canvasAppearance(topicCanvasMode.isTopicCanvasVisible ? insightTreeBackground : .system)
                 .padding(.horizontal, 24)
                 .padding(.top, 24)
                 Spacer()
@@ -461,7 +464,7 @@ struct StudyTopicsView: View {
                 .padding(.horizontal, 24)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .refreshable {
+            .leafRefreshable {
                 refreshContent()
             }
 
@@ -562,6 +565,7 @@ struct StudyTopicsView: View {
     private func reportControls() {
         onControlsChange(
             StudyTopicsPageControls(
+                isCanvasVisible: topicCanvasMode.isTopicCanvasVisible,
                 isVisible: !topicCanvasMode.isTopicCanvasVisible,
                 actionTitle: selectedTopicID == nil ? "New Study Topic" : "New Conversation",
                 secondaryActionTitle: selectedTopicID == nil || conversations.isEmpty ? nil : "Add Conversation",

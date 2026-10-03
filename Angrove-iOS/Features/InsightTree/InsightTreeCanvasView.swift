@@ -13,6 +13,7 @@ import simd
 /// SwiftUI-native graph renderer for the insight tree.
 /// Text and SF Symbols stay vector/crisp while the graph remains pannable and zoomable.
 struct InsightTreeCanvasView: View {
+    @AppStorage(SettingsStorageKey.insightTreeBackground) private var insightTreeBackground: CanvasBackgroundOption = .system
     let nodes: [NodeModel]
     let edges: [EdgeModel]
     let restoreFocusedCameraRequest: Int
@@ -367,7 +368,7 @@ struct InsightTreeCanvasView: View {
             let studyNodeTarget = studyReady ? studyNodeTapTarget(camera: camera, size: size) : nil
 
             let canvas = ZStack {
-                insightTreeCanvasColor.ignoresSafeArea()
+                CanvasBackground(option: insightTreeBackground).ignoresSafeArea()
                 AnimatedDotGridBackground(
                     settledOffset: cameraState.offset,
                     settledScale:  activeScale,
@@ -509,6 +510,7 @@ struct InsightTreeCanvasView: View {
             }
             canvasRequestObservers(canvasLifecycleObservers(canvas, size: size), size: size)
         }
+        .canvasAppearance(insightTreeBackground)
     }
 
     /// Appearance, topology, and camera-request observers. Split out of `body` so its modifier

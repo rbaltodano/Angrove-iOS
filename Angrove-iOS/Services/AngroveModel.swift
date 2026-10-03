@@ -370,6 +370,9 @@ nonisolated struct GroundingSourceSummary: Identifiable, Codable, Equatable {
     let title: String
     let sourceName: String
     let passage: String
+    /// The Library work this passage came from, so the row can show that work's genre icon.
+    /// `nil` for curated notes and for answers saved before this was recorded.
+    var sourceID: String? = nil
 
     /// Identifies the narrated retrieval lines that accompany these sources in a thinking
     /// summary, so the live loading UI can replace them with the expandable Source rows rather

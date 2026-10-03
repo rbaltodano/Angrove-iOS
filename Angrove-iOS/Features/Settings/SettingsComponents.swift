@@ -94,7 +94,7 @@ struct SettingsLabeledControl<Content: View>: View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .center, spacing: 12) {
                 Text(title)
-                    .font(AngroveTheme.Typography.settingsLabel)
+                    .settingsText(.label)
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
                     .fixedSize()
                 Spacer(minLength: 8)
@@ -102,7 +102,7 @@ struct SettingsLabeledControl<Content: View>: View {
             }
             VStack(alignment: .leading, spacing: 12) {
                 Text(title)
-                    .font(AngroveTheme.Typography.settingsLabel)
+                    .settingsText(.label)
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
                     .fixedSize(horizontal: false, vertical: true)
                 content
@@ -136,12 +136,12 @@ struct SettingsChoiceRow<Option: SettingsChoice>: View {
         settingsRowLayout(isVertical: dynamicTypeSize.isAccessibilitySize).callAsFunction {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(AngroveTheme.Typography.settingsLabel)
+                    .settingsText(.label)
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
 
                 if let detail {
                     Text(detail)
-                        .font(AngroveTheme.Typography.settingsDetail)
+                        .settingsText(.detail)
                         .foregroundStyle(AngroveTheme.Colors.placeholderText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -172,7 +172,7 @@ struct SettingsChoiceRow<Option: SettingsChoice>: View {
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: 8, weight: .bold))
                 }
-                .font(AngroveTheme.Typography.settingsLabel)
+                .settingsText(.label)
                 .foregroundStyle(AngroveTheme.Colors.primaryReadable)
                 .animation(.springStandard, value: selection)
             }
@@ -202,12 +202,12 @@ struct SettingsToggleRow: View {
         Toggle(isOn: $isOn) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(AngroveTheme.Typography.settingsLabel)
+                    .settingsText(.label)
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
 
                 if let detail {
                     Text(detail)
-                        .font(AngroveTheme.Typography.settingsDetail)
+                        .settingsText(.detail)
                         .foregroundStyle(AngroveTheme.Colors.placeholderText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -229,7 +229,7 @@ struct SettingsTextInputRow: View {
     var body: some View {
         settingsRowLayout(isVertical: dynamicTypeSize.isAccessibilitySize).callAsFunction {
             Text(title)
-                .font(AngroveTheme.Typography.settingsLabel)
+                .settingsText(.label)
                 .foregroundStyle(AngroveTheme.Colors.paragraphText)
 
             if !dynamicTypeSize.isAccessibilitySize {
@@ -237,7 +237,7 @@ struct SettingsTextInputRow: View {
             }
 
             TextField("", text: $text, prompt: Text(placeholder))
-                .font(AngroveTheme.Typography.settingsBody)
+                .settingsText(.control)
                 .foregroundStyle(AngroveTheme.Colors.primaryReadable)
                 .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
                 .tint(AngroveTheme.Colors.darkGreen)
@@ -254,12 +254,12 @@ struct SettingsNavigationLabel: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(AngroveTheme.Typography.settingsLabel)
+                    .settingsText(.label)
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
 
                 if let detail {
                     Text(detail)
-                        .font(AngroveTheme.Typography.settingsDetail)
+                        .settingsText(.detail)
                         .foregroundStyle(AngroveTheme.Colors.placeholderText)
                 }
             }
@@ -282,7 +282,7 @@ struct SettingsUnavailableActionRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Text(title)
-                .font(AngroveTheme.Typography.settingsLabel)
+                .settingsText(.label)
                 .foregroundStyle(
                     isDestructive
                         ? AngroveTheme.Colors.accentRed.opacity(0.45)
@@ -292,7 +292,7 @@ struct SettingsUnavailableActionRow: View {
             Spacer()
 
             Text("Coming Soon")
-                .font(AngroveTheme.Typography.settingsDetail)
+                .settingsText(.detail)
                 .foregroundStyle(AngroveTheme.Colors.placeholderText)
         }
         .frame(maxWidth: .infinity, minHeight: 28)
@@ -347,7 +347,7 @@ struct PersonalitySegmentedControl: View {
                     }
                 } label: {
                     Text(option.displayName)
-                        .font(AngroveTheme.Typography.settingsLabel)
+                        .settingsText(.label)
                         .foregroundStyle(AngroveTheme.Colors.primaryReadable)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, minHeight: 34)
@@ -434,7 +434,7 @@ struct FontSizeSegmentedControl: View {
                     }
                 } label: {
                     Text(option.rawValue)
-                        .font(AngroveTheme.Typography.settingsLabel)
+                        .settingsText(.label)
                         .foregroundStyle(AngroveTheme.Colors.primaryReadable)
                         .padding(.horizontal, 8)
                         .frame(minWidth: 54, minHeight: 30)
@@ -477,7 +477,7 @@ struct FontSegmentedControl: View {
                     }
                 } label: {
                     Text(option.rawValue)
-                        .font(AngroveTheme.Typography.settingsLabel)
+                        .settingsText(.label)
                         .foregroundStyle(AngroveTheme.Colors.primaryReadable)
                         .padding(.horizontal, 8)
                         .frame(minWidth: 54, minHeight: 30)

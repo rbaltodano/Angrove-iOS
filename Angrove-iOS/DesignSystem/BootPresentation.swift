@@ -117,6 +117,13 @@ private struct BootMark: View {
                 .transaction { $0.animation = nil }
                 .blur(radius: leafBlur)
         }
+        .overlay(alignment: .bottom) {
+            Text("Angrove")
+                .font(.custom("LibreBaskerville-Italic", size: 34))
+                .foregroundStyle(AngroveTheme.Colors.headingText)
+                // Anchor below the artwork without moving the centered leaf and dot grid.
+                .alignmentGuide(.bottom) { dimensions in dimensions[.top] - 24 }
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
     }

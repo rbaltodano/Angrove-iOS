@@ -80,7 +80,7 @@ private struct UserGuidePageScaffold<Content: View>: View {
 
                         if let subtitle {
                             UserGuideText.text(subtitle)
-                                .font(AngroveTheme.Typography.settingsBody)
+                                .settingsText(.paragraph)
                                 .foregroundStyle(AngroveTheme.Colors.paragraphText)
                                 .lineSpacing(FlowLayout.rowSpacing)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -132,7 +132,7 @@ private struct UserGuideTopicRow: View {
                     .frame(width: 20)
                     .accessibilityHidden(true)
                 Text(topic.title)
-                    .font(AngroveTheme.Typography.settingsBody)
+                    .settingsText(.control)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
@@ -156,11 +156,11 @@ private struct UserGuideParagraph: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(AngroveTheme.Typography.settingsLabel)
+                .settingsText(.label)
                 .foregroundStyle(AngroveTheme.Colors.headingText)
                 .accessibilityAddTraits(.isHeader)
             UserGuideText.text(text)
-                .font(AngroveTheme.Typography.settingsBody)
+                .settingsText(.paragraph)
                 .foregroundStyle(AngroveTheme.Colors.paragraphText)
                 .lineSpacing(FlowLayout.rowSpacing)
                 .fixedSize(horizontal: false, vertical: true)
