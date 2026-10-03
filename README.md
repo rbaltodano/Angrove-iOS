@@ -37,6 +37,11 @@ Angrove is a local-first project, not a hosted chat service. The iOS app is desi
 on-device language model and local source retrieval. It makes no network requests for model or
 Insight Tree work.
 
+The model is Google's stock Gemma 4 E4B (QAT build), run on-device through LiteRT-LM. It is not
+fine-tuned: Angrove's voice comes from its Scholarly personality prompt, and its grounding comes
+from on-device retrieval over the Aquinas corpus. A fine-tuned voice model is in development for a
+later release.
+
 This repository is an active development project. The local model and grounding assets are large
 and intentionally excluded from source control, so a full on-device experience requires the
 corresponding development assets.

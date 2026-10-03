@@ -118,6 +118,11 @@ phone benchmark run before promising a number.
 
 ### Phase 3: fine-tune the winner (after it's in the app)
 
+> Status, 2026-10-03: not shipped. Launch uses stock E4B with the friend-voice prompt. A LoRA tune
+> on self-distilled voice data reached 39/40 on sealed-1 at INT8 (6.6 GB), but phone-sized exports
+> were too slow, ran out of memory, or lost accuracy; tuning on the mobile QAT checkpoint lost the
+> voice after re-quantization (25/40). Step 2 below, QAT-aware training, is the open work.
+
 1. LoRA on the Angrove voice and behavior data.
 2. Re-quantize carefully:
    - Gemma: QAT-aware fine-tune (train on the QAT checkpoint, then export with the LiteRT-LM
