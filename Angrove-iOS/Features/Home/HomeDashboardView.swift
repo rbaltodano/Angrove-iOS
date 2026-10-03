@@ -31,6 +31,7 @@ struct HomeDashboardView: View {
     /// dashboard use the extra width while releasing vertical pressure on a phone.
     private var usesLandscapeLayout: Bool { verticalSizeClass == .compact }
 
+    @State private var vineParallax = HomeVineParallax()
     @State private var studyTopics: [StudyTopic] = []
     @State private var usageMonth = MonthlyUsageStore.currentMonth()
     @State private var activeInsight: ConceptDefinition? = nil
@@ -158,9 +159,14 @@ struct HomeDashboardView: View {
                 .frame(maxWidth: usesLandscapeLayout ? 1_120 : .infinity, alignment: .center)
                 // The vine hangs from the right edge behind the greeting and scrolls away with it.
                 .background(alignment: .topTrailing) {
-                    HomeVineWind()
+                    HomeVineWind(parallax: vineParallax)
                         .padding(.top, usesLandscapeLayout ? 0 : 24)
                 }
+            }
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top
+            } action: { _, offset in
+                vineParallax.scrollOffset = offset
             }
             .leafRefreshable {
                 refreshContent()
