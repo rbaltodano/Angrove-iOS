@@ -5,13 +5,15 @@ first. This document records iOS-specific runtime boundaries and validation rule
 
 ## Launch model
 
-- **Weights:** Google's stock Gemma 4 E4B QAT package, `gemma-4-E4B-it.litertlm`
+- **Weights:** Stock instruction-tuned Gemma 4 E4B LiteRT Community package, `gemma-4-E4B-it.litertlm`
   (3,659,530,240 bytes, SHA-256 `0b2a8980…`), F32 GPU activations, MTP off, native thinking off.
   The weights are **not fine-tuned**.
 - **Voice:** the default Scholarly personality prompt (the "learned friend" voice) in
   `LiteRTAngroveModel.personalityInstruction`.
-- **Accuracy:** sealed set 2, 36/40, and held-out, 35/40, on an iPhone 17 (2026-10-01).
-  Evaluation kit and results: the private `Angrove-Eval` repository.
+- **Historical phone observations:** sealed set 2, 36/40, and held-out, 35/40, on an iPhone 17
+  (2026-10-01), recorded in the private eval kit’s session summary. The original raw run folders
+  were lost, so these are not the public case study’s headline evidence or a fresh release gate.
+  [The public evaluation report](Evaluation.md) uses four preserved simulator comparison runs.
 - **Fine-tuned voice (post-launch):** a LoRA tune keeps accuracy at INT8 (6.6 GB, too large),
   but every phone-sized conversion so far lost speed, memory headroom, or accuracy. Next step:
   quantization-aware fine-tuning. See `Aquinas_Backend` `docs/Aquinas-Voice-Dataset.md`.
@@ -53,15 +55,17 @@ grounding corpus, model conversion, and evaluation.
 
 ## Model package and device safety
 
-On `feature/gemma4-e4b-qat`, `LiteRTModelManifest.angrove` selects the standard LiteRT Community
-Gemma 4 E4B package, not a fine-tune. It runs text-only on the GPU with a 4,096-token KV cache.
-An earlier owner-approved build from this branch remains installed on Ry as a personal trial.
-**The migration is not promoted:** C9 failed the frozen physical-device latency gate, C10 is
-blocked, and `main` still selects the fine-tuned E2B package. Do not infer a release decision
-from the branch manifest or the phone installation. The manifest comment records B0 rollback
-values. Evidence, exact hashes, and the next diagnostic plan are in the
-[E4B migration ledger](Gemma4-E4B-QAT-Progress.md) and
-[post-C9 diagnostics](Gemma4-E4B-Post-C9-Diagnostics.md).
+Current `main` selects `gemma-4-E4B-it.litertlm` in `LiteRTModelManifest.angrove`. The stock
+LiteRT Community package is not an Angrove fine-tune. Production settings use the GPU with
+F32 activations, a 4,096-token context, greedy decoding, native thinking off and MTP off.
+The manifest is authoritative for the exact byte count and SHA-256; see
+[development setup](Development-Setup.md).
+
+The September 27 C9 latency gate failed under its frozen protocol. Later E4B/F32 integration
+and quality fixes do not retroactively turn that trial into a pass or certify all release gates.
+The dated [migration ledger](Gemma4-E4B-QAT-Progress.md) and
+[post-C9 diagnostics](Gemma4-E4B-Post-C9-Diagnostics.md) preserve that history. Keep current
+model selection separate from historical promotion criteria and physical-device observations.
 
 Lifecycle rules the runtime enforces (see the C7 evidence):
 - The stall watchdog ignores time the process spent suspended.
