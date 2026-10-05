@@ -202,7 +202,7 @@ nonisolated struct InquirySnapshotFileStore {
             try createBackupIfNeeded()
         }
         let data = try Self.encoder.encode(snapshot)
-        try data.write(to: snapshotURL, options: [.atomic, .completeFileProtection])
+        try EncryptedPersonalFile.write(data, to: snapshotURL)
     }
 
     private func createBackupIfNeeded() throws {
@@ -254,13 +254,13 @@ nonisolated struct InquirySnapshotFileStore {
     }
 
     private func decodeSnapshot(at url: URL) -> InquiryPersistenceSnapshot? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
+        guard let data = try? EncryptedPersonalFile.read(url) else { return nil }
         return try? Self.decoder.decode(InquiryPersistenceSnapshot.self, from: data)
     }
 
     private func migrateLegacySnapshotIfAvailable() -> InquiryPersistenceSnapshot? {
         for key in [Self.currentLegacyKey, Self.originalLegacyKey] {
-            guard let data = defaults.data(forKey: key),
+            guard let data = PrivatePreferences(defaults: defaults).data(forKey: key),
                   let snapshot = try? Self.decoder.decode(
                     InquiryPersistenceSnapshot.self,
                     from: data
@@ -269,8 +269,8 @@ nonisolated struct InquirySnapshotFileStore {
             }
             do {
                 try write(snapshot, createsBackup: false)
-                defaults.removeObject(forKey: Self.currentLegacyKey)
-                defaults.removeObject(forKey: Self.originalLegacyKey)
+                PrivatePreferences(defaults: defaults).removeObject(forKey: Self.currentLegacyKey)
+                PrivatePreferences(defaults: defaults).removeObject(forKey: Self.originalLegacyKey)
             } catch {
                 // Keep the legacy copy until a verified file write succeeds.
             }
@@ -412,7 +412,7 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
             do {
                 try requireStore().savePreservingCompletedResponses(latest)
             } catch {
-                assertionFailure("Unable to save inquiry snapshot: \(error)")
+                PersonalDataProtection.report(error)
             }
         }
     }
@@ -467,7 +467,7 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
             do {
                 try operation(requireStore())
             } catch {
-                assertionFailure("\(failureMessage): \(error)")
+                PersonalDataProtection.report(error)
             }
         }
     }

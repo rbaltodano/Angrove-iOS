@@ -8,7 +8,7 @@ import Foundation
 
 /// DEBUG-only record of every native generation: the exact prompt LiteRT-LM renders (preface and
 /// message, from the runtime's own template), the sampler, and the raw output or error. Enabled
-/// only by `--litert-record-generations`; it writes JSON lines to
+/// only by `--litert-record-generations`; it writes encrypted JSON lines to
 /// `Documents/litert-generations.jsonl`. It exists so integration diagnostics can tell a template
 /// or parsing failure from a model failure (E4B migration plan, C6) without changing production
 /// behavior.
@@ -110,13 +110,14 @@ nonisolated final class LiteRTGenerationRecorder: @unchecked Sendable {
         line.append(0x0A)
         lock.lock()
         defer { lock.unlock() }
-        if !FileManager.default.fileExists(atPath: fileURL.path) {
-            FileManager.default.createFile(atPath: fileURL.path, contents: nil)
+        do {
+            var contents = FileManager.default.fileExists(atPath: fileURL.path)
+                ? try EncryptedPersonalFile.read(fileURL) : Data()
+            contents.append(line)
+            try EncryptedPersonalFile.write(contents, to: fileURL)
+        } catch {
+            PersonalDataProtection.report(error, duringWrite: true)
         }
-        guard let handle = try? FileHandle(forWritingTo: fileURL) else { return }
-        defer { try? handle.close() }
-        _ = try? handle.seekToEnd()
-        try? handle.write(contentsOf: line)
     }
 }
 #endif

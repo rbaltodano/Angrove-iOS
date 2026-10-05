@@ -71,6 +71,65 @@ struct InsightTreeSemanticMembershipTests {
         #expect(tree.nodes.first(where: { $0.id != seed.id })?.insights.map(\.id) == [unrelated.id])
     }
 
+    @Test("Near-duplicate Nodes fold into one, and stay folded on reopen")
+    func mergesNearDuplicateNodes() async {
+        let provider = MembershipEmbeddingProvider()
+        func seed(_ label: String, _ embedding: [Double]) -> LocalInsightTreeSeed {
+            LocalInsightTreeSeed(id: UUID(), label: label, summary: label, embedding: embedding,
+                                 embeddingVersion: provider.version, createdAt: Date())
+        }
+        let politics = seed("Ancient Greek Politics", [1, 0])
+        let cityStates = seed("Ancient Greek City-States", [0.8, 0.6])
+        let law = seed("Divine Law", [0, -1])
+        let insight = concept()
+        let scope = UUID()
+        let tree = InsightTreeViewModel(insights: [insight], embeddingProvider: provider,
+                                       localSeedAnchors: [politics, cityStates, law], midpointStoreScope: scope)
+        await tree.prepareSemanticTree()
+        #expect(Set(tree.nodes.map(\.id)) == [politics.id, law.id])
+        #expect(tree.nodes.first(where: { $0.id == politics.id })?.insights.map(\.id) == [insight.id])
+
+        let reopened = InsightTreeViewModel(insights: [insight], embeddingProvider: provider,
+                                           localSeedAnchors: [politics, cityStates, law], midpointStoreScope: scope)
+        await reopened.prepareSemanticTree()
+        #expect(Set(reopened.nodes.map(\.id)) == [politics.id, law.id])
+    }
+
+    @Test("Nodes about the same subject fold together even when their members differ")
+    func mergesBySubject() async {
+        let thucydides = ConceptDefinition(id: UUID(), word: "Thucydides", partOfSpeech: "",
+                                           pronunciation: "", meaning: "Historian", example: "")
+        let polis = ConceptDefinition(id: UUID(), word: "Polis", partOfSpeech: "",
+                                      pronunciation: "", meaning: "City-state", example: "")
+        let trinity = ConceptDefinition(id: UUID(), word: "Trinity", partOfSpeech: "",
+                                        pronunciation: "", meaning: "One God", example: "")
+        let scope = UUID()
+        let politics = UUID(), cityStates = UUID(), theology = UUID()
+        // Membership already settled each Insight into its own Node, as on the Library canvas.
+        InsightTreeLocalStateStore.save(
+            [thucydides.id.uuidString: politics.uuidString, polis.id.uuidString: cityStates.uuidString,
+             trinity.id.uuidString: theology.uuidString],
+            key: "aquinas.insight-tree.insight-cluster-assignments.v2:\(scope.uuidString)"
+        )
+        var labels = InsightTreeLocalStateStore.load([String: String].self, key: "aquinas.insight-tree.cluster-labels.v1") ?? [:]
+        var definitions = InsightTreeLocalStateStore.load([String: String].self, key: "aquinas.insight-tree.cluster-definitions.v1") ?? [:]
+        for (id, label) in [(politics, "Greek Politics"), (cityStates, "Greek City-States"), (theology, "Theology")] {
+            labels[id.uuidString] = label
+            definitions[id.uuidString] = "Definition"
+        }
+        InsightTreeLocalStateStore.save(labels, key: "aquinas.insight-tree.cluster-labels.v1")
+        InsightTreeLocalStateStore.save(definitions, key: "aquinas.insight-tree.cluster-definitions.v1")
+
+        let tree = InsightTreeViewModel(insights: [thucydides, polis, trinity],
+                                       embeddingProvider: SubjectEmbeddingProvider(), midpointStoreScope: scope)
+        await tree.prepareSemanticTree()
+        await tree.prepareSemanticTree()
+        #expect(tree.nodes.count == 2)
+        let greek = tree.nodes.first { $0.insights.contains { $0.id == thucydides.id } }
+        #expect(Set(greek?.insights.map(\.id) ?? []) == [thucydides.id, polis.id])
+        #expect(tree.nodes.first { $0.insights.contains { $0.id == trinity.id } }?.id == theology)
+    }
+
     @Test("Stale seed vectors are refreshed before membership")
     func refreshesSeeds() async {
         let insight = concept()
@@ -95,5 +154,18 @@ private struct PeripheralEmbeddingProvider: EmbeddingProvider {
         if text.hasPrefix("First") { return [0.5, sqrt(0.75)] }
         if text.hasPrefix("Second") { return [0.5, -sqrt(0.75)] }
         return [-1, 0]
+    }
+}
+
+/// Members point in unrelated directions; only the two Greek subjects are close.
+private struct SubjectEmbeddingProvider: EmbeddingProvider {
+    var version: String { "test.subject.v1" }
+    func embed(_ text: String) async -> [Double]? {
+        if text.hasPrefix("Thucydides") { return [1, 0, 0, 0] }
+        if text.hasPrefix("Polis") { return [0, 1, 0, 0] }
+        if text.hasPrefix("Trinity") { return [0, 0, 1, 0] }
+        if text.hasPrefix("Greek Politics") { return [0, 0, 0.3, 1] }
+        if text.hasPrefix("Greek City-States") { return [0, 0, 0, 1] }
+        return [0, 0, 1, 0.2]
     }
 }

@@ -49,7 +49,7 @@ struct SettingsTypographyTests {
         }
     }
 
-    @Test("Larger system text increases rendered text and controls without overlapping")
+    @Test("Larger system text scales and app-sized controls reflow without overlapping")
     func controlsScaleAndFit() async throws {
         var results: [[String: CGRect]] = []
         for size in [DynamicTypeSize.large, .accessibility3] {
@@ -74,11 +74,16 @@ struct SettingsTypographyTests {
             let sizeName = size == .large ? "large" : "accessibility3"
             try #require(image.pngData()).write(to: URL(fileURLWithPath: "/tmp/angrove-settings-controls-272-\(sizeName).png"))
         }
-        for name in ["text", "alignment", "size", "font", "personality", "choice"] {
+        // Settings controls use the explicit in-app font-size preference; system
+        // Dynamic Type changes their arrangement rather than every row height.
+        for name in ["text"] {
             let regular = try #require(results[0][name])
             let accessible = try #require(results[1][name])
             #expect(accessible.height > regular.height)
         }
+        let regularSize = try #require(results[0]["size"])
+        let accessibleSize = try #require(results[1]["size"])
+        #expect(accessibleSize.height > regularSize.height, "The size options must reflow vertically at accessibility sizes")
         let regularText = try #require(results[0]["text"])
         let accessibleText = try #require(results[1]["text"])
         #expect(accessibleText.width > regularText.width * 1.5)

@@ -26,13 +26,36 @@ struct Angrove_iOSApp: App {
                 // Unit tests don't use the interface. Skipping it keeps its animations off the
                 // main actor, which many tests share (it starved timing tests on CI simulators).
                 Color.clear
-            } else if ProcessInfo.processInfo.arguments.contains("--litert-probe") {
-                LiteRTDeviceProbeView()
             } else {
-                ContentView(modelTasks: runtime.modelTasks)
-                    .environment(\.angroveModel, runtime.model)
-                    .environment(\.embeddingProvider, runtime.embeddingProvider)
+#if DEBUG
+                // Device probes bypass encrypted storage, so Release builds cannot enter them.
+                if ProcessInfo.processInfo.arguments.contains("--litert-probe") {
+                    LiteRTDeviceProbeView()
+                } else {
+                    EncryptedStorageGate { mainContent }
+                }
+#else
+                EncryptedStorageGate { mainContent }
+#endif
             }
         }
+    }
+
+    @ViewBuilder private var mainContent: some View {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--model-download-preview") {
+            ModelDownloadPreviewView()
+        } else {
+            liveContent
+        }
+#else
+        liveContent
+#endif
+    }
+
+    private var liveContent: some View {
+        ContentView(modelTasks: runtime.modelTasks)
+            .environment(\.angroveModel, runtime.model)
+            .environment(\.embeddingProvider, runtime.embeddingProvider)
     }
 }

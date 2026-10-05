@@ -228,6 +228,10 @@ struct PrivacyAndDataSettingsView: View {
                 }
 
                 SettingsSubsection(title: "Data Controls") {
+                    Text("Your saved personal data is fully encrypted on this device. Conversation exports are readable JSON files; anyone with an exported file can read it.")
+                        .settingsText(.label)
+                        .foregroundStyle(AngroveTheme.Colors.paragraphText)
+
                     Button(action: exportConversations) {
                         SettingsNavigationLabel(title: "Export Conversations")
                     }

@@ -12,14 +12,14 @@ enum InsightLibraryStore {
     private static let savedInsightsKey = "aquinas.saved.insights.v1"
 
     static func load() -> [ConceptDefinition] {
-        guard let data = UserDefaults.standard.data(forKey: savedInsightsKey) else {
+        guard let data = PrivatePreferences.standard.data(forKey: savedInsightsKey) else {
             return []
         }
 
         do {
             return try JSONDecoder().decode([ConceptDefinition].self, from: data)
         } catch {
-            UserDefaults.standard.removeObject(forKey: savedInsightsKey)
+            PersonalDataProtection.report(error)
             return []
         }
     }
@@ -29,7 +29,7 @@ enum InsightLibraryStore {
 
         do {
             let data = try JSONEncoder().encode(uniqueInsights)
-            UserDefaults.standard.set(data, forKey: savedInsightsKey)
+            PrivatePreferences.standard.set(data, forKey: savedInsightsKey)
         } catch {
             assertionFailure("Unable to save insight library: \(error)")
         }
@@ -44,7 +44,7 @@ enum GlobalInsightTreeStore {
     private static let snapshotKey = "aquinas.global-insight-tree.snapshot.v1"
 
     static func load() -> [ConceptDefinition] {
-        guard let data = UserDefaults.standard.data(forKey: snapshotKey),
+        guard let data = PrivatePreferences.standard.data(forKey: snapshotKey),
               let insights = try? JSONDecoder().decode(
                 [ConceptDefinition].self,
                 from: data
@@ -57,7 +57,7 @@ enum GlobalInsightTreeStore {
     static func save(_ insights: [ConceptDefinition]) {
         do {
             let data = try JSONEncoder().encode(insights.uniquedByWord())
-            UserDefaults.standard.set(data, forKey: snapshotKey)
+            PrivatePreferences.standard.set(data, forKey: snapshotKey)
         } catch {
             assertionFailure("Unable to save Global Insight Tree snapshot: \(error)")
         }
@@ -84,13 +84,13 @@ enum GlobalInsightTreeUpdatePrompt {
     }
 
     static func loadAcknowledgedLibraryIDs() -> Set<UUID>? {
-        guard let data = UserDefaults.standard.data(forKey: storeKey) else { return nil }
+        guard let data = PrivatePreferences.standard.data(forKey: storeKey) else { return nil }
         return try? JSONDecoder().decode(Set<UUID>.self, from: data)
     }
 
     static func saveAcknowledgedLibraryIDs(_ ids: Set<UUID>) {
         guard let data = try? JSONEncoder().encode(ids) else { return }
-        UserDefaults.standard.set(data, forKey: storeKey)
+        PrivatePreferences.standard.set(data, forKey: storeKey)
     }
 }
 
@@ -103,7 +103,7 @@ enum GlobalInsightPromotedIDsStore {
     private static let storeKey = "aquinas.global-insight-tree.promoted-ids.v1"
 
     static func load() -> [UUID] {
-        guard let data = UserDefaults.standard.data(forKey: storeKey),
+        guard let data = PrivatePreferences.standard.data(forKey: storeKey),
               let ids = try? JSONDecoder().decode([UUID].self, from: data) else {
             return []
         }
@@ -112,7 +112,7 @@ enum GlobalInsightPromotedIDsStore {
 
     static func save(_ ids: [UUID]) {
         guard let data = try? JSONEncoder().encode(ids) else { return }
-        UserDefaults.standard.set(data, forKey: storeKey)
+        PrivatePreferences.standard.set(data, forKey: storeKey)
     }
 }
 

@@ -93,6 +93,9 @@ struct HomeDashboardView: View {
                             hidesGreetingHeader: todayInHistory != nil,
                             onStartQuestion: onStartQuestion
                         )
+                        .anchorPreference(key: HomeOpeningBoundsKey.self, value: .bounds) {
+                            usesLandscapeLayout ? nil : $0
+                        }
 
                         HomeFigmaDivider()
 
@@ -160,7 +163,18 @@ struct HomeDashboardView: View {
                 // The vine hangs from the right edge behind the greeting and scrolls away with it.
                 .background(alignment: .topTrailing) {
                     HomeVineWind(parallax: vineParallax)
-                        .padding(.top, usesLandscapeLayout ? 0 : 24)
+                        .padding(.top, usesLandscapeLayout ? 48 : 72)
+                }
+                // The left vine hangs from the left edge, 192 points below its original position
+                // at the foot of the opening section, and sits farther back than the right vine
+                // (as on the website). Both stay behind the page.
+                .backgroundPreferenceValue(HomeOpeningBoundsKey.self) { anchor in
+                    if let anchor {
+                        GeometryReader { proxy in
+                            HomeVineWind(side: .left, parallax: vineParallax, depth: 0.22, delay: 0.15, returnDelay: 0.05)
+                                .offset(y: proxy[anchor].maxY - (questionOfTheDay == nil ? 84 : 168) + 192)
+                        }
+                    }
                 }
             }
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
@@ -282,6 +296,15 @@ private struct HomeFigmaOpeningSection: View {
                 .frame(maxWidth: 520)
             }
         }
+    }
+}
+
+/// The portrait opening section's frame, so the page can hang the left vine at its foot.
+private struct HomeOpeningBoundsKey: PreferenceKey {
+    static let defaultValue: Anchor<CGRect>? = nil
+
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = value ?? nextValue()
     }
 }
 
@@ -942,7 +965,7 @@ private enum MonthlyUsageStore {
     private static let minimumRecordInterval: TimeInterval = 30 * 60
 
     static func recordVisitIfNeeded(date: Date = Date()) {
-        let defaults = UserDefaults.standard
+        let defaults = PrivatePreferences.standard
         if let lastRecordedAt = defaults.object(forKey: lastRecordedAtKey) as? Date,
            date.timeIntervalSince(lastRecordedAt) < minimumRecordInterval {
             return
@@ -986,7 +1009,7 @@ private enum MonthlyUsageStore {
     }
 
     private static func loadCounts() -> [String: Int] {
-        UserDefaults.standard.dictionary(forKey: countsKey) as? [String: Int] ?? [:]
+        PrivatePreferences.standard.dictionary(forKey: countsKey) as? [String: Int] ?? [:]
     }
 
     private static func dayKey(for date: Date) -> String {

@@ -778,9 +778,6 @@ struct LiteRTAngroveModel: AngroveModel {
         var raw = ""
         do {
             raw = try await generateStructured(prompt)
-#if DEBUG
-            print("Angrove insight-tree seed raw JSON: \(raw)")
-#endif
             let payload: InsightTreeSeedPayload = try Self.decodeJSON(raw)
             return Self.validatedInsightTreeSeed(label: payload.label, summary: payload.summary)
         } catch {
@@ -797,7 +794,7 @@ struct LiteRTAngroveModel: AngroveModel {
                 return recovered
             }
 #if DEBUG
-            print("Angrove insight-tree seed failed: \(String(reflecting: error))")
+            print("Angrove insight-tree seed could not be decoded.")
 #endif
             return nil
         }

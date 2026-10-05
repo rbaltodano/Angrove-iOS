@@ -70,6 +70,11 @@ struct ModelResponseCard: View {
         guard !groundingSources.isEmpty else { return thinkingSummary }
         return thinkingSummary.filter { !GroundingSourceSummary.isNarratedSourceLine($0) }
     }
+
+    /// Sources fade in after the Show Thinking summary; their icons wait for the same beat.
+    private var areGroundingSourcesShown: Bool {
+        isThinkingDescriptionVisible && visibleThinkingLineCount >= thinkingSummaryLines.count
+    }
     private var presentsThinkingUI: Bool {
         showsThinkingIntro || !thinkingSummary.isEmpty
     }
@@ -264,10 +269,12 @@ struct ModelResponseCard: View {
                                 alignment: responseTextAlignment.horizontalAlignment,
                                 spacing: 8
                             ) {
-                                ForEach(groundingSources) { source in
+                                ForEach(groundingSources.enumerated(), id: \.element.id) { index, source in
                                     GroundingSourceRow(
                                         source: source,
-                                        responseTextAlignment: responseTextAlignment
+                                        responseTextAlignment: responseTextAlignment,
+                                        placement: index,
+                                        isShown: areGroundingSourcesShown
                                     )
                                 }
                             }
@@ -275,11 +282,7 @@ struct ModelResponseCard: View {
                                 maxWidth: .infinity,
                                 alignment: responseTextAlignment.frameAlignment
                             )
-                            .opacity(
-                                isThinkingDescriptionVisible
-                                    && visibleThinkingLineCount >= thinkingSummaryLines.count
-                                    ? 1 : 0
-                            )
+                            .opacity(areGroundingSourcesShown ? 1 : 0)
                         }
 
                         Button(action: {
@@ -287,7 +290,7 @@ struct ModelResponseCard: View {
                         }) {
                             HStack(spacing: 6) {
                                 Text("Hide Thinking")
-                                    .font(AngroveTheme.Typography.uiSubheading)
+                                    .font(responseFont.textFont(size: conversationFontSize))
 
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 10, weight: .bold))
@@ -605,9 +608,6 @@ private struct LiveThinkingProgressView: View {
         isWritingResponse
     }
 
-    @State private var revealedSourceCount = 0
-    private static let sourceRevealDelay: Duration = .milliseconds(150)
-
     var body: some View {
         VStack(alignment: responseTextAlignment.horizontalAlignment, spacing: 8) {
             Group {
@@ -630,14 +630,14 @@ private struct LiveThinkingProgressView: View {
                                 .transition(.glideFadeUp)
                         }
 
-                        // Sources arrive together, but read as a sequence: each one follows the last
-                        // after a short beat.
-                        ForEach(groundingSources.prefix(revealedSourceCount)) { source in
+                        // Sources arrive together, but read as a sequence: each row's entrance is
+                        // staggered by its placement, so the last source lands last.
+                        ForEach(groundingSources.enumerated(), id: \.element.id) { index, source in
                             GroundingSourceRow(
                                 source: source,
-                                responseTextAlignment: responseTextAlignment
+                                responseTextAlignment: responseTextAlignment,
+                                placement: index
                             )
-                            .transition(.glideFadeUp)
                         }
 
                         // The model's own reasoning, one line at a time: each completed line
@@ -711,17 +711,6 @@ private struct LiveThinkingProgressView: View {
         }
         .animation(.easeOut(duration: 0.3), value: summaryLines)
         .animation(.easeOut(duration: 0.3), value: currentThought)
-        .animation(.easeOut(duration: 0.3), value: revealedSourceCount)
-        .task(id: groundingSources.map(\.id)) {
-            revealedSourceCount = min(revealedSourceCount, groundingSources.count)
-            while revealedSourceCount < groundingSources.count {
-                if revealedSourceCount > 0 {
-                    try? await Task.sleep(for: Self.sourceRevealDelay)
-                    guard !Task.isCancelled else { return }
-                }
-                revealedSourceCount += 1
-            }
-        }
         .animation(.easeOut(duration: 0.3), value: isWritingResponse)
         .animation(.easeInOut(duration: 0.25), value: isQueuedForModel)
     }
@@ -733,9 +722,20 @@ private struct LiveThinkingProgressView: View {
 private struct GroundingSourceRow: View {
     let source: GroundingSourceSummary
     var responseTextAlignment: ResponseTextAlignmentOption = .left
+    /// Position among the retrieved sources; later rows enter after earlier ones.
+    var placement: Int = 0
+    /// False while the row is laid out but still hidden, so its entrance waits.
+    var isShown: Bool = true
+
+    private static let placementStagger: Duration = .milliseconds(180)
 
     @State private var isExpanded: Bool = false
     @State private var visiblePassageSegmentCount: Int = 0
+    @State private var isTitleRevealed = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var subject: LibrarySubject { LibrarySubject.of(workID: source.sourceID ?? "") }
 
     /// The passage broken into the units it reveals in, matching how **Show Thinking** steps
     /// through its summary lines. Explicit line breaks win where the source has them (verse and
@@ -771,19 +771,29 @@ private struct GroundingSourceRow: View {
             } label: {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     // The Library's icon for this work's genre, so a source reads the same here as
-                    // on its shelf. Curated notes and older saves have no work and use the default.
-                    Image(systemName: LibrarySubject.of(workID: source.sourceID ?? "").systemImage)
-                        .font(.system(size: 13, weight: .medium))
-                        .accessibilityHidden(true)
+                    // on its shelf. Curated notes and older saves have no
+                    // work and use the default.
+                    // The icon drives the row's entrance; the title fades and slides in beside it.
+                    LibrarySubjectIcon(
+                        subject: subject,
+                        symbolSize: 13,
+                        shelfIsVisible: isShown,
+                        entranceDelay: Self.placementStagger * placement,
+                        onRevealChange: { isTitleRevealed = $0 }
+                    )
 
                     Text(source.title)
                         .paragraphFont()
                         .lineSpacing(6)
                         .multilineTextAlignment(responseTextAlignment.textAlignment)
                         .fixedSize(horizontal: false, vertical: true)
+                        .opacity(isTitleRevealed || reduceMotion ? 1 : 0)
+                        .offset(x: isTitleRevealed || reduceMotion ? 0 : -8)
 
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 10, weight: .bold))
+                        .opacity(isTitleRevealed || reduceMotion ? 1 : 0)
+                        .offset(x: isTitleRevealed || reduceMotion ? 0 : -8)
                 }
                 .foregroundColor(
                     isExpanded

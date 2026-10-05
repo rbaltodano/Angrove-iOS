@@ -41,7 +41,7 @@ enum ConversationInsightMembershipStore {
     }
 
     private static func load() -> [String: [String]] {
-        guard let data = UserDefaults.standard.data(forKey: storageKey),
+        guard let data = PrivatePreferences.standard.data(forKey: storageKey),
               let memberships = try? JSONDecoder().decode([String: [String]].self, from: data) else {
             return [:]
         }
@@ -50,6 +50,6 @@ enum ConversationInsightMembershipStore {
 
     private static func save(_ memberships: [String: [String]]) {
         guard let data = try? JSONEncoder().encode(memberships) else { return }
-        UserDefaults.standard.set(data, forKey: storageKey)
+        PrivatePreferences.standard.set(data, forKey: storageKey)
     }
 }

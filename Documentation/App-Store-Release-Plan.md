@@ -22,6 +22,25 @@ Keep the model version and runtime compatibility pinned together. No historical 
 research is being resumed. Generation and personal data remain on-device; downloading model
 assets requires a network connection.
 
+## Local implementation checkpoint — October 5
+
+- [x] Add downloader target, managed-hosting configuration and versioned essential pack manifest.
+- [x] Add pre-load availability and bounded size/hash verification; pass small-fixture failure/retry tests.
+- [x] Exclude the model from Release and verify an unsigned device archive.
+- [x] Add app/widget/downloader privacy manifests for the reviewed app-owned APIs.
+- [x] Separate Release entitlements from the debugging memory entitlement.
+- [x] Prepare store-copy and reviewer-note drafts.
+- [x] Implement delivery status/recovery UI; verify fixture layouts and retry state logic locally.
+- [ ] Verify actual UI taps/navigation and real managed-pack installation through TestFlight.
+- [x] Complete static vendored LiteRT API/crypto inventory and document findings in [SDK audit](LiteRT-Privacy-Crypto-Audit.md).
+- [x] Add integration-reviewed SDK API manifests and verify distribution export/signing.
+- [ ] Resolve export classification, account-side declarations and physical network verification.
+
+These local checks do not complete the end-to-end release gates. See the
+[delivery implementation](Apple-Hosted-Model-Delivery.md),
+[release audit](Release-Readiness-Audit.md) and
+[submission draft](App-Store-Submission-Draft.md).
+
 ## Schedule and ownership
 
 These are planning estimates, not a booked schedule or an Apple review-time guarantee. Day 1

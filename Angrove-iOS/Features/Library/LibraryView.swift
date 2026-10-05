@@ -698,7 +698,7 @@ struct LibraryView: View {
     @State private var targetChunkIndex: Int?
     @State private var targetScripture: LibraryTextFormatter.ScriptureTarget?
     @State private var pendingNavigationRequest: LibraryNavigationRequest?
-    @AppStorage(LibraryRecents.storageKey) private var recentWorkIDsRaw = ""
+    @EncryptedStringStorage(LibraryRecents.storageKey) private var recentWorkIDsRaw = ""
 
     private var works: [LibraryWork] { catalog?.works ?? [] }
 

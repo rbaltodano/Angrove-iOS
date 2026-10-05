@@ -49,11 +49,11 @@ enum HomeTodayInHistoryStore {
     private static let key = "aquinas.home.todayInHistory.answeredDayKey.v1"
 
     static func markAnswered(at date: Date = Date()) {
-        UserDefaults.standard.set(dayKey(for: date), forKey: key)
+        PrivatePreferences.standard.set(dayKey(for: date), forKey: key)
     }
 
     static func isAnswered(at date: Date = Date()) -> Bool {
-        UserDefaults.standard.string(forKey: key) == dayKey(for: date)
+        PrivatePreferences.standard.string(forKey: key) == dayKey(for: date)
     }
 
     private static func dayKey(for date: Date) -> String {

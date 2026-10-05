@@ -38,7 +38,7 @@ enum StudyTopicStore {
 
     static func load() -> [StudyTopic] {
         if let cachedTopics { return cachedTopics }
-        let topics = UserDefaults.standard.data(forKey: key)
+        let topics = PrivatePreferences.standard.data(forKey: key)
             .flatMap { try? JSONDecoder().decode([StudyTopic].self, from: $0) } ?? []
         cachedTopics = topics
         return topics
@@ -47,7 +47,7 @@ enum StudyTopicStore {
     static func save(_ topics: [StudyTopic]) {
         cachedTopics = topics
         guard let data = try? JSONEncoder().encode(topics) else { return }
-        UserDefaults.standard.set(data, forKey: key)
+        PrivatePreferences.standard.set(data, forKey: key)
     }
 }
 
@@ -58,7 +58,7 @@ enum StudyTopicInsightTreeStore {
     private static let key = "aquinas.study-topic.insight-trees.v1"
 
     static func load() -> [String: [ConceptDefinition]] {
-        guard let data = UserDefaults.standard.data(forKey: key),
+        guard let data = PrivatePreferences.standard.data(forKey: key),
               let snapshots = try? JSONDecoder().decode(
                 [String: [ConceptDefinition]].self,
                 from: data
@@ -70,7 +70,7 @@ enum StudyTopicInsightTreeStore {
 
     static func save(_ snapshots: [String: [ConceptDefinition]]) {
         guard let data = try? JSONEncoder().encode(snapshots) else { return }
-        UserDefaults.standard.set(data, forKey: key)
+        PrivatePreferences.standard.set(data, forKey: key)
     }
 }
 

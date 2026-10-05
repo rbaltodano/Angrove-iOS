@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import WidgetKit
 
 func debugQuestionOfTheDayConsoleLog(_ message: String) {
 #if DEBUG
@@ -94,6 +95,15 @@ struct HomeQuestionOfTheDay: Codable, Equatable, Identifiable {
         return max(expiresAt, nextCalendarDay)
     }
 
+    /// Home and the widget open the same answer composer, even for an older saved question.
+    var conversationRequest: NewConversationRequest {
+        NewConversationRequest(
+            question: question,
+            eyebrow: "QUESTION OF THE DAY",
+            promptContext: taggedPromptContext
+        )
+    }
+
     /// Hidden context prepended to the first conversation created from the card.
     /// The deliberately human-readable outer tag matches the product language.
     var taggedPromptContext: String {
@@ -127,13 +137,14 @@ enum HomeQuestionOfTheDayStore {
     private static let key = "aquinas.home.questionOfTheDay.v1"
 
     static func load() -> HomeQuestionOfTheDay? {
-        guard let data = UserDefaults.standard.data(forKey: key),
+        guard let data = PrivatePreferences.standard.data(forKey: key),
               let question = try? JSONDecoder().decode(
                   HomeQuestionOfTheDay.self,
                   from: data
               ) else {
             return nil
         }
+        publishToWidget(question)
         return question
     }
 
@@ -160,7 +171,19 @@ enum HomeQuestionOfTheDayStore {
 
     static func save(_ question: HomeQuestionOfTheDay) {
         guard let data = try? JSONEncoder().encode(question) else { return }
-        UserDefaults.standard.set(data, forKey: key)
+        PrivatePreferences.standard.set(data, forKey: key)
+        publishToWidget(question)
+    }
+
+    /// Refresh existing widget views after an app update, even if the question is unchanged.
+    static func reloadWidgetTimeline() {
+        WidgetCenter.shared.reloadTimelines(ofKind: DailyQuestionWidgetStore.kind)
+    }
+
+    private static func publishToWidget(_ question: HomeQuestionOfTheDay) {
+        guard HomeQuestionOfTheDay.isValidQuestionText(question.question),
+              DailyQuestionWidgetStore.save(question.question) else { return }
+        reloadWidgetTimeline()
     }
 }
 

@@ -51,14 +51,14 @@ struct LocalInsightTreeSeedFileStore {
     }
 
     func load() -> [String: [LocalInsightTreeSeed]] {
-        if let data = try? Data(contentsOf: fileURL),
+        if let data = try? EncryptedPersonalFile.read(fileURL),
            let seeds = try? JSONDecoder().decode(
             [String: [LocalInsightTreeSeed]].self,
             from: data
            ) {
             return seeds
         }
-        guard let data = defaults.data(forKey: Self.legacyKey),
+        guard let data = PrivatePreferences(defaults: defaults).data(forKey: Self.legacyKey),
               let seeds = try? JSONDecoder().decode(
                 [String: [LocalInsightTreeSeed]].self,
                 from: data
@@ -67,7 +67,7 @@ struct LocalInsightTreeSeedFileStore {
         }
         do {
             try save(seeds)
-            defaults.removeObject(forKey: Self.legacyKey)
+            PrivatePreferences(defaults: defaults).removeObject(forKey: Self.legacyKey)
         } catch {
             // Preserve the legacy value until the protected file write succeeds.
         }
@@ -80,7 +80,7 @@ struct LocalInsightTreeSeedFileStore {
             withIntermediateDirectories: true
         )
         let data = try JSONEncoder().encode(seeds)
-        try data.write(to: fileURL, options: [.atomic, .completeFileProtection])
+        try EncryptedPersonalFile.write(data, to: fileURL)
     }
 }
 

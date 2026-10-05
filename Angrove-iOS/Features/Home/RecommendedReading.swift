@@ -58,7 +58,7 @@ enum RecommendedReading {
         let ranked = rankedWorks(from: sources)
         guard ranked.count >= requiredWorkCount else { return [] }
 
-        if let data = defaults.data(forKey: snapshotKey),
+        if let data = PrivatePreferences(defaults: defaults).data(forKey: snapshotKey),
            let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data),
            snapshot.works.count == requiredWorkCount,
            now.timeIntervalSince(snapshot.createdAt) < refreshInterval {
@@ -67,7 +67,7 @@ enum RecommendedReading {
 
         let picks = Array(ranked.prefix(requiredWorkCount))
         if let data = try? JSONEncoder().encode(Snapshot(createdAt: now, works: picks)) {
-            defaults.set(data, forKey: snapshotKey)
+            PrivatePreferences(defaults: defaults).set(data, forKey: snapshotKey)
         }
         return picks
     }

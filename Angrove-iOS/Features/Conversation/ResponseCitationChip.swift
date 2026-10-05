@@ -20,14 +20,18 @@ struct ResponseCitationChip: View {
                     .lineSpacing(FlowLayout.rowSpacing)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 10)
-                    // The capsule overhangs the text vertically without taking layout space, so
+                    // The rounded rectangle overhangs the text vertically without taking layout space, so
                     // the chip keeps the line's height and its punctuation stays on the prose baseline.
                     .background(
-                        Capsule()
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(AngroveTheme.Colors.systemSelection)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .stroke(AngroveTheme.Colors.lightGreen.opacity(0.1), lineWidth: 1)
+                            )
                             .padding(.vertical, -4)
                     )
-                    .contentShape(Capsule().inset(by: -4))
+                    .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous).inset(by: -4))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Source: \(link.title)")

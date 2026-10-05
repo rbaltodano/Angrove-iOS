@@ -518,29 +518,39 @@ struct InsightTreeCanvasView: View {
     private func canvasLifecycleObservers<Content: View>(_ content: Content, size: CGSize) -> some View {
         content
             .onAppear {
-                hasAppeared = true
-                reconcileBodies()   // seed live physics bodies + start the tick
-                undiscoveredInsightIDs = loadUndiscoveredInsightIDs()
-                undiscoveredNodeIDs = loadUndiscoveredNodeIDs()
-                revealState.revealedNodeIDs = Set(nodes.map(\.id))
-                revealState.revealedGraphEdgeIDs = Set(displayGraphEdges().map(\.id))
-                revealState.observedLiveInsightIDs = visibleInsightIDs(in: nodes)
-                revealState.observedLiveNodeIDs = Set(nodes.map(\.id))
-                if defersEntranceUntilPersistedTree {
-                    // Show the in-memory tree without moving the camera or marking it as the
-                    // baseline. The completed seeded load will do both.
-                    revealState.revealedInsightIDs = visibleInsightIDs(in: nodes)
-                    revealState.revealedInsightConnectorIDs = visibleInsightIDs(in: nodes)
+                // Restored content is already visible; only new items get a reveal.
+                var transaction = Transaction(animation: nil)
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    hasAppeared = true
+                    reconcileBodies()   // seed live physics bodies + start the tick
+                    undiscoveredInsightIDs = loadUndiscoveredInsightIDs()
+                    undiscoveredNodeIDs = loadUndiscoveredNodeIDs()
+                    revealState.revealedNodeIDs = Set(nodes.map(\.id))
                     revealState.revealedGraphEdgeIDs = Set(displayGraphEdges().map(\.id))
-                    reportUndiscoveredInsightCount()
-                } else {
-                    let newInsights = computeNewInsights()
-                    revealState.revealedInsightConnectorIDs.subtract(Set(newInsights.map(\.id)))
-                    markUndiscovered(newInsights.map(\.id))   // new since last open → blue dot
-                    reportUndiscoveredInsightCount()
-                    saveAllInsightIDsAsSeen()
-                    revealState.entranceTask = Task {
-                        await runEntranceSequence(newInsights: newInsights, in: size)
+                    revealState.observedLiveInsightIDs = visibleInsightIDs(in: nodes)
+                    revealState.observedLiveNodeIDs = Set(nodes.map(\.id))
+                    if defersEntranceUntilPersistedTree {
+                        // Show the in-memory tree without moving the camera or marking it as the
+                        // baseline. The completed seeded load will do both.
+                        revealState.revealedInsightIDs = visibleInsightIDs(in: nodes)
+                        revealState.revealedInsightConnectorIDs = visibleInsightIDs(in: nodes)
+                        revealState.revealedGraphEdgeIDs = Set(displayGraphEdges().map(\.id))
+                        reportUndiscoveredInsightCount()
+                    } else {
+                        let newInsights = computeNewInsights()
+                        let existingIDs = visibleInsightIDs(in: nodes)
+                            .subtracting(Set(newInsights.map(\.id)))
+                        revealState.revealedInsightIDs = existingIDs
+                        revealState.revealedInsightConnectorIDs = existingIDs
+                        markUndiscovered(newInsights.map(\.id))   // new since last open → blue dot
+                        reportUndiscoveredInsightCount()
+                        saveAllInsightIDsAsSeen()
+                        if !newInsights.isEmpty {
+                            revealState.entranceTask = Task {
+                                await runEntranceSequence(newInsights: newInsights, in: size)
+                            }
+                        }
                     }
                 }
             }
@@ -3770,10 +3780,15 @@ struct InsightTreeCanvasView: View {
         undiscoveredNodeIDs.formUnion(loadUndiscoveredNodeIDs())
 
         guard !newInsights.isEmpty || !newNodeIDs.isEmpty else {
-            revealState.revealedInsightIDs = currentInsightIDs
-            revealState.revealedInsightConnectorIDs = currentInsightIDs
-            revealState.revealedGraphEdgeIDs = Set(displayGraphEdges().map(\.id))
-            revealState.revealedNodeIDs = currentNodeIDs
+            // Restoring the completed conversation snapshot is not a new-Insight entrance.
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                revealState.revealedInsightIDs = currentInsightIDs
+                revealState.revealedInsightConnectorIDs = currentInsightIDs
+                revealState.revealedGraphEdgeIDs = Set(displayGraphEdges().map(\.id))
+                revealState.revealedNodeIDs = currentNodeIDs
+            }
             saveAllInsightIDsAsSeen()
             reportUndiscoveredInsightCount()
             return
@@ -4087,22 +4102,8 @@ struct InsightTreeCanvasView: View {
 
     /// Orchestrates the full entrance sequence based on how many new insights there are.
     private func runEntranceSequence(newInsights: [InsightModel], in size: CGSize) async {
-        let allIDs = Set(nodes.flatMap { canvasInsights(for: $0).map(\.id) })
-        let newIDs    = Set(newInsights.map { $0.id })
-        let nonNewIDs = allIDs.subtracting(newIDs)
-
-        // All non-new insights animate in with the standard 0.25 s stagger.
-        try? await Task.sleep(nanoseconds: 250_000_000)
-        guard !Task.isCancelled else { return }
-        revealState.revealedInsightIDs = nonNewIDs
-        revealState.revealedInsightConnectorIDs = nonNewIDs
-
-        if newInsights.isEmpty {
-            // Nothing new — reveal everything at the stagger point and we're done.
-            revealState.revealedInsightIDs = allIDs
-            revealState.revealedInsightConnectorIDs = allIDs
-            return
-        }
+        guard !newInsights.isEmpty else { return }
+        let newIDs = Set(newInsights.map(\.id))
 
         // Small pause so the user can register the overview before we start zooming.
         try? await Task.sleep(nanoseconds: 200_000_000)

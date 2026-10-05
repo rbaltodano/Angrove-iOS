@@ -78,6 +78,7 @@ actor LiteRTModelInstaller {
         }
         var hasher = SHA256()
         while true {
+            try Task.checkCancellation()
             // FileHandle's bridged buffers may remain autoreleased for the whole task.
             // Bound their lifetime: otherwise DEBUG identity logging can retain the entire
             // multi-gigabyte model while inference is also resident (C9 device diagnostics).

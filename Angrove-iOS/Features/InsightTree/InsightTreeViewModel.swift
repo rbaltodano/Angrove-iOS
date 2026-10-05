@@ -95,6 +95,24 @@ final class InsightTreeViewModel: ObservableObject {
         // before MiniLM was ready. Recompute conversation membership once in a clean scope.
         return "aquinas.insight-tree.insight-cluster-assignments.v2:\(scope.uuidString)"
     }
+    /// Nodes folded into a closely related Node (absorbed id → surviving id). Persisted so an
+    /// absorbed seeded subject stays folded on the next open instead of reappearing on its own.
+    private var clusterMergeTargets: [UUID: UUID] = [:]
+    private var scopedClusterMergeStoreKey: String {
+        Self.clusterMergeStoreKey(scope: midpointStoreScope)
+    }
+    private static func clusterMergeStoreKey(scope: UUID?) -> String {
+        "aquinas.insight-tree.cluster-merges.v1:\(scope?.uuidString ?? "global")"
+    }
+    /// Each automatic Node's subject ("label. definition") embedded, so Nodes about the same
+    /// subject can merge even when their member Insights are only loosely related to each other
+    /// (Thucydides and Polis both sit under "Ancient Greek Politics" but score 0.31).
+    private struct SubjectEmbedding: Equatable {
+        let text: String
+        let version: String
+        let vector: [Double]
+    }
+    private var clusterSubjectEmbeddings: [UUID: SubjectEmbedding] = [:]
     private var embeddingRefreshGeneration = 0
     /// Minimum cosine similarity for an Insight to attach to an existing local Node. The bundled
     /// provider is MiniLM, matching the grounding corpus's embedding space. This value is centralized as a
@@ -159,6 +177,9 @@ final class InsightTreeViewModel: ObservableObject {
         )
         insightClusterAssignments = Self.loadUUIDMapping(
             storageKey: Self.clusterAssignmentStoreKey(scope: midpointStoreScope)
+        )
+        clusterMergeTargets = Self.loadUUIDMapping(
+            storageKey: Self.clusterMergeStoreKey(scope: midpointStoreScope)
         )
         placedMidpoints = Self.loadPlacedMidpoints(
             storageKey: "\(Self.placedMidpointStoreKeyPrefix):\(midpointStoreScope?.uuidString ?? "global")"
@@ -287,11 +308,23 @@ final class InsightTreeViewModel: ObservableObject {
                 ))
             }
         }
+        var subjectEmbeddings = clusterSubjectEmbeddings
+        let liveClusterIDs = Set(nodes.map(\.id)).union(insightClusterAssignments.values)
+        for id in liveClusterIDs {
+            guard let label = generatedClusterLabels[id],
+                  let definition = generatedClusterDefinitions[id], !definition.isEmpty else { continue }
+            let text = "\(label). \(definition)"
+            guard subjectEmbeddings[id]?.text != text || subjectEmbeddings[id]?.version != embeddingProvider.version,
+                  let vector = await embeddingProvider.embed(text) else { continue }
+            subjectEmbeddings[id] = SubjectEmbedding(text: text, version: embeddingProvider.version, vector: vector)
+        }
         guard generation == embeddingRefreshGeneration,
               insights == originalInsights, localSeedAnchors == originalSeeds else { return }
-        guard corrected != insights || correctedSeeds != localSeedAnchors else { return }
+        guard corrected != insights || correctedSeeds != localSeedAnchors
+                || subjectEmbeddings != clusterSubjectEmbeddings else { return }
         insights = corrected
         localSeedAnchors = correctedSeeds
+        clusterSubjectEmbeddings = subjectEmbeddings
         rebuildTree()
     }
 
@@ -580,7 +613,25 @@ final class InsightTreeViewModel: ObservableObject {
             var seedSummary: String?
         }
 
-        var clusters: [Cluster] = localSeedAnchors.map { seed in
+        // Follow merges to the Node that finally absorbed a given id.
+        func mergeSurvivor(of id: UUID) -> UUID {
+            var current = id
+            var visited: Set<UUID> = [id]
+            while let next = clusterMergeTargets[current], visited.insert(next).inserted {
+                current = next
+            }
+            return current
+        }
+        insightClusterAssignments = insightClusterAssignments.mapValues(mergeSurvivor(of:))
+        let seedIDs = Set(localSeedAnchors.map(\.id))
+        let assignedClusterIDs = Set(insightClusterAssignments.values)
+        // An absorbed seed stays folded while the Node that absorbed it still exists.
+        let foldedSeedIDs = Set(localSeedAnchors.map(\.id).filter { id in
+            let survivor = mergeSurvivor(of: id)
+            return survivor != id && (seedIDs.contains(survivor) || assignedClusterIDs.contains(survivor))
+        })
+
+        var clusters: [Cluster] = localSeedAnchors.filter { !foldedSeedIDs.contains($0.id) }.map { seed in
             Cluster(
                 id: seed.id,
                 insights: [],
@@ -644,6 +695,75 @@ final class InsightTreeViewModel: ObservableObject {
                 )
             }
         }
+        // Related Nodes found separately — by different turns, or by Insights saved before the
+        // Node they belong under existed — fold together, so one subject never splits into
+        // several near-identical Nodes. Membership is greedy and sticky, so without this pass an
+        // early split would last forever. The larger Node survives (a seeded subject wins ties)
+        // and keeps its id, label, and position.
+        // Two signals, each with its own bar: the members' centroid, and the Node's own subject
+        // (seed or generated label with its definition).
+        let memberThreshold = InsightTreeSemanticPolicy.nodeMergeSimilarity
+        let subjectThreshold = InsightTreeSemanticPolicy.nodeSubjectMergeSimilarity
+        func subjectVector(of cluster: Cluster) -> [Double]? {
+            if let seed = localSeedAnchors.first(where: { $0.id == cluster.id }) {
+                guard (seed.embeddingVersion ?? NLEmbeddingProvider.version) == embeddingProvider.version else { return nil }
+                return seed.embedding
+            }
+            guard let subject = clusterSubjectEmbeddings[cluster.id],
+                  subject.version == embeddingProvider.version else { return nil }
+            return subject.vector
+        }
+        var didMerge = false
+        while true {
+            // The pair that clears its bar by the widest margin merges first.
+            var best: (survivor: Int, absorbed: Int, margin: Double)?
+            for left in clusters.indices {
+                for right in clusters.indices where right > left {
+                    var margin = -Double.infinity
+                    if !clusters[left].embedding.isEmpty, !clusters[right].embedding.isEmpty {
+                        margin = cosineSimilarity(clusters[left].embedding, clusters[right].embedding) - memberThreshold
+                    }
+                    if let leftSubject = subjectVector(of: clusters[left]),
+                       let rightSubject = subjectVector(of: clusters[right]) {
+                        margin = max(margin, cosineSimilarity(leftSubject, rightSubject) - subjectThreshold)
+                    }
+                    guard margin >= 0, margin > (best?.margin ?? -1) else { continue }
+                    let leftWins = clusters[left].insights.count != clusters[right].insights.count
+                        ? clusters[left].insights.count > clusters[right].insights.count
+                        : (clusters[left].seedLabel != nil || clusters[right].seedLabel == nil)
+                    best = leftWins ? (left, right, margin) : (right, left, margin)
+                }
+            }
+            guard let best else { break }
+            let absorbed = clusters[best.absorbed]
+            let survivorID = clusters[best.survivor].id
+#if DEBUG
+            print("Angrove makeClusteredTree: merging \(absorbed.id) into \(survivorID) (margin=\(best.margin))")
+#endif
+            clusters[best.survivor].insights += absorbed.insights
+            clusters[best.survivor].embedding = centroid(
+                clusters[best.survivor].insights.compactMap(\.embedding)
+                    + [absorbed, clusters[best.survivor]].compactMap { cluster -> [Double]? in
+                        guard let seed = localSeedAnchors.first(where: { $0.id == cluster.id }),
+                              (seed.embeddingVersion ?? NLEmbeddingProvider.version) == embeddingProvider.version
+                        else { return nil }
+                        return seed.embedding
+                    }
+            )
+            for insight in absorbed.insights {
+                insightClusterAssignments[insight.id] = survivorID
+            }
+            clusterMergeTargets[absorbed.id] = survivorID
+            clusters.remove(at: best.absorbed)
+            didMerge = true
+        }
+        if didMerge {
+            InsightTreeLocalStateStore.save(
+                Dictionary(uniqueKeysWithValues: clusterMergeTargets.map { ($0.key.uuidString, $0.value.uuidString) }),
+                key: scopedClusterMergeStoreKey
+            )
+        }
+
         let liveInsightIDs = Set(self.insights.map(\.id))
         insightClusterAssignments = insightClusterAssignments.filter { liveInsightIDs.contains($0.key) }
         persistInsightClusterAssignments()
@@ -813,6 +933,8 @@ final class InsightTreeViewModel: ObservableObject {
                     scene.render(nodes: nodes, edges: edges, animated: false)
                     // Keep the definition inside the same queue job and runtime lease.
                     try await generateClusterDefinition(for: nodeID, label: label)
+                    // A named subject can now be compared with its neighbors for merging.
+                    refreshEmbeddingsIfNeeded()
                 } catch {
                     // Failed labels can be retried on the next rebuild.
                 }

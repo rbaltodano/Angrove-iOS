@@ -49,7 +49,7 @@ enum GlossedTermStore {
     }
 
     private static func load(defaults: UserDefaults) -> [String: [GlossedTermRecord]] {
-        guard let data = defaults.data(forKey: storageKey),
+        guard let data = PrivatePreferences(defaults: defaults).data(forKey: storageKey),
               let records = try? JSONDecoder().decode(
                 [String: [GlossedTermRecord]].self,
                 from: data
@@ -61,6 +61,6 @@ enum GlossedTermStore {
 
     private static func save(_ records: [String: [GlossedTermRecord]], defaults: UserDefaults) {
         guard let data = try? JSONEncoder().encode(records) else { return }
-        defaults.set(data, forKey: storageKey)
+        PrivatePreferences(defaults: defaults).set(data, forKey: storageKey)
     }
 }

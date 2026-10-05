@@ -15,25 +15,25 @@ enum InsightDiscoveryStore {
         "AquinasPendingNodePresentationIDs"
 
     static func loadSeenInsightIDs() -> Set<UUID> {
-        guard let strings = UserDefaults.standard.stringArray(forKey: seenInsightIDsKey) else {
+        guard let strings = PrivatePreferences.standard.stringArray(forKey: seenInsightIDsKey) else {
             return []
         }
         return Set(strings.compactMap { UUID(uuidString: $0) })
     }
 
     static func saveSeenInsightIDs(_ ids: [UUID]) {
-        UserDefaults.standard.set(ids.map(\.uuidString), forKey: seenInsightIDsKey)
+        PrivatePreferences.standard.set(ids.map(\.uuidString), forKey: seenInsightIDsKey)
     }
 
     static func loadUndiscoveredInsightIDs() -> Set<UUID> {
-        guard let strings = UserDefaults.standard.stringArray(forKey: undiscoveredIDsKey) else {
+        guard let strings = PrivatePreferences.standard.stringArray(forKey: undiscoveredIDsKey) else {
             return []
         }
         return Set(strings.compactMap { UUID(uuidString: $0) })
     }
 
     static func saveUndiscoveredInsightIDs(_ ids: Set<UUID>) {
-        UserDefaults.standard.set(ids.map(\.uuidString), forKey: undiscoveredIDsKey)
+        PrivatePreferences.standard.set(ids.map(\.uuidString), forKey: undiscoveredIDsKey)
     }
 
     @discardableResult
@@ -115,13 +115,13 @@ enum InsightDiscoveryStore {
     }
 
     private static func loadIDs(forKey key: String) -> Set<UUID> {
-        guard let strings = UserDefaults.standard.stringArray(forKey: key) else {
+        guard let strings = PrivatePreferences.standard.stringArray(forKey: key) else {
             return []
         }
         return Set(strings.compactMap { UUID(uuidString: $0) })
     }
 
     private static func saveIDs(_ ids: Set<UUID>, forKey key: String) {
-        UserDefaults.standard.set(ids.map(\.uuidString), forKey: key)
+        PrivatePreferences.standard.set(ids.map(\.uuidString), forKey: key)
     }
 }

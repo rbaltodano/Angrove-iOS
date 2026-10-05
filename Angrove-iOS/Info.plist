@@ -2,11 +2,25 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>UILaunchScreen</key>
-	<dict>
-		<key>UIColorName</key>
-		<string>LaunchCanvas</string>
-	</dict>
+	<key>BAAppGroupID</key>
+	<string>group.com.ryanbaltodano.Aquinas-iOS</string>
+	<key>BAHasManagedAssetPacks</key>
+	<true/>
+	<key>BAUsesAppleHosting</key>
+	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>com.ryanbaltodano.Aquinas-iOS</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>angrove</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Angrove uses the camera so you can attach photos to your questions.</string>
 	<key>NSFaceIDUsageDescription</key>
@@ -23,6 +37,16 @@
 		<string>Figtree-SemiBold.ttf</string>
 		<string>Figtree-Regular.ttf</string>
 		<string>Figtree-ExtraBold.ttf</string>
+	</array>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchCanvas</string>
+	</dict>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+		<string>iphone-performance-gaming-tier</string>
 	</array>
 </dict>
 </plist>

@@ -55,7 +55,7 @@ final class AngroveApplicationRuntime {
 #else
         let modelStore = defaultModelStore
 #endif
-        if modelStore.hasInstalledModel() {
+        if modelStore.usesAppleHostedDelivery || modelStore.hasInstalledModel() {
             let runtime = LiteRTAngroveRuntime(modelStore: modelStore)
             var configuration = ModelRuntimeLifecycleConfiguration.adaptiveOnDevice
 #if DEBUG

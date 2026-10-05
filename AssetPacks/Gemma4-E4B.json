@@ -1,0 +1,21 @@
+{
+  "assetPackID": "angrove-gemma4-e4b-0b2a8980",
+  "downloadPolicy": {
+    "essential": {
+      "installationEventTypes": [
+        "firstInstallation",
+        "subsequentUpdate"
+      ]
+    }
+  },
+  "fileSelectors": [
+    {
+      "fileSource": "Angrove-iOS/LocalModels/gemma-4-E4B-it.litertlm",
+      "fileDestination": "Models/angrove-gemma4-e4b-0b2a8980/gemma-4-E4B-it.litertlm"
+    }
+  ],
+  "platforms": [
+    "iOS"
+  ],
+  "sourceRoot": ".."
+}

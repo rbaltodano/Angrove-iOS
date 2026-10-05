@@ -94,6 +94,22 @@ iOS Dynamic Type does not rescale them. Settings-driven paragraph text follows t
 Settings subpage labels and explanatory text use semantic fonts relative to iOS text styles,
 so they follow the iPhone's Text Size setting independently of conversation font sizing.
 
+Settings → User Guide displays a self-contained copy of the website's `guide.html` in
+`UserGuideWebsiteView`. `Resources/UserGuide.html` includes the website CSS, artwork, fonts,
+and four example scripts; it performs no network requests and uses an ephemeral WebKit data
+store. The index's topic buttons push native Settings destinations, each showing only that
+topic. Back returns to the guide index; edge swipes follow the existing Settings navigation.
+Technical diagrams and practice examples match the website. Practice bookmarks live in
+Settings-owned state shared across guide pages, and never enter the user's Insight Library;
+practice tasks never enter the model queue. Native Settings navigation remains outside the web
+view. Page text, demo cards, canvas drawings, SVG icons, and technical diagrams resolve their
+light/dark colors from `AngroveTheme`. Appearance changes recolor the current page without
+reloading it or losing practice state.
+Guide typography follows the website's responsive sizes. Refresh the resource from a local
+website checkout with `python3 scripts/sync_user_guide.py --website-root '/path/to/site'`.
+The script embeds local assets only and leaves the website checkout unchanged. Its app adapters
+live in `scripts/user_guide_app.css` and `scripts/user_guide_app.js`.
+
 Appearance stores independent `CanvasBackgroundOption` preferences for the conversation thread
 and Insight Tree in `@AppStorage`. Both default to System, following the app's color scheme;
 Light and Dark override only their surface. Clouds bundles the website's `thinking-sky.jpg`
@@ -124,12 +140,14 @@ selection lines does not depend on the full graph or physics state.
 
 Conversation branches and chat blocks are persisted as one Codable snapshot in
 `Application Support/Aquinas/ConversationStore/conversations-v1.json`. The file store writes
-atomically, keeps up to five rotating JSON backups, and migrates either prior conversation
+atomically with AES-256-GCM encryption and Complete File Protection, keeps up to five rotating
+encrypted backups, and migrates either prior conversation
 snapshot from `UserDefaults` on first successful load. `InquiryPersistenceStore` is the
 process-facing boundary; `CurrentConversationsStore` is its compatibility name at existing call
 sites. All snapshot I/O runs on one serial background queue (`SerializedInquiryStore`): saves
 return immediately, loads and imports wait behind queued writes, and the shell flushes the queue
-when the scene moves to the background. Saved Insights and identifiers-only coordination stores remain in `UserDefaults`, including
+when the scene moves to the background. Saved Insights and identifiers-only coordination stores use encrypted property-list envelopes
+in `UserDefaults`, including
 conversation-to-global-Insight membership. See
 [`PERSISTENT_MEMORY_IMPLEMENTATION_PLAN.md`](../../Aquinas-Foundations/PERSISTENT_MEMORY_IMPLEMENTATION_PLAN.md)
 for the planned SwiftData migration.
@@ -137,6 +155,10 @@ for the planned SwiftData migration.
 There is no server-side persistence. Conversations, Insights, and tree state live only on the
 device. (An earlier development topology mirrored tree content to a Mac-hosted SQLite backend; the
 app no longer contains that client.)
+
+Startup validates keys and migrates personal data before mounting the app interface.
+`PrivatePreferences`, `EncryptedPersonalFile`, and `EncryptedStringStorage` are the encrypted
+storage boundaries. See [Data Encryption](Data-Encryption.md) for coverage, recovery, and exports.
 
 ## Important seams
 
@@ -161,3 +183,22 @@ open immediately even while model work is active; queue a definition only on cac
 context control is a non-spinning gauge, while Model Status describes active work. Question of the
 Day generation is background consolidation work and remains queued when an active conversation is
 opened.
+
+## Lock Screen question widget
+
+`AngroveWidgets` is a WidgetKit extension supporting the rectangular Lock Screen family.
+It shows **Question of the Day:** and up to two lines of the latest saved question. Tapping
+opens the latest saved question in the answer composer using `angrove://question-of-the-day`.
+The URL handler waits for shell startup to complete and uses the same conversation request as
+the Home card, preserving the reason and Insight prompt context. The existing App Lock overlay
+still protects the destination. Before a question exists, the link opens Home.
+
+`WidgetShared/DailyQuestionWidgetStore.swift` shares only question text through the App Group
+`group.com.ryanbaltodano.Aquinas-iOS`. The shared text is AES-256-GCM encrypted with a separate App Group Keychain key accessible
+after the first unlock. `HomeQuestionOfTheDayStore` publishes on save and load
+(the latter migrates an existing question on the first app launch after upgrading), requesting
+a widget timeline reload when the text changes. App startup also reloads the timeline so an
+existing widget picks up navigation changes after an app update. The widget deliberately retains the
+latest question after answering or expiration; the Home card keeps its existing lifecycle.
+The extension does not load the model or generate questions. Both targets require the same
+App Group in their signing profiles.

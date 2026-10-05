@@ -26,17 +26,17 @@ struct InsightTreeLocalStateFileStore {
 
     func load<Value: Codable>(_ type: Value.Type, key: String) -> Value? {
         let fileURL = url(for: key)
-        if let data = try? Data(contentsOf: fileURL),
+        if let data = try? EncryptedPersonalFile.read(fileURL),
            let value = try? JSONDecoder().decode(type, from: data) {
             return value
         }
-        guard let data = defaults.data(forKey: key),
+        guard let data = PrivatePreferences(defaults: defaults).data(forKey: key),
               let value = try? JSONDecoder().decode(type, from: data) else {
             return nil
         }
         do {
             try save(value, key: key)
-            defaults.removeObject(forKey: key)
+            PrivatePreferences(defaults: defaults).removeObject(forKey: key)
         } catch {
             // Retain the legacy copy until the protected file write succeeds.
         }
@@ -49,10 +49,7 @@ struct InsightTreeLocalStateFileStore {
             withIntermediateDirectories: true
         )
         let data = try JSONEncoder().encode(value)
-        try data.write(
-            to: url(for: key),
-            options: [.atomic, .completeFileProtection]
-        )
+        try EncryptedPersonalFile.write(data, to: url(for: key))
     }
 
     private func url(for key: String) -> URL {

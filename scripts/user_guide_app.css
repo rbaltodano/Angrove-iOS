@@ -1,0 +1,21 @@
+/* Native Settings supplies the topic and semantic palette. Website geometry stays intact. */
+:root {
+  --guide-ink-rgb: 74, 50, 28;
+  --guide-green-rgb: 134, 128, 62;
+  --guide-border-rgb: 34, 15, 1;
+  --guide-canvas-rgb: 243, 238, 226;
+  --guide-cream-rgb: 255, 250, 240;
+}
+main { padding-bottom: 80px; }
+.guide { display: block; }
+.guide__toc { position: static; max-width: none; }
+.guide-list [data-guide-topic] {
+  width: 100%; padding: 0; border: 0; background: none; text-align: start;
+  font-family: var(--sans); cursor: pointer;
+}
+:root[data-guide-topic] .section { padding-top: 108px; }
+.guide__topics { max-width: none; }
+/* Images on the model-tasks frame are scenery; its card uses the same palette as the page. */
+.mt-card, .w-card, .mid-card { background-color: var(--canvas-secondary); }
+code.cmd { background: var(--canvas-secondary); }
+/* Theme variables also reach non-CSS drawing and baked SVG icons through the bridge. */

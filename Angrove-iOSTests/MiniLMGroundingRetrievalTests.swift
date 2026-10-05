@@ -42,6 +42,17 @@ struct MiniLMGroundingRetrievalTests {
         }
     }
 
+    @Test("An off-corpus history question is not grounded in a council note")
+    func sputnikQuestionGetsNoCouncilNote() throws {
+        let provider = try MiniLMGroundingProvider()
+        let references = provider.references(
+            for: "How did the shift from Sputnik 1's technical proof of concept to Sputnik 2's "
+                + "biological test alter the public perception of the space race?",
+            limit: 3
+        )
+        #expect(references.isEmpty, "unexpected grounding: \(references.map(\.id))")
+    }
+
     @Test("Curated ids survive so verified answers stay reachable")
     func curatedReferencesKeepStableIdentifiers() throws {
         let provider = try MiniLMGroundingProvider()

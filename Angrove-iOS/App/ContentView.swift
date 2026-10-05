@@ -46,6 +46,7 @@ struct ContentView: View {
     @State private var modelControlsHeight: CGFloat = 0
     @State private var libraryNavigationRequest: LibraryNavigationRequest?
     @State private var hasAppliedStartupDestination = false
+    @State private var hasPendingDailyQuestionLink = false
     @State private var appLockController = AppLockController()
     @State private var isPageContentVisible: Bool = true
     @State private var pageContentOffsetY: CGFloat = 0
@@ -78,8 +79,8 @@ struct ContentView: View {
     @AppStorage(SettingsStorageKey.conversationBackground) private var conversationBackground: CanvasBackgroundOption = .system
     @AppStorage(SettingsStorageKey.insightTreeBackground) private var insightTreeBackground: CanvasBackgroundOption = .system
     @State private var requestedForkConcept: ConceptDefinition? = nil
-    @AppStorage("aquinas.settings.userName") private var userName: String = ""
-    @AppStorage(SettingsStorageKey.customInstructions) private var customInstructions: String = ""
+    @EncryptedStringStorage("aquinas.settings.userName") private var userName: String = ""
+    @EncryptedStringStorage(SettingsStorageKey.customInstructions) private var customInstructions: String = ""
     @AppStorage(SettingsStorageKey.defaultStartScreen)
     private var defaultStartScreen: DefaultStartScreenOption = .home
     @AppStorage(SettingsStorageKey.appLock) private var appLockEnabled = false
@@ -164,7 +165,7 @@ struct ContentView: View {
     }
 
     private static func migrateConversationTextAlignmentPreferenceIfNeeded() {
-        let defaults = UserDefaults.standard
+        let defaults = PrivatePreferences.standard
         guard defaults.object(forKey: SettingsStorageKey.conversationTextAlignment) == nil,
               let legacyRawValue = defaults.string(forKey: SettingsStorageKey.legacyResponseTextAlignment),
               let legacyAlignment = ConversationTextAlignmentOption(rawValue: legacyRawValue) else {
@@ -182,7 +183,7 @@ struct ContentView: View {
     }
 
     private var newInsightsCount: Int {
-        guard let strings = UserDefaults.standard.stringArray(forKey: "AquinasSeenInsightIDs"),
+        guard let strings = PrivatePreferences.standard.stringArray(forKey: "AquinasSeenInsightIDs"),
               !strings.isEmpty else { return 0 }
         let seenIDs = Set(strings.compactMap { UUID(uuidString: $0) })
         return collectedDefinitions.filter { !seenIDs.contains($0.id) }.count
@@ -759,14 +760,7 @@ struct ContentView: View {
                                         requestedConversationID = conversation.id
                                         activePage = .conversation
                                     },
-                                    onStartQuestion: { dailyQuestion in
-                                        newConversationRequests.submit(NewConversationRequest(
-                                            question: dailyQuestion.question,
-                                            eyebrow: "QUESTION OF THE DAY",
-                                            promptContext: dailyQuestion.taggedPromptContext
-                                        ))
-                                        activePage = .conversation
-                                    },
+                                    onStartQuestion: startQuestionOfTheDay,
                                     onOpenInsightBridge: { firstID, secondID in
                                         globalInsightHighlightedBridge = (firstID, secondID)
                                         globalInsightHighlightRequest += 1
@@ -1108,11 +1102,18 @@ struct ContentView: View {
                 collectedDefinitions = savedInsights
             }
             questionOfTheDay = HomeQuestionOfTheDayStore.loadPending()
+            HomeQuestionOfTheDayStore.reloadWidgetTimeline()
             Task { @MainActor in
                 await Task.yield()
                 isStartupReady = true
+                openPendingDailyQuestionLinkIfReady()
                 scheduleDailyQuestionRefreshIfNeeded()
             }
+        }
+        .onOpenURL { url in
+            guard DailyQuestionWidgetLink.matches(url) else { return }
+            hasPendingDailyQuestionLink = true
+            openPendingDailyQuestionLinkIfReady()
         }
         .onChange(of: activePage) { oldValue, newValue in handleActivePageChange(from: oldValue, to: newValue) }
         .onChange(of: modelTasks.isBusy) { _, _ in
@@ -1165,6 +1166,27 @@ struct ContentView: View {
     }
 
     // MARK: - Daily Content
+
+    private func startQuestionOfTheDay(_ dailyQuestion: HomeQuestionOfTheDay) {
+        questionOfTheDay = dailyQuestion
+        requestedConversationID = nil
+        conversationNodeFocusRequest = nil
+        newConversationRequests.submit(dailyQuestion.conversationRequest)
+        dismissGlobalSideMenu {
+            activePage = .conversation
+        }
+    }
+
+    private func openPendingDailyQuestionLinkIfReady() {
+        guard isStartupReady, hasPendingDailyQuestionLink else { return }
+        hasPendingDailyQuestionLink = false
+        guard let savedQuestion = HomeQuestionOfTheDayStore.load(),
+              HomeQuestionOfTheDay.isValidQuestionText(savedQuestion.question) else {
+            activePage = .home
+            return
+        }
+        startQuestionOfTheDay(savedQuestion)
+    }
 
     private func markQuestionOfTheDayAnswered() {
         guard let questionOfTheDay else { return }

@@ -10,9 +10,9 @@ import SwiftUI
 /// model.
 enum UserGuideExample {
     case definitions
-    case midpoint
-    case midpointThree
+    case tree
     case study
+    case midpoint
     case modelTasks
 }
 
@@ -31,12 +31,12 @@ struct UserGuideExampleView: View {
             switch example {
             case .definitions:
                 UserGuideDefinitionsExample(collectedDefinitions: $collectedDefinitions)
-            case .midpoint:
-                UserGuideMidpointExample()
-            case .midpointThree:
-                UserGuideMidpointExample(preselected: ["Justice", "Mercy", "Prudence"])
+            case .tree:
+                UserGuideTreeExample(collectedDefinitions: collectedDefinitions)
             case .study:
-                UserGuideStudyExample()
+                UserGuideStudyExample(collectedDefinitions: collectedDefinitions)
+            case .midpoint:
+                UserGuideMidpointExample(collectedDefinitions: collectedDefinitions)
             case .modelTasks:
                 UserGuideModelTasksExample()
             }
@@ -72,22 +72,23 @@ private struct UserGuideDefinitionsExample: View {
     @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .serif
 
     private static let passage = """
-    For Aquinas, virtue is a [habit](aq://habit) that disposes us to act well, formed by \
-    repeated good choices until acting well comes readily. Among the moral virtues, \
-    [prudence](aq://prudence) directs the others, because it judges what the good requires here \
-    and now.
+    Aristotle’s whole picture of reality is teleological: everything has a telos, an end built \
+    into its nature, and things are understood by grasping what they are for. An acorn’s telos \
+    is to become an oak; an eye’s is to see. [Eudaimonia](aq://eudaimonia) is the same idea \
+    applied to a human life as a whole. If everything has a proper end, what is the proper end \
+    of a person? Ethics, for Aristotle, is a branch of his [natural philosophy](aq://natural-philosophy).
     """
 
     private static let concepts: [String: ConceptDefinition] = [
-        "habit": concept(
-            "Habit",
-            meaning: "A settled disposition, formed by repeated acts, that inclines a person to act in a certain way readily and with ease.",
-            context: "Virtue as a stable disposition"
+        "eudaimonia": concept(
+            "Eudaimonia",
+            meaning: "Flourishing: the complete, well-lived human life that Aristotle held every action ultimately aims at. Not a feeling of happiness, but a life lived well over its whole length.",
+            context: "Aristotle on the good life"
         ),
-        "prudence": concept(
-            "Prudence",
-            meaning: "Practical wisdom: the virtue of judging rightly what should be done in a particular situation, which guides the exercise of the other moral virtues.",
-            context: "The moral virtues"
+        "natural philosophy": concept(
+            "Natural philosophy",
+            meaning: "The study of nature and how things change, understood through their causes and ends. Aristotle’s ethics builds on this account of human nature to ask what it means for a person to live well.",
+            context: "Aristotle’s ethics and nature"
         ),
     ]
 
@@ -141,14 +142,175 @@ private struct UserGuideDefinitionsExample: View {
     }
 }
 
+// MARK: - Greek Philosophy tree
+
+/// The Node Concept the Insight Tree, Study, and Midpoint examples share: Cynicism and
+/// Epicureanism are already in place, and Insights saved in the Definitions example join them.
+private enum UserGuideGreekTree {
+    static let conversationID = UUID(uuidString: "6F1C2A9E-2D0B-4B8E-9C7A-1E5F3A0B7C31")!
+    static let nodeID = UUID(uuidString: "C1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C01")!
+
+    private static let cynicism = insight(
+        "Cynicism",
+        "The ancient school that held virtue alone is enough for a good life, and that conventions, wealth, and comfort only get in its way.",
+        "C1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C02"
+    )
+    private static let epicureanism = insight(
+        "Epicureanism",
+        "The school that taught the good life is found in lasting pleasure, chiefly peace of mind and freedom from fear and pain.",
+        "C1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C03"
+    )
+
+    private static func insight(_ title: String, _ definition: String, _ id: String) -> InsightModel {
+        InsightModel(id: UUID(uuidString: id)!, title: title, definition: definition, conversationID: conversationID)
+    }
+
+    /// Saved Insights come first, then Cynicism and Epicureanism, as on the website.
+    static func insights(collected: [ConceptDefinition]) -> [InsightModel] {
+        let saved = collected
+            .filter { ["Eudaimonia", "Natural philosophy"].contains($0.word) }
+            .map { InsightModel(id: $0.id, title: $0.word, definition: $0.meaning, conversationID: conversationID) }
+        return saved + [cynicism, epicureanism]
+    }
+
+    static func node(collected: [ConceptDefinition]) -> NodeModel {
+        let members = insights(collected: collected)
+        // Example Insights aren't new discoveries, so they carry no "new" dot.
+        let ids = Set(members.map(\.id))
+        InsightDiscoveryStore.saveSeenInsightIDs(Array(InsightDiscoveryStore.loadSeenInsightIDs().union(ids)))
+        InsightDiscoveryStore.saveUndiscoveredInsightIDs(InsightDiscoveryStore.loadUndiscoveredInsightIDs().subtracting(ids))
+        return NodeModel(
+            id: nodeID,
+            conceptLabel: "Greek Philosophy",
+            definition: "The ancient Greek schools that asked how a person should live.",
+            insights: members,
+            embedding: [],
+            position: .zero,
+            isSuggested: false,
+            suggestedInsights: nil
+        )
+    }
+
+    /// Natural philosophy sits farther out, as on the website.
+    static func bondLengths(for node: NodeModel) -> [UUID: CGFloat] {
+        Dictionary(uniqueKeysWithValues: node.insights.map { ($0.id, $0.title == "Natural philosophy" ? CGFloat(195) : CGFloat(135)) })
+    }
+}
+
+/// The framed canvas the tree examples sit in.
+private struct UserGuideCanvasFrame<Content: View>: View {
+    let height: CGFloat
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        content
+            .frame(height: height)
+            .background(AngroveTheme.Colors.canvas)
+            .clipShape(RoundedRectangle(cornerRadius: 38, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 38, style: .continuous)
+                    .stroke(AngroveTheme.Colors.divider, lineWidth: 1)
+            )
+            .padding(.horizontal, -12)
+    }
+}
+
+// MARK: - Insight Tree
+
+/// The real tree canvas around Greek Philosophy. Insights saved in the Definitions example above
+/// join it.
+private struct UserGuideTreeExample: View {
+    let collectedDefinitions: [ConceptDefinition]
+
+    var body: some View {
+        let node = UserGuideGreekTree.node(collected: collectedDefinitions)
+        VStack(alignment: .leading, spacing: 16) {
+            UserGuideExampleCaption(text: "Any Insights you saved in the example above join this tree, which starts with Cynicism and Epicureanism.")
+
+            UserGuideCanvasFrame(height: 460) {
+                InsightTreeCanvasView(
+                    nodes: [node],
+                    edges: [],
+                    restoreFocusedCameraRequest: 0,
+                    focusedInsightID: nil,
+                    focusedSearchNodeID: nil,
+                    pulsingInsightID: nil,
+                    pulsingNodeID: nil,
+                    selectedCanvasTargets: [],
+                    selectionPulseRequest: 0,
+                    insightBondLengths: UserGuideGreekTree.bondLengths(for: node),
+                    onNodeTapped: { _ in },
+                    onInsightTapped: { _ in },
+                    onCanvasMoved: {},
+                    onSuggestConnection: { _ in },
+                    onDismissSuggestedNode: { _ in }
+                )
+            }
+        }
+    }
+}
+
+// MARK: - Study
+
+/// The same Greek Philosophy tree. The canvas starts Study when `studyNodeID` changes, so the
+/// example shows the tree briefly and then moves into Study.
+private struct UserGuideStudyExample: View {
+    let collectedDefinitions: [ConceptDefinition]
+    @State private var studyNodeID: UUID?
+
+    var body: some View {
+        let node = UserGuideGreekTree.node(collected: collectedDefinitions)
+        VStack(alignment: .leading, spacing: 16) {
+            UserGuideExampleCaption(text: "Drag to spin the concept and its Insights.")
+
+            UserGuideCanvasFrame(height: 460) {
+                GeometryReader { proxy in
+                    InsightTreeCanvasView(
+                        nodes: [node],
+                        edges: [],
+                        restoreFocusedCameraRequest: 0,
+                        focusedInsightID: nil,
+                        focusedSearchNodeID: nil,
+                        pulsingInsightID: nil,
+                        pulsingNodeID: nil,
+                        selectedCanvasTargets: [],
+                        selectionPulseRequest: 0,
+                        insightBondLengths: UserGuideGreekTree.bondLengths(for: node),
+                        onNodeTapped: { _ in },
+                        onInsightTapped: { _ in },
+                        onCanvasMoved: {},
+                        onSuggestConnection: { _ in },
+                        onDismissSuggestedNode: { _ in },
+                        studyNodeID: studyNodeID,
+                        // The ring and the node's zoom both scale from this slot. The real view uses
+                        // 300 × 300 on a full screen; 240 keeps every Insight inside this frame.
+                        studySlot: CGRect(
+                            x: (proxy.size.width - 240) / 2,
+                            y: 50,
+                            width: 240,
+                            height: 240
+                        )
+                    )
+                }
+                .task {
+                    try? await Task.sleep(for: .milliseconds(900))
+                    studyNodeID = UserGuideGreekTree.nodeID
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Midpoint
 
-/// The real tree canvas with four preset Insights. Tapping an Insight selects it, and Midpoint
-/// opens the real balance controls. The real feature asks the model for a concept; here the result
-/// is written ahead of time.
+/// The real tree canvas with the Greek Philosophy cluster and a second Node Concept, Virtue. The
+/// example opens by itself: one Greek Insight is selected, the camera moves across to Virtue, an
+/// Insight there is selected, and Midpoint opens between the two. The real feature asks the model
+/// for a concept; here the result is written ahead of time.
 private struct UserGuideMidpointExample: View {
-    /// Titles selected when the example appears; three of them show a multi-Insight Midpoint.
-    let preselected: [String]
+    let collectedDefinitions: [ConceptDefinition]
+
+    private enum Phase { case idle, thinking, done }
 
     @State private var selected: [CanvasSelectionTarget] = []
     @State private var isMidpointMode = false
@@ -156,80 +318,105 @@ private struct UserGuideMidpointExample: View {
     @State private var targetIndex = 0
     @State private var targetWeight = 0.5
     @State private var percentRequest = 0
+    @State private var centerRequest = 0
     @State private var selectionPulse = 0
     @State private var canvasID = UUID()
     @State private var isSelecting = false
+    @State private var isScripted = true
+    @State private var phase: Phase = .idle
+    @State private var focusedInsightID: UUID?
     @State private var dockedInsight: InsightModel?
+    @State private var scriptStarted = false
 
-    private static let conversationID = UUID(uuidString: "6F1C2A9E-2D0B-4B8E-9C7A-1E5F3A0B7C21")!
-    private static let node = NodeModel(
+    private static let virtueConversationID = UUID(uuidString: "6F1C2A9E-2D0B-4B8E-9C7A-1E5F3A0B7C21")!
+    private static let virtueNode = NodeModel(
         id: UUID(uuidString: "B1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C01")!,
         conceptLabel: "Virtue",
         definition: "A good habit of mind or will that disposes a person to act well.",
         insights: [
-            insight("Justice", "The constant will to give each person what is owed.", "B1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C02"),
-            insight("Mercy", "Compassion for another's distress that moves us to relieve it, giving more than is owed.", "B1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C03"),
-            insight("Prudence", "Practical wisdom that judges what the good requires here and now.", "B1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C04"),
-            insight("Courage", "Firmness of mind in facing danger or hardship for the sake of the good.", "B1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C05"),
+            virtueInsight("Justice", "The constant will to give each person what is owed.", "B1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C02"),
+            virtueInsight("Mercy", "Compassion for another's distress that moves us to relieve it, giving more than is owed.", "B1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C03"),
+            virtueInsight("Prudence", "Practical wisdom that judges what the good requires here and now.", "B1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C04"),
+            virtueInsight("Courage", "Firmness of mind in facing danger or hardship for the sake of the good.", "B1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C05"),
         ],
         embedding: [],
-        position: .zero,
+        position: CGPoint(x: 520, y: -380),
         isSuggested: false,
         suggestedInsights: nil
     )
 
-    private static func insight(_ title: String, _ definition: String, _ id: String) -> InsightModel {
-        InsightModel(id: UUID(uuidString: id)!, title: title, definition: definition, conversationID: conversationID)
+    private static func virtueInsight(_ title: String, _ definition: String, _ id: String) -> InsightModel {
+        InsightModel(id: UUID(uuidString: id)!, title: title, definition: definition, conversationID: virtueConversationID)
     }
 
-    init(preselected: [String] = []) {
-        self.preselected = preselected
-        let exampleIDs = Set(Self.node.insights.map(\.id))
-        InsightDiscoveryStore.saveSeenInsightIDs(
-            Array(InsightDiscoveryStore.loadSeenInsightIDs().union(exampleIDs))
-        )
-        InsightDiscoveryStore.saveUndiscoveredInsightIDs(
-            InsightDiscoveryStore.loadUndiscoveredInsightIDs().subtracting(exampleIDs)
-        )
-    }
+    private var greekNode: NodeModel { UserGuideGreekTree.node(collected: collectedDefinitions) }
+    private var nodes: [NodeModel] { [greekNode, Self.virtueNode] }
+    private var allInsights: [InsightModel] { nodes.flatMap(\.insights) }
+    private var prudence: InsightModel { Self.virtueNode.insights[2] }
+
+    /// Three example results per pair, picked by the balance: leaning toward the first Insight,
+    /// near the middle, or leaning toward the second (60% or more counts as leaning).
+    private static let results: [String: [(String, String)]] = [
+        "Justice|Mercy": [
+            ("Restorative Justice", "Giving what is owed in a way that aims to heal the wrong and restore the offender, not only to punish."),
+            ("Equity", "Applying a just rule with mercy when its strict letter would defeat its purpose in a particular case."),
+            ("Forgiveness", "Freely releasing a debt one could justly claim, while still naming the wrong as a wrong."),
+        ],
+        "Cynicism|Prudence": [
+            ("Ascetic Freedom", "Living deliberately with little, so that nothing outside oneself can compel one’s choices."),
+            ("Temperance", "Moderating desire by reason: taking what is needed and refusing what would come to rule over you."),
+            ("Prudent Simplicity", "Choosing a plain life because careful judgment sees what actually serves the good."),
+        ],
+        "Epicureanism|Prudence": [
+            ("Tranquility", "The settled peace of mind that comes from wanting little and fearing nothing."),
+            ("Moderation of Pleasure", "Choosing the pleasures that last and refusing those that bring later pain."),
+            ("Wise Enjoyment", "Judging which pleasures serve a good life, and when to take them."),
+        ],
+        "Eudaimonia|Prudence": [
+            ("Happiness as an End", "The end every action aims at, pursued with the judgment to know what truly leads there."),
+            ("Right Reason in Action", "Acting according to reason so that a life moves steadily toward its proper end."),
+            ("Deliberation", "Weighing the means to a good end carefully before choosing how to act."),
+        ],
+        "Natural philosophy|Prudence": [
+            ("Natural Order", "The pattern of ends built into things, which reason can read and then follow."),
+            ("Practical Knowledge", "Understanding how things work in order to act well among them."),
+            ("Prudent Inquiry", "Studying the world with an eye to what a good life asks of us."),
+        ],
+    ]
 
     private func concept(for target: CanvasSelectionTarget) -> ConceptDefinition? {
         switch target {
         case .insight(let id):
-            guard let insight = Self.node.insights.first(where: { $0.id == id }) else { return nil }
+            guard let insight = allInsights.first(where: { $0.id == id }) else { return nil }
             return ConceptDefinition(id: insight.id, word: insight.title, partOfSpeech: "",
                                      pronunciation: "", meaning: insight.definition, example: "")
-        case .node:
-            return ConceptDefinition(id: Self.node.id, word: Self.node.conceptLabel, partOfSpeech: "",
-                                     pronunciation: "", meaning: Self.node.definition, example: "")
+        case .node(let id):
+            guard let node = nodes.first(where: { $0.id == id }) else { return nil }
+            return ConceptDefinition(id: node.id, word: node.conceptLabel, partOfSpeech: "",
+                                     pronunciation: "", meaning: node.definition, example: "")
         }
     }
 
     private var concepts: [ConceptDefinition] { selected.compactMap(concept(for:)) }
-    private var titles: Set<String> { Set(concepts.map(\.word)) }
 
     private var result: (title: String, definition: String) {
-        if titles == ["Justice", "Mercy"], weights.count == 2 {
-            let justice = weights[selected.firstIndex { concept(for: $0)?.word == "Justice" } ?? 0]
-            if justice >= 0.6 {
-                return ("Restorative Justice", "Giving what is owed in a way that aims to heal the wrong and restore the offender, not only to punish.")
-            } else if justice <= 0.4 {
-                return ("Forgiveness", "Freely releasing a debt one could justly claim, while still naming the wrong as a wrong.")
+        let names = concepts.map(\.word)
+        let share = weights.first ?? 0.5
+        let tier = share >= 0.6 ? 0 : share <= 0.4 ? 2 : 1
+        if names.count == 2 {
+            if let set = Self.results[names[0] + "|" + names[1]] {
+                return set[tier]
             }
-            return ("Equity", "Applying a just rule with mercy when its strict letter would defeat its purpose in a particular case.")
+            if let set = Self.results[names[1] + "|" + names[0]] {
+                return set[2 - tier]
+            }
         }
-        if titles == ["Justice", "Mercy", "Prudence"] {
-            return ("Discernment", "Judging wisely when a wrong calls for firmness and when it calls for relief, so that both justice and mercy are served.")
-        }
-        let names = concepts.map(\.word).joined(separator: ", ")
-        return ("A new concept", "In the app, Angrove proposes a concept that sits between \(names), leaning toward the ideas you weight most.")
+        return ("A new concept", "In the app, Angrove proposes a concept that sits between \(names.joined(separator: ", ")), leaning toward the ideas you weight most.")
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            UserGuideExampleCaption(text: preselected.isEmpty
-                ? "Tap an Insight to read it. Tap Select, choose two or more Insights, then tap Midpoint. Drag on the tree, or use the percentages, to shift the balance."
-                : "Three Insights are selected here. Drag on the tree, or use the percentages, to see how the balance changes.")
+            UserGuideExampleCaption(text: "Watch it select an Insight from the Greek Philosophy tree and one from a new Node Concept, then open Midpoint. Drag on the tree, or use the percentages, to shift the balance. To try your own, tap Reset, then Select, choose two Insights, and tap Midpoint.")
 
             canvas
                 .frame(height: 620)
@@ -250,7 +437,7 @@ private struct UserGuideMidpointExample: View {
                 )
                 .padding(.horizontal, -12)
 
-            if isMidpointMode {
+            if isMidpointMode && phase == .idle {
                 MidpointPercentCard(
                     concepts: concepts,
                     weights: weights,
@@ -263,65 +450,30 @@ private struct UserGuideMidpointExample: View {
                 .transition(.opacity)
             }
 
-            HStack(spacing: 12) {
-                controlButton(isSelecting ? "Done" : "Select", icon: "circle.dashed",
-                              enabled: !isMidpointMode) {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        isSelecting.toggle()
-                        dockedInsight = nil
-                    }
-                }
-                controlButton(isMidpointMode ? "Back" : "Midpoint", icon: "graph.2d",
-                              enabled: isMidpointMode || selected.count >= 2) {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        isMidpointMode.toggle()
-                        dockedInsight = nil
-                    }
-                }
-                controlButton("Reset", icon: "arrow.counterclockwise", enabled: true) {
-                    reset()
-                }
-            }
-
-            if isMidpointMode {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("EXAMPLE RESULT")
-                        .settingsText(.detail)
-                        .foregroundStyle(AngroveTheme.Colors.lightGreen)
-                    Text(result.title)
-                        .font(AngroveTheme.Typography.settingsHeading)
-                        .foregroundStyle(AngroveTheme.Colors.headingText)
-                    Text(result.definition)
-                        .settingsText(.paragraph)
-                        .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                        .lineSpacing(FlowLayout.rowSpacing)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .id(result.title)
-                .transition(.opacity)
-                .padding(24)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(AngroveTheme.Colors.canvasSecondary)
-                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-                .animation(.easeInOut(duration: 0.25), value: result.title)
-            }
+            UserGuideMidpointDock(
+                items: dockItems,
+                isThinking: phase == .thinking
+            )
+            .frame(maxWidth: .infinity)
         }
-        .task { await applyPreselection() }
+        .task { await runScript() }
     }
 
     private var canvas: some View {
         InsightTreeCanvasView(
-            nodes: [Self.node],
+            nodes: nodes,
             edges: [],
             restoreFocusedCameraRequest: 0,
-            focusedInsightID: nil,
+            focusedInsightID: focusedInsightID,
             focusedSearchNodeID: nil,
             pulsingInsightID: nil,
             pulsingNodeID: nil,
             selectedCanvasTargets: selected,
             selectionPulseRequest: selectionPulse,
-            insightBondLengths: Dictionary(uniqueKeysWithValues: Self.node.insights.map { ($0.id, CGFloat(135)) }),
+            insightBondLengths: Dictionary(uniqueKeysWithValues: allInsights.map { ($0.id, CGFloat(135)) }),
+            layoutTargets: [UserGuideGreekTree.nodeID: .zero, Self.virtueNode.id: Self.virtueNode.position],
             isMidpointMode: isMidpointMode,
+            midpointCenterRequest: centerRequest,
             midpointTargetIndex: targetIndex,
             midpointTargetWeight: targetWeight,
             midpointPercentRequest: percentRequest,
@@ -337,8 +489,46 @@ private struct UserGuideMidpointExample: View {
 
     private static let dockBottomInset: CGFloat = 10
 
+    // MARK: Dock
+
+    private var dockItems: [UserGuideDockItem] {
+        if isScripted {
+            return [.init(id: "select", title: "Select", icon: "circle.dashed", isEnabled: false, action: {})]
+        }
+        if phase == .done {
+            return [.init(id: "reset", title: "Reset", icon: "arrow.counterclockwise", action: reset)]
+        }
+        if phase == .thinking { return [] }
+        if isMidpointMode {
+            return [
+                .init(id: "back", title: "Back", icon: "chevron.left", action: back),
+                .init(id: "center", title: "Center", icon: "lines.measurement.horizontal", action: { centerRequest += 1 }),
+                .init(id: "place", title: "Place", icon: "arrow.down", action: place),
+            ]
+        }
+        var items: [UserGuideDockItem] = [
+            .init(id: "select", title: isSelecting ? "Done" : "Select", icon: "circle.dashed", isActive: isSelecting) {
+                isSelecting.toggle()
+                dockedInsight = nil
+            }
+        ]
+        if selected.count >= 2 {
+            items.append(.init(id: "midpoint", title: "Midpoint", icon: "graph.2d") {
+                isSelecting = false
+                dockedInsight = nil
+                isMidpointMode = true
+            })
+        }
+        if !selected.isEmpty {
+            items.append(.init(id: "reset", title: "Reset", icon: "arrow.counterclockwise", action: reset))
+        }
+        return items
+    }
+
+    // MARK: Actions
+
     private func tapped(_ target: CanvasSelectionTarget, insight: InsightModel? = nil) {
-        guard !isMidpointMode else { return }
+        guard !isMidpointMode, !isScripted, phase == .idle else { return }
         if isSelecting {
             toggle(target)
         } else {
@@ -350,25 +540,39 @@ private struct UserGuideMidpointExample: View {
     }
 
     private func toggle(_ target: CanvasSelectionTarget) {
-        guard !isMidpointMode else { return }
         if let index = selected.firstIndex(of: target) {
             selected.remove(at: index)
-        } else if selected.count < CanvasSelectionPolicy.maximumCount {
+        } else if selected.count < 2 {   // this example balances two
             selected.append(target)
             if selected.count > 1 { selectionPulse += 1 }
+        } else {
+            selected = [selected[1], target]
+            selectionPulse += 1
         }
         SettingsHaptics.playSelection()
     }
 
-    private func applyPreselection() async {
-        guard !preselected.isEmpty, selected.isEmpty else { return }
-        try? await Task.sleep(for: .milliseconds(900))
-        selected = preselected.compactMap { title in
-            Self.node.insights.first { $0.title == title }.map { .insight($0.id) }
+    private func back() {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            isMidpointMode = false
+            dockedInsight = nil
         }
-        selectionPulse += 1
-        try? await Task.sleep(for: .milliseconds(500))
-        withAnimation(.easeInOut(duration: 0.25)) { isMidpointMode = true }
+    }
+
+    /// The real Place asks the model for a concept; here the written-ahead result appears after the
+    /// same Thinking beat, as the Insight's own card.
+    private func place() {
+        let placed = result
+        withAnimation(.springLively) { phase = .thinking }
+        Task {
+            try? await Task.sleep(for: .seconds(3.5))
+            let insight = InsightModel(id: UUID(), title: placed.title, definition: placed.definition, conversationID: Self.virtueConversationID)
+            withAnimation(.springStandard) {
+                isMidpointMode = false
+                phase = .done
+                dockedInsight = insight
+            }
+        }
     }
 
     private func reset() {
@@ -378,115 +582,88 @@ private struct UserGuideMidpointExample: View {
             dockedInsight = nil
             selected = []
             weights = []
+            phase = .idle
+            focusedInsightID = nil
         }
         canvasID = UUID()
     }
 
-    private func controlButton(_ title: String, icon: String, enabled: Bool, action: @escaping () -> Void) -> some View {
-        Button {
-            SettingsHaptics.playSelection()
-            action()
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 13, weight: .semibold))
-                Text(title)
-                    .settingsText(.label)
-            }
-            .foregroundStyle(AngroveTheme.Colors.lightGreen)
-            .frame(maxWidth: .infinity, minHeight: 48)
-            .background(AngroveTheme.Colors.canvasSecondary)
-            .clipShape(Capsule())
-            .opacity(enabled ? 1 : 0.4)
+    /// Selects one Greek Insight, moves across to Virtue, selects Prudence, and opens Midpoint.
+    private func runScript() async {
+        guard !scriptStarted else { return }
+        scriptStarted = true
+        try? await Task.sleep(for: .milliseconds(1200))
+        guard let from = greekNode.insights.first else { isScripted = false; return }
+        selected = [.insight(from.id)]
+        selectionPulse += 1
+        try? await Task.sleep(for: .milliseconds(1000))
+        focusedInsightID = prudence.id
+        try? await Task.sleep(for: .milliseconds(2600))
+        selected = [.insight(from.id), .insight(prudence.id)]
+        selectionPulse += 1
+        try? await Task.sleep(for: .milliseconds(800))
+        withAnimation(.easeInOut(duration: 0.25)) {
+            isScripted = false
+            isMidpointMode = true
         }
-        .buttonStyle(.plain)
-        .disabled(!enabled)
     }
 }
 
-// MARK: - Study
+/// One button in the example's dock.
+private struct UserGuideDockItem: Identifiable {
+    let id: String
+    let title: String
+    let icon: String
+    var isEnabled = true
+    var isActive = false
+    let action: () -> Void
+}
 
-/// The real tree canvas holding one Node Concept with three Insights. The canvas starts Study when
-/// `studyNodeID` changes, so the example shows the tree briefly and then moves into Study.
-private struct UserGuideStudyExample: View {
-    @State private var studyNodeID: UUID?
-
-    init() {
-        // Example Insights aren't new discoveries. The canvas reads the seen list when it is
-        // created, so mark them before it exists or they carry "new" dots.
-        let exampleIDs = Set(Self.node.insights.map(\.id))
-        InsightDiscoveryStore.saveSeenInsightIDs(
-            Array(InsightDiscoveryStore.loadSeenInsightIDs().union(exampleIDs))
-        )
-        InsightDiscoveryStore.saveUndiscoveredInsightIDs(
-            InsightDiscoveryStore.loadUndiscoveredInsightIDs().subtracting(exampleIDs)
-        )
-    }
-
-    private static let conversationID = UUID(uuidString: "6F1C2A9E-2D0B-4B8E-9C7A-1E5F3A0B7C11")!
-    private static let node = NodeModel(
-        id: UUID(uuidString: "A1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C01")!,
-        conceptLabel: "Virtue",
-        definition: "A good habit of mind or will that disposes a person to act well.",
-        insights: [
-            insight("Prudence", "Practical wisdom that judges what the good requires here and now.", "A1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C02"),
-            insight("Temperance", "Moderation of desire for pleasure according to reason.", "A1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C03"),
-            insight("Courage", "Firmness of mind in facing danger or hardship for the sake of the good.", "A1C7E0D4-5B2F-4E8A-8D1C-3F6B9E2A4C04"),
-        ],
-        embedding: [],
-        position: .zero,
-        isSuggested: false,
-        suggestedInsights: nil
-    )
-
-    private static func insight(_ title: String, _ definition: String, _ id: String) -> InsightModel {
-        InsightModel(id: UUID(uuidString: id)!, title: title, definition: definition, conversationID: conversationID)
-    }
+/// The example's Model Controls: one 64 pt capsule that hugs its buttons (icon and Figtree Bold 14,
+/// 8 apart, 24 between), re-measured with springLively as buttons come and go.
+private struct UserGuideMidpointDock: View {
+    let items: [UserGuideDockItem]
+    let isThinking: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            UserGuideExampleCaption(text: "Drag the ring beneath Virtue to spin it, pinch to zoom, and tap an Insight to bring it forward.")
-
-            GeometryReader { proxy in
-                InsightTreeCanvasView(
-                    nodes: [Self.node],
-                    edges: [],
-                    restoreFocusedCameraRequest: 0,
-                    focusedInsightID: nil,
-                    focusedSearchNodeID: nil,
-                    pulsingInsightID: nil,
-                    pulsingNodeID: nil,
-                    selectedCanvasTargets: [],
-                    selectionPulseRequest: 0,
-                    onNodeTapped: { _ in },
-                    onInsightTapped: { _ in },
-                    onCanvasMoved: {},
-                    onSuggestConnection: { _ in },
-                    onDismissSuggestedNode: { _ in },
-                    studyNodeID: studyNodeID,
-                    // The ring and the node's zoom both scale from this slot. The real view uses
-                    // 300 × 300 on a full screen; 240 keeps all three Insights inside this frame.
-                    studySlot: CGRect(
-                        x: (proxy.size.width - 240) / 2,
-                        y: 50,
-                        width: 240,
-                        height: 240
-                    )
-                )
+        HStack(spacing: 24) {
+            if isThinking {
+                Text("Thinking")
+                    .font(.custom("Figtree-Bold", size: 14))
+                    .foregroundColor(AngroveTheme.Colors.paragraphText.opacity(0.75))
+                    .modifier(ThinkingShimmer(isActive: true, color: AngroveTheme.Colors.paragraphText.opacity(0.75)))
+                    .transition(.scale(scale: 0.4).combined(with: .opacity))
             }
-            .frame(height: 460)
-            .task {
-                try? await Task.sleep(for: .milliseconds(900))
-                studyNodeID = Self.node.id
+            ForEach(items) { item in
+                Button {
+                    SettingsHaptics.playSelection()
+                    item.action()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: item.icon)
+                            .font(.system(size: 14, weight: .semibold))
+                            .id("\(item.id)-\(item.title)")
+                            .sfSymbolDrawOn()
+                        Text(item.title)
+                            .font(.custom("Figtree-Bold", size: 14))
+                    }
+                    .frame(height: 16, alignment: .center)
+                    .foregroundColor(item.isActive ? AngroveTheme.Colors.lightGreen : AngroveTheme.Colors.paragraphText.opacity(0.75))
+                    .opacity(item.isEnabled ? 1 : 0.4)
+                }
+                .buttonStyle(.plain)
+                .disabled(!item.isEnabled)
+                .transition(.scale(scale: 0.4).combined(with: .opacity))
             }
-            .background(AngroveTheme.Colors.canvas)
-            .clipShape(RoundedRectangle(cornerRadius: 38, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 38, style: .continuous)
-                    .stroke(AngroveTheme.Colors.divider, lineWidth: 1)
-            )
-            .padding(.horizontal, -12)
         }
+        .padding(.horizontal, 32)
+        .padding(.vertical, 24)
+        .fixedSize(horizontal: true, vertical: true)
+        .background(AngroveTheme.Colors.canvasSecondary)
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(AngroveTheme.Colors.controlBorder, lineWidth: 1))
+        .modifier(FloatingControlPressFeedback(isButtonPressed: false))
+        .animation(.springLively, value: items.map(\.id) + [isThinking ? "thinking" : ""])
     }
 }
 

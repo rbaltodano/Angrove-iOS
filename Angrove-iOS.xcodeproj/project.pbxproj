@@ -5,6 +5,35 @@
 	};
 	objectVersion = 77;
 	objects = {
+B40000000000000000000001 = {isa = PBXFileReference; explicitFileType = "wrapper.extensionkit-extension"; path = AngroveModelDownloader.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+B40000000000000000000002 = {isa = PBXFileSystemSynchronizedRootGroup; path = AngroveModelDownloader; sourceTree = "<group>"; exceptions = (B40000000000000000000003,); };
+B40000000000000000000003 = {isa = PBXFileSystemSynchronizedBuildFileExceptionSet; membershipExceptions = (Info.plist,); target = B40000000000000000000004; };
+B40000000000000000000004 = {isa = PBXNativeTarget; buildConfigurationList = B40000000000000000000008; buildPhases = (B40000000000000000000005,B40000000000000000000006,B40000000000000000000007,); buildRules = (); dependencies = (); fileSystemSynchronizedGroups = (B40000000000000000000002,); name = AngroveModelDownloader; productName = AngroveModelDownloader; productReference = B40000000000000000000001; productType = "com.apple.product-type.extensionkit-extension"; };
+B40000000000000000000005 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+B40000000000000000000006 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+B40000000000000000000007 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+B40000000000000000000008 = {isa = XCConfigurationList; buildConfigurations = (B40000000000000000000009,B4000000000000000000000A,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+B40000000000000000000009 = {isa = XCBuildConfiguration; name = Debug; buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = AngroveModelDownloader/AngroveModelDownloader.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = 7XG2DHY989; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = AngroveModelDownloader/Info.plist; INFOPLIST_KEY_CFBundleDisplayName = "Angrove Model Downloader"; IPHONEOS_DEPLOYMENT_TARGET = 26.4; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)","@executable_path/Frameworks","@executable_path/../../Frameworks",); MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = "com.ryanbaltodano.Aquinas-iOS.ModelDownloader"; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SKIP_INSTALL = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; };
+B4000000000000000000000A = {isa = XCBuildConfiguration; name = Release; buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = AngroveModelDownloader/AngroveModelDownloader.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = 7XG2DHY989; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = AngroveModelDownloader/Info.plist; INFOPLIST_KEY_CFBundleDisplayName = "Angrove Model Downloader"; IPHONEOS_DEPLOYMENT_TARGET = 26.4; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)","@executable_path/Frameworks","@executable_path/../../Frameworks",); MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = "com.ryanbaltodano.Aquinas-iOS.ModelDownloader"; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SKIP_INSTALL = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; };
+B4000000000000000000000B = {isa = PBXBuildFile; fileRef = B40000000000000000000001; settings = {ATTRIBUTES = (RemoveHeadersOnCopy,); }; };
+B4000000000000000000000C = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = "$(CONTENTS_FOLDER_PATH)/Extensions"; dstSubfolderSpec = 16; files = (B4000000000000000000000B,); name = "Embed Model Downloader"; runOnlyForDeploymentPostprocessing = 0; };
+B4000000000000000000000D = {isa = PBXTargetDependency; target = B40000000000000000000004; };
+
+        B30000000000000000000001 = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; path = AngroveWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+        B30000000000000000000002 = {isa = PBXFileSystemSynchronizedRootGroup; path = AngroveWidgets; sourceTree = "<group>"; exceptions = (B30000000000000000000003,); };
+        B30000000000000000000003 = {isa = PBXFileSystemSynchronizedBuildFileExceptionSet; membershipExceptions = (Info.plist,); target = B30000000000000000000004; };
+        B30000000000000000000004 = {isa = PBXNativeTarget; buildConfigurationList = B30000000000000000000008; buildPhases = (B30000000000000000000005, B30000000000000000000006, B30000000000000000000007,); buildRules = (); dependencies = (); fileSystemSynchronizedGroups = (B30000000000000000000002,B3000000000000000000000B,); name = AngroveWidgets; productName = AngroveWidgets; productReference = B30000000000000000000001; productType = "com.apple.product-type.app-extension"; };
+        B30000000000000000000005 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+        B30000000000000000000006 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+        B30000000000000000000007 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+        B30000000000000000000008 = {isa = XCConfigurationList; buildConfigurations = (B30000000000000000000009,B3000000000000000000000A,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+        B3000000000000000000000B = {isa = PBXFileSystemSynchronizedRootGroup; path = WidgetShared; sourceTree = "<group>"; };
+        B3000000000000000000000C = {isa = PBXBuildFile; fileRef = B30000000000000000000001; settings = {ATTRIBUTES = (RemoveHeadersOnCopy,); }; };
+        B3000000000000000000000D = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 13; files = (B3000000000000000000000C,); name = "Embed App Extensions"; runOnlyForDeploymentPostprocessing = 0; };
+        B3000000000000000000000E = {isa = PBXTargetDependency; target = B30000000000000000000004; };
+        B30000000000000000000009 = {isa = XCBuildConfiguration; name = Debug; buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = AngroveWidgets/AngroveWidgets.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = 7XG2DHY989; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = AngroveWidgets/Info.plist; INFOPLIST_KEY_CFBundleDisplayName = "Question of the Day"; IPHONEOS_DEPLOYMENT_TARGET = 26.4; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)","@executable_path/Frameworks","@executable_path/../../Frameworks",); MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = "com.ryanbaltodano.Aquinas-iOS.QuestionOfTheDay"; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SKIP_INSTALL = YES; SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) ANGROVE_WIDGET"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; };
+        B3000000000000000000000A = {isa = XCBuildConfiguration; name = Release; buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = AngroveWidgets/AngroveWidgets.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = 7XG2DHY989; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = AngroveWidgets/Info.plist; INFOPLIST_KEY_CFBundleDisplayName = "Question of the Day"; IPHONEOS_DEPLOYMENT_TARGET = 26.4; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)","@executable_path/Frameworks","@executable_path/../../Frameworks",); MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = "com.ryanbaltodano.Aquinas-iOS.QuestionOfTheDay"; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SKIP_INSTALL = YES; SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) ANGROVE_WIDGET"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; };
+
 
 /* Begin PBXBuildFile section */
 		A20000000000000000000001 /* LiteRTLM in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000003 /* LiteRTLM */; };
@@ -74,16 +103,21 @@
 		D61EFA6C2F8AAB5B0081D843 = {
 			isa = PBXGroup;
 			children = (
+                B40000000000000000000002,
 				D61EFA772F8AAB5B0081D843 /* Angrove-iOS */,
 				A10000000000000000000002 /* Angrove-iOSTests */,
-				D61EFA762F8AAB5B0081D843 /* Products */,
+				B30000000000000000000002,
+                B3000000000000000000000B,
+                D61EFA762F8AAB5B0081D843 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
 		D61EFA762F8AAB5B0081D843 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				D61EFA752F8AAB5B0081D843 /* Angrove-iOS.app */,
+				B30000000000000000000001,
+                B40000000000000000000001,
+                D61EFA752F8AAB5B0081D843 /* Angrove-iOS.app */,
 				A10000000000000000000001 /* Angrove-iOSTests.xctest */,
 			);
 			name = Products;
@@ -122,12 +156,17 @@
 				D61EFA712F8AAB5B0081D843 /* Sources */,
 				D61EFA722F8AAB5B0081D843 /* Frameworks */,
 				D61EFA732F8AAB5B0081D843 /* Resources */,
+                B3000000000000000000000D,
+                B4000000000000000000000C,
 			);
 			buildRules = (
 			);
 			dependencies = (
+                B3000000000000000000000E,
+                B4000000000000000000000D,
 			);
 			fileSystemSynchronizedGroups = (
+                B3000000000000000000000B,
 				D61EFA772F8AAB5B0081D843 /* Angrove-iOS */,
 			);
 			name = "Angrove-iOS";
@@ -174,6 +213,8 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+                B40000000000000000000004,
+                B30000000000000000000004,
 				D61EFA742F8AAB5B0081D843 /* Angrove-iOS */,
 				A10000000000000000000003 /* Angrove-iOSTests */,
 			);
@@ -436,7 +477,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -446,7 +487,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AngroveAppIcon;
 				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AngroveLightIcon AngroveDarkIcon";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Angrove-iOS/Angrove-iOS.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Angrove-iOS/Angrove-Release.entitlements";
+                EXCLUDED_SOURCE_FILE_NAMES = "$(inherited) LocalModels *.litertlm";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -474,7 +516,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};

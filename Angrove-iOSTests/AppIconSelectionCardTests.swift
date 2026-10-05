@@ -83,14 +83,16 @@ struct AppIconSelectionCardTests {
         return bytes
     }
 
-    @Test("Appearance page shows both icon choices below its color scheme controls",
+    @Test("Appearance page keeps both icon choices aligned below its background controls",
           arguments: [320, 390], [UIUserInterfaceStyle.light, .dark])
     func appearancePage(width: Int, style: UIUserInterfaceStyle) async throws {
         let page = AppearanceSettingsView(colorSchemeOverride: .constant(style == .dark ? .dark : .light))
             .environment(\.colorScheme, style == .dark ? .dark : .light)
         let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let window = UIWindow(windowScene: scene)
-        window.frame = CGRect(x: 0, y: 0, width: width, height: 640)
+        // Render the scrollable content: background cards now precede the icon card.
+        let contentHeight = 1600
+        window.frame = CGRect(x: 0, y: 0, width: width, height: contentHeight)
         window.overrideUserInterfaceStyle = style
         let controller = UIHostingController(rootView: page)
         window.rootViewController = controller
@@ -116,13 +118,13 @@ struct AppIconSelectionCardTests {
             let template = UIGraphicsImageRenderer(size: CGSize(width: 84, height: 84), format: format)
                 .image { _ in preview.draw(in: CGRect(x: 0, y: 0, width: 84, height: 84)) }
             let reference = try rgba(template)
-            let match = bestMatch(pixels: pixels, width: width, reference: reference, maximumY: 450)
+            let match = bestMatch(pixels: pixels, width: width, reference: reference, maximumY: contentHeight - 84)
             #expect(match.error < 22)
             frames.append(CGRect(x: match.x, y: match.y, width: 84, height: 84))
         }
         #expect(!frames[0].intersects(frames[1]))
         #expect(frames[0].minX >= 47 && frames[1].maxX <= CGFloat(width - 47))
-        #expect(frames.allSatisfy { $0.minY > 150 && $0.maxY < 640 })
+        #expect(frames.allSatisfy { $0.minY > 150 && $0.maxY < CGFloat(contentHeight) })
         #expect(abs(frames[0].minY - frames[1].minY) <= 1)
     }
 

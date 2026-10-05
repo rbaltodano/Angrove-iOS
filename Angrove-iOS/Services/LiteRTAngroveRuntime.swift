@@ -450,7 +450,12 @@ actor LiteRTAngroveRuntime: ModelRuntimeDriver {
     }
 
     private func initializeEngine() async throws {
-        let modelURL = try modelStore.installedModelURL()
+        let modelURL = try await modelStore.preparedModelURL()
+        try await initializeEngine(at: modelURL)
+    }
+
+    private func initializeEngine(at modelURL: URL) async throws {
+        try Task.checkCancellation()
         let cacheURL = try modelStore.cacheDirectory()
         var backend: Backend = .gpu
 #if DEBUG
@@ -512,8 +517,11 @@ actor LiteRTAngroveRuntime: ModelRuntimeDriver {
     /// tasks) behind it indefinitely. Generous relative to the ~4-5s cold load this build has
     /// measured, so it only fires on a genuine hang, not ordinary load variance.
     private func initializeEngineWithWatchdog() async throws {
+        // Download and integrity checks are not native engine stalls. A slow network must not
+        // trigger the 60-second native watchdog or leave an abandoned engine load behind.
+        let modelURL = try await modelStore.preparedModelURL()
         try await Self.abandoningStall(timeout: Self.loadStallTimeout) {
-            try await self.initializeEngine()
+            try await self.initializeEngine(at: modelURL)
         } onTimeout: {}
     }
 

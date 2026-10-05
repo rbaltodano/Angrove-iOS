@@ -518,7 +518,7 @@ private func settingsRowLayout(isVertical: Bool) -> AnyLayout {
 
 enum SettingsHaptics {
     static var isEnabled: Bool {
-        let defaults = UserDefaults.standard
+        let defaults = PrivatePreferences.standard
         guard defaults.object(forKey: SettingsStorageKey.hapticFeedback) != nil else {
             return true
         }

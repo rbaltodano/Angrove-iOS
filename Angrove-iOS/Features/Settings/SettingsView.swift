@@ -22,6 +22,7 @@ struct SettingsView: View {
     var onClearInsightTree: () -> Void = {}
 
     @State private var path: [SettingsRoute] = []
+    @State private var guideSavedTerms: [String] = []
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -44,6 +45,7 @@ struct SettingsView: View {
                         inputFont: $inputFont,
                         responseFont: $responseFont,
                         collectedDefinitions: $collectedDefinitions,
+                        guideSavedTerms: $guideSavedTerms,
                         onReset: resetSettings,
                         onClearInsightTree: onClearInsightTree,
                         onSelectUserGuideTopic: { path.append(.userGuideTopic($0)) }
@@ -105,7 +107,7 @@ struct SettingsView: View {
 
     private func resetSettings() {
         for key in SettingsStorageKey.allResettableKeys {
-            UserDefaults.standard.removeObject(forKey: key)
+            PrivatePreferences.standard.removeObject(forKey: key)
         }
 
         colorSchemeOverride = nil
@@ -126,6 +128,7 @@ private enum SettingsRoute: Hashable {
     case privacyAndData
     case modelBehavior
     case modelActivity
+    case modelDownload
     case textAndDisplay
     case conversationDefaults
     case userGuide
@@ -186,6 +189,7 @@ private struct SettingsHubView: View {
                 SettingsHubItem(title: "Privacy & Data", detail: "App lock, export, and import", iconName: "lock.shield", route: .privacyAndData)
             ]),
             ("Model", [
+                SettingsHubItem(title: "On-device Model", detail: "Download, readiness, and recovery", iconName: "arrow.down.circle", route: .modelDownload),
                 SettingsHubItem(
                     title: "Model Behavior",
                     detail: "Your name",
@@ -352,6 +356,7 @@ private struct SettingsDestinationView: View {
     @Binding var inputFont: ConversationFontOption
     @Binding var responseFont: ConversationFontOption
     @Binding var collectedDefinitions: [ConceptDefinition]
+    @Binding var guideSavedTerms: [String]
     let onReset: () -> Void
     var onClearInsightTree: () -> Void = {}
     var onSelectUserGuideTopic: (UserGuideTopic.ID) -> Void = { _ in }
@@ -368,6 +373,8 @@ private struct SettingsDestinationView: View {
             PrivacyAndDataSettingsView(onClearInsightTree: onClearInsightTree)
         case .modelBehavior:
             ModelBehaviorSettingsView(userName: $userName)
+        case .modelDownload:
+            ModelDownloadSettingsView()
         case .modelActivity:
             ModelActivitySettingsView()
         case .textAndDisplay:
@@ -380,10 +387,10 @@ private struct SettingsDestinationView: View {
         case .conversationDefaults:
             ConversationDefaultsSettingsView()
         case .userGuide:
-            UserGuideSettingsView(onSelectTopic: onSelectUserGuideTopic)
+            UserGuideSettingsView(onSelectTopic: onSelectUserGuideTopic, savedTerms: $guideSavedTerms)
         case .userGuideTopic(let id):
             if let topic = UserGuideTopic.topic(id: id) {
-                UserGuideTopicView(topic: topic, collectedDefinitions: $collectedDefinitions)
+                UserGuideTopicView(topic: topic, collectedDefinitions: $collectedDefinitions, savedTerms: $guideSavedTerms)
             }
         case .reportBug:
             SettingsInformationView(

@@ -44,6 +44,8 @@ struct ModelTasksCard: View {
                 }
             }
 
+            ModelDownloadStatusView(delivery: .shared)
+
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(modelTasks.allTasks.enumerated(), id: \.element.id) { index, task in
                     ModelTaskRow(
@@ -83,13 +85,13 @@ struct ModelTasksCard: View {
                     )
                 }
 
-                if modelTasks.allTasks.isEmpty {
+                if modelTasks.allTasks.isEmpty, [.ready, .development].contains(ModelDeliveryState.shared.phase) {
                     HStack(spacing: 4) {
                         Image(systemName: "circle.dotted")
                             .font(.system(size: 12, weight: .regular))
                             .frame(width: 12, height: 12)
 
-                        Text("Model is current idle...")
+                        Text("Model is currently idle...")
                             .font(.custom("Figtree-Regular", size: 14))
                             .lineLimit(1)
                     }
@@ -120,6 +122,7 @@ struct ModelTasksCard: View {
                 popupState.reset()
             }
         }
+        .task { await ModelDeliveryState.shared.refreshAvailability() }
         .onDisappear {
             dismissTask?.cancel()
         }

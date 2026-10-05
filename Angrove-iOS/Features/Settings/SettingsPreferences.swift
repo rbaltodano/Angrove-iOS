@@ -468,7 +468,7 @@ enum AngroveSystemNotifications {
     }
 
     static func postCompletedResponse(title: String) {
-        guard UserDefaults.standard.bool(
+        guard PrivatePreferences.standard.bool(
             forKey: SettingsStorageKey.completedResponseNotifications
         ) else {
             return

@@ -1,5 +1,11 @@
 import SwiftUI
 
+extension EnvironmentValues {
+    /// Decorative entrances wait until the app's boot mask has finished revealing the page.
+    @Entry var isBootRevealComplete = true
+    @Entry var homeVinePlayback: HomeVinePlaybackController? = nil
+}
+
 /// Keeps the destination mounted while its startup state is restored. The painted leaf grows
 /// once per shell lifetime; background model jobs do not hold the launch screen open.
 struct BootPresentation<Content: View>: View {
@@ -14,6 +20,7 @@ struct BootPresentation<Content: View>: View {
     @State private var hasFinishedReveal = false
     @State private var markOpacity = 0.0
     @State private var revealProgress = 0.0
+    @State private var homeVinePlayback = HomeVinePlaybackController()
 
     private var canReveal: Bool {
         isReady && hasFinishedGrowing && scenePhase == .active
@@ -24,6 +31,8 @@ struct BootPresentation<Content: View>: View {
             AngroveTheme.Colors.canvas.ignoresSafeArea()
 
             content
+                .environment(\.isBootRevealComplete, hasFinishedReveal)
+                .environment(\.homeVinePlayback, homeVinePlayback)
                 .offset(y: reduceMotion ? 0 : 32 * (1 - revealProgress))
                 .mask {
                     if hasFinishedReveal {

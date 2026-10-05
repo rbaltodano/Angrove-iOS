@@ -56,7 +56,7 @@ nonisolated struct LocalAngroveGroundingProvider: AngroveGroundingProviding {
             facts: "The first ecumenical council met at Nicaea in 325. It addressed the Arian controversy and confessed that the Son is consubstantial (homoousios) with the Father. Nicaea is the historical English spelling; modern İznik is the city at that site.",
             retrievalAliases: [
                 "first ecumenical council", "council of nicaea", "council of nicea",
-                "nicaea", "nicea", "nica", "nicene creed", "homoousios", "arian"
+                "nicaea", "nicea", "nicene creed", "homoousios", "arian"
             ]
         ),
         AngroveGroundingReference(
@@ -258,7 +258,7 @@ nonisolated struct LocalAngroveGroundingProvider: AngroveGroundingProviding {
         return Self.references
             .compactMap { reference -> (AngroveGroundingReference, Int)? in
                 let aliasScore = reference.retrievalAliases.reduce(into: 0) { score, alias in
-                    if normalizedQuestion.contains(Self.normalized(alias)) {
+                    if Self.contains(alias: Self.normalized(alias), in: normalizedQuestion) {
                         score += 12
                     }
                 }
@@ -301,7 +301,7 @@ nonisolated struct LocalAngroveGroundingProvider: AngroveGroundingProviding {
         return references
             .compactMap { reference -> (AngroveGroundingReference, Int)? in
                 let score = reference.retrievalAliases.reduce(into: 0) { score, alias in
-                    if normalizedQuestion.contains(normalized(alias)) {
+                    if contains(alias: normalized(alias), in: normalizedQuestion) {
                         score += alias.count
                     }
                 }
@@ -313,6 +313,25 @@ nonisolated struct LocalAngroveGroundingProvider: AngroveGroundingProviding {
             }
             .prefix(limit)
             .map(\.0)
+    }
+
+    /// Whether `alias` occurs in `text` starting at a word boundary. Aliases may still run on into
+    /// a longer word ("arian" matches "Arianism", "aquinas die" matches "died") but never begin
+    /// inside one: as a bare substring, "nica" matched "technical" and attached the Nicaea note
+    /// to a question about Sputnik, and "arian" matches "librarian" and "vegetarian".
+    private static func contains(alias: String, in text: String) -> Bool {
+        var searchStart = text.startIndex
+        while let range = text.range(of: alias, range: searchStart..<text.endIndex) {
+            if range.lowerBound == text.startIndex {
+                return true
+            }
+            let preceding = text[text.index(before: range.lowerBound)]
+            if !preceding.isLetter && !preceding.isNumber {
+                return true
+            }
+            searchStart = text.index(after: range.lowerBound)
+        }
+        return false
     }
 
     private static func normalized(_ text: String) -> String {

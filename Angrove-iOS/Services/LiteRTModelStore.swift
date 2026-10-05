@@ -46,9 +46,8 @@ nonisolated enum LiteRTModelStoreError: LocalizedError, Sendable {
     }
 }
 
-/// Resolves a post-install model before the development-only bundled seed. Production delivery
-/// writes the verified package to Application Support; the bundled path keeps device development
-/// usable while that downloader and hosting endpoint are brought online.
+/// Development resolves local artifacts synchronously. Release prepares the pinned Apple-hosted
+/// essential asset pack and verifies its bytes before the runtime uses its process-local URL.
 nonisolated struct LiteRTModelStore: Sendable {
     let manifest: LiteRTModelManifest
     private let developmentModelURL: URL?
@@ -59,6 +58,19 @@ nonisolated struct LiteRTModelStore: Sendable {
     ) {
         self.manifest = manifest
         self.developmentModelURL = developmentModelURL
+    }
+
+    var usesAppleHostedDelivery: Bool {
+        developmentModelURL == nil && Bundle.main.object(forInfoDictionaryKey: "BAUsesAppleHosting") as? Bool == true
+    }
+
+    func preparedModelURL() async throws -> URL {
+#if DEBUG
+        // Keep source-checkout development and diagnostic overrides usable without an uploaded pack.
+        if let local = try? installedModelURL() { return local }
+#endif
+        guard usesAppleHostedDelivery else { return try installedModelURL() }
+        return try await AppleHostedModelDelivery.shared.prepareModel(manifest: manifest)
     }
 
     func installedModelURL() throws -> URL {
