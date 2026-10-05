@@ -46,3 +46,7 @@ Carthage/Build/
 
 # Claude Code
 .claude/
+
+# Python documentation/evidence tools
+__pycache__/
+*.pyc

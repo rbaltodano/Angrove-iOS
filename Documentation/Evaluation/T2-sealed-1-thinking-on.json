@@ -1,0 +1,66 @@
+{
+  "app_revision": "5cf05539ba7cd94b809eecf237f48a23ec9a9b51",
+  "cases": 40,
+  "categories": {
+    "definition": {
+      "cases": 7,
+      "objective_passed": 7
+    },
+    "multi-turn": {
+      "cases": 6,
+      "objective_passed": 6
+    },
+    "reasoning": {
+      "cases": 7,
+      "objective_passed": 7
+    },
+    "regression": {
+      "cases": 7,
+      "objective_passed": 6
+    },
+    "source": {
+      "cases": 7,
+      "objective_passed": 7
+    },
+    "uncertainty": {
+      "cases": 6,
+      "objective_passed": 5
+    }
+  },
+  "environment": "simulator CPU",
+  "finished_at": "2026-10-02T13:54:28Z",
+  "fixture_sha256": "17c6072492f141d3793f061fb42ed01904dd47e6746de696c46318038f23ac1a",
+  "host": "Apple M4 Pro; macOS 27.0.1",
+  "input_sha256": {
+    "completion": "5d80fc470f82ffceedd61a1f463f7b8fc92bd79f5a06aead97f1498a6a10b1be",
+    "results": "ba9d2bd715cf0a8857b9e61a562178632915a8b14ec4ce8f917cc21f766de622",
+    "scores": "3518cbd313106dae92aed23a976b5bbd04dda37898c34474fc2bb0236adc3ef7"
+  },
+  "limitations": [
+    "Previously used development sets; not an independent acceptance benchmark.",
+    "Objective pattern checks are not a complete assessment of correctness or usefulness.",
+    "Answer duration measures the eval adapter, not queue-to-visible UI latency.",
+    "Simulator results do not establish phone latency, memory, thermal or battery behavior."
+  ],
+  "median_answer_seconds": 47.631,
+  "model_bytes": 3659530240,
+  "model_sha256": "0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0",
+  "objective_passed": 38,
+  "os_version": "27.0",
+  "outcomes": {
+    "abstained": 1,
+    "incomplete_or_wrong": 1,
+    "pass": 38
+  },
+  "run_id": "T2-sealed-1-thinking-on",
+  "runtime_errors": 0,
+  "schema_version": 1,
+  "scorer": "v2",
+  "scorer_sha256": {
+    "heldout-v2-additions.json": "647bc27428abbc17bbd5a7d8e45a2734f1855765c684ace456b393dbb453d85b",
+    "score_objective.py": "54c1be52ee2480f425a8efc45cbb025aeb3193995f11dc2dcbdc41e6a2a449da",
+    "score_objective_v2.py": "72c5020dd561f44ff0faa2f70ec3b80dd909351b5922ea4eb8d3a6cc933348fa"
+  },
+  "started_at": "2026-10-02T13:26:04Z",
+  "thinking_enabled": true
+}
