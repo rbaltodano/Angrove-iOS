@@ -35,6 +35,8 @@ ideas. Ryan Baltodano is the solo builder across product design and engineering.
 | Start here | What it shows |
 | --- | --- |
 | [Technical case study](Documentation/Case-Study.md) | Product hypothesis, architecture decisions, tradeoffs and remaining validation |
+| [Historical model exploration](Documentation/Model-Exploration.md) | Gemma 4 12B and Qwen3-4B experiments, runtime constraints and grounding lessons |
+| [App Store release plan](Documentation/App-Store-Release-Plan.md) | Essential model delivery, owners, release gates and check-off schedule |
 | [Evaluation evidence](Documentation/Evaluation.md) | Four completed thinking-on/off comparisons, aggregate results and artifact hashes |
 | [Build and setup](Documentation/Development-Setup.md) | Requirements, missing assets, exact model manifest and useful checks |
 | [Architecture](Documentation/App-Architecture.md) | Runtime ownership, conversation identity and persistence boundaries |

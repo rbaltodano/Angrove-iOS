@@ -73,6 +73,28 @@ display, screenshots and Apple-managed backup protection are separate boundaries
 source integration and physical-device lock/backup restoration are still pending release work.
 See [coverage and recovery](Data-Encryption.md).
 
+## Models and runtimes explored
+
+The current architecture followed earlier, isolated experiments. On a base iPhone 17,
+**Gemma 4 12B in a 4.37 GB IQ2_M GGUF through llama.cpp Metal** generated short text with
+512-token context and chunked prefill, but its retained session terminated with signal 9 during
+a 40-second hold, correlated with system memory pressure. Loading a large model was not enough
+to establish a stable study session.
+
+**Qwen3-4B Q4_K_M through llama.cpp Metal** passed bounded multi-turn probes at 2K and 4K
+context and a 40-second resident hold. A research-only adapter also exercised it in the actual
+conversation UI. Fine-tuning work caught and corrected PDF article-boundary corruption;
+question/answer reformatting improved output form, but a citation test still fabricated source
+text. That supported prioritizing grounding and source-use evaluation rather than assuming a
+model replacement would solve factual reliability.
+
+The recorded Qwen tests used **Qwen3-4B**. **Qwen3.5** appears in a later candidate proposal;
+its results are not interchangeable with the tested model. These experiments were exploratory,
+not matched blind benchmarks. The 12B and Qwen work was shelved on September 25, 2026; no
+reruns were performed for this case study. Current development remains on Gemma 4 E4B and
+LiteRT-LM. [The historical exploration summary](Model-Exploration.md) records configurations,
+observations, decisions and source-document fingerprints.
+
 ## Evidence and what remains open
 
 The repo contains behavior tests for lifecycle ownership, retrieval, source locators, late-result

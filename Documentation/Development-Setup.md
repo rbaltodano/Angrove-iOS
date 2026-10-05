@@ -48,8 +48,9 @@ clustering; that is not the full Library experience shown in the screenshots.
 
 These directories are gitignored. Obtain the current development artifacts from the maintainer
 or reproduce them using the offline corpus/export tooling in
-[Angrove Backend](https://github.com/rbaltodano/Angrove-Backend). A self-service, versioned release
-asset download is still a launch requirement; a clean clone is not a one-step inference demo.
+[Angrove Backend](https://github.com/rbaltodano/Angrove-Backend). The selected release route is an Apple-hosted essential model pack; integration and TestFlight
+validation are still pending. See the [release checklist](App-Store-Release-Plan.md). A clean clone
+is not a one-step inference demo.
 Respect the model's terms and each corpus source's distribution terms.
 
 | Resource path | Purpose |
