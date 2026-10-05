@@ -3,6 +3,19 @@
 Read the cross-repository [`MODEL-INTEGRATION.md`](../../Aquinas-Foundations/MODEL-INTEGRATION.md)
 first. This document records iOS-specific runtime boundaries and validation rules.
 
+## Launch model
+
+- **Weights:** Google's stock Gemma 4 E4B QAT package, `gemma-4-E4B-it.litertlm`
+  (3,659,530,240 bytes, SHA-256 `0b2a8980…`), F32 GPU activations, MTP off, native thinking off.
+  The weights are **not fine-tuned**.
+- **Voice:** the default Scholarly personality prompt (the "learned friend" voice) in
+  `LiteRTAngroveModel.personalityInstruction`.
+- **Accuracy:** sealed set 2, 36/40, and held-out, 35/40, on an iPhone 17 (2026-10-01).
+  Evaluation kit and results: the private `Angrove-Eval` repository.
+- **Fine-tuned voice (post-launch):** a LoRA tune keeps accuracy at INT8 (6.6 GB, too large),
+  but every phone-sized conversion so far lost speed, memory headroom, or accuracy. Next step:
+  quantization-aware fine-tuning. See `Aquinas_Backend` `docs/Aquinas-Voice-Dataset.md`.
+
 ## Runtime selection
 
 `AngroveApplicationRuntime` selects `LiteRTAngroveModel` when a verified local package is
