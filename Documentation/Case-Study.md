@@ -16,6 +16,18 @@ map. Users choose which definitions become durable Insights; automatic analysis 
 broader Node Concept, but it does not silently save an Insight for them. The Library lets a user
 open source text rather than treat generated prose as an authority.
 
+## Current product captures
+
+The [October 5, 2026 screenshot set](Screenshots/case-study-2026-10-05/README.md) preserves seven
+owner-supplied originals. Home, the two conversations, and the Ancient Greek Politics map are
+shown in the [README gallery](../README.md#a-look-inside) and the
+[website case study](https://angrove.app/case-study.html). The set also includes two processing
+states and a mobile browser capture of the website User Guide's semantic-map explanation.
+
+The processing captures show a Nicaea source label beneath a space-race question. They document
+the visible interface state, not successful grounding or answer quality. Their displayed durations
+are not benchmark results.
+
 ## Constraints that shaped the architecture
 
 The app must run without a model server, preserve personal inquiry locally, and share a phone's

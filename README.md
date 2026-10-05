@@ -68,25 +68,30 @@ waiting for the on-device model.
 
 ## A look inside
 
+October 5, 2026 app captures: Home, a Peloponnesian War inquiry, a Homoousios conversation,
+and the Ancient Greek Politics map. Select an image to view it at full size.
+
 <p align="center">
-  <img src="Documentation/Screenshots/home-light.jpg" alt="Angrove Home in light mode" width="19%">
-  <img src="Documentation/Screenshots/conv-light.jpg" alt="Angrove conversation with annotated Insights in light mode" width="19%">
-  <img src="Documentation/Screenshots/library-light.jpg" alt="Angrove Library of primary sources in light mode" width="19%">
-  <img src="Documentation/Screenshots/menu-light.jpg" alt="Angrove side menu in light mode" width="19%">
-  <img src="Documentation/Screenshots/insight-tree-church-doctrine-authority.jpg" alt="Angrove Insight Tree" width="19%">
-</p>
-<p align="center">
-  <img src="Documentation/Screenshots/home-dark.jpg" alt="Angrove Home in dark mode" width="19%">
-  <img src="Documentation/Screenshots/conv-dark.jpg" alt="Angrove conversation with annotated Insights in dark mode" width="19%">
-  <img src="Documentation/Screenshots/library-dark.jpg" alt="Angrove Library of primary sources in dark mode" width="19%">
-  <img src="Documentation/Screenshots/menu-dark.jpg" alt="Angrove side menu in dark mode" width="19%">
-  <a href="Documentation/Screenshots/study-3d-demo.mp4"><img src="Documentation/Screenshots/study-3d.jpg" alt="Angrove Study mode showing a Node Concept and its Insights in 3D" width="19%"></a>
+  <a href="Documentation/Screenshots/case-study-2026-10-05/home.jpg"><img src="Documentation/Screenshots/case-study-2026-10-05/home.jpg" alt="Angrove Home with activity and a Question of the Day" width="23%"></a>
+  <a href="Documentation/Screenshots/case-study-2026-10-05/conversation-peloponnesian-war.jpg"><img src="Documentation/Screenshots/case-study-2026-10-05/conversation-peloponnesian-war.jpg" alt="Peloponnesian War inquiry with underlined concepts" width="23%"></a>
+  <a href="Documentation/Screenshots/case-study-2026-10-05/conversation-homoousios.jpg"><img src="Documentation/Screenshots/case-study-2026-10-05/conversation-homoousios.jpg" alt="Homoousios conversation with a contextual concept" width="23%"></a>
+  <a href="Documentation/Screenshots/case-study-2026-10-05/insight-map.jpg"><img src="Documentation/Screenshots/case-study-2026-10-05/insight-map.jpg" alt="Ancient Greek Politics map and saved Insight card" width="23%"></a>
 </p>
 
-The top row is light mode and the bottom row is dark mode. From left to right: the Home dashboard,
-a source-oriented conversation with contextual Insights, the Library of primary sources, the side
-menu, and the Insight Tree and Study mode (which shows a Node Concept and its Insights in 3D;
-select it for a short [demo video](Documentation/Screenshots/study-3d-demo.mp4)).
+[All seven new captures and their context](Documentation/Screenshots/case-study-2026-10-05/README.md)
+include the processing states and a mobile browser capture of the website's technical guide.
+
+Earlier captures show the Library, menu, dark appearance, and Study mode:
+
+<p align="center">
+  <img src="Documentation/Screenshots/library-light.jpg" alt="Angrove Library of primary sources in light mode" width="19%">
+  <img src="Documentation/Screenshots/menu-light.jpg" alt="Angrove side menu in light mode" width="19%">
+  <img src="Documentation/Screenshots/home-dark.jpg" alt="Earlier Angrove Home in dark mode" width="19%">
+  <img src="Documentation/Screenshots/conv-dark.jpg" alt="Earlier Angrove conversation in dark mode" width="19%">
+  <a href="Documentation/Screenshots/study-3d-demo.mp4"><img src="Documentation/Screenshots/study-3d.jpg" alt="Angrove Study mode with a Node Concept and its Insights in 3D" width="19%"></a>
+</p>
+
+Select the Study image for the existing [short demo video](Documentation/Screenshots/study-3d-demo.mp4).
 
 ## A note on privacy and current development
 
