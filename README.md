@@ -79,7 +79,7 @@ and the Ancient Greek Politics map. Select an image to view it at full size.
 </p>
 
 [All seven new captures and their context](Documentation/Screenshots/case-study-2026-10-05/README.md)
-include the processing states and a mobile browser capture of the website's technical guide.
+include expanded source details and two mobile browser captures of the website's technical guide.
 
 Earlier captures show the Library, menu, dark appearance, and Study mode:
 
