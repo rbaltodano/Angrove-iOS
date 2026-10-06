@@ -110,26 +110,61 @@ struct StudyBranchTests {
         #expect(tree.nodes.flatMap(\.insights).contains { $0.id == source.id })
     }
 
-    @Test("Long node titles leave every child unobstructed on a narrow phone", arguments: 2...6)
-    func nonoverlappingLayout(count: Int) {
-        let size = CGSize(width: 320, height: 420)
-        let nodeHeight: CGFloat = 160
-        let childHeight: CGFloat = 120
-        let center = CGPoint(x: size.width / 2, y: size.height / 2)
-        let node = CGRect(x: center.x - 130, y: center.y - nodeHeight / 2, width: 260, height: nodeHeight)
-        let childWidth: CGFloat = 260
-        let columns = StudyBranchAnimation.columns(count: count, width: size.width, childWidth: childWidth)
-        #expect(columns == 1)
-        let frames = (0..<count).map { index in
-            let point = StudyBranchAnimation.destination(index: index, count: count, size: size,
-                                                         nodeHeight: nodeHeight, childHeight: childHeight, columns: columns)
-            return CGRect(x: point.x - childWidth / 2, y: point.y - childHeight / 2,
-                          width: childWidth, height: childHeight)
-        }
-        for (index, frame) in frames.enumerated() {
-            #expect(!frame.intersects(node))
-            for other in frames.dropFirst(index + 1) { #expect(!frame.intersects(other)) }
-        }
+    @MainActor
+    @Test("Branch hands children, their connectors, and the parent edge to the normal renderer")
+    func finishedConnectors() {
+        let state = InsightTreeRevealState()
+        let childIDs: Set<UUID> = [UUID(), UUID()]
+        let nodeIDs: Set<UUID> = [UUID(), UUID()]
+        state.completeBranch(childIDs: childIDs, nodeIDs: nodeIDs, graphEdgeIDs: ["parent-to-branch"])
+        #expect(state.revealedInsightIDs == childIDs)
+        #expect(state.revealedInsightConnectorIDs == childIDs)
+        #expect(state.revealedNodeIDs == nodeIDs)
+        #expect(state.revealedGraphEdgeIDs.contains("parent-to-branch"))
     }
 
+    @MainActor
+    @Test("Generated children have measured semantic bonds before readiness, including after reopening")
+    func semanticChildBonds() async throws {
+        let source = concept(), scope = UUID()
+        let provider = BranchEmbeddingProvider()
+        let tree = InsightTreeViewModel(insights: [source], model: MockAngroveModel(),
+            embeddingProvider: provider, midpointStoreScope: scope)
+        await tree.prepareSemanticTree()
+        tree.reserveMakeNodeGeneration(for: source.id, branchCount: 3)
+        try await tree.generateReservedMakeNodeChildren(for: InsightModel(concept: source))
+        let nodeID = tree.promotedNodeID(for: source.id)
+        let children = try #require(tree.nodes.first { $0.id == nodeID }?.insights)
+        #expect(children.allSatisfy { $0.embeddingVersion == provider.version && $0.distanceToNode != nil })
+        let lengths = try children.map { try #require(tree.insightBondLengths[$0.id]) }
+        #expect(lengths[0] < lengths[1] && lengths[1] < lengths[2])
+        let parentEdges = Set(tree.edges.map(\.id))
+        let restored = InsightTreeViewModel(insights: [source], promotedInsightIDs: [source.id],
+            model: MockAngroveModel(), embeddingProvider: provider, midpointStoreScope: scope)
+        await restored.prepareSemanticTree()
+        #expect(restored.insightBondLengths == tree.insightBondLengths)
+        #expect(Set(restored.edges.map(\.id)) == parentEdges)
+    }
+
+    @Test("The burst uses the actual semantic bond radius rather than row spacing", arguments: 2...6)
+    func semanticBurstLayout(count: Int) {
+        for index in 0..<count {
+            let radius = CGFloat(150 + index * 30)
+            let point = StudyBranchAnimation.offset(index: index, count: count, bondLength: radius)
+            #expect(abs(hypot(point.x, point.y) - radius) < 0.00001)
+        }
+        let extent = StudyBranchAnimation.extent(offsets: [CGPoint(x: 150, y: -300)],
+            nodeHeight: 160, childSize: CGSize(width: 260, height: 60))
+        #expect(extent.width >= 560 && extent.height >= 660)
+    }
+}
+
+private struct BranchEmbeddingProvider: EmbeddingProvider {
+    var version: String { "test.branch.relatedness.v1" }
+    func embed(_ text: String) async -> [Double]? {
+        if text.hasPrefix("Fundamental point 1") { return [0.99, 0.1] }
+        if text.hasPrefix("Fundamental point 2") { return [0.8, 0.6] }
+        if text.hasPrefix("Fundamental point 3") { return [0.4, 0.9] }
+        return [1, 0]
+    }
 }

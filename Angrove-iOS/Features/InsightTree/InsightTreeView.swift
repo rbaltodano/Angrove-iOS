@@ -574,6 +574,10 @@ struct InsightTreeView: View {
                     setStudyToolsOpen(false)
                     if let source = studyBranchSource,
                        let node = viewModel.nodes.first(where: { $0.id == viewModel.promotedNodeID(for: source.id) }) {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            studySubject = .node(node)
+                            studyBranchSource = nil
+                        }
                         showNodeCard(node)
                     }
                 }

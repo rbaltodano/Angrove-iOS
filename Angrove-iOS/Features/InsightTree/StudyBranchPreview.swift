@@ -9,6 +9,13 @@ struct StudyBranchPreviewView: View {
     @State private var finished = false
     @State private var children: [InsightModel] = []
     @State private var runID = UUID()
+    @State private var parentID = UUID()
+    @State private var branchNodeID = UUID()
+    @State private var source = InsightModel(title: "Connected Ideas", definition: "Branch preview source.")
+
+    private var usesTree: Bool {
+        ProcessInfo.processInfo.arguments.contains("--study-branch-preview-tree")
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,7 +27,10 @@ struct StudyBranchPreviewView: View {
             }
             .foregroundStyle(AngroveTheme.Colors.primaryReadable)
             .padding()
-            StudyBranchScene(
+            if usesTree {
+                treePreview.id(runID)
+            } else {
+                StudyBranchScene(
                 sourceTitle: ProcessInfo.processInfo.arguments.contains("--study-branch-preview-long-title")
                     ? "Understanding how foundational assumptions connect to complex ideas"
                     : "Understanding how ideas connect",
@@ -32,6 +42,7 @@ struct StudyBranchPreviewView: View {
                 onInsightTapped: { _ in }
             )
             .id(runID)
+            }
             StudyToolCard()
                 .padding(.horizontal, 16)
             StudyBranchDockControls(
@@ -49,6 +60,49 @@ struct StudyBranchPreviewView: View {
                 confirm()
             }
         }
+    }
+
+    private var treePreview: some View {
+        GeometryReader { geometry in
+            InsightTreeCanvasView(
+                nodes: previewNodes,
+                edges: promoted ? [EdgeModel(id: parentID, fromNodeID: parentID,
+                    toNodeID: branchNodeID, distance: 0.5, isSuggested: false, showSuggestButton: false)] : [],
+                restoreFocusedCameraRequest: 0,
+                focusedInsightID: nil,
+                focusedSearchNodeID: nil,
+                pulsingInsightID: nil,
+                pulsingNodeID: nil,
+                selectedCanvasTargets: [],
+                selectionPulseRequest: 0,
+                makeNodeChildIDs: Set(children.map(\.id)),
+                generatedMakeNodeChildIDs: ready ? Set(children.map(\.id)) : [],
+                insightBondLengths: Dictionary(uniqueKeysWithValues: children.enumerated().map { index, child in
+                    (child.id, CGFloat(150 + index * 180 / max(count - 1, 1)))
+                }),
+                showsAllClusterInsights: true,
+                onNodeTapped: { _ in },
+                onInsightTapped: { _ in },
+                onCanvasMoved: {},
+                onSuggestConnection: { _ in },
+                onDismissSuggestedNode: { _ in },
+                studyNodeID: finished ? branchNodeID : parentID,
+                studySlot: CGRect(x: geometry.size.width / 2 - 150,
+                    y: geometry.size.height / 2 - 150, width: 300, height: 300),
+                studyBranchSource: finished ? nil : source,
+                studyBranchNodeID: branchNodeID,
+                studyBranchIsPromoted: promoted,
+                onStudyBranchFinished: { finished = true }
+            )
+        }
+    }
+
+    private var previewNodes: [NodeModel] {
+        let parent = NodeModel(id: parentID, conceptLabel: "Old Parent", insights: promoted ? [] : [source],
+            embedding: [1, 0], position: CGPoint(x: -340, y: 0), isSuggested: false)
+        guard promoted else { return [parent] }
+        return [parent, NodeModel(id: branchNodeID, conceptLabel: source.title, insights: children,
+            embedding: [0.7, 0.3], position: .zero, isSuggested: false)]
     }
 
     private static var previewCount: Int {

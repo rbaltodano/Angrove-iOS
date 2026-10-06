@@ -290,6 +290,14 @@ final class InsightTreeViewModel: ObservableObject {
         let originalInsights = insights
         let originalSeeds = localSeedAnchors
         let corrected = await ensureEmbeddings(for: originalInsights)
+        let originalChildren = generatedChildInsights
+        var correctedChildren = originalChildren
+        for (nodeID, children) in originalChildren {
+            guard let sourceID = promotedSourceInsightID(forNodeID: nodeID),
+                  let source = corrected.first(where: { $0.id == sourceID })
+                    ?? placedMidpoints.first(where: { $0.concept.id == sourceID }).map({ InsightModel(concept: $0.concept) }) else { continue }
+            correctedChildren[nodeID] = await preparedChildren(children, source: source)
+        }
         var correctedSeeds: [LocalInsightTreeSeed] = []
         for seed in originalSeeds {
             if seed.embedding != nil,
@@ -305,10 +313,14 @@ final class InsightTreeViewModel: ObservableObject {
             }
         }
         guard generation == embeddingRefreshGeneration,
-              insights == originalInsights, localSeedAnchors == originalSeeds else { return }
-        guard corrected != insights || correctedSeeds != localSeedAnchors else { return }
+              insights == originalInsights, localSeedAnchors == originalSeeds,
+              generatedChildInsights == originalChildren else { return }
+        guard corrected != insights || correctedSeeds != localSeedAnchors
+                || correctedChildren != generatedChildInsights else { return }
         insights = corrected
         localSeedAnchors = correctedSeeds
+        generatedChildInsights = correctedChildren
+        persistMakeNodeChildren()
         rebuildTree()
     }
 
@@ -322,6 +334,25 @@ final class InsightTreeViewModel: ObservableObject {
             next[index].embeddingVersion = embeddingProvider.version
         }
         return next
+    }
+
+    /// Generated children bypass ordinary membership preparation, but still need the same
+    /// vector space before their connector lengths can represent relatedness to their parent.
+    private func preparedChildren(_ children: [InsightModel], source: InsightModel) async -> [InsightModel] {
+        let parent = await ensureEmbeddings(for: [source])[0]
+        var children = await ensureEmbeddings(for: children)
+        for index in children.indices {
+            guard let vector = children[index].embedding, !vector.isEmpty,
+                  let parentVector = parent.embedding, vector.count == parentVector.count else {
+                children[index].distanceToNode = nil
+                children[index].relatednessToNode = nil
+                continue
+            }
+            let distance = semanticDistance(vector, parentVector)
+            children[index].distanceToNode = distance
+            children[index].relatednessToNode = 1 - distance
+        }
+        return children
     }
 
     /// Commits the canvas's live-simulated positions back into the model and persists them.
@@ -562,10 +593,15 @@ final class InsightTreeViewModel: ObservableObject {
     private func recomputeBondLengths(for nodes: [NodeModel]) {
         var lengths: [UUID: CGFloat] = [:]
         for node in nodes where !placedMidpointNodeIDs.contains(node.id) {
-            let distances: [(id: UUID, distance: Double)] = canvasInsights(for: node).map { insight in
-                let dist = insight.distanceToNode
-                    ?? semanticDistance(insight.embedding ?? [], node.embedding)
-                return (insight.id, dist)
+            let distances: [(id: UUID, distance: Double)] = canvasInsights(for: node).compactMap { insight in
+                if let distance = insight.distanceToNode { return (insight.id, distance) }
+                guard let vector = insight.embedding, !vector.isEmpty,
+                      vector.count == node.embedding.count else {
+                    // Missing embeddings mean unknown relatedness, not maximum separation.
+                    lengths[insight.id] = 190
+                    return nil
+                }
+                return (insight.id, semanticDistance(vector, node.embedding))
             }
             let range = distances.map(\.distance)
             guard let minDist = range.min(), let maxDist = range.max(), maxDist > minDist else {
@@ -889,7 +925,7 @@ final class InsightTreeViewModel: ObservableObject {
                     position: restoredPosition(for: nodeID) ?? placed.position,
                     isSuggested: false, suggestedInsights: nil))
                 for parentID in parentIDs {
-                    edges.append(EdgeModel(id: UUID(), fromNodeID: parentID, toNodeID: nodeID,
+                    edges.append(EdgeModel(id: stableUUID(from: "branch-parent:\(parentID):\(nodeID)"), fromNodeID: parentID, toNodeID: nodeID,
                                            distance: 0.18, isSuggested: false, showSuggestButton: false))
                 }
                 continue
@@ -928,7 +964,7 @@ final class InsightTreeViewModel: ObservableObject {
             nodes.append(promotedNode)
             edges.append(
                 EdgeModel(
-                    id: UUID(),
+                    id: stableUUID(from: "promotion-parent:\(sourceNode.id):\(promotedNodeID)"),
                     fromNodeID: sourceNode.id,
                     toNodeID: promotedNodeID,
                     distance: 0.18,
@@ -1103,12 +1139,18 @@ final class InsightTreeViewModel: ObservableObject {
             childGenerationInFlight.remove(promotedNodeID)
             throw AngroveModelActionError.invalidResponse
         }
-        let children = generated.enumerated().map { index, concept in
+        let rawChildren = generated.enumerated().map { index, concept in
             return InsightModel(
                 id: makeNodeChildID(for: promotedNodeID, index: index),
                 title: concept.word,
                 definition: concept.meaning
             )
+        }
+        let children = await preparedChildren(rawChildren, source: insight)
+        try Task.checkCancellation()
+        guard promotedInsightIDs.contains(insight.id) else {
+            childGenerationInFlight.remove(promotedNodeID)
+            return
         }
         generatedChildInsights[promotedNodeID] = children
         persistMakeNodeChildren()

@@ -29,7 +29,7 @@ enum InsightTreeStackSpace {
 struct StudyFraming {
     /// The Node Concept's position on the graph plane.
     let nodeCenter: SIMD3<Double>
-    /// Radius of the Insight sphere: the cluster's mean bond, so the sphere matches the tree.
+    /// Reference radius for camera/ring framing. Each Insight keeps its own semantic bond length.
     let radius: Double
     /// The Study slot, in the canvas's own coordinates.
     let slot: CGRect
@@ -81,6 +81,7 @@ struct StudyFraming {
         yaw: Double = 0,
         pan: CGSize = .zero,
         zoom: CGFloat = 1,
+        endPitch: Double = Self.studyPitch,
         pivot: SIMD3<Double>? = nil,
         pivotBlend: Double = 0,
         targetShift: SIMD3<Double> = .zero
@@ -101,7 +102,7 @@ struct StudyFraming {
             // A focused Insight is centered, so any shift eases out as the focus eases in.
             target: center + targetShift * (1 - blend) * p,
             yaw: yaw * p,
-            pitch: lerp(start.pitch, Self.studyPitch),
+            pitch: lerp(start.pitch, endPitch),
             distance: lerp(start.distance, studyDistance),
             // Zoom interpolates geometrically so the move feels even at both ends.
             zoom: start.zoom * pow(fitZoom / max(start.zoom, 1e-6), p),

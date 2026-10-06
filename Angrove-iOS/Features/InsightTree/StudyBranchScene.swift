@@ -9,6 +9,7 @@ struct StudyBranchScene: View {
     let isPromoted: Bool
     let children: [InsightModel]
     let isReady: Bool
+    var childOffsets: [UUID: CGPoint] = [:]
     let onFinished: () -> Void
     let onInsightTapped: (InsightModel) -> Void
 
@@ -26,27 +27,26 @@ struct StudyBranchScene: View {
         GeometryReader { proxy in
             let center = CGPoint(x: proxy.size.width / 2, y: proxy.size.height / 2)
             let origin = hasCentered ? center : initialPosition
-            let columns = StudyBranchAnimation.columns(count: children.count, width: proxy.size.width, childWidth: childWidth)
-            let topCount = max(children.count / 2, 1)
-            let rows = Int(ceil(Double(topCount) / Double(columns)) + ceil(Double(max(children.count - topCount, 0)) / Double(columns)))
-            let contentHeight = nodeHeight + CGFloat(rows) * (childHeight + 16) + 48
-            let planeWidth = max(proxy.size.width, (childWidth + 24) * CGFloat(columns) + 40)
-            let planeSize = CGSize(width: planeWidth, height: proxy.size.height)
-            let fitScale = min(1, proxy.size.height / max(contentHeight, 1), proxy.size.width / planeWidth)
+            let offsets = Dictionary(uniqueKeysWithValues: children.enumerated().map { index, child in
+                (child.id, childOffsets[child.id] ?? StudyBranchAnimation.offset(
+                    index: index, count: children.count, bondLength: 190))
+            })
+            let extent = StudyBranchAnimation.extent(offsets: Array(offsets.values),
+                nodeHeight: nodeHeight, childSize: CGSize(width: childWidth, height: childHeight))
+            let fitScale = min(1, (proxy.size.height - 32) / max(extent.height, 1),
+                               (proxy.size.width - 32) / max(extent.width, 1))
             ZStack {
                 ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
-                    let point = StudyBranchAnimation.destination(
-                        index: index, count: children.count, size: planeSize,
-                        nodeHeight: nodeHeight, childHeight: childHeight, columns: columns
-                    )
-                    let destination = CGPoint(x: point.x - planeWidth / 2 + center.x, y: point.y)
+                    let offset = offsets[child.id] ?? .zero
+                    let destination = CGPoint(x: center.x + offset.x, y: center.y + offset.y)
                     let released = releasedIDs.contains(child.id)
                     AnimatableLine(
                         start: CGPoint(x: center.x + recoil.width, y: center.y + recoil.height),
                         end: released ? destination : center
                     )
-                    .stroke(AngroveTheme.Colors.divider.opacity(0.55), lineWidth: 1)
+                    .stroke(AngroveTheme.Colors.primaryReadable.opacity(0.28), lineWidth: 1 / max(fitScale, 0.01))
                     .opacity(released ? 1 : 0)
+                    .frame(width: proxy.size.width, height: proxy.size.height)
                     .allowsHitTesting(false)
                     Button {
                         guard finished else { return }
@@ -108,11 +108,8 @@ struct StudyBranchScene: View {
                         catch { return }
                     }
                     guard !Task.isCancelled else { return }
-                    let point = StudyBranchAnimation.destination(
-                        index: index, count: children.count, size: planeSize,
-                        nodeHeight: nodeHeight, childHeight: childHeight, columns: columns
-                    )
-                    let destination = CGPoint(x: point.x - planeWidth / 2 + center.x, y: point.y)
+                    let offset = offsets[child.id] ?? .zero
+                    let destination = CGPoint(x: center.x + offset.x, y: center.y + offset.y)
                     let dx = destination.x - center.x, dy = destination.y - center.y
                     let length = max(hypot(dx, dy), 1)
                     let direction = CGVector(dx: dx / length, dy: dy / length)
@@ -168,24 +165,15 @@ enum StudyBranchAnimation {
     // A slow start, fast middle, and long deceleration: a burst rather than a spring bounce.
     static let burst = Animation.timingCurve(0.55, 0, 0.15, 1, duration: 0.65)
     static func releaseDelay() -> Double { Double.random(in: 0.1...0.25) }
-    static func columns(count: Int, width: CGFloat, childWidth: CGFloat) -> Int {
-        min(max((count + 1) / 2, 1), max(Int((width - 40) / (childWidth + 24)), 1))
+    static func offset(index: Int, count: Int, bondLength: CGFloat) -> CGPoint {
+        let angle = Double(index) / Double(max(count, 1)) * 2 * .pi + .pi / 8
+        return CGPoint(x: cos(angle) * bondLength, y: sin(angle) * bondLength)
     }
 
-    /// Balanced groups above and below the node use natural chip sizes. Narrow phones add
-    /// rows instead of shrinking several single-line titles into one crowded horizontal arc.
-    static func destination(index: Int, count: Int, size: CGSize,
-                            nodeHeight: CGFloat, childHeight: CGFloat, columns: Int = 3) -> CGPoint {
-        let topCount = max(count / 2, 1)
-        let isTop = index < topCount
-        let groupCount = isTop ? topCount : count - topCount
-        let groupIndex = isTop ? index : index - topCount
-        let row = groupIndex / max(columns, 1)
-        let rowCount = min(columns, groupCount - row * columns)
-        let column = groupIndex % max(columns, 1)
-        let x = size.width / 2 + (CGFloat(column) - CGFloat(rowCount - 1) / 2)
-            * (size.width - 40) / CGFloat(max(columns, 1))
-        let separation = (nodeHeight + childHeight) / 2 + 24 + CGFloat(row) * (childHeight + 16)
-        return CGPoint(x: x, y: size.height / 2 + (isTop ? -separation : separation))
+    /// Fit one connected cluster without altering the relative length of any of its bonds.
+    static func extent(offsets: [CGPoint], nodeHeight: CGFloat, childSize: CGSize) -> CGSize {
+        let halfWidth = max(138, offsets.map { abs($0.x) + childSize.width / 2 }.max() ?? 0)
+        let halfHeight = max(nodeHeight / 2, offsets.map { abs($0.y) + childSize.height / 2 }.max() ?? 0)
+        return CGSize(width: halfWidth * 2 + 16, height: halfHeight * 2 + 16)
     }
 }

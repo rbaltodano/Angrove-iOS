@@ -36,6 +36,15 @@ final class InsightTreeRevealState {
         let orbitIndex: Int
     }
 
+    /// Branch has its own entrance. Hand its finished topology back to the ordinary renderer
+    /// with both kinds of connectors visible, without scheduling a second reveal tour.
+    func completeBranch(childIDs: Set<UUID>, nodeIDs: Set<UUID>, graphEdgeIDs: Set<String>) {
+        revealedInsightIDs.formUnion(childIDs)
+        revealedInsightConnectorIDs.formUnion(childIDs)
+        revealedNodeIDs.formUnion(nodeIDs)
+        revealedGraphEdgeIDs.formUnion(graphEdgeIDs)
+    }
+
     func cancelPendingAnimations() {
         entranceTask?.cancel()
         midpointRevealTask?.cancel()
