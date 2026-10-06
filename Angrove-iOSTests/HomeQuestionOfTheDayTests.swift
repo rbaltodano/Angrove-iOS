@@ -89,3 +89,82 @@ struct HomeQuestionOfTheDayTests {
         )
     }
 }
+
+@Suite("Question of the Day conversation selection")
+@MainActor
+struct DailyQuestionSourceSelectorTests {
+    private struct SeededGenerator: RandomNumberGenerator {
+        var state: UInt64 = 42
+
+        mutating func next() -> UInt64 {
+            state = state &* 6364136223846793005 &+ 1442695040888963407
+            return state
+        }
+    }
+
+    private func conversation(_ index: Int, answered: Bool = true) -> InquiryConversation {
+        var branch = ChatBranch(startingConcept: nil)
+        branch.topQuestionText = "What follows from idea \(index)?"
+        branch.topQuestionSubmitted = true
+        if answered {
+            branch.activeChatBlocks = [.text(String(repeating: "A substantive answer. ", count: 8))]
+        }
+        return InquiryConversation(
+            title: "Conversation \(index)",
+            branches: [branch],
+            createdAt: Date(timeIntervalSince1970: Double(index))
+        )
+    }
+
+    @Test("Random selection reaches all five newest conversations and excludes older ones")
+    func randomlySelectsWithinRecentWindow() throws {
+        let conversations = (0..<8).map { conversation($0) }
+        let expectedIDs = Set(conversations.suffix(5).map(\.id))
+        var generator = SeededGenerator()
+        var selectedIDs = Set<UUID>()
+        for _ in 0..<100 {
+            let source = try #require(DailyQuestionSourceSelector.select(
+                conversations: conversations,
+                savedInsights: [],
+                using: &generator
+            ))
+            #expect(expectedIDs.contains(source.conversation.id))
+            #expect(source.context.transcript.count == 2)
+            selectedIDs.insert(source.conversation.id)
+        }
+        #expect(selectedIDs == expectedIDs)
+    }
+
+    @Test("Fewer than five conversations use the available eligible sources")
+    func smallHistory() throws {
+        let answered = conversation(0)
+        let unanswered = conversation(1, answered: false)
+        var generator = SeededGenerator()
+        let source = try #require(DailyQuestionSourceSelector.select(
+            conversations: [unanswered, answered], savedInsights: [], using: &generator
+        ))
+        #expect(source.conversation.id == answered.id)
+        #expect(DailyQuestionSourceSelector.select(conversations: [], savedInsights: []) == nil)
+    }
+
+    @Test("Unanswered recent conversations never fall back to a sixth conversation")
+    func doesNotReachBeyondFive() {
+        let older = conversation(0)
+        let recent = (1...5).map { conversation($0, answered: false) }
+        #expect(DailyQuestionSourceSelector.select(
+            conversations: [older] + recent, savedInsights: []
+        ) == nil)
+    }
+
+    @Test("Study Topic containers do not consume the recent conversation window")
+    func excludesStudyTopics() throws {
+        let answered = conversation(0)
+        let unanswered = (1...4).map { conversation($0, answered: false) }
+        var topic = conversation(5)
+        topic.isStudyTopic = true
+        let source = try #require(DailyQuestionSourceSelector.select(
+            conversations: [topic] + unanswered + [answered], savedInsights: []
+        ))
+        #expect(source.conversation.id == answered.id)
+    }
+}

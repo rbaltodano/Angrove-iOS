@@ -5,7 +5,15 @@ uncommitted encryption, widget and other app work was preserved. This report is 
 approval. Distribution-signing evidence and the later [pre-TestFlight check](Preflight-Check.md)
 are recorded separately below.
 
-## Apple validation follow-up
+## Stable-Xcode validation passed
+
+The stable Xcode 27.0 build **27A266a** archive and App Store export succeeded from committed
+main **21ac6a6**. Apple validation then passed (`Validated Angrove-iOS`, `EXPORT SUCCEEDED`,
+exit 0), resolving the earlier beta-toolchain rejection for this run. Local distribution
+signatures/profiles/manifests passed; encryption declaration and TestFlight upload/processing
+remain separate gates. Current paths/hash are in [the handoff](TestFlight-Handoff.md).
+
+## Earlier Apple validation follow-up
 
 App record **6819392752** now exists and authenticated lookup matches the bundle ID. The next
 validation attempt failed with **Unsupported SDK or Xcode version** for Xcode 27.0 beta

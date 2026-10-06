@@ -144,9 +144,8 @@ struct LiteRTAngroveModel: AngroveModel {
         factualAccuracyAuditNeeded(for: question)
     }
 
-    /// The corpus is required for claims that need a verifiable source. Ordinary definitions,
-    /// reflections, practical discussion, and hypotheticals are allowed to use the model's
-    /// general knowledge when retrieval has no relevant passage.
+    /// Require passages for explicit source verification, quotations, attribution, and current
+    /// information. A topic's historical or technical vocabulary alone must not block discussion.
     static func requiresCorpusEvidence(_ question: String) -> Bool {
         let normalized = question
             .folding(
@@ -157,34 +156,17 @@ struct LiteRTAngroveModel: AngroveModel {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return false }
 
-        if let definitionTerm = definitionRequestTerm(in: [.user(question, nil, [])]),
-           requiresSpecialistDefinitionEvidence(definitionTerm) {
-            return true
-        }
-
-        let sourceDependentTerms = [
-            "quote", "quotation", "according to", "citation", "source", "authorship",
-            "author", "wrote", "written by", "date", "year", "century", "how many",
-            "current", "latest", "today", "council", "nicaea", "chalcedon", "trent",
-            "creed", "catechism", "canon", "scripture", "bible", "gospel", "chapter",
-            "verse", "summa", "didache", "encyclical", "document", "decree", "history",
-            "historical", "war", "battle", "revolution", "empire", "reign", "happened",
-            "occurred"
+        let sourceRequests = [
+            #"\b(quote|quotation|citation|cite|authorship)\b"#,
+            #"\b(give|show|provide|find|check|verify|identify|name|what|which|where)\b.{0,60}\bsources?\b"#,
+            #"\baccording to\b"#,
+            #"\b(who (wrote|authored)|written by|author of)\b"#,
+            #"\b(current|latest|up.to.date)\b"#,
+            #"\bwhat (does|do|did) .+ (say|state)\b"#
         ]
-        if sourceDependentTerms.contains(where: normalized.contains) {
-            return true
+        return sourceRequests.contains {
+            normalized.range(of: $0, options: .regularExpression) != nil
         }
-
-        if normalized.hasPrefix("who was ")
-            || normalized.hasPrefix("who is ")
-            || normalized.hasPrefix("when did ")
-            || normalized.hasPrefix("when was ")
-            || normalized.hasPrefix("where did ")
-            || normalized.hasPrefix("where was ") {
-            return true
-        }
-
-        return false
     }
 
     /// Whether the references are about what a source-dependent question names. True when the
@@ -229,17 +211,6 @@ struct LiteRTAngroveModel: AngroveModel {
             }
             return name
         }
-    }
-
-    /// The compact on-device model is reliable for ordinary definitions, but not for unfamiliar,
-    /// highly technical labels when retrieval has no direct evidence. Require a passage for those
-    /// terms rather than presenting a fluent invented definition as knowledge.
-    static func requiresSpecialistDefinitionEvidence(_ term: String) -> Bool {
-        let words = term.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
-        guard words.count == 1, let word = words.first else { return false }
-        let normalized = word.lowercased()
-        return normalized.count >= 16
-            || (normalized.count >= 12 && normalized.hasSuffix("ism"))
     }
 
     static func isAuditMetaCommentary(_ text: String) -> Bool {
@@ -894,17 +865,23 @@ struct LiteRTAngroveModel: AngroveModel {
     func generateChildren(
         for concept: ConceptDefinition
     ) async throws -> [ConceptDefinition] {
+        try await generateChildren(for: concept, count: 3)
+    }
+
+    func generateChildren(for concept: ConceptDefinition, count: Int) async throws -> [ConceptDefinition] {
+        guard (2...6).contains(count) else { throw AngroveModelActionError.invalidRequest }
         let prompt = """
         <TASK:MAKE_NODE_CHILDREN>
-        Generate exactly three distinct, elementary concepts that are one conceptual level below
+        Generate exactly \(count) distinct, elementary concepts that are one conceptual level below
         the parent Node Concept. Choose the closest and most directly related subordinate concepts
         possible: foundational ideas that define the parent's conceptual structure and are
         narrower in scope than the parent. Each child must be meaningful as an independent Insight,
         not merely an explanation, example, application, consequence, benefit, study aid, loose
         association, renaming, or restatement. Give each definition in one concise sentence.
         Return JSON only:
-        {"children":[{"title":"...","definition":"..."},{"title":"...","definition":"..."},
-        {"title":"...","definition":"..."}]}
+        {"children":[{"title":"...","definition":"..."}]}
+        The children array must contain exactly \(count) entries. Decompose the parent's idea
+        into its more fundamental points; do not broaden it into nearby or associated topics.
 
         Parent:
         \(Self.jsonString(DefinitionSource(
@@ -916,12 +893,16 @@ struct LiteRTAngroveModel: AngroveModel {
         do {
             let raw = try await generateStructured(prompt)
             let response: ChildrenPayload = try Self.decodeJSON(raw)
-            guard response.children.count == 3 else {
+            guard response.children.count == count else {
                 throw AngroveModelActionError.invalidResponse
             }
-            return try response.children.map {
-                try $0.validatedConcept()
+            let children = try response.children.map { try $0.validatedConcept() }
+            let titles = children.map { $0.word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            guard Set(titles).count == count,
+                  !titles.contains(concept.word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()) else {
+                throw AngroveModelActionError.invalidResponse
             }
+            return children
         } catch {
             if Task.isCancelled { throw CancellationError() }
             throw error
@@ -1261,8 +1242,19 @@ private extension LiteRTAngroveModel {
         let startsFreshTopic: Bool
     }
 
+    static let modelIdentityInstruction = """
+    You are Gemma 4, an open-weight language model developed by Google, running through the
+    Angrove harness. Angrove is the app and harness that supplies your study-partner role,
+    instructions, conversation context, retrieved sources, and application tools; it is not a
+    separate model or the creator of your underlying model. When asked who you are or what model
+    powers you, state this distinction plainly. Do not claim to be a proprietary Angrove model.
+    Do not introduce yourself or repeat this identity in ordinary answers unless it is relevant.
+    """
+
     static let neutralStructuredSystem = """
-    You are Angrove performing a neutral application operation. Follow the task contract exactly.
+    \(modelIdentityInstruction)
+
+    You are performing a neutral application operation. Follow the task contract exactly.
     Return only the requested JSON or prose, with no markdown fence, preamble, persona, or hidden
     reasoning. Be precise, concise, and honest about what the supplied context supports.
     """
@@ -1368,8 +1360,9 @@ private extension LiteRTAngroveModel {
         let groundedContext = groundingReferences.isEmpty
             ? """
             No corpus passage was retrieved for this question. Give a normal, useful answer from
-            your general knowledge when the question is a definition, reflection, practical
-            discussion, or hypothetical. Do not present general knowledge as a quotation or as
+            your general knowledge, including for historical and scientific discussion, definitions,
+            reflections, practical discussion, and hypotheticals. Engage with the user’s argument
+            and the conversation’s question even when no passage covers the topic. Do not present general knowledge as a quotation or as
             source-backed evidence, and state uncertainty only when a particular claim is truly
             uncertain.
             """
@@ -1384,8 +1377,9 @@ private extension LiteRTAngroveModel {
             page, or other locator from memory. Prefer plain prose without a citation when one is
             unnecessary. Never merge distinct councils or works, replace an exact name with a
             guessed name, or fabricate a citation, quotation, or detail not present in the passage.
-            If the passages do not establish a requested fact
-            and you are uncertain, say so plainly instead of inventing an answer. Do not mention
+            If no passage applies, engage with the question or reflection using your general knowledge.
+            Missing passages alone are not a reason to refuse. Distinguish the user’s interpretation
+            from established facts, and qualify particular claims when you are uncertain. Do not mention
             retrieval or these internal notes unless the user asks about sources.
             """
         let authorityEvidenceInstruction = authorityEvidenceFirst ? """
@@ -1396,7 +1390,9 @@ private extension LiteRTAngroveModel {
         sounds plausible. A concise, faithful answer is better than a broader but unsupported one.
         """ : ""
         return """
-        You are Angrove, a philosophical study partner. Follow the logic with intellectual charity.
+        \(modelIdentityInstruction)
+
+        Your role in Angrove is a philosophical study partner. Follow the logic with intellectual charity.
         Treat earlier claims as revisable: when the user's reasoning defeats a premise, exposes a
         contradiction, supplies decisive evidence, or introduces a better distinction, explicitly
         revise the affected conclusion and carry that revision through dependent claims. Do not
@@ -1481,84 +1477,6 @@ private extension LiteRTAngroveModel {
                 keyTerms: []
             )
         }
-        let referenceIDs = Set(references.map(\.id))
-
-        if normalized.contains("second ecumenical council"),
-           referenceIDs.contains("constantinople-381") {
-            return ModelResponse(
-                text: "The second ecumenical council was the First Council of Constantinople, held in 381. It reaffirmed the faith of Nicaea and clarified the Church's teaching on the divinity of the Holy Spirit, contributing to the Nicene-Constantinopolitan Creed.",
-                thinkingSummary: thinkingEnabled ? [
-                    "Checking the established sequence: Nicaea in 325 was first, Constantinople in 381 was second, and Nicaea II in 787 was seventh."
-                ] : [],
-                keyTerms: [
-                    KeyTerm(
-                        displayText: "First Council of Constantinople",
-                        canonicalTerm: "First Council of Constantinople",
-                        contextExcerpt: "The second ecumenical council was the First Council of Constantinople, held in 381."
-                    ),
-                    KeyTerm(
-                        displayText: "Nicene-Constantinopolitan Creed",
-                        canonicalTerm: "Nicene-Constantinopolitan Creed",
-                        contextExcerpt: "contributing to the Nicene-Constantinopolitan Creed."
-                    )
-                ]
-            )
-        }
-
-        if normalized.contains("first ecumenical council"),
-           referenceIDs.contains("nicaea-325") {
-            return ModelResponse(
-                text: "The first ecumenical council was the First Council of Nicaea, held in 325. It addressed the Arian controversy and confessed that the Son is consubstantial with the Father.",
-                thinkingSummary: thinkingEnabled ? [
-                    "Checking the council's established name, date, place in the sequence, and central doctrinal question."
-                ] : [],
-                keyTerms: [
-                    KeyTerm(
-                        displayText: "First Council of Nicaea",
-                        canonicalTerm: "First Council of Nicaea",
-                        contextExcerpt: "The first ecumenical council was the First Council of Nicaea, held in 325."
-                    )
-                ]
-            )
-        }
-
-        if normalized.contains("seventh ecumenical council"),
-           referenceIDs.contains("nicaea-787") {
-            return ModelResponse(
-                text: "The seventh ecumenical council was the Second Council of Nicaea, held in 787. It defended the veneration of sacred images against iconoclasm.",
-                thinkingSummary: thinkingEnabled ? [
-                    "Distinguishing Nicaea II in 787 from Nicaea in 325 and Constantinople in 381."
-                ] : [],
-                keyTerms: [
-                    KeyTerm(
-                        displayText: "Second Council of Nicaea",
-                        canonicalTerm: "Second Council of Nicaea",
-                        contextExcerpt: "The seventh ecumenical council was the Second Council of Nicaea, held in 787."
-                    )
-                ]
-            )
-        }
-
-        if normalized.contains("didache"),
-           (normalized.contains("author")
-                || normalized.contains("written")
-                || normalized.contains("paul")),
-           referenceIDs.contains("didache-authorship") {
-            return ModelResponse(
-                text: "The Didache is anonymous: its author is unknown, and it is not known to have been written by the Apostle Paul. It is an early Christian church-order and teaching text, also called the Teaching of the Twelve Apostles.",
-                thinkingSummary: thinkingEnabled ? [
-                    "Separating the work's traditional title from what the surviving evidence establishes about its authorship."
-                ] : [],
-                keyTerms: [
-                    KeyTerm(displayText: "Didache", canonicalTerm: "Didache"),
-                    KeyTerm(
-                        displayText: "Teaching of the Twelve Apostles",
-                        canonicalTerm: "Teaching of the Twelve Apostles"
-                    )
-                ]
-            )
-        }
-
         return nil
     }
 
@@ -2335,13 +2253,7 @@ private extension LiteRTAngroveModel {
         var seen = Set<String>()
         return references.compactMap { reference in
             guard seen.insert(reference.id).inserted else { return nil }
-            return GroundingSourceSummary(
-                id: reference.id,
-                title: reference.title,
-                sourceName: reference.sourceName,
-                passage: reference.facts.trimmingCharacters(in: .whitespacesAndNewlines),
-                sourceID: reference.sourceID
-            )
+            return GroundingSourceSummary(reference: reference)
         }
     }
 

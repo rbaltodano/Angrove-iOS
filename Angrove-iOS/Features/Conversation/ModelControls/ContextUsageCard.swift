@@ -18,6 +18,32 @@ final class ContextCardState {
     var dragY: CGFloat = 0
     var compactTask: Task<Void, Never>?
 
+    func beginAutomaticCompaction() {
+        withAnimation(.springStandard) {
+            isOpen = true
+            isCompacting = true
+            isCompactionComplete = false
+            dragY = 0
+        }
+    }
+
+    func finishAutomaticCompaction(succeeded: Bool) {
+        guard isCompacting else { return }
+        guard succeeded else {
+            withAnimation(.springStandard) { isCompacting = false }
+            return
+        }
+        withAnimation(.easeInOut(duration: 0.18)) { isCompactionComplete = true }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(1))
+            guard let self else { return }
+            withAnimation(.springStandard) { self.isOpen = false }
+            try? await Task.sleep(for: .milliseconds(450))
+            self.isCompacting = false
+            self.isCompactionComplete = false
+        }
+    }
+
     func reset() {
         compactTask?.cancel()
         isOpen = false

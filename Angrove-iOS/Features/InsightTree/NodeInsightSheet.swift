@@ -13,11 +13,13 @@ struct NodeInsightSheet: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 24) {
-                Text(node.conceptLabel)
-                    .font(.figtreeDisplay)
-                    .lineSpacing(8)
-                    .foregroundColor(AngroveTheme.Colors.primaryReadable)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                ConversationHeading(title: node.conceptLabel) { label in
+                    Text(label)
+                        .font(.figtreeDisplay)
+                        .lineSpacing(8)
+                        .foregroundColor(AngroveTheme.Colors.primaryReadable)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 ForEach(node.insights) { insight in
                     InsightTreeInsightCard(insight: insight)

@@ -722,6 +722,7 @@ struct LibraryView: View {
                     targetTitle: navigationRequest?.sourceTitle,
                     targetChunkIndex: targetChunkIndex,
                     targetScripture: targetScripture,
+                    navigationRequestID: navigationRequest?.id,
                     modelTasks: modelTasks,
                     modelTasksPopupState: modelTasksPopupState,
                     onOpenScripture: openScripture
@@ -783,13 +784,15 @@ struct LibraryView: View {
     }
 
     private func applyNavigationRequest(_ request: LibraryNavigationRequest) {
-        guard let work = works.first(where: {
-            $0.id == request.sourceID
-                || $0.title.caseInsensitiveCompare(request.sourceTitle) == .orderedSame
-                || $0.title.caseInsensitiveCompare(request.sourceName) == .orderedSame
-        }) else { return }
+        guard let work = works.first(where: { $0.id == request.sourceID })
+            ?? works.first(where: {
+                $0.title.caseInsensitiveCompare(request.sourceTitle) == .orderedSame
+                    || $0.title.caseInsensitiveCompare(request.sourceName) == .orderedSame
+            }) else { return }
         targetScripture = nil
-        targetChunkIndex = request.chunkIndex
+        targetChunkIndex = request.chunkIndex ?? request.resolvedChunkIndex(
+            in: BundledPassageCorpus.bundled()?.passages(forSource: work.id) ?? []
+        )
         selectedWorkID = work.id
     }
 
@@ -819,11 +822,18 @@ struct LibraryView: View {
 }
 
 private struct LibraryDocumentDetail: View {
+    private struct ReaderLocation: Equatable {
+        let workID: String
+        let chunkIndex: Int?
+        let scripture: LibraryTextFormatter.ScriptureTarget?
+        let requestID: UUID?
+    }
     private static let readerTopID = "reader-top"
     let work: LibraryWork
     let targetTitle: String?
     var targetChunkIndex: Int?
     var targetScripture: LibraryTextFormatter.ScriptureTarget?
+    let navigationRequestID: UUID?
     let modelTasks: ModelTaskQueue
     let modelTasksPopupState: ModelTasksPopupState
     let onOpenScripture: (LibraryTextFormatter.ScriptureTarget) -> Void
@@ -925,14 +935,21 @@ private struct LibraryDocumentDetail: View {
         .onDisappear {
             pageTransitionTask?.cancel()
         }
-        .task(id: work.id) {
+        .task(id: ReaderLocation(
+            workID: work.id,
+            chunkIndex: targetChunkIndex,
+            scripture: targetScripture,
+            requestID: navigationRequestID
+        )) {
+            pageTransitionTask?.cancel()
             isPageTextVisible = false
             // Outlining a work walks every passage; keep it off the main actor.
             let work = work
-            document = await Task.detached(priority: .userInitiated) {
+            let loadedDocument = await Task.detached(priority: .userInitiated) {
                 LibraryDocument.load(work)
             }.value
             guard !Task.isCancelled else { return }
+            document = loadedDocument
             selectedSectionID = document?.sections.first?.id ?? "chapter-1"
             selectedOutlineID = document?.sections.first?.firstReadableDescendant.id ?? "chapter-1"
             if let targetTitle,
@@ -954,6 +971,7 @@ private struct LibraryDocumentDetail: View {
                 selectedOutlineID = outline.id
             }
             await Task.yield()
+            guard !Task.isCancelled else { return }
             withAnimation(.easeIn(duration: 0.25)) {
                 isPageTextVisible = true
             }

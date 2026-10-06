@@ -58,19 +58,11 @@ enum StudyTopicInsightTreeStore {
     private static let key = "aquinas.study-topic.insight-trees.v1"
 
     static func load() -> [String: [ConceptDefinition]] {
-        guard let data = PrivatePreferences.standard.data(forKey: key),
-              let snapshots = try? JSONDecoder().decode(
-                [String: [ConceptDefinition]].self,
-                from: data
-              ) else {
-            return [:]
-        }
-        return snapshots
+        InsightTreeLocalStateStore.load([String: [ConceptDefinition]].self, key: key) ?? [:]
     }
 
     static func save(_ snapshots: [String: [ConceptDefinition]]) {
-        guard let data = try? JSONEncoder().encode(snapshots) else { return }
-        PrivatePreferences.standard.set(data, forKey: key)
+        InsightTreeLocalStateStore.save(snapshots, key: key)
     }
 }
 

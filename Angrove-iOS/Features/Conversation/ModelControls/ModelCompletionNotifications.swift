@@ -16,12 +16,14 @@ extension EnvironmentValues {
 enum ModelCompletionNotificationKind {
     case question
     case insightDefinition
+    case pageReturn
 }
 
 struct ModelCompletionNotification: Identifiable {
     let id = UUID()
     let title: String
     let kind: ModelCompletionNotificationKind
+    let returnPage: AppPage?
     let openAction: @MainActor () -> Void
 }
 
@@ -29,26 +31,60 @@ struct ModelCompletionNotification: Identifiable {
 @Observable
 final class ModelCompletionNotificationCenter {
     private(set) var notifications: [ModelCompletionNotification] = []
+    @ObservationIgnored private var pageReturnTask: Task<Void, Never>?
 
     func post(
         title: String,
         kind: ModelCompletionNotificationKind = .question,
+        returnPage: AppPage? = nil,
         openAction: @escaping @MainActor () -> Void
     ) {
         withAnimation(.springStandard) {
+            if kind == .pageReturn {
+                notifications.removeAll { $0.kind == .pageReturn }
+            }
             notifications.insert(
                 ModelCompletionNotification(
                     title: title,
                     kind: kind,
+                    returnPage: returnPage,
                     openAction: openAction
                 ),
                 at: 0
             )
         }
-        if UIApplication.shared.applicationState != .active {
+        if kind != .pageReturn, UIApplication.shared.applicationState != .active {
             AngroveSystemNotifications.postCompletedResponse(title: title)
         }
         playCompletionHaptics()
+    }
+
+    @discardableResult
+    func schedulePageReturn(
+        title: String,
+        returnPage: AppPage,
+        openAction: @escaping @MainActor () -> Void
+    ) -> Task<Void, Never> {
+        dismissPageReturn()
+        let task = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(1))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            self?.post(title: title, kind: .pageReturn, returnPage: returnPage, openAction: openAction)
+        }
+        pageReturnTask = task
+        return task
+    }
+
+    func dismissPageReturn() {
+        pageReturnTask?.cancel()
+        pageReturnTask = nil
+        withAnimation(.springStandard) {
+            notifications.removeAll { $0.kind == .pageReturn }
+        }
     }
 
     func dismiss(id: UUID) {
@@ -93,19 +129,20 @@ struct ModelCompletionNotificationPill: View {
         switch kind {
         case .question: "QuestionNotificationIcon"
         case .insightDefinition: "InsightNotificationIcon"
+        case .pageReturn: "QuestionNotificationIcon"
         }
     }
 
     private var iconColor: Color {
         switch kind {
-        case .question: AngroveTheme.Colors.headingText
+        case .question, .pageReturn: AngroveTheme.Colors.headingText
         case .insightDefinition: AngroveTheme.Colors.lightGreen
         }
     }
 
     private var titleColor: Color {
         switch kind {
-        case .question: AngroveTheme.Colors.paragraphText
+        case .question, .pageReturn: AngroveTheme.Colors.paragraphText
         case .insightDefinition: AngroveTheme.Colors.lightGreen
         }
     }
@@ -116,6 +153,8 @@ struct ModelCompletionNotificationPill: View {
             String(localized: "View completed question: \(title)")
         case .insightDefinition:
             String(localized: "View completed Insight Definition: \(title)")
+        case .pageReturn:
+            title
         }
     }
 

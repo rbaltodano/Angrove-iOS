@@ -62,6 +62,15 @@ enum StudyNodeLayout {
         return points
     }
 
+    /// Rotate toward the Study sphere while keeping each Insight's own semantic radius.
+    static func offset(from start: SIMD3<Double>, toward spread: SIMD3<Double>,
+                       bondLength: Double, progress: Double) -> SIMD3<Double> {
+        let length = simd_length(start)
+        let from = length > 1e-9 ? start / length : spread
+        let direction = slerp(from, spread, progress)
+        return direction * (length + (bondLength - length) * progress)
+    }
+
     /// Spherical interpolation between two unit directions, `t` in 0...1.
     static func slerp(_ from: SIMD3<Double>, _ to: SIMD3<Double>, _ t: Double) -> SIMD3<Double> {
         let cosine = min(max(simd_dot(from, to), -1), 1)

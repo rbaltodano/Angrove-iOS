@@ -41,15 +41,10 @@ enum ConversationInsightMembershipStore {
     }
 
     private static func load() -> [String: [String]] {
-        guard let data = PrivatePreferences.standard.data(forKey: storageKey),
-              let memberships = try? JSONDecoder().decode([String: [String]].self, from: data) else {
-            return [:]
-        }
-        return memberships
+        InsightTreeLocalStateStore.load([String: [String]].self, key: storageKey) ?? [:]
     }
 
     private static func save(_ memberships: [String: [String]]) {
-        guard let data = try? JSONEncoder().encode(memberships) else { return }
-        PrivatePreferences.standard.set(data, forKey: storageKey)
+        InsightTreeLocalStateStore.save(memberships, key: storageKey)
     }
 }

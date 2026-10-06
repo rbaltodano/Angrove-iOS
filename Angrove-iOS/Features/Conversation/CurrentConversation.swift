@@ -692,6 +692,7 @@ struct CurrentConversationView: View {
             studyExitRequest: canvasMode.canvasStudyExitRequest,
             studyToolsToggleRequest: canvasMode.canvasStudyToolsToggleRequest,
             studyBranchCount: canvasMode.canvasStudyBranchCount,
+            studyBranchConfirmRequest: canvasMode.canvasStudyBranchConfirmRequest,
             onStudyModeChange: { canvasMode.isCanvasStudyMode = $0 },
             onStudyToolsActiveChange: { canvasMode.isCanvasStudyToolsActive = $0 },
             onStudyBranchCountChange: { canvasMode.canvasStudyBranchCount = $0 },
@@ -895,6 +896,7 @@ struct CurrentConversationView: View {
             onToggleStudyTools: { canvasMode.canvasStudyToolsToggleRequest += 1 },
             studyBranchCount: canvasMode.canvasStudyBranchCount,
             onStudyBranchCountChange: { canvasMode.canvasStudyBranchCount = $0 },
+            onStudyBranchConfirm: { canvasMode.canvasStudyBranchConfirmRequest += 1 },
             isCanvasInsightLoading: canvasMode.isCanvasInsightGenerating,
             modelTasks: modelTasks,
             modelTasksPopupState: modelTasksPopupState,
@@ -1538,6 +1540,7 @@ struct CurrentConversationView: View {
                     queuedInsightKeys: queuedInsightKeys,
                     savedInsightIDs: Set(collectedDefinitions.map(\.id)),
                     modelTasks: modelTasks,
+                    contextCard: b.id == effectiveFocusedID ? contextCardState : nil,
                     isModelBusy: modelTasks.isBusy,
                     isPageVisible: isPageVisible,
                     emptyStateEyebrow: activeEmptyPromptEyebrow,
@@ -1770,6 +1773,7 @@ struct CurrentConversationView: View {
     }
 
     private func updateTopState(for branchID: UUID, minY: CGFloat) {
+        guard isPageVisible else { return }
         guard branchID == effectiveFocusedID else { return }
         let atTop = minY >= -8
         guard isBranchScrolledToTop != atTop else { return }

@@ -9,6 +9,7 @@ struct InsightTreeResetTests {
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set("x", forKey: "aquinas.saved.insights.v1")
         defaults.set("x", forKey: "AquinasSeenInsightIDs")
+        defaults.set("x", forKey: "AquinasSeenNodeIDs")
         defaults.set("x", forKey: "aquinas.insight-tree.positions.v1")
         defaults.set("x", forKey: "aquinas.insight-tree.make-node-children.v1:global")
         defaults.set("keep", forKey: "aquinas.settings.hapticFeedback")
@@ -23,6 +24,7 @@ struct InsightTreeResetTests {
 
         #expect(defaults.object(forKey: "aquinas.saved.insights.v1") == nil)
         #expect(defaults.object(forKey: "AquinasSeenInsightIDs") == nil)
+        #expect(defaults.object(forKey: "AquinasSeenNodeIDs") == nil)
         #expect(defaults.object(forKey: "aquinas.insight-tree.positions.v1") == nil)
         #expect(defaults.object(forKey: "aquinas.insight-tree.make-node-children.v1:global") == nil)
         #expect(defaults.string(forKey: "aquinas.settings.hapticFeedback") == "keep")

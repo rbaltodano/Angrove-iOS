@@ -107,6 +107,7 @@ struct StudyTopicsView: View {
     /// Reports this page's current Model Controls configuration to the app shell, which renders
     /// the shared persistent bar. Called whenever the underlying selection/canvas/confirmation
     /// state changes.
+    var onSelectedTopicChange: (UUID?) -> Void = { _ in }
     var onControlsChange: (StudyTopicsPageControls) -> Void = { _ in }
 
     @State private var searchText = ""
@@ -265,6 +266,7 @@ struct StudyTopicsView: View {
             if newValue == nil {
                 isExistingConversationPickerOpen = false
             }
+            onSelectedTopicChange(newValue)
             onDetailVisibilityChange(newValue != nil)
             reportControls()
         }
@@ -281,6 +283,7 @@ struct StudyTopicsView: View {
             reportControls()
         }
         .onAppear {
+            onSelectedTopicChange(selectedTopicID)
             reportControls()
             let selectionRequest = requestedTreeSelection
             let targetTopicID = selectionRequest?.topicID ?? requestedTopicID

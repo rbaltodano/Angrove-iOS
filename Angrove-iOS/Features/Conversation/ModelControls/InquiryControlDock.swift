@@ -46,10 +46,11 @@ struct InquiryControlDock: View {
     var onToggleStudyTools: () -> Void = {}
     /// Follows `isStudyMode`, except that leaving Study first tucks Place away (the reverse of
     /// its entrance) before the normal controls return.
-    @State private var showsStudyControls = false
+    private var showsStudyControls: Bool { isStudyMode && isStudyToolsActive }
     @State private var isLeavingStudy = false
     var studyBranchCount: Int = 2
     var onStudyBranchCountChange: (Int) -> Void = { _ in }
+    var onStudyBranchConfirm: () -> Void = {}
     /// While a placed midpoint insight is generating, the dock hides its canvas actions.
     var isCanvasInsightLoading: Bool = false
     /// Status for background canvas work that does not run through `ModelTaskQueue`.
@@ -181,7 +182,7 @@ struct InquiryControlDock: View {
         if !isCanvasMode {
             canvasActionCount = 0
         } else if isStudyMode {
-            canvasActionCount = (hasCanvasHover ? 1 : 0) + 1 // Quote + Tools
+            canvasActionCount = (hasCanvasHover ? 1 : 0) + (hasCanvasInsightHover ? 1 : 0) // Ask + Branch
         } else if hasSelectedCanvasItems {
             if hasCanvasHover {
                 canvasActionCount = canAddCanvasSelection ? 1 : 0
@@ -191,7 +192,7 @@ struct InquiryControlDock: View {
                 canvasActionCount = 1 // Select only
             }
         } else if hasCanvasHover {
-            canvasActionCount = 3 // Select + Quote + Study (Insights and Node Concepts)
+            canvasActionCount = 3 // Select + Ask + Study (Insights and Node Concepts)
         } else {
             canvasActionCount = 0
         }
@@ -338,7 +339,9 @@ struct InquiryControlDock: View {
             StudyBranchDockControls(
                 count: studyBranchCount,
                 onCountChange: onStudyBranchCountChange,
-                isLeaving: isLeavingStudy
+                isLeaving: isLeavingStudy,
+                isBusy: isCanvasInsightLoading,
+                onConfirm: onStudyBranchConfirm
             )
             .transition(.opacity.combined(with: .scale(scale: 0.96)))
         } else if isCanvasMode && isCanvasAskMode {
@@ -365,13 +368,15 @@ struct InquiryControlDock: View {
             canvasActionButton(title: "Place", icon: "arrow.down", action: onMidpointPlace)
                 .transition(.scale(scale: 0.4).combined(with: .opacity))
         } else if isCanvasMode && isStudyMode {
-            // Study keeps the tree's hover controls; Tools opens Study's tools.
+            // Only an Insight offers Branch; studying a Node retains its Ask action.
             if hasCanvasHover {
-                canvasActionButton(title: usesCanvasAskFlow ? "Ask" : "Quote", icon: "arrow.turn.down.right", action: onQuoteCanvasItem)
+                canvasActionButton(title: "Ask", icon: "arrow.turn.down.right", action: onQuoteCanvasItem)
                     .transition(.scale(scale: 0.4).combined(with: .opacity))
             }
-            studyToolsButton
-                .transition(.scale(scale: 0.4).combined(with: .opacity))
+            if hasCanvasInsightHover {
+                studyToolsButton
+                    .transition(.scale(scale: 0.4).combined(with: .opacity))
+            }
         } else if isCanvasMode && (hasCanvasHover || hasSelectedCanvasItems) {
             if hasSelectedCanvasItems && hasCanvasHover {
                 // Selection mode + hovering an addable insight/node:
@@ -411,7 +416,7 @@ struct InquiryControlDock: View {
                 selectCanvasActionButton
                 // Study opens for a hovered Insight or Node Concept.
                 if hasCanvasHover {
-                    canvasActionButton(title: usesCanvasAskFlow ? "Ask" : "Quote", icon: "arrow.turn.down.right", action: onQuoteCanvasItem)
+                    canvasActionButton(title: "Ask", icon: "arrow.turn.down.right", action: onQuoteCanvasItem)
                         .transition(.scale(scale: 0.4).combined(with: .opacity))
                     canvasActionButton(title: "Study", icon: "graph.3d", action: onStudyCanvasInsight)
                         .transition(.scale(scale: 0.4).combined(with: .opacity))
@@ -696,9 +701,9 @@ struct InquiryControlDock: View {
     private var studyToolsButton: some View {
         Button(action: onToggleStudyTools) {
             HStack(spacing: 8) {
-                Image(systemName: "wrench.adjustable")
+                Image(systemName: "arrow.triangle.branch")
                     .font(.system(size: 14, weight: .semibold))
-                Text("Tools")
+                Text("Branch")
                     .font(.custom("Figtree-Bold", size: 14))
             }
             .frame(height: 16, alignment: .center)
@@ -706,7 +711,7 @@ struct InquiryControlDock: View {
             .animation(.easeInOut(duration: 0.2), value: isStudyToolsActive)
         }
         .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
-        .accessibilityLabel(isStudyToolsActive ? "Close Study tools" : "Open Study tools")
+        .accessibilityLabel(isStudyToolsActive ? "Close Branch" : "Branch this Insight")
     }
 
     private var selectCanvasActionButton: some View {

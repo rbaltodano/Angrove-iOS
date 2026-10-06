@@ -1,0 +1,24 @@
+/Users/ryanbaltodano/Developer/Aquinas-iOS-main/Angrove-iOS/Persistence/InquiryPersistence.swift:409:33: warning: capture of 'pending' with non-Sendable type 'SerializedInquiryStore.PendingSave' in a '@Sendable' closure [#SendableClosureCaptures]
+386 |     /// collapses into one write of the newest snapshot. Any other queued operation closes the
+387 |     /// slot, so coalescing never reorders a save around a branch completion.
+388 |     private final class PendingSave {
+    |                         `- note: class 'PendingSave' does not conform to the 'Sendable' protocol
+389 |         var snapshot: InquiryPersistenceSnapshot
+390 |         init(_ snapshot: InquiryPersistenceSnapshot) { self.snapshot = snapshot }
+    :
+407 |         queue.async { [self] in
+408 |             let latest = pendingLock.withLock {
+409 |                 if openSave === pending { openSave = nil }
+    |                                 `- warning: capture of 'pending' with non-Sendable type 'SerializedInquiryStore.PendingSave' in a '@Sendable' closure [#SendableClosureCaptures]
+410 |                 return pending.snapshot
+411 |             }
+
+[#SendableClosureCaptures]: <https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures>
+IMPORT: live=C-imported, backup titles=["A"]
+BACKUP COLLISION: Error Domain=NSCocoaErrorDomain Code=516 "“conversations-v1.json” couldn’t be copied to “Backups” because an item with the same name already exists." UserInfo={NSSourceFilePathErrorKey=/var/folders/2l/z5s63y691msbbqd4nmctqr0r0000gn/T/rc-fixtures-06BE810B-F3C9-42FC-898D-CA269BD599ED/collision/conversations-v1.json, NSUserStringVariant=(
+    Copy
+), NSDestinationFilePath=/var/folders/2l/z5s63y691msbbqd4nmctqr0r0000gn/T/rc-fixtures-06BE810B-F3C9-42FC-898D-CA269BD599ED/collision/Backups/conversations-20261005-215917.json, NSFilePath=/var/folders/2l/z5s63y691msbbqd4nmctqr0r0000gn/T/rc-fixtures-06BE810B-F3C9-42FC-898D-CA269BD599ED/collision/conversations-v1.json, NSURL=file:///var/folders/2l/z5s63y691msbbqd4nmctqr0r0000gn/T/rc-fixtures-06BE810B-F3C9-42FC-898D-CA269BD599ED/collision/conversations-v1.json, NSUnderlyingError=0x75450c0150 {Error Domain=NSPOSIXErrorDomain Code=17 "File exists"}}
+BACKUP COLLISION: retained=first-edit-after-idle
+LEGACY: DecodingError.keyNotFound: Key 'createdAt' not found in keyed decoding container. Path: conversations[0]. Debug description: No value associated with key CodingKeys(stringValue: "createdAt", intValue: nil) ("createdAt").
+LEGACY STORE: load returned nil=true
+All three defect reproductions confirmed.

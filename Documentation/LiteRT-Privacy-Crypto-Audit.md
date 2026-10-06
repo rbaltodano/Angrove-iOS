@@ -2,8 +2,8 @@
 
 October 5, 2026. Static review of the native SDK currently vendored by this working tree.
 The inventory is complete for the checks below. The integration-reviewed SDK API manifest is now
-bundled and verified in an App Store distribution export; the export-encryption answer remains
-unresolved.
+bundled and verified in an App Store distribution export. The October 5 submission follow-up
+records the export-encryption rationale below.
 No model weights were downloaded, no model experiment was rerun, and the SDK was not upgraded.
 
 ## Artifact and method
@@ -87,12 +87,28 @@ model delivery is a separate download operation.
 - No AES/SSL cipher entry was identified in the reviewed global-symbol scan. This is not an
   exhaustive cryptographic proof: stripped/internal implementations may not have obvious names.
 
-**`ITSAppUsesNonExemptEncryption` remains unset.** Resolve the classification of the bundled
-random-generator code, confirm the actual distribution artifact and launch territories, then
-record the applicable account-side answer and plist value. Do not mistake a crypto symbol for
-an export determination, or equate absence of a cipher import with an exemption. Apple's
-[encryption documentation workflow](https://developer.apple.com/help/app-store-connect/manage-app-information/determine-and-upload-app-encryption-documentation/)
-is the reference for the submission answer.
+## Submission determination — US-only initial launch
+
+Set **`ITSAppUsesNonExemptEncryption = false`** for the upload candidate. This is an integration
+assessment of the reviewed artifact, not a claim that Angrove has no encryption or that every
+linked cryptographic operation is implemented by the OS.
+
+The reviewed data-encryption feature is AES-GCM through Apple's CryptoKit, with OS Keychain
+key storage. SHA-256 validates model integrity. The bundled, published ChaCha implementation is
+used by `rand_chacha` as a PRNG in tokenizer/random dependencies; no user-data encryption path
+using it was identified. The reviewed ZIP entry rejects passwords. A PRNG implementation is
+not itself evidence of a second user-data encryption feature. This resolves the earlier concern
+about classifying the dependency based only on its algorithm name.
+
+Apple's [documentation table](https://developer.apple.com/help/app-store-connect/reference/app-information/export-compliance-documentation-for-encryption/)
+says OS-provided encryption needs no App Store Connect documentation; it identifies France-only
+paperwork for industry-standard non-OS encryption and US CCATS for proprietary encryption.
+Ryan selected a United States-only initial launch. No proprietary encryption feature was
+identified in this review. Apple's [plist guidance](https://developer.apple.com/documentation/bundleresources/information-property-list/itsappusesnonexemptencryption)
+permits `false` when the app and linked libraries use no non-exempt encryption. These source/use
+findings support that submission value; they do not imply an exhaustive binary proof or an Apple
+legal determination. Reassess before adding cryptographic functionality, replacing SDK binaries,
+or expanding territories. Privacy/network observation remains a separate release check.
 
 ## Check-off criteria
 
@@ -102,5 +118,6 @@ is the reference for the submission answer.
 - [x] Confirm the integration’s native cache/audio configuration; add the API-reason manifest to
   both framework slices and verify it in the distribution IPA.
 - [ ] Complete upstream collection/provenance confirmation and physical runtime network observation.
-- [ ] Resolve export classification and account-side declarations; set the justified plist value.
+- [x] Record the reviewed-use submission determination; set the justified plist value.
+- [ ] Verify Apple reads the declaration from the processed upload.
 - [ ] Observe networking on the physical release build during offline generation.

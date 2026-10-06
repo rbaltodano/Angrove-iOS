@@ -110,6 +110,7 @@ struct ChatThreadColumn: View {
     var queuedInsightKeys: Set<String> = []
     var savedInsightIDs: Set<UUID> = []
     let modelTasks: ModelTaskQueue
+    var contextCard: ContextCardState? = nil
     /// True when another serialized model task is already running at submit time.
     var isModelBusy: Bool = false
     /// Prevents a restored queued draft from focusing its hidden UIKit editor while the user
@@ -222,7 +223,8 @@ struct ChatThreadColumn: View {
     }
 
     private func isResponseQueued(at responseIndex: Int) -> Bool {
-        if modelQueuedResponseIndices.contains(responseIndex) {
+        if modelQueuedResponseIndices.contains(responseIndex)
+            || automaticallyCompactingResponseIndices.contains(responseIndex) {
             return true
         }
         return modelTask(for: responseIndex)?.phase == .upcoming
@@ -284,6 +286,7 @@ struct ChatThreadColumn: View {
     @State private var pendingResponseIndices: Set<Int> = []
     @State private var streamingResponseIndices: Set<Int> = []
     @State private var modelQueuedResponseIndices: Set<Int> = []
+    @State private var automaticallyCompactingResponseIndices: Set<Int> = []
     @State private var responseThinkingIntroByIndex: [Int: Bool] = [:]
     @State private var responseThinkingSummaryByIndex: [Int: [String]] = [:]
     /// The model's current line of reasoning while it is still thinking, by response index.
@@ -587,12 +590,21 @@ struct ChatThreadColumn: View {
             var responseContext = context
             // Keep result metadata with the job; view-local State may be unmounted mid-generation.
             var generatedGroundingSources: [GroundingSourceSummary] = []
-            var generationStartedAt: Date?
-            var thinkingDurationSeconds: TimeInterval?
+            // Measure the whole active job: streamed drafts stay hidden until preparation,
+            // writing, and any response checks finish. Queue waiting is excluded.
+            let preparationStartedAt = ContinuousClock.now
             if AngroveContextBudget.shouldCompact(context),
                let split = AngroveContextBudget.historyAndLatestTurn(in: context) {
+                automaticallyCompactingResponseIndices.insert(responseIndex)
+                await MainActor.run { contextCard?.beginAutomaticCompaction() }
                 let summary = await model.compact(split.history)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
+                automaticallyCompactingResponseIndices.remove(responseIndex)
+                await MainActor.run {
+                    contextCard?.finishAutomaticCompaction(
+                        succeeded: !summary.isEmpty && !Task.isCancelled
+                    )
+                }
                 if !summary.isEmpty, !Task.isCancelled {
                     responseContext = ConversationContext(
                         compactedContext: summary,
@@ -615,16 +627,6 @@ struct ChatThreadColumn: View {
                 thinkingEnabled: thinkingEnabled
             ) { update in
                 guard !Task.isCancelled else { return }
-                switch update {
-                case .generationStarted:
-                    generationStartedAt = Date()
-                case .responseText(let text) where !text.isEmpty:
-                    if thinkingDurationSeconds == nil, let generationStartedAt {
-                        thinkingDurationSeconds = max(0, Date().timeIntervalSince(generationStartedAt))
-                    }
-                default:
-                    break
-                }
                 if case .groundingSources(let sources) = update {
                     generatedGroundingSources = sources
                 }
@@ -657,9 +659,9 @@ struct ChatThreadColumn: View {
                     streamingResponseIndices.insert(responseIndex)
                 }
             }
-            if thinkingDurationSeconds == nil, let generationStartedAt {
-                thinkingDurationSeconds = max(0, Date().timeIntervalSince(generationStartedAt))
-            }
+            let elapsed = preparationStartedAt.duration(to: ContinuousClock.now).components
+            let thinkingDurationSeconds = Double(elapsed.seconds)
+                + Double(elapsed.attoseconds) / 1e18
             let destination = ConversationResponseStatePolicy.completionDestination(
                 isCancelled: Task.isCancelled,
                 isViewVisible: responseLifetime.isVisible,
@@ -1802,6 +1804,7 @@ private struct QuestionInputField: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var questionCoordinateSpace
+    @Environment(\.isConversationPageDeparting) private var isPageDeparting
     @State private var isPressed = false
     @State private var openingQuoteX: CGFloat = 0
     @State private var openingQuoteY: CGFloat = 0
@@ -1843,7 +1846,7 @@ private struct QuestionInputField: View {
             textColor: .angrovePrimaryReadable,
             textAlignment: uiTextAlignment,
             onFocusChange: onFocusChange,
-            onPressChange: { isPressed = $0 },
+            onPressChange: { isPressed = !isLocked && $0 },
             relay: relay,
             onTextChange: onTextChange,
             onSubmit: onSubmit,
@@ -1868,7 +1871,7 @@ private struct QuestionInputField: View {
 
     var body: some View {
         quotedQuestion
-            .scaleEffect(isPressed ? 1.05 : 1, anchor: questionAlignment == .trailing ? .trailing : .center)
+            .scaleEffect(!isLocked && isPressed ? 1.05 : 1, anchor: questionAlignment == .trailing ? .trailing : .center)
             .animation(reduceMotion ? nil : .springMicro, value: isPressed)
             .onDisappear { isPressed = false }
     }
@@ -1889,6 +1892,7 @@ private struct QuestionInputField: View {
             .onGeometryChange(for: CGRect.self) { geometry in
                 geometry.frame(in: .named(questionCoordinateSpace))
             } action: { bounds in
+                guard !isPageDeparting else { return }
                 animatesQuoteWidth = measuredPlaceholderIsEmpty != nil
                     && measuredPlaceholderIsEmpty != isEmpty && !reduceMotion
                 animatesQuoteHeight = measuredPlaceholderIsEmpty != nil && !reduceMotion
@@ -1982,11 +1986,13 @@ struct TrackedResponseCard: View {
     var onFinish: () -> Void
 
     @State private var myYCenter: CGFloat = 0
+    @Environment(\.isConversationPageDeparting) private var isPageDeparting
     @State private var hasFinishedStreaming: Bool = false
     @Environment(\.openURL) var parentOpenURL
     private let responseChromeHeight: CGFloat = 46
 
     private func updateCenter(from geo: GeometryProxy, notifyParent: Bool) {
+        guard !isPageDeparting else { return }
         let localY = geo.frame(in: .named(columnSpaceName)).minY
         let responseBodyHeight = max(0, geo.size.height - responseChromeHeight)
         myYCenter = localY + responseChromeHeight + (responseBodyHeight / 2)

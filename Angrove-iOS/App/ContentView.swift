@@ -70,6 +70,7 @@ struct ContentView: View {
     @State private var sideMenuRenderVersion = 0
     @State private var requestedConversationID: UUID? = nil
     @State private var requestedTopicID: UUID? = nil
+    @State private var selectedStudyTopicID: UUID? = nil
     @State private var insightConversationQuoteRequest: InsightConversationQuoteRequest? = nil
     @State private var studyTopicTreeSelectionRequest: StudyTopicTreeSelectionRequest? = nil
     /// Consumed requests stay consumed when the conversation page is recreated.
@@ -101,6 +102,7 @@ struct ContentView: View {
     @State private var globalInsightStudyToolsToggleRequest: Int = 0
     @State private var globalInsightStudyToolsActive: Bool = false
     @State private var globalInsightStudyBranchCount: Int = 2
+    @State private var globalInsightStudyBranchConfirmRequest: Int = 0
     @State private var globalInsightPromotedIDs: [UUID] =
         GlobalInsightPromotedIDsStore.load()
     @State private var globalInsightInquireConnectionRequest: Int = 0
@@ -132,6 +134,7 @@ struct ContentView: View {
     /// while that page's own selection/canvas/confirmation state stays owned locally there.
     @State private var studyTopicsControls = StudyTopicsPageControls()
     @State private var modelCompletionNotifications = ModelCompletionNotificationCenter()
+    @State private var pendingPageReturnAction: (() -> Void)?
     @State private var questionOfTheDay = HomeQuestionOfTheDayStore.loadPending()
     @State private var homeLooseThread: LooseThreadCard? = nil
     @State private var homeTodayInHistory: TodayInHistoryCard? = nil
@@ -183,9 +186,7 @@ struct ContentView: View {
     }
 
     private var newInsightsCount: Int {
-        guard let strings = PrivatePreferences.standard.stringArray(forKey: "AquinasSeenInsightIDs"),
-              !strings.isEmpty else { return 0 }
-        let seenIDs = Set(strings.compactMap { UUID(uuidString: $0) })
+        let seenIDs = InsightDiscoveryStore.loadSeenInsightIDs()
         return collectedDefinitions.filter { !seenIDs.contains($0.id) }.count
     }
 
@@ -207,6 +208,47 @@ struct ContentView: View {
         withAnimation(.springStandard) {
             isGlobalSideMenuOpen = true
         }
+    }
+
+    /// Content links can take the reader away from their current page. Keep one explicit
+    /// return action, independent of the destination page's own confirmation controls.
+    private func redirect(to page: AppPage) {
+        guard activePage != page else { return }
+        // Home is a hub: its entry points do not need a return notification.
+        guard activePage != .home else {
+            navigateWithoutReturn(to: page)
+            return
+        }
+        let origin = activePage
+        let conversationID = sideMenuActiveConversationID
+        let topicID = selectedStudyTopicID
+        let libraryRequest = libraryNavigationRequest
+        modelCompletionNotifications.dismissPageReturn()
+        pendingPageReturnAction = {
+            guard activePage == page else { return }
+            modelCompletionNotifications.schedulePageReturn(
+                title: String(localized: "Return to \(origin.returnTitle)"),
+                returnPage: origin
+            ) {
+                if origin == .conversation { requestedConversationID = conversationID }
+                if origin == .studyTopics { requestedTopicID = topicID }
+                if origin == .library { libraryNavigationRequest = libraryRequest }
+                navigateWithoutReturn(to: origin)
+            }
+        }
+        activePage = page
+    }
+
+    private func navigateWithoutReturn(to page: AppPage) {
+        pendingPageReturnAction = nil
+        modelCompletionNotifications.dismissPageReturn()
+        activePage = page
+    }
+
+    private func schedulePendingPageReturn() {
+        let action = pendingPageReturnAction
+        pendingPageReturnAction = nil
+        action?()
     }
 
     private func openModelTaskPage(_ task: ModelTaskSnapshot) {
@@ -231,7 +273,7 @@ struct ContentView: View {
             requestedConversationID = conversationID
         }
         guard activePage != page else { return }
-        activePage = page
+        redirect(to: page)
     }
 
     private func postConversationCompletionNotificationIfNeeded(
@@ -278,7 +320,7 @@ struct ContentView: View {
 
         modelCompletionNotifications.post(title: notificationTitle) {
             requestedConversationID = conversationID
-            activePage = .conversation
+            redirect(to: .conversation)
         }
     }
 
@@ -298,7 +340,7 @@ struct ContentView: View {
                 actionTitle: "New Conversation",
                 action: {
                     newConversationRequests.submit()
-                    activePage = .conversation
+                    redirect(to: .conversation)
                 },
                 surfaceID: "home",
                 extraFade: (height: 350, opacity: 1)
@@ -320,7 +362,7 @@ struct ContentView: View {
                 actionTitle: "New Conversation",
                 action: {
                     newConversationRequests.submit()
-                    activePage = .conversation
+                    redirect(to: .conversation)
                 },
                 surfaceID: "open-conversations"
             )
@@ -347,6 +389,7 @@ struct ContentView: View {
                 onToggleStudyTools: { globalInsightStudyToolsToggleRequest += 1 },
                 studyBranchCount: globalInsightStudyBranchCount,
                 onStudyBranchCountChange: { globalInsightStudyBranchCount = $0 },
+                onStudyBranchConfirm: { globalInsightStudyBranchConfirmRequest += 1 },
                 isCanvasInsightLoading: globalInsightIsGenerating,
                 modelStatusOverride: isGlobalTreeReconciling
                     ? String(localized: "Mapping...")
@@ -455,6 +498,7 @@ struct ContentView: View {
             studyExitRequest: globalInsightStudyExitRequest,
             studyToolsToggleRequest: globalInsightStudyToolsToggleRequest,
             studyBranchCount: globalInsightStudyBranchCount,
+            studyBranchConfirmRequest: globalInsightStudyBranchConfirmRequest,
             onStudyModeChange: { globalInsightIsStudyMode = $0 },
             onStudyToolsActiveChange: { globalInsightStudyToolsActive = $0 },
             onStudyBranchCountChange: { globalInsightStudyBranchCount = $0 },
@@ -483,7 +527,7 @@ struct ContentView: View {
             onForkInsight: { def in
                 requestedForkConcept = def
                 withAnimation(.springStandard) {
-                    activePage = .conversation
+                    redirect(to: .conversation)
                 }
             },
             onQuoteInsight: { insight in
@@ -530,7 +574,7 @@ struct ContentView: View {
                 guard let first = concepts.first else { return }
                 requestedForkConcept = first
                 withAnimation(.springStandard) {
-                    activePage = .conversation
+                    redirect(to: .conversation)
                 }
             },
             midpointEnterRequest: globalInsightMidpointEnterRequest,
@@ -576,7 +620,7 @@ struct ContentView: View {
                         conversationID: conversation.id,
                         insight: insight
                     )
-                    activePage = .conversation
+                    redirect(to: .conversation)
                 },
                 onCancel: {
                     globalInsightExistingConversationTarget = nil
@@ -595,16 +639,16 @@ struct ContentView: View {
             onCanvasModeChange: { isConversationCanvasMode = $0 },
             onInsightLibraryVisibilityChange: { isInsightLibraryVisible = $0 },
             onRequestConversationPage: {
-                activePage = .conversation
+                redirect(to: .conversation)
             },
             onReturnToStudyTopicTree: { request in
                 requestedTopicID = request.topicID
                 studyTopicTreeSelectionRequest = request
-                activePage = .studyTopics
+                navigateWithoutReturn(to: .studyTopics)
             },
             onReturnToGlobalInsights: { insight in
                 globalInsightRestoreSelectionID = insight.id
-                activePage = .insights
+                navigateWithoutReturn(to: .insights)
             },
             onQuestionOfTheDayAnswered: markQuestionOfTheDayAnswered,
             onTodayInHistoryAnswered: markTodayInHistoryAnswered,
@@ -642,8 +686,8 @@ struct ContentView: View {
             selectedPersonality: conversationPersonality.displayName,
             isPresented: isGlobalSideMenuOpen,
             renderVersion: sideMenuRenderVersion,
-            onNewChat: { dismissGlobalSideMenu { newConversationRequests.submit(); activePage = .conversation } },
-            onSelectConversation: { conversation in dismissGlobalSideMenu { requestedConversationID = conversation.id; activePage = .conversation } },
+            onNewChat: { dismissGlobalSideMenu { newConversationRequests.submit(); navigateWithoutReturn(to: .conversation) } },
+            onSelectConversation: { conversation in dismissGlobalSideMenu { requestedConversationID = conversation.id; navigateWithoutReturn(to: .conversation) } },
             onRenameConversation: { conversation, title in renameConversation(conversation, to: title) },
             onPinConversation: { pinConversation($0) },
             onUnpinConversation: { unpinConversation($0) },
@@ -651,13 +695,13 @@ struct ContentView: View {
             onRemoveConversationFromStudyTopic: { detachConversationFromStudyTopic($0) },
             onDeleteConversation: { deleteConversation($0) },
             newInsightsCount: newInsightsCount,
-            onOpenHome: { dismissGlobalSideMenu { activePage = .home } },
-            onOpenLibrary: { dismissGlobalSideMenu { activePage = .library } },
-            onOpenConversations: { dismissGlobalSideMenu { activePage = .openConversations } },
-            onOpenInsights: { dismissGlobalSideMenu { activePage = .insights } },
-            onOpenStudyTopics: { dismissGlobalSideMenu { requestedTopicID = nil; activePage = .studyTopics } },
-            onSelectStudyTopic: { topic in dismissGlobalSideMenu { requestedTopicID = topic.id; activePage = .studyTopics } },
-            onOpenSettings: { dismissGlobalSideMenu { activePage = .settings } },
+            onOpenHome: { dismissGlobalSideMenu { navigateWithoutReturn(to: .home) } },
+            onOpenLibrary: { dismissGlobalSideMenu { navigateWithoutReturn(to: .library) } },
+            onOpenConversations: { dismissGlobalSideMenu { navigateWithoutReturn(to: .openConversations) } },
+            onOpenInsights: { dismissGlobalSideMenu { navigateWithoutReturn(to: .insights) } },
+            onOpenStudyTopics: { dismissGlobalSideMenu { requestedTopicID = nil; navigateWithoutReturn(to: .studyTopics) } },
+            onSelectStudyTopic: { topic in dismissGlobalSideMenu { requestedTopicID = topic.id; navigateWithoutReturn(to: .studyTopics) } },
+            onOpenSettings: { dismissGlobalSideMenu { navigateWithoutReturn(to: .settings) } },
             onClose: { dismissGlobalSideMenu() }
         )
         .equatable())
@@ -716,8 +760,8 @@ struct ContentView: View {
                 NotificationCenter.default.publisher(for: .openGroundingSourceInLibrary)
                     .compactMap { $0.object as? LibraryNavigationRequest }
             ) { request in
+                redirect(to: .library)
                 libraryNavigationRequest = request
-                activePage = .library
             }
             .onChange(of: collectedDefinitions) { _, newValue in handleCollectedDefinitionsChange(newValue) }
     }
@@ -738,6 +782,14 @@ struct ContentView: View {
                         // loop on device. Model work itself is owned by the shell-level queue.
                         if displayedPage == .conversation {
                             conversationView
+                            .environment(\.isConversationPageDeparting, activePage != .conversation)
+                            .transaction { transaction in
+                                if activePage != .conversation {
+                                    transaction.animation = nil
+                                    transaction.disablesAnimations = true
+                                }
+                            }
+                            .compositingGroup()
                             .opacity(isPageContentVisible ? 1 : 0)
                             .offset(y: pageContentOffsetY)
                         }
@@ -758,13 +810,13 @@ struct ContentView: View {
                                     onOpenMenu: presentGlobalSideMenu,
                                     onSelectConversation: { conversation in
                                         requestedConversationID = conversation.id
-                                        activePage = .conversation
+                                        redirect(to: .conversation)
                                     },
                                     onStartQuestion: startQuestionOfTheDay,
                                     onOpenInsightBridge: { firstID, secondID in
                                         globalInsightHighlightedBridge = (firstID, secondID)
                                         globalInsightHighlightRequest += 1
-                                        activePage = .insights
+                                        redirect(to: .insights)
                                     },
                                     onFocusNode: { nodeID in
                                         guard let card = homeLooseThread,
@@ -773,7 +825,7 @@ struct ContentView: View {
                                             conversationID: card.conversationID,
                                             nodeID: nodeID
                                         )
-                                        activePage = .conversation
+                                        redirect(to: .conversation)
                                     },
                                     onStartTodayInHistory: { card in
                                         newConversationRequests.submit(NewConversationRequest(
@@ -782,7 +834,7 @@ struct ContentView: View {
                                             promptContext: card.taggedPromptContext,
                                             subtitle: card.description
                                         ))
-                                        activePage = .conversation
+                                        redirect(to: .conversation)
                                     },
                                     onRefresh: refreshPersistedContent,
                                     onLoadHomeSections: {
@@ -804,11 +856,11 @@ struct ContentView: View {
                                     onOpenMenu: presentGlobalSideMenu,
                                     onSelectConversation: { conversation in
                                         requestedConversationID = conversation.id
-                                        activePage = .conversation
+                                        redirect(to: .conversation)
                                     },
                                     onNewChat: {
                                         newConversationRequests.submit()
-                                        activePage = .conversation
+                                        redirect(to: .conversation)
                                     },
                                     onRenameConversation: { conversation, title in
                                         renameConversation(conversation, to: title)
@@ -857,22 +909,22 @@ struct ContentView: View {
                                     onOpenMenu: presentGlobalSideMenu,
                                     onSelectConversation: { conversation in
                                         requestedConversationID = conversation.id
-                                        activePage = .conversation
+                                        redirect(to: .conversation)
                                     },
                                     onNewChat: {
                                         newConversationRequests.submit()
-                                        activePage = .conversation
+                                        redirect(to: .conversation)
                                     },
                                     onNewChatInTopic: { topicID in
                                         newConversationRequests.submit(NewConversationRequest(topicID: topicID))
-                                        activePage = .conversation
+                                        redirect(to: .conversation)
                                     },
                                     onQuoteInsightIntoNewConversation: { insight, topicID in
                                         newConversationRequests.submit(NewConversationRequest(
                                             topicID: topicID,
                                             quote: NewConversationInsightQuoteRequest(insight: insight, topicID: topicID)
                                         ))
-                                        activePage = .conversation
+                                        redirect(to: .conversation)
                                     },
                                     onQuoteInsightIntoConversation: { conversation, insight, topicID in
                                         insightConversationQuoteRequest = InsightConversationQuoteRequest(
@@ -880,7 +932,7 @@ struct ContentView: View {
                                             conversationID: conversation.id,
                                             insight: insight
                                         )
-                                        activePage = .conversation
+                                        redirect(to: .conversation)
                                     },
                                     onAttachConversationToTopic: { conversation, topicID in
                                         attachConversation(conversation, toStudyTopic: topicID)
@@ -909,6 +961,7 @@ struct ContentView: View {
                                     onDetailVisibilityChange: { isVisible in
                                         isStudyTopicDetailVisible = isVisible
                                     },
+                                    onSelectedTopicChange: { selectedStudyTopicID = $0 },
                                     onControlsChange: { studyTopicsControls = $0 }
                                 )
                             }
@@ -1173,7 +1226,7 @@ struct ContentView: View {
         conversationNodeFocusRequest = nil
         newConversationRequests.submit(dailyQuestion.conversationRequest)
         dismissGlobalSideMenu {
-            activePage = .conversation
+            redirect(to: .conversation)
         }
     }
 
@@ -1257,7 +1310,6 @@ struct ContentView: View {
             }
             guard let source = DailyQuestionSourceSelector.select(
                       conversations: sideMenuConversations,
-                      activeConversationID: sideMenuActiveConversationID,
                       savedInsights: collectedDefinitions
                   ) else {
                 dailyQuestionRefreshTask = nil
@@ -1338,6 +1390,7 @@ struct ContentView: View {
             } completion: {
                 guard pageTransitionID == transitionID else { return }
                 departingPageControlsHeight = nil
+                schedulePendingPageReturn()
             }
             return
         }
@@ -1363,6 +1416,9 @@ struct ContentView: View {
                     withAnimation(.easeInOut(duration: pageFadeDuration)) {
                         isPageContentVisible = true
                         pageContentOffsetY = 0
+                    } completion: {
+                        guard pageTransitionID == transitionID else { return }
+                        schedulePendingPageReturn()
                     }
                 }
                 pendingPageTransitionWorkItem = revealWork
@@ -1548,7 +1604,7 @@ struct ContentView: View {
         newConversationRequests.submit(NewConversationRequest(
             quote: NewConversationInsightQuoteRequest(insight: insight)
         ))
-        activePage = .conversation
+        redirect(to: .conversation)
     }
 
     private var globalTreeNeedsUpdate: Bool {

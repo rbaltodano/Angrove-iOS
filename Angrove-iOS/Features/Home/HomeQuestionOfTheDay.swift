@@ -196,17 +196,28 @@ struct DailyQuestionSource {
 enum DailyQuestionSourceSelector {
     static func select(
         conversations: [InquiryConversation],
-        activeConversationID: UUID?,
         savedInsights: [ConceptDefinition]
     ) -> DailyQuestionSource? {
+        var generator = SystemRandomNumberGenerator()
+        return select(
+            conversations: conversations,
+            savedInsights: savedInsights,
+            using: &generator
+        )
+    }
+
+    static func select<Generator: RandomNumberGenerator>(
+        conversations: [InquiryConversation],
+        savedInsights: [ConceptDefinition],
+        using generator: inout Generator
+    ) -> DailyQuestionSource? {
+        // Limit the window before checking transcripts so older conversations cannot leak in.
+        // Shuffling gives every eligible conversation in that window the same chance.
         let recentConversations = conversations
             .filter { !$0.isStudyTopic }
-            .sorted { left, right in
-                let leftIsActive = left.id == activeConversationID
-                let rightIsActive = right.id == activeConversationID
-                if leftIsActive != rightIsActive { return leftIsActive }
-                return left.createdAt > right.createdAt
-            }
+            .sorted { $0.createdAt > $1.createdAt }
+            .prefix(5)
+            .shuffled(using: &generator)
 
         for conversation in recentConversations {
             for branch in conversation.branches.reversed() {
@@ -284,9 +295,9 @@ enum DailyQuestionSourceSelector {
 }
 
 /// Picks a conversation to scope Home's conversation-based discovery sections to (Loose Thread,
-/// Terms You Glossed Over, Your Quote). Reuses `DailyQuestionSourceSelector`'s ordering -- Study
-/// Topics excluded, active conversation first, then most-recently-created -- without its
-/// `hasQuestion`/`hasAnswer` transcript requirement.
+/// Terms You Glossed Over, Your Quote). Excludes Study Topics and prefers the active conversation,
+/// then the most recently created, without the daily question's random selection or transcript
+/// requirement.
 enum HomeSectionSourceSelector {
     static func selectConversationID(
         conversations: [InquiryConversation],

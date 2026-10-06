@@ -130,10 +130,10 @@ struct LiteRTProductionRuntimeTests {
         )
     }
 
-    @Test("Unmatched specialist definitions require corpus evidence")
+    @Test("Specialist definitions can use general knowledge")
     func specialistDefinitionEvidenceRequirement() {
-        #expect(LiteRTAngroveModel.requiresCorpusEvidence("What is infralapsarianism?"))
-        #expect(LiteRTAngroveModel.requiresCorpusEvidence("What is utilitarianism?"))
+        #expect(!LiteRTAngroveModel.requiresCorpusEvidence("What is infralapsarianism?"))
+        #expect(!LiteRTAngroveModel.requiresCorpusEvidence("What is utilitarianism?"))
         #expect(!LiteRTAngroveModel.requiresCorpusEvidence("What is moral obligation?"))
         #expect(!LiteRTAngroveModel.requiresCorpusEvidence("What is courage?"))
     }
@@ -151,20 +151,46 @@ struct LiteRTProductionRuntimeTests {
     @Test("Evidence-required requests abstain when no passage is retrieved")
     func evidenceRequirementSelection() {
         #expect(LiteRTAngroveModel.requiresCorpusEvidence("Who is the current pope?"))
-        #expect(LiteRTAngroveModel.requiresCorpusEvidence("What did Nicaea decide?"))
-        #expect(LiteRTAngroveModel.requiresCorpusEvidence("What is the Nicene Creed?"))
-        #expect(LiteRTAngroveModel.requiresCorpusEvidence("Define the Council of Nicaea."))
+        #expect(!LiteRTAngroveModel.requiresCorpusEvidence("What did Nicaea decide?"))
+        #expect(!LiteRTAngroveModel.requiresCorpusEvidence("What is the Nicene Creed?"))
+        #expect(!LiteRTAngroveModel.requiresCorpusEvidence("Define the Council of Nicaea."))
         #expect(LiteRTAngroveModel.requiresCorpusEvidence("What does the Nicene Creed say?"))
         #expect(LiteRTAngroveModel.requiresCorpusEvidence("Who wrote the Didache?"))
         #expect(LiteRTAngroveModel.requiresCorpusEvidence("Quote Session VI of the Council of Trent."))
         #expect(LiteRTAngroveModel.requiresCorpusEvidence("Can you quote the Gospel of John?"))
-        #expect(LiteRTAngroveModel.requiresCorpusEvidence("When was the Council of Trent?"))
+        #expect(!LiteRTAngroveModel.requiresCorpusEvidence("When was the Council of Trent?"))
 
         #expect(!LiteRTAngroveModel.requiresCorpusEvidence("Can Spider-Man be a good role model even if he is not real?"))
         #expect(!LiteRTAngroveModel.requiresCorpusEvidence("I feel stuck and need some perspective."))
         #expect(!LiteRTAngroveModel.requiresCorpusEvidence("What does moral obligation mean?"))
         #expect(!LiteRTAngroveModel.requiresCorpusEvidence("Please define moral obligation."))
         #expect(!LiteRTAngroveModel.requiresCorpusEvidence("Imagine how a parent might teach courage."))
+    }
+
+    @Test("Historical reflections and general facts do not require a passage")
+    func historicalDiscussionWithoutPassages() {
+        let reflection = "I think the introduction of biological elements into the space race transformed the shift into one that really got people thinking about the future of humanity. At the same time the fear of the cold war might have made people think we were doing it for the wrong reasons."
+        for question in [reflection,
+            "How did Sputnik 2 change the space race?",
+            "When was Sputnik 2 launched?",
+            "Who was Laika?",
+            "How many animals flew on Sputnik 2?",
+            "How does history shape our hopes for humanity?",
+            "I feel warmth toward that idea.",
+            "I think scientific ambition was a source of hope during the Cold War."
+        ] {
+            #expect(!LiteRTAngroveModel.requiresCorpusEvidence(question))
+        }
+        #expect(LiteRTAngroveModel.requiresCorpusEvidence("Cite a source for Sputnik 2's launch date."))
+        #expect(LiteRTAngroveModel.requiresCorpusEvidence("According to this chapter, why was Laika chosen?"))
+        #expect(LiteRTAngroveModel.requiresCorpusEvidence("What is the latest space mission?"))
+
+        let instruction = LiteRTAngroveModel.evidenceExperimentInstruction(
+            context: ConversationContext(transcript: [.user(reflection, nil, [])]),
+            references: []
+        )
+        #expect(instruction.contains("Engage with the user’s argument"))
+        #expect(instruction.contains("historical and scientific discussion"))
     }
 
     @Test("A reflective reply retrieves through its unanswered study prompt")
@@ -887,49 +913,17 @@ struct LiteRTProductionRuntimeTests {
     }
 
     @MainActor
-    @Test("Direct grounded council questions bypass contradictory generation")
-    func directCouncilQuestionUsesVerifiedAnswer() throws {
-        let question = "What was the second ecumenical council?"
-        let references = LocalAngroveGroundingProvider().references(
-            for: question,
-            limit: 3
-        )
-        let response = try #require(
-            LiteRTAngroveModel.groundedResponse(
-                for: question,
-                references: references
-            )
-        )
-
-        #expect(response.text.contains("First Council of Constantinople"))
-        #expect(response.text.contains("381"))
-        #expect(!response.text.contains("Nicaea (325) is called the second"))
-        #expect(
-            response.keyTerms.map(\.displayText) == [
-                "First Council of Constantinople",
-                "Nicene-Constantinopolitan Creed"
-            ]
-        )
-        #expect(response.thinkingSummary.first?.contains("Constantinople in 381 was second") == true)
-    }
-
-    @MainActor
-    @Test("Direct grounded Didache questions bypass false attribution")
-    func directDidacheQuestionUsesVerifiedAnswer() throws {
-        let question = "Was the Didache written by Paul?"
-        let references = LocalAngroveGroundingProvider().references(
-            for: question,
-            limit: 3
-        )
-        let response = try #require(
-            LiteRTAngroveModel.groundedResponse(
-                for: question,
-                references: references
-            )
-        )
-
-        #expect(response.text.contains("author is unknown"))
-        #expect(response.text.contains("not known to have been written by the Apostle Paul"))
+    @Test("Council and Didache questions use generation instead of prewritten answers", arguments: [
+        "What was the first ecumenical council?",
+        "What was the second ecumenical council?",
+        "What was the seventh ecumenical council?",
+        "Was the Didache written by Paul?"
+    ])
+    func councilAndDidacheQuestionsHaveNoPrewrittenAnswer(question: String) {
+        let references = LocalAngroveGroundingProvider().references(for: question, limit: 3)
+        #expect(!references.isEmpty)
+        #expect(LiteRTAngroveModel.groundedResponse(for: question, references: references) == nil)
+        #expect(LiteRTAngroveModel.groundedResponse(for: question, references: references, thinkingEnabled: false) == nil)
     }
 
     @MainActor

@@ -21,6 +21,7 @@ struct GlobalInsightsModelControls: View {
     var onToggleStudyTools: () -> Void = {}
     var studyBranchCount: Int = 2
     var onStudyBranchCountChange: (Int) -> Void = { _ in }
+    var onStudyBranchConfirm: () -> Void = {}
     let isCanvasInsightLoading: Bool
     let modelStatusOverride: String?
     let contextWordCount: Int
@@ -88,6 +89,7 @@ struct GlobalInsightsModelControls: View {
             onToggleStudyTools: onToggleStudyTools,
             studyBranchCount: studyBranchCount,
             onStudyBranchCountChange: onStudyBranchCountChange,
+            onStudyBranchConfirm: onStudyBranchConfirm,
             isCanvasInsightLoading: isCanvasInsightLoading,
             modelStatusOverride: modelStatusOverride,
             modelTasks: modelTasks,

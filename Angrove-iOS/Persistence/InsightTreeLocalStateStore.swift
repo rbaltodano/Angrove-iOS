@@ -26,12 +26,22 @@ struct InsightTreeLocalStateFileStore {
 
     func load<Value: Codable>(_ type: Value.Type, key: String) -> Value? {
         let fileURL = url(for: key)
-        if let data = try? EncryptedPersonalFile.read(fileURL),
-           let value = try? JSONDecoder().decode(type, from: data) {
-            return value
+        if fileManager.fileExists(atPath: fileURL.path) {
+            do {
+                let data = try EncryptedPersonalFile.read(fileURL)
+                return try JSONDecoder().decode(type, from: data)
+            } catch {
+                // A damaged current file must not fall through to an older value or be treated
+                // as an empty collection. Keep the bytes in place for recovery.
+                PersonalDataProtection.report(error)
+                return nil
+            }
         }
-        guard let data = PrivatePreferences(defaults: defaults).data(forKey: key),
-              let value = try? JSONDecoder().decode(type, from: data) else {
+        guard let data = PrivatePreferences(defaults: defaults).data(forKey: key) else {
+            return nil
+        }
+        guard let value = try? JSONDecoder().decode(type, from: data) else {
+            PersonalDataProtection.report(LocalDataEncryptionError.invalidEnvelope)
             return nil
         }
         do {
@@ -43,13 +53,31 @@ struct InsightTreeLocalStateFileStore {
         return value
     }
 
-    func save<Value: Encodable>(_ value: Value, key: String) throws {
+    func save<Value: Codable>(_ value: Value, key: String) throws {
+        let fileURL = url(for: key)
+        if let legacy = PrivatePreferences(defaults: defaults).data(forKey: key),
+           !fileManager.fileExists(atPath: fileURL.path),
+           (try? JSONDecoder().decode(Value.self, from: legacy)) == nil {
+            // Do not turn an undecodable legacy tree into a new, empty file. Keep the original
+            // preference available for a future recovery or migration.
+            PersonalDataProtection.report(LocalDataEncryptionError.invalidEnvelope, duringWrite: true)
+            throw LocalDataEncryptionError.invalidEnvelope
+        }
+        if fileManager.fileExists(atPath: fileURL.path) {
+            // EncryptedPersonalFile validates the envelope, but the payload may still be
+            // undecodable after a schema change or partial migration. Never replace it blindly.
+            let existing = try EncryptedPersonalFile.read(fileURL)
+            guard (try? JSONDecoder().decode(Value.self, from: existing)) != nil else {
+                PersonalDataProtection.report(LocalDataEncryptionError.invalidEnvelope, duringWrite: true)
+                throw LocalDataEncryptionError.invalidEnvelope
+            }
+        }
         try fileManager.createDirectory(
             at: rootDirectory,
             withIntermediateDirectories: true
         )
         let data = try JSONEncoder().encode(value)
-        try EncryptedPersonalFile.write(data, to: url(for: key))
+        try EncryptedPersonalFile.write(data, to: fileURL)
     }
 
     private func url(for key: String) -> URL {
@@ -60,15 +88,19 @@ struct InsightTreeLocalStateFileStore {
 }
 
 enum InsightTreeLocalStateStore {
-    static func load<Value: Codable>(_ type: Value.Type, key: String) -> Value? {
-        liveStore()?.load(type, key: key)
+    static func load<Value: Codable>(
+        _ type: Value.Type,
+        key: String,
+        defaults: UserDefaults = .standard
+    ) -> Value? {
+        store(defaults: defaults)?.load(type, key: key)
     }
 
-    static func save<Value: Encodable>(_ value: Value, key: String) {
-        try? liveStore()?.save(value, key: key)
+    static func save<Value: Codable>(_ value: Value, key: String, defaults: UserDefaults = .standard) {
+        try? store(defaults: defaults)?.save(value, key: key)
     }
 
-    private static func liveStore() -> InsightTreeLocalStateFileStore? {
+    private static func store(defaults: UserDefaults) -> InsightTreeLocalStateFileStore? {
         guard let applicationSupport = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
@@ -79,7 +111,8 @@ enum InsightTreeLocalStateStore {
             rootDirectory: applicationSupport.appending(
                 path: "Aquinas/InsightTree/CanvasState",
                 directoryHint: .isDirectory
-            )
+            ),
+            defaults: defaults
         )
     }
 }

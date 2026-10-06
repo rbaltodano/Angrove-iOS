@@ -16,7 +16,7 @@ final class HomeVineParallax {
 enum HomeVineSide {
     /// Hangs from the right edge behind the greeting.
     case right
-    /// Hangs from the left edge below the Question of the Day.
+    /// Hangs from the left edge below the streak calendar.
     case left
 
     var assetPrefix: String {
@@ -46,8 +46,8 @@ enum HomeVineSide {
 /// Painted ivy hanging from an edge of the home screen, blowing in the wind.
 ///
 /// With a `parallax` source the vine also falls behind the content as it scrolls, by `depth`
-/// of the scroll distance, so it reads as farther back than the text. It stops drifting after
-/// `maxDrift` points of scroll, and Reduce Motion keeps it fixed to the content.
+/// of the scroll distance, so it reads as farther back than the text until it leaves the screen.
+/// Reduce Motion keeps it fixed to the content.
 ///
 /// The website's 24 paint-on sprites play once at 6 fps (four seconds), followed by its
 /// four final painted sprites at 4 fps (one second per loop). The final entrance and first idle
@@ -61,7 +61,6 @@ struct HomeVineWind: View {
     var width: CGFloat = 176
     var parallax: HomeVineParallax? = nil
     var depth: CGFloat = 0.15
-    var maxDrift: CGFloat = 700
     var delay: TimeInterval = 0
     var returnDelay: TimeInterval = 0
 
@@ -139,7 +138,7 @@ struct HomeVineWind: View {
     /// down past the top (a negative offset) does not move it.
     private var driftOffset: CGFloat {
         guard !reduceMotion, let parallax else { return 0 }
-        return min(max(parallax.scrollOffset, 0), maxDrift) * depth
+        return max(parallax.scrollOffset, 0) * depth
     }
 
     private func sprite(name: String) -> some View {

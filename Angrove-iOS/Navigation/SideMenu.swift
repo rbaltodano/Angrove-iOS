@@ -85,7 +85,7 @@ struct AngroveSideMenu: View, Equatable {
                     VStack(alignment: .leading, spacing: 24) {
                         VStack(alignment: .leading, spacing: 0) {
                             SideMenuRow(
-                                icon: "house",
+                                icon: AppPage.home.sidebarIconName,
                                 title: "Home",
                                 isActive: activePage == .home,
                                 isPresented: isPresented,
@@ -93,7 +93,7 @@ struct AngroveSideMenu: View, Equatable {
                                 action: onOpenHome
                             )
                             SideMenuRow(
-                                icon: "books.vertical",
+                                icon: AppPage.library.sidebarIconName,
                                 title: "Library",
                                 isActive: activePage == .library,
                                 isPresented: isPresented,
@@ -101,7 +101,7 @@ struct AngroveSideMenu: View, Equatable {
                                 action: onOpenLibrary
                             )
                             SideMenuRow(
-                                icon: "brain.head.profile",
+                                icon: AppPage.insights.sidebarIconName,
                                 title: "Insights",
                                 badge: newInsightsCount,
                                 isActive: activePage == .insights,
@@ -110,7 +110,7 @@ struct AngroveSideMenu: View, Equatable {
                                 action: onOpenInsights
                             )
                             SideMenuRow(
-                                icon: "text.word.spacing",
+                                icon: AppPage.openConversations.sidebarIconName,
                                 title: "Conversations",
                                 isActive: activePage == .openConversations,
                                 isPresented: isPresented,
@@ -118,7 +118,7 @@ struct AngroveSideMenu: View, Equatable {
                                 action: onOpenConversations
                             )
                             SideMenuRow(
-                                icon: "square.stack",
+                                icon: AppPage.studyTopics.sidebarIconName,
                                 title: "Study Topics",
                                 isActive: activePage == .studyTopics,
                                 isPresented: isPresented,
@@ -214,30 +214,31 @@ struct AngroveSideMenu: View, Equatable {
                 }
             }
 
+            .padding(.bottom, 88) // let the last row scroll fully above the pinned buttons
+
             } // end scrollable content
             .padding(.horizontal, 24)
             .padding(.top, topPadding)
-            .padding(.bottom, 88) // reserve space so the last row clears the pinned bar
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
-            // ── Bottom fade gradient ─────────────────────────────────────────
+            // Fade scrolling rows into the panel's own adaptive surface, beneath the buttons.
             LinearGradient(
-                stops: [
-                    .init(color: AngroveTheme.Colors.canvasSecondary.opacity(0), location: 0),
-                    .init(color: AngroveTheme.Colors.canvasSecondary, location: 1),
+                colors: [
+                    AngroveTheme.Colors.sideMenuSurface.opacity(0),
+                    AngroveTheme.Colors.sideMenuSurface
                 ],
-                startPoint: UnitPoint(x: 0.5, y: 0),
-                endPoint: UnitPoint(x: 0.5, y: 0.84)
+                startPoint: .top,
+                endPoint: .bottom
             )
-            .frame(height: geometry.size.height * 0.38)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .frame(height: 160)
+            .clipShape(UnevenRoundedRectangle(bottomTrailingRadius: 24))
             .allowsHitTesting(false)
-            .zIndex(1)
+            .accessibilityHidden(true)
 
             // ── Pinned bottom bar ────────────────────────────────────────────
             HStack(alignment: .center) {
                 Button(action: onOpenSettings) {
-                    Image(systemName: "gearshape")
+                    Image(systemName: AppPage.settings.sidebarIconName)
                         .font(.system(size: 16, weight: .semibold))
                         .sfSymbolDrawOn()
                 }
@@ -266,22 +267,6 @@ struct AngroveSideMenu: View, Equatable {
             .padding(.top, 16)
             .padding(.bottom, 24)
             .frame(maxWidth: .infinity)
-            .background(
-                LinearGradient(
-                    stops: [
-                        Gradient.Stop(
-                            color: AngroveTheme.Colors.menuFade,
-                            location: 0.00
-                        ),
-                        Gradient.Stop(
-                            color: AngroveTheme.Colors.menuFade.opacity(0),
-                            location: 1.00
-                        ),
-                    ],
-                    startPoint: UnitPoint(x: 0.5, y: 1),
-                    endPoint: UnitPoint(x: 0.5, y: 0)
-                )
-            )
             .zIndex(2)
         } // end ZStack
         .frame(maxWidth: .infinity, maxHeight: .infinity)

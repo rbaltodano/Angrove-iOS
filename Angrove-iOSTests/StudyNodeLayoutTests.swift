@@ -193,4 +193,14 @@ struct StudyNodeLayoutTests {
             #expect(abs(expected.position.y - actual.position.y) < 1e-6)
         }
     }
+    @Test("Study preserves relative semantic bond lengths instead of placing every Insight on one radius")
+    func semanticRadii() {
+        let near = StudyNodeLayout.offset(from: [150, 0, 40], toward: [0, 1, 0], bondLength: 150, progress: 1)
+        let far = StudyNodeLayout.offset(from: [330, 0, -40], toward: [0, 1, 0], bondLength: 330, progress: 1)
+        #expect(abs(simd_length(near) - 150) < 0.00001)
+        #expect(abs(simd_length(far) - 330) < 0.00001)
+        let original: SIMD3<Double> = [150, 0, 40]
+        #expect(simd_length(StudyNodeLayout.offset(from: original, toward: [0, 1, 0], bondLength: 150, progress: 0) - original) < 0.00001)
+    }
+
 }

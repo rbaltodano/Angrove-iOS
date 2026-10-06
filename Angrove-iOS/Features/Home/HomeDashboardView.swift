@@ -93,9 +93,6 @@ struct HomeDashboardView: View {
                             hidesGreetingHeader: todayInHistory != nil,
                             onStartQuestion: onStartQuestion
                         )
-                        .anchorPreference(key: HomeOpeningBoundsKey.self, value: .bounds) {
-                            usesLandscapeLayout ? nil : $0
-                        }
 
                         HomeFigmaDivider()
 
@@ -165,14 +162,12 @@ struct HomeDashboardView: View {
                     HomeVineWind(parallax: vineParallax)
                         .padding(.top, usesLandscapeLayout ? 48 : 72)
                 }
-                // The left vine hangs from the left edge, 192 points below its original position
-                // at the foot of the opening section, and sits farther back than the right vine
-                // (as on the website). Both stay behind the page.
-                .backgroundPreferenceValue(HomeOpeningBoundsKey.self) { anchor in
-                    if let anchor {
+                // Hang the left vine 132 points below the streak calendar, behind the page.
+                .backgroundPreferenceValue(HomeCalendarBoundsKey.self) { anchor in
+                    if let anchor, !usesLandscapeLayout {
                         GeometryReader { proxy in
                             HomeVineWind(side: .left, parallax: vineParallax, depth: 0.22, delay: 0.15, returnDelay: 0.05)
-                                .offset(y: proxy[anchor].maxY - (questionOfTheDay == nil ? 84 : 168) + 192)
+                                .offset(y: proxy[anchor].maxY + 132)
                         }
                     }
                 }
@@ -299,8 +294,8 @@ private struct HomeFigmaOpeningSection: View {
     }
 }
 
-/// The portrait opening section's frame, so the page can hang the left vine at its foot.
-private struct HomeOpeningBoundsKey: PreferenceKey {
+/// The streak calendar's frame, used to place the left vine below it.
+private struct HomeCalendarBoundsKey: PreferenceKey {
     static let defaultValue: Anchor<CGRect>? = nil
 
     static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
@@ -318,6 +313,7 @@ private struct HomeFigmaUsageAndStats: View {
     var body: some View {
         HStack(alignment: .center, spacing: 24) {
             HomeFigmaUsageGrid(month: month)
+                .anchorPreference(key: HomeCalendarBoundsKey.self, value: .bounds) { $0 }
 
             HomeFigmaStatsGrid(
                 conversationCount: conversationCount,

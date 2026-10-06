@@ -1,7 +1,9 @@
 # TestFlight handoff — October 5, 2026
 
-The local code and artifacts are prepared for the next upload step. This is not a submitted or
-processed beta. Personal device data has not been touched.
+App version **1.0, build 2** uploaded successfully on October 5 at 16:34 EDT. Apple reported
+that processing had started; completion has not yet been verified. The essential model pack
+has not been uploaded, and internal TestFlight access has not yet been configured. Personal
+device data has not been touched. Earlier sections below preserve the preparation history.
 
 See the [pre-TestFlight check](Preflight-Check.md) for the fresh full-suite run, normal-launch
 proof, corrected Settings checks and the remaining hands-on verification.
@@ -20,9 +22,9 @@ proof, corrected Settings checks and the remaining hands-on verification.
 
 | Artifact | Local path | File bytes |
 | --- | --- | --- |
-| App Store IPA | `build/release-audit/app-store-export/Angrove-iOS.ipa` | 223,017,617 |
+| Stable App Store IPA | `build/stable-release/app-store-export/Angrove-iOS.ipa` | 222,891,319 |
 | Essential model pack | `build/asset-packs/Gemma4-E4B.aar` | 3,129,706,564 |
-| Distribution audit | `build/release-audit/distribution-packaging-report.json` | JSON report |
+| Stable distribution audit | `build/stable-release/packaging-report.json` | JSON report |
 | Artifact hashes | `build/release-audit/ready-artifacts.json` | JSON record |
 
 All paths are gitignored generated outputs. Byte counts describe local artifacts, not Apple's
@@ -109,3 +111,70 @@ second Xcode installation requires more space first. No build was made available
 and no App Review submission was made. The existing IPA remains locally signed/packaged; it is
 not an Apple-accepted candidate. US-only availability and the developer name were recorded
 locally, not changed in App Store Connect.
+
+## Stable Xcode installation follow-up
+
+Installed from the Mac App Store: `/Applications/Xcode.app`, Xcode 27.0 build **27A266a**.
+The installed binary reports this version and `xcodebuild -checkFirstLaunchStatus` succeeds.
+The prior beta `/Applications/Xcode-beta.app` was preserved. Global `xcode-select` still points
+to the beta, so release commands must explicitly select the stable installation:
+
+```sh
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild ...
+```
+
+The previously rejected archive remains a beta-built artifact. Rebuild/export, refresh its
+hashes and retry Apple validation before claiming that the new toolchain/build is accepted.
+Approximately 19 GiB remained free after installation.
+
+## Stable release rebuild
+
+Rebuilt committed main **21ac6a6** using `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.
+Signed Release archive: `build/stable-release/Angrove.xcarchive`. The app reports Xcode build
+**27A266a**, SDK build **24A430**, version **1.0**, build **1**, minimum iOS **26.4**. Archive and
+App Store distribution export both succeeded. No app code changed during this rebuild.
+
+IPA: `build/stable-release/app-store-export/Angrove-iOS.ipa`, **222,891,319 bytes**, SHA-256
+`fd1e75ff35e1a9f6e839b82ea844ab7eb75dff2268c9ab194ed2f9b8fec0b888`. The older beta-built IPA
+is superseded. The model pack was preserved and not repackaged.
+
+Local audit verifies strict signatures and unexpired App Store profiles for the app/widget/
+downloader, shared App Group, debugging disabled, no debugging-memory entitlement, all privacy
+manifests present and the model excluded from the IPA. The sole local packaging gate is the
+unset encryption export declaration. Audit: `build/stable-release/packaging-report.json`.
+
+Apple validation **passed**: `Validated Angrove-iOS`, `EXPORT SUCCEEDED`, process exit **0**.
+Log: `/tmp/angrove-stable-validation.log`. This resolves the prior rejected-beta-toolchain gate
+for this validation run. This validation workflow is separate from
+publishing a TestFlight beta. Physical-device and hosted-service checks remain pending.
+
+The device archive succeeded despite a simulator-service version mismatch warning. The
+full unit suite was not rerun in this rebuild-only pass; previous preflight results are retained.
+No owner device data was changed.
+
+Next: finish the recorded encryption submission answer, upload the app and essential model pack,
+verify Apple processing, and enable internal TestFlight testing. Validation success does not mean
+the build is installed, a tester group has access, or encryption paperwork is complete.
+
+## Build 2 upload — current status
+
+Added `ITSAppUsesNonExemptEncryption = NO` using the integration assessment in
+[LiteRT privacy/crypto audit](LiteRT-Privacy-Crypto-Audit.md), and incremented project build
+numbers to 2. The candidate includes these local changes on top of main commit `21ac6a6`.
+The app still encrypts stored data; this plist value classifies export compliance.
+
+Stable Xcode archive/export succeeded. IPA: `build/stable-release/build2-export/Angrove-iOS.ipa`,
+222,891,361 bytes, SHA-256
+`52490cff304c8b32a0eb28e58807eebd0b156d00316740fc532c5e771d723e03`.
+Local packaging audit reports zero blockers: `build/stable-release/build2-packaging-report.json`.
+Actual app upload succeeded (exit 0, `Uploaded Angrove-iOS`, `EXPORT SUCCEEDED`) at 16:34 EDT.
+Log: `/tmp/angrove-build2-upload.log`. Apple reported processing had started; this does not
+confirm a processed or installable TestFlight build. Upload warned that the vendor
+`CLiteRTLM.framework` dSYM was absent, which limits native SDK crash symbolication.
+
+The unchanged essential model pack remains locally verified and **not uploaded**. Transporter
+installation is waiting for the owner's Mac authentication. App Store Connect browser sign-in
+is also pending. Signing into App Store Connect from a phone does not authenticate these Mac
+sessions, but the owner can use the phone browser to inspect processing and configure an
+internal group for their own account. Full AI testing still requires the hosted model pack.
+No internal invitations, App Review submission or public release have been performed.

@@ -62,6 +62,21 @@ final class InsightTreeViewModel: ObservableObject {
     /// content in place never re-triggers the reveal animation.
     private var generatedChildInsights: [UUID: [InsightModel]] = [:]
     private var childGenerationInFlight: Set<UUID> = []
+    /// Presence distinguishes Branch from legacy Make Node and retains the original parent.
+    private var branchInsightCounts: [UUID: Int] = [:]
+    private var branchCountsStoreKey: String {
+        "aquinas.insight-tree.branch-counts.v1:\(midpointStoreScope?.uuidString ?? "global")"
+    }
+
+    private func childCount(for insightID: UUID) -> Int {
+        generatedChildInsights[promotedNodeID(for: insightID)]?.count
+            ?? branchInsightCounts[insightID] ?? 3
+    }
+
+    private func persistBranchCounts() {
+        InsightTreeLocalStateStore.save(branchInsightCounts, key: branchCountsStoreKey)
+    }
+
     /// Scoped the same way as `placedMidpointStoreKey` — without this, a Make Node promotion's
     /// generated children reset to empty the moment the view model was recreated (e.g. navigating
     /// away from the Global tree and back), even on the rare paths where the promotion id itself
@@ -187,6 +202,8 @@ final class InsightTreeViewModel: ObservableObject {
         generatedChildInsights = Self.loadMakeNodeChildren(
             storageKey: "\(Self.makeNodeChildrenStoreKeyPrefix):\(midpointStoreScope?.uuidString ?? "global")"
         )
+        branchInsightCounts = InsightTreeLocalStateStore.load([UUID: Int].self, key: "aquinas.insight-tree.branch-counts.v1:\(midpointStoreScope?.uuidString ?? "global")") ?? [:]
+        generatedMakeNodeChildIDs = Set(generatedChildInsights.values.flatMap { $0.map(\.id) })
         scene = InsightTreeScene(size: CGSize(width: 390, height: 844))
         scene.scaleMode = .resizeFill
         scene.backgroundColor = UIColor(AngroveTheme.Colors.canvas)
@@ -233,7 +250,7 @@ final class InsightTreeViewModel: ObservableObject {
             childGenerationInFlight.formIntersection(retainedNodeIDs)
             let retainedChildIDs = Set(promotedInsightIDs.flatMap { insightID in
                 let nodeID = promotedNodeID(for: insightID)
-                return (0..<3).map { makeNodeChildID(for: nodeID, index: $0) }
+                return (0..<childCount(for: insightID)).map { makeNodeChildID(for: nodeID, index: $0) }
             })
             generatedMakeNodeChildIDs.formIntersection(retainedChildIDs)
         }
@@ -294,6 +311,14 @@ final class InsightTreeViewModel: ObservableObject {
         let originalInsights = insights
         let originalSeeds = localSeedAnchors
         let corrected = await ensureEmbeddings(for: originalInsights)
+        let originalChildren = generatedChildInsights
+        var correctedChildren = originalChildren
+        for (nodeID, children) in originalChildren {
+            guard let sourceID = promotedSourceInsightID(forNodeID: nodeID),
+                  let source = corrected.first(where: { $0.id == sourceID })
+                    ?? placedMidpoints.first(where: { $0.concept.id == sourceID }).map({ InsightModel(concept: $0.concept) }) else { continue }
+            correctedChildren[nodeID] = await preparedChildren(children, source: source)
+        }
         var correctedSeeds: [LocalInsightTreeSeed] = []
         for seed in originalSeeds {
             if seed.embedding != nil,
@@ -319,12 +344,16 @@ final class InsightTreeViewModel: ObservableObject {
             subjectEmbeddings[id] = SubjectEmbedding(text: text, version: embeddingProvider.version, vector: vector)
         }
         guard generation == embeddingRefreshGeneration,
-              insights == originalInsights, localSeedAnchors == originalSeeds else { return }
+              insights == originalInsights, localSeedAnchors == originalSeeds,
+              generatedChildInsights == originalChildren else { return }
         guard corrected != insights || correctedSeeds != localSeedAnchors
-                || subjectEmbeddings != clusterSubjectEmbeddings else { return }
+                || subjectEmbeddings != clusterSubjectEmbeddings
+                || correctedChildren != generatedChildInsights else { return }
         insights = corrected
         localSeedAnchors = correctedSeeds
         clusterSubjectEmbeddings = subjectEmbeddings
+        generatedChildInsights = correctedChildren
+        persistMakeNodeChildren()
         rebuildTree()
     }
 
@@ -338,6 +367,25 @@ final class InsightTreeViewModel: ObservableObject {
             next[index].embeddingVersion = embeddingProvider.version
         }
         return next
+    }
+
+    /// Generated children bypass ordinary membership preparation, but still need the same
+    /// vector space before their connector lengths can represent relatedness to their parent.
+    private func preparedChildren(_ children: [InsightModel], source: InsightModel) async -> [InsightModel] {
+        let parent = await ensureEmbeddings(for: [source])[0]
+        var children = await ensureEmbeddings(for: children)
+        for index in children.indices {
+            guard let vector = children[index].embedding, !vector.isEmpty,
+                  let parentVector = parent.embedding, vector.count == parentVector.count else {
+                children[index].distanceToNode = nil
+                children[index].relatednessToNode = nil
+                continue
+            }
+            let distance = semanticDistance(vector, parentVector)
+            children[index].distanceToNode = distance
+            children[index].relatednessToNode = 1 - distance
+        }
+        return children
     }
 
     /// Commits the canvas's live-simulated positions back into the model and persists them.
@@ -524,7 +572,7 @@ final class InsightTreeViewModel: ObservableObject {
         // give only these the icon-first loading mask + splay animation.
         makeNodeChildIDs = Set(promotedInsightIDs.flatMap { insightID -> [UUID] in
             let nodeID = promotedNodeID(for: insightID)
-            return (0..<3).map { makeNodeChildID(for: nodeID, index: $0) }
+            return (0..<childCount(for: insightID)).map { makeNodeChildID(for: nodeID, index: $0) }
         })
 
         // A placed Midpoint gets auto-bookmarked (see `InsightTreeView.placeMidpointInsight`),
@@ -578,10 +626,15 @@ final class InsightTreeViewModel: ObservableObject {
     private func recomputeBondLengths(for nodes: [NodeModel]) {
         var lengths: [UUID: CGFloat] = [:]
         for node in nodes where !placedMidpointNodeIDs.contains(node.id) {
-            let distances: [(id: UUID, distance: Double)] = canvasInsights(for: node).map { insight in
-                let dist = insight.distanceToNode
-                    ?? semanticDistance(insight.embedding ?? [], node.embedding)
-                return (insight.id, dist)
+            let distances: [(id: UUID, distance: Double)] = canvasInsights(for: node).compactMap { insight in
+                if let distance = insight.distanceToNode { return (insight.id, distance) }
+                guard let vector = insight.embedding, !vector.isEmpty,
+                      vector.count == node.embedding.count else {
+                    // Missing embeddings mean unknown relatedness, not maximum separation.
+                    lengths[insight.id] = 190
+                    return nil
+                }
+                return (insight.id, semanticDistance(vector, node.embedding))
             }
             let range = distances.map(\.distance)
             guard let minDist = range.min(), let maxDist = range.max(), maxDist > minDist else {
@@ -956,6 +1009,16 @@ final class InsightTreeViewModel: ObservableObject {
         }
     }
 
+    private func promotionChildren(for insight: InsightModel) -> [InsightModel] {
+        let nodeID = promotedNodeID(for: insight.id)
+        if let children = generatedChildInsights[nodeID] { return children }
+        let placeholders = (0..<childCount(for: insight.id)).map { index in
+            InsightModel(id: makeNodeChildID(for: nodeID, index: index), title: "", definition: "")
+        }
+        requestChildren(for: insight, promotedNodeID: nodeID)
+        return placeholders
+    }
+
     private func appendPromotedNodes(
         to nodes: inout [NodeModel],
         edges: inout [EdgeModel],
@@ -966,28 +1029,36 @@ final class InsightTreeViewModel: ObservableObject {
         for insightID in promotedInsightIDs {
             guard let sourceIndex = nodes.firstIndex(where: { $0.insights.contains(where: { $0.id == insightID }) }),
                   let insight = nodes[sourceIndex].insights.first(where: { $0.id == insightID }) else {
+                // Midpoints are also Insights. Their owning parents are the original source
+                // nodes; replace the midpoint chip and retain those connections after Branch.
+                guard branchInsightCounts[insightID] != nil,
+                      let placed = placedMidpoints.first(where: { $0.concept.id == insightID }) else { continue }
+                let source = InsightModel(concept: placed.concept)
+                let nodeID = promotedNodeID(for: insightID)
+                let parentIDs = Set(placed.sources.compactMap { source -> UUID? in
+                    nodes.first { node in
+                        source.isNode ? node.id == source.insightID
+                            : node.insights.contains { $0.id == source.insightID }
+                                || node.id == promotedNodeID(for: source.insightID)
+                    }?.id
+                })
+                nodes.append(NodeModel(id: nodeID, conceptLabel: source.title, definition: source.definition,
+                    insights: promotionChildren(for: source), embedding: source.embedding ?? [],
+                    position: restoredPosition(for: nodeID) ?? placed.position,
+                    isSuggested: false, suggestedInsights: nil))
+                for parentID in parentIDs {
+                    edges.append(EdgeModel(id: stableUUID(from: "branch-parent:\(parentID):\(nodeID)"), fromNodeID: parentID, toNodeID: nodeID,
+                                           distance: 0.18, isSuggested: false, showSuggestButton: false))
+                }
                 continue
             }
             let sourceNode = nodes[sourceIndex]
             let promotedNodeID = promotedNodeID(for: insightID)
-
-            // Turning an insight into a concept spawns 3 relevant child insights around it.
-            // Identity-only loading children exist until `requestChildren` resolves. Their IDs
-            // remain stable across the generated-content swap so the canvas runs one animation.
-            let childInsights = generatedChildInsights[promotedNodeID] ?? (0..<3).map { childIndex in
-                InsightModel(
-                    id: makeNodeChildID(for: promotedNodeID, index: childIndex),
-                    title: "",
-                    definition: ""
-                )
-            }
-            if generatedChildInsights[promotedNodeID] == nil {
-                requestChildren(for: insight, promotedNodeID: promotedNodeID)
-            }
+            let childInsights = promotionChildren(for: insight)
 
             // If the insight already is its own node (canvas early layout), convert it in
             // place so the insight itself becomes the concept — no duplicate node beside it.
-            if sourceNode.id == insightID && sourceNode.insights.count == 1 {
+            if sourceNode.id == insightID && sourceNode.insights.count == 1 && branchInsightCounts[insightID] == nil {
                 nodes[sourceIndex].conceptLabel = insight.title
                 nodes[sourceIndex].definition = insight.definition
                 nodes[sourceIndex].insights = childInsights
@@ -1015,7 +1086,7 @@ final class InsightTreeViewModel: ObservableObject {
             nodes.append(promotedNode)
             edges.append(
                 EdgeModel(
-                    id: UUID(),
+                    id: stableUUID(from: "promotion-parent:\(sourceNode.id):\(promotedNodeID)"),
                     fromNodeID: sourceNode.id,
                     toNodeID: promotedNodeID,
                     distance: 0.18,
@@ -1046,7 +1117,12 @@ final class InsightTreeViewModel: ObservableObject {
 
     /// Reserves the generation slot before a queued Make Node task publishes its promoted id.
     /// This prevents the normal tree rebuild from launching an untracked duplicate request.
-    func reserveMakeNodeGeneration(for insightID: UUID) {
+    func reserveMakeNodeGeneration(for insightID: UUID, branchCount: Int? = nil) {
+        if let branchCount {
+            guard (2...6).contains(branchCount) else { return }
+            branchInsightCounts[insightID] = branchCount
+            persistBranchCounts()
+        }
         childGenerationInFlight.insert(promotedNodeID(for: insightID))
         if !promotedInsightIDs.contains(insightID) {
             promotedInsightIDs.append(insightID)
@@ -1070,8 +1146,10 @@ final class InsightTreeViewModel: ObservableObject {
         generatedChildInsights.removeValue(forKey: nodeID)
         persistMakeNodeChildren()
         generatedMakeNodeChildIDs.subtract(
-            (0..<3).map { makeNodeChildID(for: nodeID, index: $0) }
+            (0..<6).map { makeNodeChildID(for: nodeID, index: $0) }
         )
+        branchInsightCounts.removeValue(forKey: insightID)
+        persistBranchCounts()
         rebuildTree()
     }
 
@@ -1079,7 +1157,8 @@ final class InsightTreeViewModel: ObservableObject {
     /// concept itself followed by its generated child Insights.
     func makeNodeBookmarkConcepts(for insightID: UUID) -> [ConceptDefinition] {
         let generatedNodeID = promotedNodeID(for: insightID)
-        guard let source = insights.first(where: { $0.id == insightID }),
+        guard let source = insights.first(where: { $0.id == insightID })
+                ?? placedMidpoints.first(where: { $0.concept.id == insightID }).map({ InsightModel(concept: $0.concept) }),
               let children = generatedChildInsights[generatedNodeID] else {
             return []
         }
@@ -1165,7 +1244,11 @@ final class InsightTreeViewModel: ObservableObject {
         )
         let generated: [ConceptDefinition]
         do {
-            generated = try await model.generateChildren(for: sourceConcept)
+            if let count = branchInsightCounts[insight.id] {
+                generated = try await model.generateChildren(for: sourceConcept, count: count)
+            } else {
+                generated = try await model.generateChildren(for: sourceConcept)
+            }
         } catch {
             childGenerationInFlight.remove(promotedNodeID)
             throw error
@@ -1174,16 +1257,22 @@ final class InsightTreeViewModel: ObservableObject {
             childGenerationInFlight.remove(promotedNodeID)
             return
         }
-        guard generated.count == 3 else {
+        guard generated.count == childCount(for: insight.id) else {
             childGenerationInFlight.remove(promotedNodeID)
             throw AngroveModelActionError.invalidResponse
         }
-        let children = generated.enumerated().map { index, concept in
+        let rawChildren = generated.enumerated().map { index, concept in
             return InsightModel(
                 id: makeNodeChildID(for: promotedNodeID, index: index),
                 title: concept.word,
                 definition: concept.meaning
             )
+        }
+        let children = await preparedChildren(rawChildren, source: insight)
+        try Task.checkCancellation()
+        guard promotedInsightIDs.contains(insight.id) else {
+            childGenerationInFlight.remove(promotedNodeID)
+            return
         }
         generatedChildInsights[promotedNodeID] = children
         persistMakeNodeChildren()
@@ -1212,6 +1301,8 @@ final class InsightTreeViewModel: ObservableObject {
         guard !placedMidpoints.isEmpty else { return }
 
         for placed in placedMidpoints {
+            if branchInsightCounts[placed.concept.id] != nil,
+               promotedInsightIDs.contains(placed.concept.id) { continue }
             let nodeID = placed.concept.id
             guard !nodes.contains(where: { $0.id == nodeID }) else { continue }
 
@@ -1389,7 +1480,7 @@ final class InsightTreeViewModel: ObservableObject {
         stableUUID(from: "makenode-child:\(nodeID.uuidString):\(index)")
     }
 
-    private func promotedNodeID(for insightID: UUID) -> UUID {
+    func promotedNodeID(for insightID: UUID) -> UUID {
         stableUUID(from: "promoted:\(insightID.uuidString)")
     }
 

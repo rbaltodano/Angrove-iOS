@@ -9,6 +9,11 @@ import Foundation
 import SwiftUI
 import UIKit
 
+extension EnvironmentValues {
+    /// The shell is fading out the thread; keep its current presentation stable until removal.
+    @Entry var isConversationPageDeparting = false
+}
+
 // MARK: - TextInputRelay
 
 /// A lightweight reference-type bridge that lets submit logic synchronously read
@@ -37,6 +42,7 @@ final class TextInputRelay {
 /// 3. Flushes text → binding when `submitTrigger` increments (the dock arrow button).
 /// 4. Flushes text → binding on blur (textViewDidEndEditing).
 struct ListAwareTextField: UIViewRepresentable {
+    @Environment(\.isConversationPageDeparting) private var isPageDeparting
 
     // MARK: - Public API
 
@@ -67,6 +73,8 @@ struct ListAwareTextField: UIViewRepresentable {
     func makeUIView(context: Context) -> UITextView {
         let tv = CommandHighlightTextView()
         tv.delegate = context.coordinator
+        tv.isEditable = !isLocked
+        tv.isSelectable = true
         if onPressChange != nil {
             let press = TextFieldContactRecognizer()
             press.cancelsTouchesInView = false
@@ -171,6 +179,9 @@ struct ListAwareTextField: UIViewRepresentable {
     func updateUIView(_ uiView: UITextView, context: Context) {
         // Keep coordinator's parent reference current every render.
         context.coordinator.parent = self
+        (uiView as? CommandHighlightTextView)?.isPresentationSuspended = isPageDeparting
+        // Do not invalidate text layout while the shell animates the whole page away.
+        guard !isPageDeparting else { return }
 
         // Always safe to update visual properties
         if uiView.font != font { uiView.font = font }
@@ -187,8 +198,9 @@ struct ListAwareTextField: UIViewRepresentable {
         }
         if uiView.isEditable == isLocked {
             uiView.isEditable   = !isLocked
-            uiView.isSelectable = !isLocked
         }
+        // Submitted questions remain read-only, but native selection and Copy stay available.
+        uiView.isSelectable = true
         var attributes = makeTypingAttributes()
         attributes.removeValue(forKey: .foregroundColor)
         if !isLocked {
@@ -381,6 +393,11 @@ struct ListAwareTextField: UIViewRepresentable {
 /// Animates inside the live editor without duplicating text or moving the cursor.
 /// A soft green front sweeps once across the command, leaving solid green behind.
 final class CommandHighlightTextView: UITextView {
+    var isPresentationSuspended = false {
+        didSet {
+            if isPresentationSuspended { stopCommandWave() }
+        }
+    }
     private var command: String?
     private var commandRange: NSRange?
     private var baseColor: UIColor = .angrovePrimaryReadable
@@ -401,6 +418,7 @@ final class CommandHighlightTextView: UITextView {
 
     func updateCommandHighlight(baseColor: UIColor) {
         self.baseColor = baseColor
+        guard !isPresentationSuspended else { return }
         // Leave marked text alone while an input method is composing it.
         guard markedTextRange == nil else { return }
         let draft = text ?? ""
@@ -478,7 +496,7 @@ final class CommandHighlightTextView: UITextView {
     }
 
     private func applyCommandColor(progress: CGFloat) {
-        guard markedTextRange == nil else { return }
+        guard !isPresentationSuspended, markedTextRange == nil else { return }
         let fullRange = NSRange(location: 0, length: textStorage.length)
         textStorage.addAttribute(.foregroundColor, value: baseColor, range: fullRange)
         if let commandRange, NSMaxRange(commandRange) <= textStorage.length {

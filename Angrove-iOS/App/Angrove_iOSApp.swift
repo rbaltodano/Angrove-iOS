@@ -31,6 +31,8 @@ struct Angrove_iOSApp: App {
                 // Device probes bypass encrypted storage, so Release builds cannot enter them.
                 if ProcessInfo.processInfo.arguments.contains("--litert-probe") {
                     LiteRTDeviceProbeView()
+                } else if ProcessInfo.processInfo.arguments.contains("--study-branch-preview") {
+                    StudyBranchPreviewView()
                 } else {
                     EncryptedStorageGate { mainContent }
                 }

@@ -86,6 +86,9 @@ protocol AngroveModel {
     /// The 3 child Insights generated when `concept` is promoted into a Node Concept (Make Node).
     func generateChildren(for concept: ConceptDefinition) async throws -> [ConceptDefinition]
 
+    /// Branch decomposes an Insight into exactly 2–6 fundamental subordinate Insights.
+    func generateChildren(for concept: ConceptDefinition, count: Int) async throws -> [ConceptDefinition]
+
     /// Creates a once-daily home prompt from one recent conversation.
     func generateQuestionOfTheDay(
         from context: ConversationContext,
@@ -111,6 +114,12 @@ enum AngroveModelActionError: Error {
 }
 
 extension AngroveModel {
+    func generateChildren(for concept: ConceptDefinition, count: Int) async throws -> [ConceptDefinition] {
+        guard (2...6).contains(count) else { throw AngroveModelActionError.invalidRequest }
+        guard count == 3 else { throw AngroveModelActionError.unavailable }
+        return try await generateChildren(for: concept)
+    }
+
     func conversationTitle(for initialQuestion: String) async throws -> String {
         throw AngroveModelActionError.unavailable
     }
@@ -374,11 +383,28 @@ nonisolated struct GroundingSourceSummary: Identifiable, Codable, Equatable {
     /// `nil` for curated notes and for answers saved before this was recorded.
     var sourceID: String? = nil
 
+    /// The retrieved passage's position within the work. Optional for older saved answers
+    /// and curated notes that do not refer to a corpus passage.
+    var chunkIndex: Int? = nil
+
     /// Identifies the narrated retrieval lines that accompany these sources in a thinking
     /// summary, so the live loading UI can replace them with the expandable Source rows rather
     /// than reporting the same retrieval twice.
     static func isNarratedSourceLine(_ line: String) -> Bool {
         line.hasPrefix("Consulting ") || line.hasPrefix("Cross-checking against ")
+    }
+}
+
+nonisolated extension GroundingSourceSummary {
+    init(reference: AngroveGroundingReference) {
+        self.init(
+            id: reference.id,
+            title: reference.title,
+            sourceName: reference.sourceName,
+            passage: reference.facts.trimmingCharacters(in: .whitespacesAndNewlines),
+            sourceID: reference.sourceID,
+            chunkIndex: reference.chunkIndex
+        )
     }
 }
 
@@ -391,6 +417,33 @@ struct LibraryNavigationRequest: Equatable {
     var chunkIndex: Int? = nil
     /// Distinguishes repeated taps on the same source, so each one still navigates.
     var id = UUID()
+    /// Allows older saved sources without a chunk index to locate their original excerpt.
+    var passage: String? = nil
+
+    func resolvedChunkIndex(in passages: [LibraryPassage]) -> Int? {
+        if let chunkIndex { return chunkIndex }
+        guard let passage else { return nil }
+        let excerpt = passage.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        guard excerpt.count >= 40 else { return nil }
+        let matches = passages.filter { candidate in
+            let text = candidate.text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            return text.count >= 40 && (text.hasPrefix(excerpt) || excerpt.hasPrefix(text))
+        }
+        // Repeated text must not send the reader to a guessed location.
+        return matches.count == 1 ? matches.first?.chunkIndex : nil
+    }
+}
+
+extension LibraryNavigationRequest {
+    init(source: GroundingSourceSummary) {
+        self.init(
+            sourceTitle: source.title,
+            sourceName: source.sourceName,
+            sourceID: source.sourceID,
+            chunkIndex: source.chunkIndex,
+            passage: source.passage
+        )
+    }
 }
 
 enum ModelResponseUpdate {

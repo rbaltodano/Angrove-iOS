@@ -153,10 +153,12 @@ struct DockedNodeTreeCard: View {
             HStack(alignment: .center, spacing: 8) {
                 DockedCardTextBubbleIcon(size: 12, delay: 0.18, color: AngroveTheme.Colors.darkGreen)
 
-                Text(node.conceptLabel)
-                    .font(.custom("Figtree-Bold", size: 18))
-                    .foregroundColor(AngroveTheme.Colors.primaryReadable)
-                    .fixedSize(horizontal: false, vertical: true)
+                ConversationHeading(title: node.conceptLabel) { label in
+                    Text(label)
+                        .font(.custom("Figtree-Bold", size: 18))
+                        .foregroundColor(AngroveTheme.Colors.primaryReadable)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 Spacer()
 

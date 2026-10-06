@@ -36,7 +36,7 @@ enum StudySubject {
 /// own semantic behavior; this pass establishes Branch's count selection and placement surface.
 /// For a Node Concept there is no matrix and no backdrop: this view only reserves the slot
 /// (reported through `onNodeSlotChange`) while the tree canvas moves its camera to frame the
-/// tree's own node there in 3D. The tool switcher lives in `StudyToolCard`, docked below like
+/// tree's own node there in 3D. The Branch card lives in `StudyToolCard`, docked below like
 /// an Insight card; the tools are not yet wired to a Node Concept.
 struct StudyModeView: View {
     let subject: StudySubject
@@ -130,26 +130,13 @@ struct StudyModeView: View {
     }
 }
 
-/// Study's tool switcher in a docked card that matches the Insight card exactly
-/// (`dockedCardChrome`), presented with the same pop-up transition.
+/// Branch's docked Study card, presented with the Insight card's chrome and pop-up transition.
 struct StudyToolCard: View {
-    let tool: StudyTool
-    let transitionDirection: Int
-    let onPrevious: () -> Void
-    let onNext: () -> Void
-
     var body: some View {
-        StudyToolCarousel(
-            tool: tool,
-            transitionDirection: transitionDirection,
-            onPrevious: onPrevious,
-            onNext: onNext
-        )
-        // The Insight card trims its bottom to offset its definition's line spacing; this
-        // card ends in the page dots, so it keeps the full 32 pt for the same visual margin.
-        // The copy slides past the card's edges when switching tools.
-        .dockedCardChrome(bottomPadding: 32, clipsContent: false)
-        .growsWhileTouched()
+        StudyToolCopy(tool: .branch)
+            .frame(maxWidth: .infinity, minHeight: 72)
+            .dockedCardChrome(bottomPadding: 32)
+            .growsWhileTouched()
     }
 }
 
@@ -190,7 +177,7 @@ enum StudyTool: String, CaseIterable, Hashable {
 
     var summary: LocalizedStringResource {
         switch self {
-        case .branch: "Explore concepts that are near this Insight in vector space."
+        case .branch: "Break this idea into more fundamental Insights."
         case .deconstruct: "Break this Insight into its core semantic parts."
         case .sequence: "Explore the stages, steps, or chain of events that shape this Insight."
         }
@@ -731,132 +718,6 @@ private final class StudyToolHapticPattern {
 private enum StudyHapticTap {
     case light
     case emphasized
-}
-
-private struct StudyToolCarousel: View {
-    let tool: StudyTool
-    let transitionDirection: Int
-    let onPrevious: () -> Void
-    let onNext: () -> Void
-
-    /// The tool at the center of the carousel. Pages sit one `pageWidth` apart around it and
-    /// all move with `dragOffset`, which follows the finger 1:1 and eases to 0 after a switch.
-    @State private var shownTool: StudyTool?
-    @State private var dragOffset: CGFloat = 0
-    @State private var isDragging = false
-    @State private var pageWidth: CGFloat = 280
-
-    private var displayed: StudyTool { shownTool ?? tool }
-    private static let settle = Animation.springStandard
-
-    var body: some View {
-        VStack(spacing: 16) {
-            HStack(spacing: 24) {
-                Button { step(forward: false) } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 13, weight: .medium))
-                        .frame(width: 28, height: 36)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                .accessibilityLabel("Previous Study tool")
-
-                ZStack {
-                    ForEach([displayed.previous, displayed, displayed.next], id: \.self) { page in
-                        let x = CGFloat(relativeIndex(of: page)) * pageWidth + dragOffset
-                        let distance = min(abs(x) / max(pageWidth, 1), 1)
-                        StudyToolCopy(tool: page)
-                            .offset(x: x)
-                            .opacity(1 - Double(distance) * 0.9)
-                            .blur(radius: distance * 6)
-                            .accessibilityHidden(page != displayed)
-                    }
-                }
-                .frame(maxWidth: .infinity, minHeight: 72)
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.size.width
-                } action: { width in
-                    // A page travels past the chevrons before it fades out.
-                    pageWidth = width + 80
-                }
-
-                Button { step(forward: true) } label: {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .medium))
-                        .frame(width: 28, height: 36)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                .accessibilityLabel("Next Study tool")
-            }
-
-            HStack(spacing: 6) {
-                ForEach(StudyTool.allCases, id: \.position) { candidate in
-                    // Follows the drag too: how centered this tool's page is, 0...1.
-                    let pagePosition = CGFloat(relativeIndex(of: candidate)) + dragOffset / max(pageWidth, 1)
-                    let active = max(1 - abs(pagePosition), 0)
-                    Capsule()
-                        .fill(AngroveTheme.Colors.paragraphText.opacity(0.35 + 0.45 * Double(active)))
-                        .frame(width: 5 + 15 * active, height: 5)
-                }
-            }
-            .accessibilityHidden(true)
-        }
-        .accessibilityElement(children: .contain)
-        .contentShape(Rectangle())
-        .simultaneousGesture(toolSwipeGesture)
-        .onChange(of: tool) { _, newTool in
-            // Changed from outside the carousel (e.g. restored): slide in from its side.
-            guard newTool != displayed else { return }
-            let forward = transitionDirection >= 0
-            shownTool = newTool
-            dragOffset += forward ? pageWidth : -pageWidth
-            withAnimation(Self.settle) { dragOffset = 0 }
-        }
-    }
-
-    /// -1, 0, or 1: where a tool's page sits relative to the centered one.
-    private func relativeIndex(of candidate: StudyTool) -> Int {
-        if candidate == displayed { return 0 }
-        if candidate == displayed.next { return 1 }
-        if candidate == displayed.previous { return -1 }
-        return 2
-    }
-
-    /// Centers the neighboring page, keeping everything where it is on screen, then eases the
-    /// rest of the way. Next slides the copy off to the left; previous to the right.
-    private func step(forward: Bool) {
-        UISelectionFeedbackGenerator().selectionChanged()
-        shownTool = forward ? displayed.next : displayed.previous
-        dragOffset += forward ? pageWidth : -pageWidth
-        withAnimation(Self.settle) { dragOffset = 0 }
-        forward ? onNext() : onPrevious()
-    }
-
-    private var toolSwipeGesture: some Gesture {
-        DragGesture(minimumDistance: 8)
-            .onChanged { value in
-                if !isDragging {
-                    // Only horizontal swipes page.
-                    guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                    isDragging = true
-                }
-                dragOffset = value.translation.width
-            }
-            .onEnded { value in
-                guard isDragging else { return }
-                isDragging = false
-                let projected = value.predictedEndTranslation.width
-                let threshold = pageWidth * 0.3
-                if value.translation.width < -threshold || projected < -pageWidth * 0.5 {
-                    step(forward: true)
-                } else if value.translation.width > threshold || projected > pageWidth * 0.5 {
-                    step(forward: false)
-                } else {
-                    withAnimation(Self.settle) { dragOffset = 0 }
-                }
-            }
-    }
 }
 
 private struct StudyToolCopy: View {

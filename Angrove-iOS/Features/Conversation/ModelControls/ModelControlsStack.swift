@@ -76,14 +76,25 @@ struct ModelControlsStack<Controls: View>: View {
         VStack(spacing: 16) {
             if let completionNotifications {
                 ForEach(completionNotifications.notifications) { notification in
-                    ModelCompletionNotificationPill(
-                        title: notification.title,
-                        kind: notification.kind,
-                        width: controlsWidth,
-                        onOpen: {
-                            completionNotifications.open(id: notification.id)
+                    Group {
+                        if notification.kind == .pageReturn {
+                            ModelControlsConfirmationPill(
+                                title: notification.title,
+                                width: controlsWidth,
+                                onConfirm: { completionNotifications.open(id: notification.id) },
+                                onDecline: { completionNotifications.dismiss(id: notification.id) },
+                                iconName: (notification.returnPage ?? .conversation).sidebarIconName,
+                                showsControlBorder: true
+                            )
+                        } else {
+                            ModelCompletionNotificationPill(
+                                title: notification.title,
+                                kind: notification.kind,
+                                width: controlsWidth,
+                                onOpen: { completionNotifications.open(id: notification.id) }
+                            )
                         }
-                    )
+                    }
                     .transition(.bottomDockCard)
                 }
             }
@@ -207,11 +218,13 @@ private struct ModelControlsConfirmationPill: View {
     let width: CGFloat
     let onConfirm: () -> Void
     let onDecline: () -> Void
+    var iconName: String = "point.3.connected.trianglepath.dotted"
+    var showsControlBorder: Bool = false
 
     var body: some View {
         HStack(spacing: 12) {
             HStack(spacing: 8) {
-                Image(systemName: "point.3.connected.trianglepath.dotted")
+                Image(systemName: iconName)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     .sfSymbolDrawOn()
@@ -240,6 +253,12 @@ private struct ModelControlsConfirmationPill: View {
         .frame(width: width, height: 50)
         .background(AngroveTheme.Colors.canvasSecondary)
         .clipShape(Capsule())
+        .overlay {
+            Capsule().stroke(
+                AngroveTheme.Colors.controlBorder.opacity(showsControlBorder ? 1 : 0),
+                lineWidth: 1
+            )
+        }
         .accessibilityElement(children: .contain)
     }
 }

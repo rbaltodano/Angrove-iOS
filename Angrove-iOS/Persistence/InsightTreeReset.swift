@@ -20,6 +20,7 @@ enum InsightTreeReset {
         "aquinas.pendingInsightTreeAnalysis.v2", // retired backend analysis queue
         "aquinas.conversation.insight-memberships.v1",
         "AquinasSeenInsightIDs",
+        "AquinasSeenNodeIDs",
         "AquinasUndiscoveredInsightIDs",
         "AquinasUndiscoveredNodeIDs",
         "AquinasPendingInsightPresentationIDs",

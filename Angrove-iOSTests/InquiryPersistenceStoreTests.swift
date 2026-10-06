@@ -288,6 +288,25 @@ struct LocalInsightTreePersistenceTests {
         #expect(store.load([String: StoredPoint].self, key: key) == expected)
     }
 
+    @Test("Undecodable legacy canvas data is retained and cannot be replaced by an empty value")
+    func undecodableCanvasMigrationIsNonDestructive() throws {
+        let fixture = try LocalTreeFixture()
+        defer { fixture.cleanup() }
+        let key = "canvas.corrupt.\(UUID().uuidString)"
+        let damaged = Data("{ damaged tree payload".utf8)
+        fixture.defaults.set(damaged, forKey: key)
+        let store = InsightTreeLocalStateFileStore(
+            rootDirectory: fixture.root.appending(path: "canvas"),
+            defaults: fixture.defaults
+        )
+
+        #expect(store.load([String: StoredPoint].self, key: key) == nil)
+        #expect(throws: LocalDataEncryptionError.self) {
+            try store.save([String: StoredPoint](), key: key)
+        }
+        #expect(fixture.defaults.data(forKey: key) == damaged)
+    }
+
     @Test("Local semantic seeds preserve embedding provenance")
     func seedRoundTrip() throws {
         let fixture = try LocalTreeFixture()

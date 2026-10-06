@@ -10,6 +10,9 @@ first. This document records iOS-specific runtime boundaries and validation rule
   The weights are **not fine-tuned**.
 - **Voice:** the default Scholarly personality prompt (the "learned friend" voice) in
   `LiteRTAngroveModel.personalityInstruction`.
+- **Identity:** conversation and internal task prompts identify the model as Google's open-weight
+  Gemma 4 running through the Angrove harness. Angrove supplies the study role and app context;
+  it is not a separate proprietary model. Identity is explained when relevant or requested.
 - **Historical phone observations:** sealed set 2, 36/40, and held-out, 35/40, on an iPhone 17
   (2026-10-01), recorded in the private eval kit’s session summary. The original raw run folders
   were lost, so these are not the public case study’s headline evidence or a fresh release gate.

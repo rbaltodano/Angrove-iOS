@@ -23,6 +23,12 @@ and handoff into `CurrentConversationView`. It conditionally mounts the conversa
 state that must survive changing pages belongs at the shell level and is passed down through a
 binding or durable store—not local `@State` in `CurrentConversationView`.
 
+The departing conversation receives `isConversationPageDeparting` until the shell removes it.
+Question editors pause UIKit styling writes and command display links; question and response
+geometry reporters pause presentation updates. The shell composites the thread before applying
+its fade/offset and prevents that outer animation from animating internal thread state.
+Model generation and persistence continue through the shared queue.
+
 `CurrentConversationView` owns active conversation and branch presentation, the visible model-task
 experience, conversation-scoped definition flow, slash-command handling, and on-device Insight Tree seeding
 after each completed response. Its `ConversationSession` owns the conversation list, active
@@ -136,6 +142,32 @@ owns reveal membership and animation tasks, and `InsightTreeSelectionState` owns
 selection effects. `InsightTreeSelectionOverlay` receives resolved screen positions so rendering
 selection lines does not depend on the full graph or physics state.
 
+## Insight Tree canvas structure
+
+`Features/InsightTree/InsightTreeCanvasView.swift` owns canvas inputs, SwiftUI state, and the
+composition of the global and conversation tree. Its implementation is divided by responsibility:
+
+| File | Responsibility |
+| --- | --- |
+| `InsightTreeCanvasRendering.swift` | Project graph items and compose connectors, selection overlays, and hit targets |
+| `InsightTreeCanvasConceptNode.swift` | Node Concept label, discovery dot, suggested-node dismissal, and entrance appearance |
+| `InsightTreeCanvasChip.swift` | Insight loading/revealed content, selection border, and discovery dot |
+| `InsightTreeCanvasGraphEdge.swift` | Animated graph connectors and suggested-edge line styling |
+| `InsightTreeCanvasLifecycle.swift` | Appearance, topology, scene lifecycle, and incoming request observers |
+| `InsightTreeCanvasGestures.swift` | Tree pan/zoom, chip rotation, and camera focus/restore |
+| `InsightTreeCanvasLayout.swift` | Insight placement, graph edge resolution, label footprints, and depth projection |
+| `InsightTreeCanvasSimulation.swift` | Body reconciliation, overlap relaxation, and settled-position reporting |
+| `InsightTreeCanvasMidpoint.swift` | Midpoint geometry, weights, loading/reveal, and source bond reangling |
+| `InsightTreeCanvasStudy.swift` | Study framing, transitions, pivoting, rotation, and momentum |
+| `InsightTreeCanvasDiscovery.swift` | Persisted-tree entrance sequences and seen/undiscovered tracking |
+| `InsightTreeCanvasTypes.swift` | Shared canvas geometry and simulation support types |
+
+The three visual components accept the values they render and callbacks, without owning a
+second camera, model runtime, or persistence store. The behavior files are extensions of the same
+canvas view: they share its existing state and animation transactions. Cross-file implementation
+members have module visibility; members used within only one file remain private. This is a
+structural refactor, not a change to graph layout, gesture policy, discovery storage, or generation.
+
 ## Persistence boundaries
 
 Conversation branches and chat blocks are persisted as one Codable snapshot in
@@ -146,9 +178,12 @@ snapshot from `UserDefaults` on first successful load. `InquiryPersistenceStore`
 process-facing boundary; `CurrentConversationsStore` is its compatibility name at existing call
 sites. All snapshot I/O runs on one serial background queue (`SerializedInquiryStore`): saves
 return immediately, loads and imports wait behind queued writes, and the shell flushes the queue
-when the scene moves to the background. Saved Insights and identifiers-only coordination stores use encrypted property-list envelopes
-in `UserDefaults`, including
-conversation-to-global-Insight membership. See
+when the scene moves to the background. Saved Insights, global and Study Topic tree snapshots,
+conversation-to-Insight membership, and canvas topology/presentation state use separate atomically
+written encrypted files under `Application Support/Aquinas/InsightTree/CanvasState`. Existing
+`UserDefaults` payloads migrate on first successful read. A file or legacy payload that fails
+decoding is retained and reported; subsequent saves cannot replace an undecodable payload with an
+empty tree. See
 [`PERSISTENT_MEMORY_IMPLEMENTATION_PLAN.md`](../../Aquinas-Foundations/PERSISTENT_MEMORY_IMPLEMENTATION_PLAN.md)
 for the planned SwiftData migration.
 

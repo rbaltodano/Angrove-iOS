@@ -274,7 +274,8 @@ struct ModelResponseCard: View {
                                         source: source,
                                         responseTextAlignment: responseTextAlignment,
                                         placement: index,
-                                        isShown: areGroundingSourcesShown
+                                        isShown: areGroundingSourcesShown,
+                                        usesDisclosureEntrance: true
                                     )
                                 }
                             }
@@ -305,6 +306,8 @@ struct ModelResponseCard: View {
                     .padding(.bottom, 40)
                     .transition(.opacity.combined(with: .move(edge: .top)))
                     .task {
+                        // Lazy transcript reappearance must not restart a completed disclosure.
+                        guard !areGroundingSourcesShown else { return }
                         withAnimation(.easeInOut(duration: 0.35)) {
                             isThinkingBasisVisible = true
                         }
@@ -323,7 +326,8 @@ struct ModelResponseCard: View {
                             }
                             return
                         }
-                        for lineCount in 1...thinkingSummaryLines.count {
+                        guard visibleThinkingLineCount < thinkingSummaryLines.count else { return }
+                        for lineCount in (visibleThinkingLineCount + 1)...thinkingSummaryLines.count {
                             withAnimation(.easeInOut(duration: 0.35)) {
                                 visibleThinkingLineCount = lineCount
                             }
@@ -726,6 +730,8 @@ private struct GroundingSourceRow: View {
     var placement: Int = 0
     /// False while the row is laid out but still hidden, so its entrance waits.
     var isShown: Bool = true
+    /// Finished thinking disclosures animate from their opening state, never viewport changes.
+    var usesDisclosureEntrance: Bool = false
 
     private static let placementStagger: Duration = .milliseconds(180)
 
@@ -736,6 +742,9 @@ private struct GroundingSourceRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var subject: LibrarySubject { LibrarySubject.of(workID: source.sourceID ?? "") }
+    private var isEntranceRevealed: Bool {
+        reduceMotion || (usesDisclosureEntrance ? isShown : isTitleRevealed)
+    }
 
     /// The passage broken into the units it reveals in, matching how **Show Thinking** steps
     /// through its summary lines. Explicit line breaks win where the source has them (verse and
@@ -773,28 +782,36 @@ private struct GroundingSourceRow: View {
                     // The Library's icon for this work's genre, so a source reads the same here as
                     // on its shelf. Curated notes and older saves have no
                     // work and use the default.
-                    // The icon drives the row's entrance; the title fades and slides in beside it.
+                    // Completed disclosures use their opening state; live retrievals retain
+                    // the icon-driven entrance.
                     LibrarySubjectIcon(
                         subject: subject,
                         symbolSize: 13,
                         shelfIsVisible: isShown,
-                        entranceDelay: Self.placementStagger * placement,
+                        entranceDelay: usesDisclosureEntrance ? nil : Self.placementStagger * placement,
                         onRevealChange: { isTitleRevealed = $0 }
                     )
+                    .opacity(usesDisclosureEntrance && !isEntranceRevealed ? 0 : 1)
 
                     Text(source.title)
                         .paragraphFont()
                         .lineSpacing(6)
                         .multilineTextAlignment(responseTextAlignment.textAlignment)
                         .fixedSize(horizontal: false, vertical: true)
-                        .opacity(isTitleRevealed || reduceMotion ? 1 : 0)
-                        .offset(x: isTitleRevealed || reduceMotion ? 0 : -8)
+                        .opacity(isEntranceRevealed ? 1 : 0)
+                        .offset(x: isEntranceRevealed ? 0 : -8)
 
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 10, weight: .bold))
-                        .opacity(isTitleRevealed || reduceMotion ? 1 : 0)
-                        .offset(x: isTitleRevealed || reduceMotion ? 0 : -8)
+                        .opacity(isEntranceRevealed ? 1 : 0)
+                        .offset(x: isEntranceRevealed ? 0 : -8)
                 }
+                .animation(
+                    usesDisclosureEntrance && !reduceMotion
+                        ? .easeInOut(duration: 0.3).delay(0.18 * Double(placement))
+                        : nil,
+                    value: isShown
+                )
                 .foregroundColor(
                     isExpanded
                         ? AngroveTheme.Colors.headingText
@@ -831,7 +848,7 @@ private struct GroundingSourceRow: View {
                     Button {
                         NotificationCenter.default.post(
                             name: .openGroundingSourceInLibrary,
-                            object: LibraryNavigationRequest(sourceTitle: source.title, sourceName: source.sourceName)
+                            object: LibraryNavigationRequest(source: source)
                         )
                     } label: {
                         Label("Read More", systemImage: "arrow.up.right")
@@ -847,12 +864,13 @@ private struct GroundingSourceRow: View {
                 .frame(maxWidth: .infinity, alignment: responseTextAlignment.frameAlignment)
                 .transition(.opacity.combined(with: .move(edge: .top)))
                 .task {
+                    guard visiblePassageSegmentCount < passageSegments.count else { return }
                     // Hold until the card's own padding/background/border spring has settled,
                     // then step the passage in, same cadence as the Show Thinking summary.
                     try? await Task.sleep(for: .milliseconds(250))
                     guard !Task.isCancelled, isExpanded else { return }
 
-                    for segmentCount in passageSegments.indices.map({ $0 + 1 }) {
+                    for segmentCount in (visiblePassageSegmentCount + 1)...passageSegments.count {
                         withAnimation(.easeInOut(duration: 0.35)) {
                             visiblePassageSegmentCount = segmentCount
                         }

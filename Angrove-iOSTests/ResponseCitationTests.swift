@@ -4,6 +4,51 @@ import Testing
 
 @Suite("Response source citations")
 struct ResponseCitationTests {
+    @Test("Retrieved source details retain the exact passage through saving and navigation")
+    @MainActor
+    func sourceDetailsRetainLocation() throws {
+        let source = GroundingSourceSummary(reference: justice)
+        #expect(source.sourceID == "summa-theologica")
+        #expect(source.chunkIndex == 4200)
+        let restored = try JSONDecoder().decode(GroundingSourceSummary.self, from: JSONEncoder().encode(source))
+        let request = LibraryNavigationRequest(source: restored)
+        #expect(request.sourceID == "summa-theologica")
+        #expect(request.resolvedChunkIndex(in: []) == 4200)
+    }
+
+    @Test("An older source decodes without location and recovers a unique excerpt")
+    @MainActor
+    func olderSourceUsesItsExcerpt() throws {
+        let data = Data(#"{"id":"old","title":"A Work","sourceName":"A Work","passage":"A distinctive passage describing the nature of justice in detail."}"#.utf8)
+        let source = try JSONDecoder().decode(GroundingSourceSummary.self, from: data)
+        #expect(source.chunkIndex == nil)
+        let passages = [
+            LibraryPassage(text: "The opening of the work has entirely different content.", title: "A Work", sourceId: "a-work", chunkIndex: 0),
+            LibraryPassage(text: source.passage + " Its explanation continues here.", title: "A Work", sourceId: "a-work", chunkIndex: 23)
+        ]
+        #expect(LibraryNavigationRequest(source: source).resolvedChunkIndex(in: passages) == 23)
+    }
+
+    @Test("Repeated or unavailable excerpts never invent a passage location")
+    @MainActor
+    func ambiguousExcerptHasNoLocation() {
+        let source = GroundingSourceSummary(id: "old", title: "A Work", sourceName: "A Work", passage: "A repeated passage describing the nature of justice in detail.")
+        let passages = [0, 23].map {
+            LibraryPassage(text: source.passage, title: "A Work", sourceId: "a-work", chunkIndex: $0)
+        }
+        let request = LibraryNavigationRequest(source: source)
+        #expect(request.resolvedChunkIndex(in: passages) == nil)
+        #expect(request.resolvedChunkIndex(in: []) == nil)
+    }
+
+    @Test("A source with explicit location is not redirected by identical text elsewhere")
+    @MainActor
+    func explicitLocationWins() {
+        let source = GroundingSourceSummary(id: "new", title: "A Work", sourceName: "A Work", passage: "A repeated passage describing the nature of justice in detail.", sourceID: "a-work", chunkIndex: 23)
+        let passages = [LibraryPassage(text: source.passage, title: "A Work", sourceId: "a-work", chunkIndex: 0)]
+        #expect(LibraryNavigationRequest(source: source).resolvedChunkIndex(in: passages) == 23)
+    }
+
     private let justice = AngroveGroundingReference(
         id: "corpus-summa-theologica-0",
         title: "Summa Theologica",

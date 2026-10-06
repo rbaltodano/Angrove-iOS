@@ -16,10 +16,12 @@ struct SuggestedInsightSheet: View {
             VStack(alignment: .leading, spacing: 24) {
                 HStack {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(node.conceptLabel)
-                            .font(.figtreeDisplay)
-                            .lineSpacing(8)
-                            .foregroundColor(AngroveTheme.Colors.primaryReadable)
+                        ConversationHeading(title: node.conceptLabel) { label in
+                            Text(label)
+                                .font(.figtreeDisplay)
+                                .lineSpacing(8)
+                                .foregroundColor(AngroveTheme.Colors.primaryReadable)
+                        }
 
                         Text("Suggested connection")
                             .paragraphFont()
