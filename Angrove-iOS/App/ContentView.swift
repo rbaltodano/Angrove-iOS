@@ -100,6 +100,7 @@ struct ContentView: View {
     @State private var globalInsightStudyToolsToggleRequest: Int = 0
     @State private var globalInsightStudyToolsActive: Bool = false
     @State private var globalInsightStudyBranchCount: Int = 2
+    @State private var globalInsightStudyBranchConfirmRequest: Int = 0
     @State private var globalInsightPromotedIDs: [UUID] =
         GlobalInsightPromotedIDsStore.load()
     @State private var globalInsightInquireConnectionRequest: Int = 0
@@ -346,6 +347,7 @@ struct ContentView: View {
                 onToggleStudyTools: { globalInsightStudyToolsToggleRequest += 1 },
                 studyBranchCount: globalInsightStudyBranchCount,
                 onStudyBranchCountChange: { globalInsightStudyBranchCount = $0 },
+                onStudyBranchConfirm: { globalInsightStudyBranchConfirmRequest += 1 },
                 isCanvasInsightLoading: globalInsightIsGenerating,
                 modelStatusOverride: isGlobalTreeReconciling
                     ? String(localized: "Mapping...")
@@ -454,6 +456,7 @@ struct ContentView: View {
             studyExitRequest: globalInsightStudyExitRequest,
             studyToolsToggleRequest: globalInsightStudyToolsToggleRequest,
             studyBranchCount: globalInsightStudyBranchCount,
+            studyBranchConfirmRequest: globalInsightStudyBranchConfirmRequest,
             onStudyModeChange: { globalInsightIsStudyMode = $0 },
             onStudyToolsActiveChange: { globalInsightStudyToolsActive = $0 },
             onStudyBranchCountChange: { globalInsightStudyBranchCount = $0 },

@@ -47,6 +47,7 @@ final class CanvasModeModel {
     var canvasStudyToolsToggleRequest: Int = 0
     var isCanvasStudyToolsActive: Bool = false
     var canvasStudyBranchCount: Int = 2
+    var canvasStudyBranchConfirmRequest: Int = 0
     var canvasInquireConnectionRequest: Int = 0
 
     /// The concepts selected for a connection inquiry.

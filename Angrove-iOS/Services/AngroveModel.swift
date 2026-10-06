@@ -86,6 +86,9 @@ protocol AngroveModel {
     /// The 3 child Insights generated when `concept` is promoted into a Node Concept (Make Node).
     func generateChildren(for concept: ConceptDefinition) async throws -> [ConceptDefinition]
 
+    /// Branch decomposes an Insight into exactly 2–6 fundamental subordinate Insights.
+    func generateChildren(for concept: ConceptDefinition, count: Int) async throws -> [ConceptDefinition]
+
     /// Creates a once-daily home prompt from one recent conversation.
     func generateQuestionOfTheDay(
         from context: ConversationContext,
@@ -111,6 +114,12 @@ enum AngroveModelActionError: Error {
 }
 
 extension AngroveModel {
+    func generateChildren(for concept: ConceptDefinition, count: Int) async throws -> [ConceptDefinition] {
+        guard (2...6).contains(count) else { throw AngroveModelActionError.invalidRequest }
+        guard count == 3 else { throw AngroveModelActionError.unavailable }
+        return try await generateChildren(for: concept)
+    }
+
     func conversationTitle(for initialQuestion: String) async throws -> String {
         throw AngroveModelActionError.unavailable
     }

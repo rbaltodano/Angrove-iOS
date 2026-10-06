@@ -100,6 +100,14 @@ struct MockAngroveModel: AngroveModel {
         }
     }
 
+    func generateChildren(for concept: ConceptDefinition, count: Int) async throws -> [ConceptDefinition] {
+        guard (2...6).contains(count) else { throw AngroveModelActionError.invalidRequest }
+        return (0..<count).map { index in
+            ConceptDefinition(word: "Fundamental point \(index + 1)", partOfSpeech: "",
+                              pronunciation: "", meaning: "Test component \(index + 1) of \(concept.word).", example: "")
+        }
+    }
+
     func generateChildren(for concept: ConceptDefinition) async -> [ConceptDefinition] {
         let title = concept.word.trimmingCharacters(in: .whitespacesAndNewlines)
         let nodeTitle = title.isEmpty ? "This Concept" : title

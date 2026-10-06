@@ -91,11 +91,11 @@ struct InsightTreeCanvasView: View {
     var studySelectionIDs: [UUID]? = nil
     /// The Study slot, in this canvas's coordinates.
     var studySlot: CGRect? = nil
-    /// PROTOTYPE: the active Study tool. While the tools are open its preview follows the
-    /// hovered Study item.
-    var studyToolRequestTool: StudyTool = .branch
-    var studyToolsActive: Bool = false
-    var studyToolBranchCount: Int = 3
+    var studyBranchSource: InsightModel? = nil
+    var studyBranchNodeID: UUID? = nil
+    var studyBranchIsPromoted: Bool = false
+    var onStudyBranchFinished: () -> Void = {}
+
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -182,7 +182,6 @@ struct InsightTreeCanvasView: View {
     /// so a tap never releases it.
     private static let studyTapSlop: CGFloat = 6
     @State private var studyLink: DisplayLinkDriver?
-    @State private var studyToolZoomLink: DisplayLinkDriver?
     /// Where the floor ring sits while it glides to a new spot after the canvas resizes (a card
     /// docking or leaving); nil when it's settled at the canvas's own spot.
     @State private var studyRingCenterY: CGFloat?
@@ -360,7 +359,7 @@ struct InsightTreeCanvasView: View {
                 studyRingCamera.map { framing.ringDashes(camera: $0, yaw: studyYaw * studyProgress) }
             } ?? []
             let restFade = isInStudy ? 1 - studyProgress : 1
-            let studyReady = isStudyRequested && isInStudy && studyProgress > 0.99
+            let studyReady = isStudyRequested && isInStudy && studyProgress > 0.99 && studyBranchSource == nil
             let labelOpacity = Self.labelOpacity(for: activeScale)
             let nodeLabelOpacity = Self.nodeLabelOpacity(for: activeScale)
             let layout = makeInsightLayout()
@@ -379,14 +378,14 @@ struct InsightTreeCanvasView: View {
                 // Expanding it independently into the safe area shifts ripple origins away
                 // from the focused chip even though both use the same camera transform.
                 .frame(width: size.width, height: size.height)
-                .opacity(hasAppeared ? restFade : 0)
+                .opacity(hasAppeared && studyBranchSource == nil ? restFade : 0)
                 .animation(.easeOut(duration: 0.6), value: hasAppeared)
 
                 // In Study the grid tips up into a floor under the ring, moving with the node.
                 if let studyFraming, let studyOrbit = camera.orbit {
                     StudyFloorGrid(framing: studyFraming, camera: studyOrbit)
                         .frame(width: size.width, height: size.height)
-                        .opacity(studyProgress)
+                        .opacity(studyBranchSource == nil ? studyProgress : 0)
                 }
 
                 ZStack {
@@ -433,14 +432,33 @@ struct InsightTreeCanvasView: View {
                         }
                     }
                 }
-                .opacity(isMidpointMode ? 0 : 1)
+                .opacity(isMidpointMode || studyBranchSource != nil ? 0 : 1)
+                .animation(.easeInOut(duration: 0.3), value: studyBranchSource?.id)
                 // In Study only the Study gestures below respond.
                 .allowsHitTesting(!isMidpointMode && !isInStudy)
                 .animation(.easeInOut(duration: 0.3), value: isMidpointMode)
 
-                // PROTOTYPE: Study tool proposals and kept results.
-                studyToolLayer(layout: layout, camera: camera, size: size, studyReady: studyReady)
-                    .opacity(isMidpointMode ? 0 : 1)
+                if let source = studyBranchSource {
+                    let children = nodes.first(where: { $0.id == studyBranchNodeID })?.insights ?? []
+                    let ready = studyBranchIsPromoted && !children.isEmpty
+                        && Set(children.map(\.id)).isSubset(of: generatedMakeNodeChildIDs)
+                    StudyBranchScene(
+                        sourceTitle: source.title,
+                        initialPosition: layout.placements[source.id].map {
+                            insightProjection($0, camera: camera, size: size).position
+                        } ?? CGPoint(x: size.width / 2, y: size.height / 2),
+                        isPromoted: studyBranchIsPromoted,
+                        children: children,
+                        isReady: ready,
+                        onFinished: onStudyBranchFinished,
+                        onInsightTapped: { insight in
+                            markDiscovered(insight.id)
+                            onInsightTapped(insight)
+                        }
+                    )
+                    .id(source.id)
+                    .transition(.opacity)
+                }
 
                 if isMidpointMode {
                     midpointOverlay(layout: layout, camera: camera, size: size, labelOpacity: labelOpacity)
@@ -461,19 +479,6 @@ struct InsightTreeCanvasView: View {
                 guard !isInStudy else { return }
                 selectionState.selectedEdgeID = nil
                 cameraState.userMovedSincePlacement = true
-            }
-            .onChange(of: studyToolRequestTool) { _, _ in
-                runStudyTool()
-            }
-            .onChange(of: studyToolsActive) { _, isActive in
-                if isActive {
-                    runStudyTool()
-                } else {
-                    StudyToolPrototypeStore.shared.discardProposals()
-                }
-            }
-            .onChange(of: studyPivotID) { _, _ in
-                runStudyTool()
             }
             .onChange(of: studyNodeID) { _, nodeID in
                 if let nodeID {
@@ -699,8 +704,12 @@ struct InsightTreeCanvasView: View {
                 guard let generatedID else { return }
                 scheduleMidpointReveal(generatedID, in: size)
             }
-            .onChange(of: generatedMakeNodeChildIDs) { _, _ in
-                scheduleMakeNodeRevealIfReady(in: size)
+            .onChange(of: generatedMakeNodeChildIDs) { _, ids in
+                if studyBranchSource != nil || revealState.pendingMakeNodeChildren.isEmpty {
+                    revealState.revealedInsightIDs.formUnion(ids)
+                } else {
+                    scheduleMakeNodeRevealIfReady(in: size)
+                }
             }
             .onChange(of: midpointCenterRequest) { _, newValue in
                 guard newValue > 0, isMidpointMode else { return }
@@ -1420,6 +1429,10 @@ struct InsightTreeCanvasView: View {
         in newNodes: [NodeModel],
         size: CGSize
     ) {
+        if studyBranchSource != nil {
+            revealState.revealedInsightIDs.formUnion(children.map(\.id))
+            return
+        }
         guard revealState.pendingMakeNodeChildren.isEmpty else { return }
         let pending = children
             .sorted { $0.orbitIndex < $1.orbitIndex }
@@ -2051,11 +2064,7 @@ struct InsightTreeCanvasView: View {
                     .transition(.glideFadeUp)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
-        // Background + title fade with zoom, leaving just the floating icon.
-        .background(insightTreeCanvasColor.opacity(labelOpacity))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .modifier(InsightTreeChipChrome(labelOpacity: labelOpacity))
         .overlay {
             if isSelected {
                 SelectedCanvasInsightBorder()
@@ -2073,7 +2082,6 @@ struct InsightTreeCanvasView: View {
                     .transition(.scale.combined(with: .opacity))
             }
         }
-        .shadow(color: AngroveTheme.Colors.canvas.opacity(labelOpacity), radius: 24, x: 0, y: 0)
         .contentShape(Rectangle())
         .onTapGesture {
             // The placed-midpoint "Insight Loading Icon" stays hoverable even while generating;
@@ -2517,104 +2525,6 @@ struct InsightTreeCanvasView: View {
         return direction * (length + (studyRadius - length) * studyProgress)
     }
 
-    // MARK: - Study tools (PROTOTYPE)
-
-    private func studyToolLayer(
-        layout: CanvasInsightLayout,
-        camera: InsightTreeCamera,
-        size: CGSize,
-        studyReady: Bool
-    ) -> some View {
-        let results = StudyToolPrototypeStore.shared.results
-        var anchors: [UUID: StudyToolAnchor] = [:]
-        // Each result's source, and where a moving proposal came from.
-        let sources = results.flatMap { result in
-            [(result.nodeID, result.sourceInsightID)]
-                + (result.atOrigin.map { [($0.nodeID, $0.sourceInsightID)] } ?? [])
-        }
-        for (nodeID, insightID) in sources where anchors[insightID ?? nodeID] == nil {
-            guard let node = layout.nodes.first(where: { $0.id == nodeID }) else { continue }
-            let nodePoint = SIMD3(Double(node.position.x), Double(node.position.y), 0)
-            var source = nodePoint
-            if let insightID {
-                guard let placement = layout.placements[insightID] else { continue }
-                source = SIMD3(Double(placement.world.x), Double(placement.world.y), Double(placement.elevation))
-            }
-            let isStudied = nodeID == studyFocusNodeID
-                || insightID.map { studySelectionMembers.contains($0) } == true
-            // Studying a selection, results gather around its center rather than the faded node.
-            var hub = nodePoint
-            if isStudied, let center = studySelectionCenter {
-                let centerPoint = SIMD3(Double(center.x), Double(center.y), 0)
-                hub = nodePoint + (centerPoint - nodePoint) * studyProgress
-            }
-            anchors[insightID ?? nodeID] = StudyToolAnchor(
-                source: source,
-                node: hub,
-                radius: isStudied ? studyRadius : 190,
-                progress: isStudied ? studyProgress : 0,
-                opacity: isStudied || !isInStudy ? 1 : 1 - studyProgress
-            )
-        }
-        return StudyToolResultsLayer(
-            results: results,
-            anchors: anchors,
-            project: { point in
-                let projected = camera.project(
-                    CGPoint(x: point.x, y: point.y),
-                    elevation: CGFloat(point.z),
-                    in: size
-                )
-                guard projected.scale > 0.02 else { return nil }
-                return (projected.position, projected.scale)
-            },
-            isInteractive: !isInStudy || studyReady
-        )
-        .frame(width: size.width, height: size.height)
-    }
-
-    /// Previews the active tool on the hovered Study item (the focused Insight, or the node),
-    /// replacing any other tool's proposals: one tool is active at a time.
-    private func runStudyTool() {
-        guard studyToolsActive, isInStudy, isStudyRequested, studyProgress > 0.99 else { return }
-        let sourceID = studyPivotID
-        // A selection has no node of its own to run on: tools preview on a hovered Insight.
-        guard let focus = studyFocusNodeID ?? sourceID.flatMap(parentNodeID(ofInsight:)) else {
-            StudyToolPrototypeStore.shared.discardProposals()
-            return
-        }
-        StudyToolPrototypeStore.shared.run(
-            studyToolRequestTool,
-            nodeID: focus,
-            sourceInsightID: sourceID,
-            sourceDirection: sourceID.flatMap { studySpread[$0] },
-            occupiedDirections: Array(studySpread.values),
-            awayDirection: SIMD3(-sin(studyYaw), cos(studyYaw), 0),
-            branchCount: studyToolBranchCount
-        )
-        // Deconstruct pushes in on what's being taken apart.
-        if studyToolRequestTool == .deconstruct, studyZoom < 2.8 {
-            animateStudyZoom(to: 2.8)
-        }
-    }
-
-    private func animateStudyZoom(to target: CGFloat) {
-        let from = studyZoom
-        studyToolZoomLink?.stop()
-        let start = CACurrentMediaTime()
-        let driver = DisplayLinkDriver()
-        driver.onTick = { now in
-            let (eased, done) = Self.studyHoverCurve(elapsed: now - start)
-            studyZoom = from + (target - from) * CGFloat(eased)
-            if done {
-                studyToolZoomLink?.stop()
-                studyToolZoomLink = nil
-            }
-        }
-        driver.start()
-        studyToolZoomLink = driver
-    }
-
     private func parentNodeID(ofInsight insightID: UUID) -> UUID? {
         displayNodes.first { node in node.insights.contains { $0.id == insightID } }?.id
     }
@@ -2683,9 +2593,7 @@ struct InsightTreeCanvasView: View {
             studyPivotBlend = 1
             studyZoom = max(studyZoom, StudyFraming.hoverZoom)
         }
-        animateStudyProgress(to: 1, duration: 0.8) {
-            runStudyTool()
-        }
+        animateStudyProgress(to: 1, duration: 0.8)
     }
 
     private func endStudy() {
@@ -2701,8 +2609,6 @@ struct InsightTreeCanvasView: View {
         studyYaw = wrappedYaw
         // Leaving Study keeps a hovered Insight hovered; only the Study camera lets go of it.
         if studyPivotID != nil { releaseStudyPivot(in: lastCanvasSize) }
-        StudyToolPrototypeStore.shared.discardProposals()
-        studyToolZoomLink?.stop()
         animateStudyProgress(to: 0, duration: 0.6) {
             studyFocusNodeID = nil
             studySelectionCenter = nil

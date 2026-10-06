@@ -897,17 +897,23 @@ struct LiteRTAngroveModel: AngroveModel {
     func generateChildren(
         for concept: ConceptDefinition
     ) async throws -> [ConceptDefinition] {
+        try await generateChildren(for: concept, count: 3)
+    }
+
+    func generateChildren(for concept: ConceptDefinition, count: Int) async throws -> [ConceptDefinition] {
+        guard (2...6).contains(count) else { throw AngroveModelActionError.invalidRequest }
         let prompt = """
         <TASK:MAKE_NODE_CHILDREN>
-        Generate exactly three distinct, elementary concepts that are one conceptual level below
+        Generate exactly \(count) distinct, elementary concepts that are one conceptual level below
         the parent Node Concept. Choose the closest and most directly related subordinate concepts
         possible: foundational ideas that define the parent's conceptual structure and are
         narrower in scope than the parent. Each child must be meaningful as an independent Insight,
         not merely an explanation, example, application, consequence, benefit, study aid, loose
         association, renaming, or restatement. Give each definition in one concise sentence.
         Return JSON only:
-        {"children":[{"title":"...","definition":"..."},{"title":"...","definition":"..."},
-        {"title":"...","definition":"..."}]}
+        {"children":[{"title":"...","definition":"..."}]}
+        The children array must contain exactly \(count) entries. Decompose the parent's idea
+        into its more fundamental points; do not broaden it into nearby or associated topics.
 
         Parent:
         \(Self.jsonString(DefinitionSource(
@@ -919,12 +925,16 @@ struct LiteRTAngroveModel: AngroveModel {
         do {
             let raw = try await generateStructured(prompt)
             let response: ChildrenPayload = try Self.decodeJSON(raw)
-            guard response.children.count == 3 else {
+            guard response.children.count == count else {
                 throw AngroveModelActionError.invalidResponse
             }
-            return try response.children.map {
-                try $0.validatedConcept()
+            let children = try response.children.map { try $0.validatedConcept() }
+            let titles = children.map { $0.word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            guard Set(titles).count == count,
+                  !titles.contains(concept.word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()) else {
+                throw AngroveModelActionError.invalidResponse
             }
+            return children
         } catch {
             if Task.isCancelled { throw CancellationError() }
             throw error

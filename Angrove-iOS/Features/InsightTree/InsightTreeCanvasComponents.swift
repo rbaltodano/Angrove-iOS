@@ -168,6 +168,41 @@ struct RevealedInsightLabel: View {
     }
 }
 
+/// Shared chrome for ordinary tree Insights and Branch results.
+struct InsightTreeChipChrome: ViewModifier {
+    var labelOpacity: Double = 1
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .background(AngroveTheme.Colors.canvas.opacity(labelOpacity))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .shadow(color: AngroveTheme.Colors.canvas.opacity(labelOpacity), radius: 24, x: 0, y: 0)
+    }
+}
+
+/// Uses the tree's actual label and chrome, including its horizontal icon and single-line title.
+struct InsightTreeChip: View {
+    let title: String
+    var isUndiscovered = false
+
+    var body: some View {
+        RevealedInsightLabel(title: title, labelOpacity: 1)
+            .modifier(InsightTreeChipChrome())
+            .overlay(alignment: .topLeading) {
+                if isUndiscovered {
+                    Circle()
+                        .fill(AngroveTheme.Colors.unreadDot)
+                        .frame(width: 9, height: 9)
+                        .overlay(Circle().stroke(AngroveTheme.Colors.canvas, lineWidth: 1.5))
+                        .offset(x: 4, y: 4)
+                        .transition(.scale.combined(with: .opacity))
+                }
+            }
+    }
+}
+
 /// A title that reveals one letter at a time (blur + fade + drift), staggered left to right.
 /// Used for the dramatic entrance of a placed-midpoint insight.
 private struct LetterRevealText: View {

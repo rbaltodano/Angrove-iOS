@@ -11,6 +11,7 @@ enum ModelTaskKind: Hashable {
     case defineInsight(key: String, name: String)
     case createMidpoint
     case makeNode
+    case studyBranch
     case updateInsightTree
     case refreshInsightTree
     /// Separate identity so labels do not suppress response seeding or persisted refresh jobs.
@@ -27,6 +28,8 @@ enum ModelTaskKind: Hashable {
             return String(localized: "Create Midpoint")
         case .makeNode:
             return String(localized: "Make Node")
+        case .studyBranch:
+            return String(localized: "Branch")
         case .updateInsightTree, .refreshInsightTree, .labelInsightTree:
             return String(localized: "Update Insight Tree")
         case .refreshQuestionOfTheDay:
@@ -55,7 +58,7 @@ enum ModelTaskKind: Hashable {
 
     var standardStatusText: String {
         switch self {
-        case .userQuestion, .makeNode:
+        case .userQuestion, .makeNode, .studyBranch:
             return String(localized: "Thinking...")
         case .defineInsight:
             return String(localized: "Parsing...")
@@ -72,7 +75,7 @@ enum ModelTaskKind: Hashable {
         switch self {
         case .userQuestion, .defineInsight:
             return .conversation
-        case .createMidpoint, .makeNode, .updateInsightTree, .refreshInsightTree, .labelInsightTree:
+        case .createMidpoint, .makeNode, .studyBranch, .updateInsightTree, .refreshInsightTree, .labelInsightTree:
             return .insights
         case .refreshQuestionOfTheDay:
             return .home
@@ -126,7 +129,7 @@ enum FunModelStatusCopy {
 
     private static func taskSpecificBank(for kind: ModelTaskKind) -> [String] {
         switch kind {
-        case .userQuestion, .makeNode:
+        case .userQuestion, .makeNode, .studyBranch:
             return ["Lemme think..."]
         case .defineInsight:
             return ["Defining...", "Naming..."]

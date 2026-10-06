@@ -20,12 +20,32 @@ struct StudyBranchDockControls: View {
     let onCountChange: (Int) -> Void
     /// Set when Study is closing, so Place tucks away before the dock changes back.
     var isLeaving: Bool = false
+    var isBusy: Bool = false
+    var onConfirm: () -> Void = {}
 
     @State private var showsPlaceAction = false
 
     var body: some View {
-        HStack(spacing: Layout.interPillSpacing) {
-            HStack(spacing: 14) {
+        ViewThatFits(in: .horizontal) {
+            controls(compact: false)
+            controls(compact: true)
+        }
+        .animation(.springStandard, value: showsPlaceAction)
+        .onAppear {
+            showsPlaceAction = false
+            withAnimation(.springStandard.delay(0.18)) { showsPlaceAction = true }
+        }
+        .onChange(of: isLeaving) { _, leaving in
+            withAnimation(.springQuick) { showsPlaceAction = !leaving }
+        }
+    }
+
+    private func controls(compact: Bool) -> some View {
+        let countWidth: CGFloat = compact ? 180 : Layout.countPillWidth
+        let actionWidth: CGFloat = compact ? 88 : Layout.placePillWidth
+        let fontSize: CGFloat = compact ? 13 : 14
+        return HStack(spacing: Layout.interPillSpacing) {
+            HStack(spacing: compact ? 10 : 14) {
                 Button(action: increment) {
                     Image(systemName: "plus")
                         .font(.system(size: 13, weight: .medium))
@@ -33,14 +53,14 @@ struct StudyBranchDockControls: View {
                 }
                 .buttonStyle(.plain)
                 .contentShape(Rectangle().inset(by: -15))
-                .disabled(count >= 6)
+                .disabled(isBusy || count >= 6)
                 .opacity(count >= 6 ? 0.4 : 1)
                 .accessibilityLabel("Add an Insight")
 
                 Text("\(count)", comment: "Number of Insights to create.")
-                    .font(.custom("Figtree-Bold", size: 14, relativeTo: .subheadline))
+                    .font(.custom("Figtree-Bold", size: fontSize, relativeTo: .subheadline))
                 Text("New Insights")
-                    .font(.custom("Figtree-SemiBold", size: 14, relativeTo: .subheadline))
+                    .font(.custom("Figtree-SemiBold", size: fontSize, relativeTo: .subheadline))
 
                 Button(action: decrement) {
                     Image(systemName: "minus")
@@ -49,16 +69,16 @@ struct StudyBranchDockControls: View {
                 }
                 .buttonStyle(.plain)
                 .contentShape(Rectangle().inset(by: -15))
-                .disabled(count <= 2)
+                .disabled(isBusy || count <= 2)
                 .opacity(count <= 2 ? 0.4 : 1)
                 .accessibilityLabel("Remove an Insight")
             }
             .foregroundStyle(AngroveTheme.Colors.paragraphText.opacity(0.75))
-            .padding(.horizontal, 32)
+            .padding(.horizontal, compact ? 14 : 32)
             .frame(
                 width: showsPlaceAction
-                    ? Layout.countPillWidth
-                    : Layout.countPillWidth + Layout.placePillWidth + Layout.interPillSpacing,
+                    ? countWidth
+                    : countWidth + actionWidth + Layout.interPillSpacing,
                 height: Layout.controlHeight
             )
             .background(AngroveTheme.Colors.canvasSecondary, in: Capsule())
@@ -67,35 +87,24 @@ struct StudyBranchDockControls: View {
             }
 
             Button(action: place) {
-                Label("Place", systemImage: "arrow.down")
-                    .font(.custom("Figtree-Bold", size: 14, relativeTo: .subheadline))
+                Label(isBusy ? "Loading" : "Branch", systemImage: "arrow.triangle.branch")
+                    .font(.custom("Figtree-Bold", size: fontSize, relativeTo: .subheadline))
             }
             .buttonStyle(.plain)
             .foregroundStyle(AngroveTheme.Colors.lightGreen)
-            .frame(width: Layout.placePillWidth, height: Layout.controlHeight)
+            .frame(width: actionWidth, height: Layout.controlHeight)
             .background(AngroveTheme.Colors.canvasSecondary, in: Capsule())
             .overlay {
                 Capsule().stroke(AngroveTheme.Colors.paragraphText.opacity(0.04), lineWidth: 1)
             }
-            .frame(width: showsPlaceAction ? Layout.placePillWidth : 0)
+            .frame(width: showsPlaceAction ? actionWidth : 0)
             .clipped()
             .opacity(showsPlaceAction ? 1 : 0)
             .blur(radius: showsPlaceAction ? 0 : 8)
             .scaleEffect(showsPlaceAction ? 1 : 1.05)
-            .allowsHitTesting(showsPlaceAction)
-            .accessibilityLabel("Place \(count) new Insights")
-        }
-        .animation(.springStandard, value: showsPlaceAction)
-        .onAppear {
-            showsPlaceAction = false
-            withAnimation(.springStandard.delay(0.18)) {
-                showsPlaceAction = true
-            }
-        }
-        .onChange(of: isLeaving) { _, leaving in
-            withAnimation(.springQuick) {
-                showsPlaceAction = !leaving
-            }
+            .allowsHitTesting(showsPlaceAction && !isBusy)
+            .disabled(isBusy)
+            .accessibilityLabel("Branch into \(count) new Insights")
         }
     }
 
@@ -112,6 +121,7 @@ struct StudyBranchDockControls: View {
     }
 
     private func place() {
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred(intensity: 0.7)
+        guard !isBusy else { return }
+        onConfirm()
     }
 }

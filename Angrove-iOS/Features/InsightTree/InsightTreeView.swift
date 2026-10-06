@@ -26,6 +26,7 @@ struct InsightTreeView: View {
     /// Toggles Study's tool card (the dock's Tools button).
     var studyToolsToggleRequest: Int = 0
     var studyBranchCount: Int = 2
+    var studyBranchConfirmRequest: Int = 0
     var onStudyModeChange: ((Bool) -> Void)? = nil
     /// Whether Study's tools are open, so the dock can color its Tools button.
     var onStudyToolsActiveChange: ((Bool) -> Void)? = nil
@@ -147,16 +148,19 @@ struct InsightTreeView: View {
     @State private var canvasOriginInStack: CGPoint = .zero
     /// The Node Concept Study slot in `InsightTreeStackSpace`, laid out by `StudyModeView`.
     @State private var studySlotInStack: CGRect?
-    /// Study's tool card replaces the docked card while Study is open. Kept for the next
-    /// Study session, like the last selected tool.
     /// Study's tools are open: the tool card replaces the hover card and previews run. Opened
     /// and closed by the dock's Tools button or by swiping the card down; moving around the
     /// node doesn't close it.
     @State private var showsStudyToolCard = false
     @State private var studyToolCardDragY: CGFloat = 0
-    /// The last Study tool, remembered across launches.
-    @AppStorage("study.lastSelectedTool") private var studyToolRawValue = StudyTool.branch.rawValue
-    @State private var studyToolDirection = 1
+    @State private var studyBranchSource: InsightModel?
+    @State private var studyBranchIsPromoted = false
+    @State private var studyBranchBusy = false
+    @State private var studyBranchSessionID = UUID()
+    @State private var studyBranchTask: Task<Void, Never>?
+
+    /// Branch is the only launch tool; ignore any previously saved prototype selection.
+    private let studyTool: StudyTool = .branch
     /// Kept separate from `studySubject` so the hovered card is reinserted with its normal
     /// dock transition after Study clears, rather than merely becoming visible underneath it.
     @State private var showsDockedCardAfterStudy: Bool = true
@@ -173,6 +177,7 @@ struct InsightTreeView: View {
         studyExitRequest: Int = 0,
         studyToolsToggleRequest: Int = 0,
         studyBranchCount: Int = 2,
+        studyBranchConfirmRequest: Int = 0,
         onStudyModeChange: ((Bool) -> Void)? = nil,
         onStudyToolsActiveChange: ((Bool) -> Void)? = nil,
         onStudyBranchCountChange: ((Int) -> Void)? = nil,
@@ -230,6 +235,7 @@ struct InsightTreeView: View {
         self.studyToolsToggleRequest = studyToolsToggleRequest
         self.onStudyToolsActiveChange = onStudyToolsActiveChange
         self.studyBranchCount      = studyBranchCount
+        self.studyBranchConfirmRequest = studyBranchConfirmRequest
         self.onStudyModeChange     = onStudyModeChange
         self.onStudyBranchCountChange = onStudyBranchCountChange
         self.restoreSelectedInsightID = restoreSelectedInsightID
@@ -335,12 +341,7 @@ struct InsightTreeView: View {
             }
 
             if showsStudyToolCard {
-                StudyToolCard(
-                    tool: studyTool,
-                    transitionDirection: studyToolDirection,
-                    onPrevious: { selectStudyTool(studyTool.previous, direction: -1) },
-                    onNext: { selectStudyTool(studyTool.next, direction: 1) }
-                )
+                StudyToolCard()
                 .offset(y: studyToolCardDragY)
                 .simultaneousGesture(studyToolCardDismissGesture)
                 .transition(.bottomDockCard)
@@ -564,9 +565,18 @@ struct InsightTreeView: View {
                 studyInitialHoverInsightID: studyInitialHoverID,
                 studySelectionIDs: studiedSelectionIDs,
                 studySlot: studySlotInStack?.offsetBy(dx: -canvasOriginInStack.x, dy: -canvasOriginInStack.y),
-                studyToolRequestTool: studyTool,
-                studyToolsActive: showsStudyToolCard,
-                studyToolBranchCount: 3
+                studyBranchSource: studyBranchSource,
+                studyBranchNodeID: studyBranchSource.map { viewModel.promotedNodeID(for: $0.id) },
+                studyBranchIsPromoted: studyBranchIsPromoted,
+                onStudyBranchFinished: {
+                    studyBranchBusy = false
+                    onMidpointGeneratingChange?(false)
+                    setStudyToolsOpen(false)
+                    if let source = studyBranchSource,
+                       let node = viewModel.nodes.first(where: { $0.id == viewModel.promotedNodeID(for: source.id) }) {
+                        showNodeCard(node)
+                    }
+                }
             )
             .frame(
                 width: treePaneWidth,
@@ -582,7 +592,7 @@ struct InsightTreeView: View {
             }
             // A studied Node Concept or Insight selection stays in the canvas, which handles
             // Study's gestures (including rotating the ring).
-            .allowsHitTesting(studySubject == nil || studiedNodeID != nil || studiedSelectionIDs != nil)
+            .allowsHitTesting(studyBranchSource != nil || studySubject == nil || studiedNodeID != nil || studiedSelectionIDs != nil)
 
             if viewModel.nodes.isEmpty {
                 EmptyInsightTreeView()
@@ -620,6 +630,8 @@ struct InsightTreeView: View {
                     onBranchCountChange: onStudyBranchCountChange ?? { _ in },
                     onNodeSlotChange: { studySlotInStack = $0 }
                 )
+                .opacity(studyBranchSource == nil ? 1 : 0)
+                .allowsHitTesting(studyBranchSource == nil)
                     .transition(.opacity)
                     .zIndex(10)
             }
@@ -788,8 +800,19 @@ struct InsightTreeView: View {
             enterStudy()
         }
         .onChange(of: studyToolsToggleRequest) { _, _ in
-            guard studySubject != nil, !isExitingStudy else { return }
-            setStudyToolsOpen(!showsStudyToolCard)
+            guard studySubject != nil, !isExitingStudy, !studyBranchBusy else { return }
+            if showsStudyToolCard {
+                setStudyToolsOpen(false)
+                studyBranchSource = nil
+            } else if let selectedInsight, !promotedInsightIDs.contains(selectedInsight.id) {
+                studyBranchSessionID = UUID()
+                studyBranchSource = selectedInsight
+                studyBranchIsPromoted = false
+                setStudyToolsOpen(true)
+            }
+        }
+        .onChange(of: studyBranchConfirmRequest) { _, _ in
+            confirmStudyBranch()
         }
         .onChange(of: showsStudyToolCard) { _, isOpen in
             onStudyToolsActiveChange?(isOpen)
@@ -848,6 +871,10 @@ struct InsightTreeView: View {
             enqueuePersistedTreeLoad(animateChanges: true)
         }
         .onDisappear {
+            studyBranchSessionID = UUID()
+            studyBranchTask?.cancel()
+            if studyBranchBusy { onMidpointGeneratingChange?(false) }
+            onStudyToolsActiveChange?(false)
             midpointGenerationTask?.cancel()
             if midpointPlacedInsightID != nil {
                 onMidpointGeneratingChange?(false)
@@ -964,18 +991,6 @@ struct InsightTreeView: View {
         }
     }
 
-    private var studyTool: StudyTool {
-        StudyTool(rawValue: studyToolRawValue) ?? .branch
-    }
-
-    private func selectStudyTool(_ tool: StudyTool, direction: Int) {
-        guard tool != studyTool else { return }
-        studyToolDirection = direction
-        withAnimation(.springQuick) {
-            studyToolRawValue = tool.rawValue
-        }
-    }
-
     /// The Node Concept being studied, until its exit begins, so the canvas shifts back in
     /// time for the tree to be whole when Study closes.
     private var studiedNodeID: UUID? {
@@ -1024,6 +1039,8 @@ struct InsightTreeView: View {
         } else {
             return
         }
+        studyBranchSource = nil
+        studyBranchIsPromoted = false
         isExitingStudy = false
         UIImpactFeedbackGenerator(style: .medium).impactOccurred(intensity: 0.72)
         // The hovered Insight's card stays up; the tools open from the dock's Tools button.
@@ -1036,6 +1053,10 @@ struct InsightTreeView: View {
 
     private func exitStudy() {
         guard studySubject != nil, !isExitingStudy else { return }
+        studyBranchSource = nil
+        studyBranchSessionID = UUID()
+        studyBranchBusy = false
+        onMidpointGeneratingChange?(false)
         withAnimation(.springStandard) {
             isExitingStudy = true
         }
@@ -1087,14 +1108,19 @@ struct InsightTreeView: View {
     private var studyToolCardDismissGesture: some Gesture {
         DragGesture(minimumDistance: 8)
             .onChanged { value in
-                // Horizontal swipes page between tools.
+                // Only a downward swipe dismisses Branch.
                 guard value.translation.height > abs(value.translation.width) || studyToolCardDragY > 0 else { return }
                 studyToolCardDragY = max(0, value.translation.height)
             }
             .onEnded { value in
                 guard studyToolCardDragY > 0 else { return }
                 if value.translation.height > 100 || value.predictedEndTranslation.height > 180 {
+                    guard !studyBranchBusy else {
+                        withAnimation(.springStandard) { studyToolCardDragY = 0 }
+                        return
+                    }
                     setStudyToolsOpen(false)
+                    studyBranchSource = nil
                 } else {
                     withAnimation(.springLively) {
                         studyToolCardDragY = 0
@@ -1469,6 +1495,60 @@ struct InsightTreeView: View {
             if startsMidpointForHighlightedPair {
                 enterMidpointMode()
             }
+        }
+    }
+
+    private func confirmStudyBranch() {
+        guard let source = studyBranchSource, showsStudyToolCard, !studyBranchBusy,
+              !studyBranchIsPromoted, (2...6).contains(studyBranchCount) else { return }
+        let count = studyBranchCount
+        let sourceID = source.id
+        let sessionID = studyBranchSessionID
+        studyBranchBusy = true
+        onMidpointGeneratingChange?(true)
+        var hasReservedPromotion = false
+        let begin = {
+            guard studyBranchSessionID == sessionID,
+                  studyBranchSource?.id == sourceID, studyBranchBusy else { return }
+            if SettingsHaptics.isEnabled {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred(intensity: 0.8)
+            }
+            withAnimation(.easeInOut(duration: 0.3)) { studyBranchIsPromoted = true }
+            hasReservedPromotion = true
+            viewModel.reserveMakeNodeGeneration(for: sourceID, branchCount: count)
+            onPromotedInsightIDsChange?(promotedInsightIDs.contains(sourceID) ? promotedInsightIDs : promotedInsightIDs + [sourceID])
+        }
+        let rollback = {
+            if hasReservedPromotion {
+                hasReservedPromotion = false
+                viewModel.cancelMakeNodeGeneration(for: sourceID)
+                onPromotedInsightIDsChange?(promotedInsightIDs.filter { $0 != sourceID })
+            }
+            if studyBranchSessionID == sessionID, studyBranchSource?.id == sourceID {
+                studyBranchIsPromoted = false
+                studyBranchBusy = false
+                onMidpointGeneratingChange?(false)
+            }
+        }
+        let generate: () async -> Void = {
+            guard studyBranchSessionID == sessionID,
+                  studyBranchIsPromoted, studyBranchSource?.id == sourceID else { return }
+            do {
+                try await viewModel.generateReservedMakeNodeChildren(for: source)
+                try Task.checkCancellation()
+                bookmarkMakeNodeOutput(for: sourceID)
+            } catch {
+                rollback()
+                guard !Task.isCancelled, studyBranchSessionID == sessionID else { return }
+                presentModelActionError { confirmStudyBranch() }
+            }
+        }
+        if let modelTasks {
+            modelTasks.enqueue(kind: .studyBranch, originPage: modelTaskOriginPage,
+                               onStart: begin, onCancel: rollback, operation: generate)
+        } else {
+            begin()
+            studyBranchTask = Task { await generate() }
         }
     }
 

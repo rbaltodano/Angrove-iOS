@@ -29,9 +29,19 @@ struct Angrove_iOSApp: App {
             } else if ProcessInfo.processInfo.arguments.contains("--litert-probe") {
                 LiteRTDeviceProbeView()
             } else {
+#if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("--study-branch-preview") {
+                    StudyBranchPreviewView()
+                } else {
+                    ContentView(modelTasks: runtime.modelTasks)
+                        .environment(\.angroveModel, runtime.model)
+                        .environment(\.embeddingProvider, runtime.embeddingProvider)
+                }
+#else
                 ContentView(modelTasks: runtime.modelTasks)
                     .environment(\.angroveModel, runtime.model)
                     .environment(\.embeddingProvider, runtime.embeddingProvider)
+#endif
             }
         }
     }
