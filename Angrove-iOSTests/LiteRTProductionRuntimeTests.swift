@@ -1105,8 +1105,8 @@ struct LiteRTProductionRuntimeTests {
         )
     }
 
-    @Test("Canvas collapses an Insight whose title matches its Node")
-    func canvasCollapsesMatchingInsightTitle() {
+    @Test("Canvas preserves a bookmarked Insight whose title matches its Node")
+    func canvasPreservesMatchingInsightTitle() {
         let matching = InsightModel(title: "Didache", definition: "An anonymous early Christian text.")
         let related = InsightModel(title: "Two Ways", definition: "A moral teaching within the text.")
 
@@ -1115,7 +1115,7 @@ struct LiteRTProductionRuntimeTests {
             insights: [matching, related],
             preservesMatchingTitle: false
         )
-        #expect(collapsed.map(\.id) == [related.id])
+        #expect(collapsed.map(\.id) == [matching.id, related.id])
         #expect(
             canvasInsightMembers(
                 nodeLabel: "The Didache",

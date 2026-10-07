@@ -877,6 +877,10 @@ struct InsightTreeView: View {
         .onChange(of: persistedTreeRefreshRequest) { _, _ in
             enqueuePersistedTreeLoad(animateChanges: true)
         }
+        .onReceive(NotificationCenter.default.publisher(for: LocalInsightTreeSeedStore.didChange)) { notification in
+            guard let changedID = notification.object as? UUID, changedID == conversationID else { return }
+            enqueuePersistedTreeLoad(animateChanges: true)
+        }
         .onDisappear {
             studyBranchSessionID = UUID()
             studyBranchTask?.cancel()

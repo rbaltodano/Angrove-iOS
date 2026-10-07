@@ -150,18 +150,6 @@ struct CurrentConversationView: View {
     @State private var undiscoveredInsightCount: Int = 0
     @State private var persistedTreeRefreshRequest: Int = 0
     @State private var insightTreeUpdateSignal: Int = 0
-    /// Question/response pairs awaiting on-device tree-seed evaluation. Debounced so a rapid
-    /// follow-up question never collides with this background call mid-flight. Each pair
-    /// carries its own conversationID captured at append time — `activeConversationID` can
-    /// change before this fires (e.g. the user switches conversations mid-debounce).
-    @State private var pendingLocalInsightTreeSeeds:
-        [(conversationID: UUID, question: String, response: String)] = []
-    /// First answered questions to name after their tree processing.
-    @State private var pendingConversationTitles:
-        [(conversationID: UUID, branchID: UUID, question: String)] = []
-    /// User messages awaiting the model's "Your Quote" notability check.
-    @State private var pendingQuoteCandidates: [(conversationID: UUID, message: String)] = []
-    @State private var localInsightTreeSeedDebounceTask: Task<Void, Never>? = nil
     @State private var canvasFocusNodeID: UUID? = nil
     @State private var canvasNodeSelectionRequest: Int = 0
     @State private var manuallySavedConversationInsightIDs: Set<UUID> = []
@@ -247,14 +235,11 @@ struct CurrentConversationView: View {
     }
 
     private var conversationInsights: [ConceptDefinition] {
-        var result = ChatBranch.mentionedInsights(in: session.activeBranches)
-        var seen = Set(result.map { $0.word.lowercased() })
-        for concept in collectedDefinitions
-        where manuallySavedConversationInsightIDs.contains(concept.id) {
-            let key = concept.word.lowercased()
-            if seen.insert(key).inserted { result.append(concept) }
-        }
-        return result
+        ChatBranch.resolvedConversationInsights(
+            in: session.activeBranches,
+            savedInsights: collectedDefinitions,
+            manuallySavedIDs: manuallySavedConversationInsightIDs
+        )
     }
 
     private var hasSelectedCanvasItems: Bool {
@@ -289,8 +274,8 @@ struct CurrentConversationView: View {
         )
     }
 
-    /// Called from inside the finishing question job, so the mapping job below is queued ahead of
-    /// any question already waiting and the tree reflects this answer before the next one starts.
+    /// Called at response completion. Capture this turn in background work without blocking
+    /// foreground questions or depending on the originating page remaining mounted.
     private func enqueueInsightTreeAnalysis(
         conversationID: UUID,
         branch: ChatBranch,
@@ -303,18 +288,21 @@ struct CurrentConversationView: View {
             return
         }
 
+        var titles: [(conversationID: UUID, branchID: UUID, question: String)] = []
+        var quoteCandidates: [(conversationID: UUID, message: String)] = []
+        var pending: [(conversationID: UUID, question: String, response: String)] = []
         if conversationTitlePolicy == .automatic,
            branch.parentBranchID == nil,
            responseIndex == 0,
            session.needsAutomaticTitle(
                conversationID: conversationID, branchID: branch.id, question: branch.topQuestionText
            ) {
-            pendingConversationTitles.append((conversationID, branch.id, branch.topQuestionText))
+            titles.append((conversationID, branch.id, branch.topQuestionText))
         }
 
         // "Your Quote" judges the user's own message, so it doesn't depend on the answer.
         if HomeDiscovery.isQuoteCandidate(question) {
-            pendingQuoteCandidates.append((conversationID: conversationID, message: question))
+            quoteCandidates.append((conversationID: conversationID, message: question))
         }
 
         // A corpus-scope abstention contains no claim to organize. In particular, do not let a
@@ -326,80 +314,28 @@ struct CurrentConversationView: View {
         ) && branch.responsePresentation(at: responseIndex)?.evidenceBasis != .generalKnowledge
 
         if isTreeCandidate {
-            pendingLocalInsightTreeSeeds.append((
+            pending.append((
                 conversationID: conversationID,
                 question: question,
                 response: InlineInsightMarkup.plainText(from: responseText)
             ))
         }
-        // This runs as a debounced `.background` job (see `enqueueLocalInsightTreeSeedingTask`),
-        // so a foreground question always preempts it.
-        enqueueLocalInsightTreeSeedingTask(runsNext: true)
+        enqueueLocalInsightTreeSeedingTask(
+            conversationID: conversationID,
+            pending: pending, titles: titles, quoteCandidates: quoteCandidates
+        )
     }
 
-    /// Waits for 5s of idle time before
-    /// actually starting on-device tree-seed evaluation. A rapid follow-up question reschedules
-    /// this instead of colliding with it: `ModelTaskQueue`'s foreground/background preemption is
-    /// best-effort (a preempted background job's Swift Task keeps cooperatively finishing rather
-    /// than stopping instantly), so avoiding the collision in the first place is far more
-    /// reliable than depending on preemption to resolve cleanly every time.
-    private func scheduleLocalInsightTreeSeedingAfterIdle() {
-        guard !pendingLocalInsightTreeSeeds.isEmpty || !pendingQuoteCandidates.isEmpty || !pendingConversationTitles.isEmpty else {
-            return
-        }
-        localInsightTreeSeedDebounceTask?.cancel()
-        localInsightTreeSeedDebounceTask = Task {
-            do {
-                try await Task.sleep(for: .seconds(5))
-            } catch {
-                return
-            }
-            guard scenePhase == .active else { return }
-            enqueueLocalInsightTreeSeedingTask()
-        }
-    }
-
-    /// Seeds the conversation's Insight Tree with Node Concepts extracted on-device. This runs as
-    /// a `.updateInsightTree` background Model Task
-    /// (shows "Mapping...", not "Thinking...", and never blocks the already-displayed answer).
-    ///
-    /// Every pending turn asks the on-device model to extract its main subject (label + summary)
-    /// unconditionally — see `insightTreeSeedCandidate`'s doc comment. Whether that subject
-    /// actually becomes a new Node Concept is then decided here, deterministically, by on-device
-    /// bundled MiniLM cosine similarity against the Node Concepts already on the tree: below
-    /// `newSubjectThreshold` similarity to every existing Node means genuinely new, so it's
-    /// appended; at or above it means the turn is still within an existing Node's subject, so no
-    /// new Node is added (a related, separately-saved Insight will still cluster under that
-    /// existing Node via `InsightTreeViewModel`'s own clustering — see its `localMembershipThreshold`).
-    ///
-    /// This replaced an earlier design where the model made that new-vs-related judgment itself
-    /// (`new_subject: true/false`) directly in the same call. That judgment turned out to be
-    /// unreliable and order-dependent — asked to compare the same two Bible/theology subjects in
-    /// one order the model correctly saw a pivot, asked in the reverse order it didn't. A binary
-    /// "is this new" call is exactly the kind of judgment an LLM is inconsistent at; embedding
-    /// similarity answers it the same way every time for the same inputs, and it's the same
-    /// lightweight math the tree's own clustering already relies on, so it costs effectively
-    /// nothing extra.
-    private func enqueueLocalInsightTreeSeedingTask(runsNext: Bool = false) {
-        guard !pendingLocalInsightTreeSeeds.isEmpty || !pendingQuoteCandidates.isEmpty || !pendingConversationTitles.isEmpty,
-              !modelTasks.contains(where: {
-                  $0.kind == .updateInsightTree && $0.phase != .completed
-              }) else {
-            return
-        }
-        let pending = pendingLocalInsightTreeSeeds
-        pendingLocalInsightTreeSeeds.removeAll()
-        let titles = pendingConversationTitles
-        pendingConversationTitles.removeAll()
-        let quoteCandidates = pendingQuoteCandidates
-        pendingQuoteCandidates.removeAll()
-
-        modelTasks.enqueue(
-            kind: .updateInsightTree,
-            originPage: .conversation,
-            priority: .background,
-            runsNext: false
-        ) {
+    /// Capture each completed turn directly in the shared queue. Page-local @State buffers
+    /// cannot accept work after SwiftUI unmounts the originating conversation.
+    private func enqueueLocalInsightTreeSeedingTask(
+        conversationID: UUID,
+        pending: [(conversationID: UUID, question: String, response: String)],
+        titles: [(conversationID: UUID, branchID: UUID, question: String)],
+        quoteCandidates: [(conversationID: UUID, message: String)]
+    ) {
+        guard !pending.isEmpty || !titles.isEmpty || !quoteCandidates.isEmpty else { return }
+        ConversationTreeAnalysisScheduling.enqueue(on: modelTasks, conversationID: conversationID) {
             // Matches `InsightTreeViewModel.localMembershipThreshold`: below this similarity to
             // every existing Node, a subject counts as genuinely new rather than a continuation
             // of one already on the tree.
@@ -959,16 +895,8 @@ struct CurrentConversationView: View {
         .canvasAppearance(canvasMode.isTopicCanvasVisible ? insightTreeBackground : conversationBackground)
         .onDisappear {
             persistenceTask?.cancel()
-            localInsightTreeSeedDebounceTask?.cancel()
             removeActiveConversationIfEmpty()
             persistConversations()
-        }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active {
-                scheduleLocalInsightTreeSeedingAfterIdle()
-            } else {
-                localInsightTreeSeedDebounceTask?.cancel()
-            }
         }
         // aq:// insight links
         .environment(\.openURL, OpenURLAction { url in
@@ -1651,19 +1579,18 @@ struct CurrentConversationView: View {
                     },
                     onDetachedResponseGenerated: { conversationID, branchID, responseIndex in
                         // The answer belongs to a conversation the user has left. Refresh its
-                        // stored copy from disk, then map it before the next queued question.
+                        // stored copy, then schedule mapping independently of the page's lifetime.
                         guard let snapshot = CurrentConversationsStore.load(),
                               let persisted = snapshot.conversations.first(where: {
                                   $0.id == conversationID
                               }),
-                              let branch = persisted.branches.first(where: { $0.id == branchID }),
-                              let index = session.conversations.firstIndex(where: {
-                                  $0.id == conversationID
-                              }) else {
+                              let branch = persisted.branches.first(where: { $0.id == branchID }) else {
                             return
                         }
-                        session.conversations[index].branches = persisted.branches
-                        session.conversations[index].title = persisted.title
+                        if let index = session.conversations.firstIndex(where: { $0.id == conversationID }) {
+                            session.conversations[index].branches = persisted.branches
+                            session.conversations[index].title = persisted.title
+                        }
                         enqueueInsightTreeAnalysis(
                             conversationID: conversationID,
                             branch: branch,

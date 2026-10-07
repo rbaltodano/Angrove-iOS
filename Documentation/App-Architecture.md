@@ -60,6 +60,12 @@ rechecks persisted conversation/branch identity, question, and title eligibility
 only the title, keeping composer drafts and manual renames intact even after navigation. Stale
 page saves preserve an already generated title just as they preserve completed answers.
 
+Completed-turn tree analysis captures immutable work directly in the shared queue, independently
+of page-local state. Multiple completed turns retain separate jobs. Persisted seed change
+notifications refresh a currently mounted conversation tree even when the generating page
+instance has gone away. Saved Insight content and IDs override older copies in response markup;
+a matching Node label does not hide the saved chip.
+
 Every Insight Tree is built on-device. The global Insight Library canvas is an in-memory semantic
 experience. The conversation tree asks the local model for each turn's subject
 (`insightTreeSeedCandidate`), stores accepted subjects in `LocalInsightTreeSeedStore`, and clusters

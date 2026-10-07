@@ -96,6 +96,7 @@ nonisolated struct LocalInsightTreeSeedFileStore: @unchecked Sendable {
 }
 
 enum LocalInsightTreeSeedStore {
+    static let didChange = Notification.Name("AngroveConversationTreeSeedsChanged")
     nonisolated static func preload() {
         if let store = liveStore() { _ = SerializedPersonalStore.shared.loadSeeds(store: store) }
     }
@@ -108,6 +109,7 @@ enum LocalInsightTreeSeedStore {
         var all = load()
         all[conversationID.uuidString, default: []].append(seed)
         if let store = liveStore() { SerializedPersonalStore.shared.saveSeeds(all, store: store) }
+        NotificationCenter.default.post(name: didChange, object: conversationID)
     }
 
     static func replaceSeeds(
@@ -117,6 +119,7 @@ enum LocalInsightTreeSeedStore {
         var all = load()
         all[conversationID.uuidString] = seeds
         if let store = liveStore() { SerializedPersonalStore.shared.saveSeeds(all, store: store) }
+        NotificationCenter.default.post(name: didChange, object: conversationID)
     }
 
     static func removeConversation(_ conversationID: UUID) {

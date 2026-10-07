@@ -290,6 +290,26 @@ extension ChatBranch {
         }
         return result
     }
+
+    /// Saved definitions are authoritative; response markup may contain an older copy or ID.
+    static func resolvedConversationInsights(
+        in branches: [ChatBranch],
+        savedInsights: [ConceptDefinition],
+        manuallySavedIDs: Set<UUID>
+    ) -> [ConceptDefinition] {
+        var result: [ConceptDefinition] = []
+        var seen = Set<UUID>()
+        for mentioned in mentionedInsights(in: branches) where !mentioned.isLibraryQuote {
+            let saved = savedInsights.first { $0.id == mentioned.id }
+                ?? savedInsights.first { $0.word.caseInsensitiveCompare(mentioned.word) == .orderedSame }
+            let resolved = saved ?? mentioned
+            if seen.insert(resolved.id).inserted { result.append(resolved) }
+        }
+        for saved in savedInsights where manuallySavedIDs.contains(saved.id) && !saved.isLibraryQuote {
+            if seen.insert(saved.id).inserted { result.append(saved) }
+        }
+        return result
+    }
 }
 
 nonisolated enum ChatBlock: Hashable, Codable {

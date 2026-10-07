@@ -365,7 +365,11 @@ final class InsightTreeViewModel: ObservableObject {
               generatedChildInsights == originalChildren, placedMidpoints == originalMidpoints else { return }
         guard corrected != insights || correctedSeeds != localSeedAnchors
                 || subjectEmbeddings != clusterSubjectEmbeddings
-                || correctedChildren != generatedChildInsights || correctedMidpoints != midpointEmbeddings else { return }
+                || correctedChildren != generatedChildInsights || correctedMidpoints != midpointEmbeddings else {
+            // A refresh with already-prepared vectors can still have an in-flight graph build.
+            await graphBuildTask?.value
+            return
+        }
         midpointEmbeddings = correctedMidpoints.filter { id, _ in originalMidpoints.contains { $0.concept.id == id } }
         insights = corrected
         localSeedAnchors = correctedSeeds
