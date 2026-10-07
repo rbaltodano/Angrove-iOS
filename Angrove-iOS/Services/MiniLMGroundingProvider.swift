@@ -18,7 +18,7 @@ nonisolated final class MiniLMGroundingProvider: AngroveGroundingProviding {
         self.store = store
     }
 
-    convenience init(bundle: Bundle = .main) throws {
+    convenience init(bundle: Bundle = .main, embedder sharedEmbedder: MiniLMEmbedder? = nil) throws {
         guard let modelURL = bundle.url(
             forResource: "MiniLM",
             withExtension: "mlmodelc",
@@ -48,7 +48,7 @@ nonisolated final class MiniLMGroundingProvider: AngroveGroundingProviding {
             throw MiniLMGroundingProviderError.resourceMissing("passages.json")
         }
 
-        let embedder = try MiniLMEmbedder(modelURL: modelURL, vocabURL: vocabURL)
+        let embedder = try sharedEmbedder ?? MiniLMEmbedder(modelURL: modelURL, vocabURL: vocabURL)
         let store = try OnDeviceGroundingStore(
             embeddingsURL: embeddingsURL,
             passagesURL: passagesURL
@@ -307,7 +307,7 @@ nonisolated final class MiniLMGroundingProvider: AngroveGroundingProviding {
 /// The bundled sources end before Vatican II and contain no current ecclesial data. These are
 /// explicit corpus-boundary checks, not responses: they prevent unrelated historical passages from
 /// being presented as evidence for a question this fixed, offline corpus cannot substantiate.
-private enum CorpusScope {
+private nonisolated enum CorpusScope {
     static func excludes(_ question: String) -> Bool {
         let normalized = question.folding(
             options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX")
@@ -320,7 +320,7 @@ private enum CorpusScope {
     }
 }
 
-private enum NamedCorpusSource {
+private nonisolated enum NamedCorpusSource {
     /// A person's name may be the only meaningful lookup term in an otherwise generic question
     /// ("Who was Arius?"). Document titles deliberately do not use this fallback: matching
     /// "Roman" and "Catechism" throughout the Roman Catechism promotes front matter above its
@@ -392,7 +392,7 @@ private enum NamedCorpusSource {
 /// Selects a primary text for a familiar moral subject when MiniLM's topical ranking misses the
 /// wording. Entries name only question terms and a literal phrase already in the bundled source;
 /// they are retrieval locations, never paraphrased answers.
-private enum SubjectSection {
+private nonisolated enum SubjectSection {
     /// A route applies when the question uses one of `questionTerms` and, if `alsoRequiring` is
     /// not empty, one of those as well.
     private static let table: [(
@@ -452,7 +452,7 @@ private enum SubjectSection {
 /// Maps a well-known doctrinal formulation to the heading that contains it in an imported
 /// primary source. This is retrieval metadata: it identifies the source text to read, and never
 /// carries a paraphrase, conclusion, or negative example for the language model to repeat.
-private enum AuthoritySection {
+private nonisolated enum AuthoritySection {
     private static let table: [(
         authorityTerms: [String],
         topicTerms: Set<String>,

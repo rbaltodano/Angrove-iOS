@@ -122,13 +122,12 @@ final class InsightTreeViewModel: ObservableObject {
     /// Each automatic Node's subject ("label. definition") embedded, so Nodes about the same
     /// subject can merge even when their member Insights are only loosely related to each other
     /// (Thucydides and Polis both sit under "Ancient Greek Politics" but score 0.31).
-    private struct SubjectEmbedding: Equatable {
-        let text: String
-        let version: String
-        let vector: [Double]
-    }
-    private var clusterSubjectEmbeddings: [UUID: SubjectEmbedding] = [:]
+    private var clusterSubjectEmbeddings: [UUID: SemanticClusterSubjectEmbedding] = [:]
     private var embeddingRefreshGeneration = 0
+    private let graphWorker = SemanticTreeWorker()
+    private var graphBuildTask: Task<Void, Never>?
+    private var graphRevision = 0
+
     /// Minimum cosine similarity for an Insight to attach to an existing local Node. The bundled
     /// provider is MiniLM, matching the grounding corpus's embedding space. This value is centralized as a
     /// calibration constant so real-conversation evaluation can change it without touching layout.
@@ -173,8 +172,10 @@ final class InsightTreeViewModel: ObservableObject {
         modelTaskOriginPage: ModelTaskOriginPage = .insights,
         embeddingProvider: EmbeddingProvider = NLEmbeddingProvider(),
         localSeedAnchors: [LocalInsightTreeSeed] = [],
-        midpointStoreScope: UUID? = nil
+        midpointStoreScope: UUID? = nil,
+        usesBackgroundGraphWorker: Bool = true
     ) {
+        self.usesBackgroundGraphWorker = usesBackgroundGraphWorker
         self.insights = Self.deduplicated(insights.map { InsightModel(concept: $0) })
         self.promotedInsightIDs = promotedInsightIDs
         self.showsAllClusterInsights = showsAllClusterInsights
@@ -300,8 +301,12 @@ final class InsightTreeViewModel: ObservableObject {
     /// keeps the tree usable immediately, including during `init`); this is the versioned,
     /// async-capable path used by the live MiniLM provider. Membership is committed only after
     /// these vectors are ready.
+    private var midpointEmbeddings: [UUID: SemanticClusterSubjectEmbedding] = [:]
+    private let usesBackgroundGraphWorker: Bool
+    private var embeddingRefreshTask: Task<Void, Never>?
     private func refreshEmbeddingsIfNeeded() {
-        Task { @MainActor in await prepareSemanticTree() }
+        embeddingRefreshTask?.cancel()
+        embeddingRefreshTask = Task { @MainActor [weak self] in await self?.prepareSemanticTree() }
     }
 
     /// Publish a snapshot only after Insights and seeds share the configured vector space.
@@ -333,6 +338,18 @@ final class InsightTreeViewModel: ObservableObject {
                 ))
             }
         }
+        let originalMidpoints = placedMidpoints
+        var correctedMidpoints = midpointEmbeddings
+        for midpoint in originalMidpoints {
+            let text = "\(midpoint.concept.word). \(midpoint.concept.semanticDefinition)"
+            if correctedMidpoints[midpoint.concept.id]?.text != text
+                || correctedMidpoints[midpoint.concept.id]?.version != embeddingProvider.version {
+                if let vector = await embeddingProvider.embed(text) {
+                    correctedMidpoints[midpoint.concept.id] = SemanticClusterSubjectEmbedding(
+                        text: text, version: embeddingProvider.version, vector: vector)
+                }
+            }
+        }
         var subjectEmbeddings = clusterSubjectEmbeddings
         let liveClusterIDs = Set(nodes.map(\.id)).union(insightClusterAssignments.values)
         for id in liveClusterIDs {
@@ -341,25 +358,28 @@ final class InsightTreeViewModel: ObservableObject {
             let text = "\(label). \(definition)"
             guard subjectEmbeddings[id]?.text != text || subjectEmbeddings[id]?.version != embeddingProvider.version,
                   let vector = await embeddingProvider.embed(text) else { continue }
-            subjectEmbeddings[id] = SubjectEmbedding(text: text, version: embeddingProvider.version, vector: vector)
+            subjectEmbeddings[id] = SemanticClusterSubjectEmbedding(text: text, version: embeddingProvider.version, vector: vector)
         }
-        guard generation == embeddingRefreshGeneration,
+        guard !Task.isCancelled, generation == embeddingRefreshGeneration,
               insights == originalInsights, localSeedAnchors == originalSeeds,
-              generatedChildInsights == originalChildren else { return }
+              generatedChildInsights == originalChildren, placedMidpoints == originalMidpoints else { return }
         guard corrected != insights || correctedSeeds != localSeedAnchors
                 || subjectEmbeddings != clusterSubjectEmbeddings
-                || correctedChildren != generatedChildInsights else { return }
+                || correctedChildren != generatedChildInsights || correctedMidpoints != midpointEmbeddings else { return }
+        midpointEmbeddings = correctedMidpoints.filter { id, _ in originalMidpoints.contains { $0.concept.id == id } }
         insights = corrected
         localSeedAnchors = correctedSeeds
         clusterSubjectEmbeddings = subjectEmbeddings
         generatedChildInsights = correctedChildren
         persistMakeNodeChildren()
         rebuildTree()
+        await graphBuildTask?.value
     }
 
     private func ensureEmbeddings(for insights: [InsightModel]) async -> [InsightModel] {
         var next = insights
         for index in next.indices {
+            guard !Task.isCancelled else { return next }
             let stale = next[index].embedding == nil || next[index].embeddingVersion != embeddingProvider.version
             guard stale else { continue }
             let text = "\(next[index].title). \(next[index].definition)"
@@ -561,7 +581,7 @@ final class InsightTreeViewModel: ObservableObject {
         // the versioned, async-capable path layered on top (see its doc comment).
         let embeddedInsights = insights.map { insight -> InsightModel in
             var copy = insight
-            guard copy.embedding == nil, embeddingProvider.version == NLEmbeddingProvider.version else { return copy }
+            guard (modelTasks == nil || !usesBackgroundGraphWorker), copy.embedding == nil, embeddingProvider.version == NLEmbeddingProvider.version else { return copy }
             copy.embedding = computeEmbedding(for: "\(insight.title). \(insight.definition)")
             copy.embeddingVersion = NLEmbeddingProvider.version
             return copy
@@ -587,17 +607,67 @@ final class InsightTreeViewModel: ObservableObject {
             $0.embedding != nil
                 && ($0.embeddingVersion ?? NLEmbeddingProvider.version) == embeddingProvider.version
         }
-        var (nextNodes, nextEdges) = makeClusteredTree(
-            from: embeddedInsights.filter {
-                let semanticReady = seedsReady && (embeddingProvider.version == NLEmbeddingProvider.version
-                    || ($0.embedding != nil && $0.embeddingVersion == embeddingProvider.version))
-                return semanticReady && !placedMidpointIDs.contains($0.id) && !attachedMakeNodeIDs.contains($0.id)
+        let members = embeddedInsights.filter {
+            let semanticReady = seedsReady && (embeddingProvider.version == NLEmbeddingProvider.version
+                || ($0.embedding != nil && $0.embeddingVersion == embeddingProvider.version))
+            return semanticReady && !placedMidpointIDs.contains($0.id) && !attachedMakeNodeIDs.contains($0.id)
+        }
+        let saved = Self.loadStoredPositions(storageKey: positionStoreKey)
+        let positions = saved.reduce(into: [UUID: CGPoint]()) { output, entry in
+            if let id = UUID(uuidString: entry.key) { output[id] = entry.value.cgPoint }
+        }
+        let input = SemanticTreeComputation(allInsights: embeddedInsights, localSeedAnchors: localSeedAnchors,
+            insightClusterAssignments: insightClusterAssignments, clusterMergeTargets: clusterMergeTargets,
+            clusterSubjectEmbeddings: clusterSubjectEmbeddings, generatedClusterLabels: generatedClusterLabels,
+            generatedClusterDefinitions: generatedClusterDefinitions, positions: positions,
+            providerVersion: embeddingProvider.version, localMembershipThreshold: localMembershipThreshold)
+        graphRevision += 1
+        let revision = graphRevision
+        graphBuildTask?.cancel()
+        if modelTasks != nil && usesBackgroundGraphWorker {
+            graphBuildTask = Task { [weak self, graphWorker] in
+                let result = await graphWorker.compute(input, members: members)
+                guard let self, !Task.isCancelled, graphRevision == revision else { return }
+                await applyGraphAsync(result, embeddedInsights: embeddedInsights, revision: revision)
             }
-        )
+        } else {
+            var state = input
+            let graph = state.build(from: members)
+            applyGraph(SemanticTreeResult(nodes: graph.nodes, edges: graph.edges,
+                assignments: state.insightClusterAssignments, merges: state.clusterMergeTargets), embeddedInsights: embeddedInsights)
+        }
+    }
+
+    private func applyGraphAsync(_ result: SemanticTreeResult, embeddedInsights: [InsightModel], revision: Int) async {
+        var nextNodes = result.nodes
+        var nextEdges = result.edges
         appendPromotedNodes(to: &nextNodes, edges: &nextEdges, from: embeddedInsights)
         appendPlacedMidpointNodes(to: &nextNodes, edges: &nextEdges)
-        adoptSpawnTargets(for: nextNodes)
-        nextNodes = separateOverlaps(nodes: nextNodes)
+        let relaxation = SemanticOverlapRelaxation(placedMidpointNodeIDs: placedMidpointNodeIDs,
+            showsAllClusterInsights: showsAllClusterInsights)
+        let relaxed = await graphWorker.relax(nextNodes, using: relaxation)
+        guard !Task.isCancelled, revision == graphRevision else { return }
+        applyGraph(result, embeddedInsights: embeddedInsights, preparedNodes: relaxed, preparedEdges: nextEdges, spawnNodes: nextNodes)
+    }
+
+    private func applyGraph(_ result: SemanticTreeResult, embeddedInsights: [InsightModel], preparedNodes: [NodeModel]? = nil, preparedEdges: [EdgeModel]? = nil, spawnNodes: [NodeModel]? = nil) {
+        insightClusterAssignments = result.assignments
+        if clusterMergeTargets != result.merges {
+            clusterMergeTargets = result.merges
+            InsightTreeLocalStateStore.save(
+                Dictionary(uniqueKeysWithValues: result.merges.map { ($0.key.uuidString, $0.value.uuidString) }),
+                key: scopedClusterMergeStoreKey)
+        }
+        persistInsightClusterAssignments()
+        var nextNodes = preparedNodes ?? result.nodes
+        var nextEdges = preparedEdges ?? result.edges
+        if preparedNodes == nil {
+            appendPromotedNodes(to: &nextNodes, edges: &nextEdges, from: embeddedInsights)
+            appendPlacedMidpointNodes(to: &nextNodes, edges: &nextEdges)
+            adoptSpawnTargets(for: nextNodes)
+            nextNodes = separateOverlaps(nodes: nextNodes)
+        }
+        if let spawnNodes { adoptSpawnTargets(for: spawnNodes) }
         persistPositions(nextNodes)
         recomputeBondLengths(for: nextNodes)
 
@@ -655,261 +725,6 @@ final class InsightTreeViewModel: ObservableObject {
     /// similarity threshold attaches under the seeded subject instead of spawning its own
     /// cluster, and an anchor with zero attached Insights still renders as its own Node so the
     /// seeded subject never just disappears once real Insights exist.
-    private func makeClusteredTree(
-        from insights: [InsightModel]
-    ) -> (nodes: [NodeModel], edges: [EdgeModel]) {
-        struct Cluster {
-            let id: UUID
-            var insights: [InsightModel]
-            var embedding: [Double]
-            var seedLabel: String?
-            var seedSummary: String?
-        }
-
-        // Follow merges to the Node that finally absorbed a given id.
-        func mergeSurvivor(of id: UUID) -> UUID {
-            var current = id
-            var visited: Set<UUID> = [id]
-            while let next = clusterMergeTargets[current], visited.insert(next).inserted {
-                current = next
-            }
-            return current
-        }
-        insightClusterAssignments = insightClusterAssignments.mapValues(mergeSurvivor(of:))
-        let seedIDs = Set(localSeedAnchors.map(\.id))
-        let assignedClusterIDs = Set(insightClusterAssignments.values)
-        // An absorbed seed stays folded while the Node that absorbed it still exists.
-        let foldedSeedIDs = Set(localSeedAnchors.map(\.id).filter { id in
-            let survivor = mergeSurvivor(of: id)
-            return survivor != id && (seedIDs.contains(survivor) || assignedClusterIDs.contains(survivor))
-        })
-
-        var clusters: [Cluster] = localSeedAnchors.filter { !foldedSeedIDs.contains($0.id) }.map { seed in
-            Cluster(
-                id: seed.id,
-                insights: [],
-                embedding: (seed.embeddingVersion ?? NLEmbeddingProvider.version) == embeddingProvider.version
-                    ? (seed.embedding ?? []) : [],
-                seedLabel: seed.label,
-                seedSummary: seed.summary
-            )
-        }
-#if DEBUG
-        print("Angrove makeClusteredTree: \(localSeedAnchors.count) anchor(s) \(localSeedAnchors.map { "\($0.label)[emb=\($0.embedding?.count.description ?? "nil")]" }), \(insights.count) insight(s) in order: \(insights.map { "\($0.title)[\($0.id.uuidString.prefix(4))]" })")
-#endif
-        for insight in insights {
-            let embedding = insight.embedding ?? []
-
-            // An Insight that already belongs to a Node keeps that Node's identity regardless of
-            // what else was added or removed — no re-matching against current cluster centroids.
-            let targetClusterID: UUID
-            if let assigned = insightClusterAssignments[insight.id] {
-                targetClusterID = assigned
-            } else {
-                let best = clusters.indices
-                    .map { index in
-                        let memberSimilarity = cosineSimilarity(embedding, clusters[index].embedding)
-                        let seedSimilarity = localSeedAnchors.first { $0.id == clusters[index].id }
-                            .map { seed in
-                                guard (seed.embeddingVersion ?? NLEmbeddingProvider.version) == embeddingProvider.version else { return -1.0 }
-                                return cosineSimilarity(embedding, seed.embedding ?? [])
-                            } ?? -1
-                        return (index, max(memberSimilarity, seedSimilarity))
-                    }
-                    .max { $0.1 < $1.1 }
-                if let best, best.1 >= localMembershipThreshold {
-                    targetClusterID = clusters[best.0].id
-                } else {
-                    targetClusterID = UUID()
-                }
-                insightClusterAssignments[insight.id] = targetClusterID
-#if DEBUG
-                print("Angrove makeClusteredTree: '\(insight.title)' -> newly assigned cluster \(targetClusterID) (bestSim=\(best?.1 ?? -1))")
-#endif
-            }
-
-            if let index = clusters.firstIndex(where: { $0.id == targetClusterID }) {
-                clusters[index].insights.append(insight)
-                clusters[index].embedding = centroid(
-                    clusters[index].insights.compactMap(\.embedding)
-                        + (localSeedAnchors.first(where: { $0.id == targetClusterID })
-                            .flatMap { seed -> [Double]? in
-                                guard (seed.embeddingVersion ?? NLEmbeddingProvider.version) == embeddingProvider.version else { return nil }
-                                return seed.embedding
-                            }.map { [$0] } ?? [])
-                )
-            } else {
-                clusters.append(
-                    Cluster(
-                        id: targetClusterID,
-                        insights: [insight],
-                        embedding: embedding
-                    )
-                )
-            }
-        }
-        // Related Nodes found separately — by different turns, or by Insights saved before the
-        // Node they belong under existed — fold together, so one subject never splits into
-        // several near-identical Nodes. Membership is greedy and sticky, so without this pass an
-        // early split would last forever. The larger Node survives (a seeded subject wins ties)
-        // and keeps its id, label, and position.
-        // Two signals, each with its own bar: the members' centroid, and the Node's own subject
-        // (seed or generated label with its definition).
-        let memberThreshold = InsightTreeSemanticPolicy.nodeMergeSimilarity
-        let subjectThreshold = InsightTreeSemanticPolicy.nodeSubjectMergeSimilarity
-        func subjectVector(of cluster: Cluster) -> [Double]? {
-            if let seed = localSeedAnchors.first(where: { $0.id == cluster.id }) {
-                guard (seed.embeddingVersion ?? NLEmbeddingProvider.version) == embeddingProvider.version else { return nil }
-                return seed.embedding
-            }
-            guard let subject = clusterSubjectEmbeddings[cluster.id],
-                  subject.version == embeddingProvider.version else { return nil }
-            return subject.vector
-        }
-        var didMerge = false
-        while true {
-            // The pair that clears its bar by the widest margin merges first.
-            var best: (survivor: Int, absorbed: Int, margin: Double)?
-            for left in clusters.indices {
-                for right in clusters.indices where right > left {
-                    var margin = -Double.infinity
-                    if !clusters[left].embedding.isEmpty, !clusters[right].embedding.isEmpty {
-                        margin = cosineSimilarity(clusters[left].embedding, clusters[right].embedding) - memberThreshold
-                    }
-                    if let leftSubject = subjectVector(of: clusters[left]),
-                       let rightSubject = subjectVector(of: clusters[right]) {
-                        margin = max(margin, cosineSimilarity(leftSubject, rightSubject) - subjectThreshold)
-                    }
-                    guard margin >= 0, margin > (best?.margin ?? -1) else { continue }
-                    let leftWins = clusters[left].insights.count != clusters[right].insights.count
-                        ? clusters[left].insights.count > clusters[right].insights.count
-                        : (clusters[left].seedLabel != nil || clusters[right].seedLabel == nil)
-                    best = leftWins ? (left, right, margin) : (right, left, margin)
-                }
-            }
-            guard let best else { break }
-            let absorbed = clusters[best.absorbed]
-            let survivorID = clusters[best.survivor].id
-#if DEBUG
-            print("Angrove makeClusteredTree: merging \(absorbed.id) into \(survivorID) (margin=\(best.margin))")
-#endif
-            clusters[best.survivor].insights += absorbed.insights
-            clusters[best.survivor].embedding = centroid(
-                clusters[best.survivor].insights.compactMap(\.embedding)
-                    + [absorbed, clusters[best.survivor]].compactMap { cluster -> [Double]? in
-                        guard let seed = localSeedAnchors.first(where: { $0.id == cluster.id }),
-                              (seed.embeddingVersion ?? NLEmbeddingProvider.version) == embeddingProvider.version
-                        else { return nil }
-                        return seed.embedding
-                    }
-            )
-            for insight in absorbed.insights {
-                insightClusterAssignments[insight.id] = survivorID
-            }
-            clusterMergeTargets[absorbed.id] = survivorID
-            clusters.remove(at: best.absorbed)
-            didMerge = true
-        }
-        if didMerge {
-            InsightTreeLocalStateStore.save(
-                Dictionary(uniqueKeysWithValues: clusterMergeTargets.map { ($0.key.uuidString, $0.value.uuidString) }),
-                key: scopedClusterMergeStoreKey
-            )
-        }
-
-        let liveInsightIDs = Set(self.insights.map(\.id))
-        insightClusterAssignments = insightClusterAssignments.filter { liveInsightIDs.contains($0.key) }
-        persistInsightClusterAssignments()
-#if DEBUG
-        print("Angrove makeClusteredTree: result \(clusters.count) cluster(s): \(clusters.map { "\($0.seedLabel ?? "auto"):\($0.insights.count)" })")
-#endif
-
-        // Bare nodes first — position filled in below by the same pass that decides edges, so
-        // the two can never disagree (see the comment on that loop for why that matters).
-        var builtNodes: [NodeModel] = clusters.map { cluster in
-            let label = generatedClusterLabels[cluster.id] ?? cluster.seedLabel
-            let repeatsMember = label.map {
-                NodeConceptLabelPolicy.repeatsInsightTitle($0, insightTitles: cluster.insights.map(\.title))
-            } ?? false
-            let definition = generatedClusterLabels[cluster.id] != nil
-                ? (generatedClusterDefinitions[cluster.id] ?? "")
-                : (cluster.seedSummary ?? "")
-            return NodeModel(
-                id: cluster.id,
-                conceptLabel: repeatsMember ? provisionalClusterLabel(for: cluster.insights)
-                    : (label ?? provisionalClusterLabel(for: cluster.insights)),
-                definition: repeatsMember ? "" : definition,
-                insights: cluster.insights,
-                embedding: cluster.embedding,
-                position: .zero,
-                isSuggested: false,
-                suggestedInsights: nil
-            )
-        }
-
-        var builtEdges: [EdgeModel] = []
-        guard !builtNodes.isEmpty else { return (builtNodes, builtEdges) }
-
-        // Grow a nearest-neighbor spanning tree (Prim's) and position each node AS it attaches,
-        // directly off the edge that attaches it — one pass, not two. This used to be two
-        // independent nearest-neighbor searches: one decided where to *draw* a node (nearest
-        // among already-built nodes, in cluster-creation order) and a separate one decided what
-        // to *connect* it to (a proper MST over every node). Those don't necessarily agree, so a
-        // node could be drawn next to one node while its edge actually connected to a different,
-        // farther one — exactly what produces confusing, criss-crossing lines. A tree can always
-        // be drawn with zero crossings; computing both from the same edge is what makes that hold.
-        var connected: Set<Int> = [0]
-        builtNodes[0].position = restoredPosition(for: builtNodes[0].id) ?? .zero
-        while connected.count < builtNodes.count {
-            let candidate = connected.flatMap { left in
-                builtNodes.indices
-                    .filter { !connected.contains($0) }
-                    .map { right in
-                        (
-                            left,
-                            right,
-                            semanticDistance(
-                                builtNodes[left].embedding,
-                                builtNodes[right].embedding
-                            )
-                        )
-                    }
-            }
-            .min { $0.2 < $1.2 }
-            guard let candidate else { break }
-            let (parentIndex, childIndex, distance) = candidate
-            let parentNode = builtNodes[parentIndex]
-            let childID = builtNodes[childIndex].id
-            // maximizedGapAngle (inside chainExtensionPosition) also spreads this node away from
-            // any siblings already attached to the same parent, rather than a random angle.
-            builtNodes[childIndex].position = restoredPosition(for: childID) ?? chainExtensionPosition(
-                from: parentNode,
-                nodes: builtNodes,
-                edges: builtEdges,
-                bondLength: mapDistanceToLength(distance)
-            )
-            builtEdges.append(
-                EdgeModel(
-                    id: stableUUID(from: "global-cluster-edge:\(parentNode.id):\(childID)"),
-                    fromNodeID: parentNode.id,
-                    toNodeID: childID,
-                    distance: distance,
-                    isSuggested: false,
-                    // Suggest Connection (generates a suggested midpoint node between two Nodes)
-                    // is disabled for now.
-                    showSuggestButton: false
-                )
-            )
-            connected.insert(childIndex)
-        }
-        return (builtNodes, builtEdges)
-    }
-
-    private func provisionalClusterLabel(for insights: [InsightModel]) -> String {
-        guard let first = insights.first else { return "New Subject" }
-        return insights.count > 1 ? "Related Insights" : "Exploring \(first.title)"
-    }
-
     /// Empty placeholders must never become model input such as ": ".
     private static func labelDescriptions(for insights: [InsightModel]) -> [String] {
         insights.compactMap { insight in
@@ -1311,7 +1126,8 @@ final class InsightTreeViewModel: ObservableObject {
                 id: nodeID,
                 conceptLabel: placed.concept.word,
                 insights: [insight],
-                embedding: computeEmbedding(for: "\(insight.title). \(insight.definition)") ?? [],
+                embedding: midpointEmbeddings[nodeID]?.vector
+                    ?? ((modelTasks == nil || !usesBackgroundGraphWorker) ? computeEmbedding(for: "\(insight.title). \(insight.definition)") : nil) ?? [],
                 position: placed.position,
                 isSuggested: false,
                 suggestedInsights: nil
@@ -1432,48 +1248,8 @@ final class InsightTreeViewModel: ObservableObject {
     /// positions. Pinned midpoint nodes stay fixed (neighbors move around them). A no-op when
     /// nothing overlaps, so a settled tree never moves.
     private func separateOverlaps(nodes: [NodeModel]) -> [NodeModel] {
-        var working = nodes
-        let iterations = 8
-        let padding: CGFloat = 24
-        let maxStep: CGFloat = 12
-        for _ in 0..<iterations {
-            var moved = false
-            for i in working.indices {
-                for j in (i + 1)..<working.count {
-                    let aPinned = placedMidpointNodeIDs.contains(working[i].id)
-                    let bPinned = placedMidpointNodeIDs.contains(working[j].id)
-                    if aPinned && bPinned { continue }
-
-                    var dx = working[j].position.x - working[i].position.x
-                    var dy = working[j].position.y - working[i].position.y
-                    var dist = hypot(dx, dy)
-                    if dist < 0.5 {
-                        dx = .random(in: -1...1); dy = .random(in: -1...1); dist = 1
-                    }
-                    let minDist = nodeFootprintRadius(working[i]) + nodeFootprintRadius(working[j]) + padding
-                    guard dist < minDist else { continue }
-
-                    let overlap = minDist - dist
-                    let ux = dx / dist, uy = dy / dist
-                    func push(_ idx: Int, _ amount: CGFloat) {
-                        let s = min(abs(amount), maxStep) * (amount < 0 ? -1 : 1)
-                        working[idx].position.x += ux * s
-                        working[idx].position.y += uy * s
-                    }
-                    if aPinned {
-                        push(j, overlap)            // only j moves, away from i
-                    } else if bPinned {
-                        push(i, -overlap)           // only i moves, away from j
-                    } else {
-                        push(j, overlap / 2)
-                        push(i, -overlap / 2)
-                    }
-                    moved = true
-                }
-            }
-            if !moved { break }   // converged / nothing overlaps
-        }
-        return working
+        SemanticOverlapRelaxation(placedMidpointNodeIDs: placedMidpointNodeIDs,
+            showsAllClusterInsights: showsAllClusterInsights).solve(nodes: nodes)
     }
 
     private func makeNodeChildID(for nodeID: UUID, index: Int) -> UUID {
@@ -1701,7 +1477,7 @@ nonisolated func stableUUID(from seed: String) -> UUID {
     return UUID(uuidString: uuidString) ?? UUID()
 }
 
-func computeEmbedding(for text: String) -> [Double]? {
+nonisolated func computeEmbedding(for text: String) -> [Double]? {
     if let embedding = NLEmbedding.sentenceEmbedding(for: .english),
        let vector = embedding.vector(for: text) {
         return vector
@@ -1715,7 +1491,7 @@ func computeEmbedding(for text: String) -> [Double]? {
     return buckets
 }
 
-func cosineSimilarity(_ a: [Double], _ b: [Double]) -> Double {
+nonisolated func cosineSimilarity(_ a: [Double], _ b: [Double]) -> Double {
     guard a.count == b.count else { return 0 }
     // This runs for every pair during clustering and semantic layout. Avoid the three
     // intermediate arrays previously created by `zip(...).map` and the two `map` calls.
@@ -1735,24 +1511,24 @@ func cosineSimilarity(_ a: [Double], _ b: [Double]) -> Double {
     return dot / (magA * magB)
 }
 
-func semanticDistance(_ a: [Double], _ b: [Double]) -> Double {
+nonisolated func semanticDistance(_ a: [Double], _ b: [Double]) -> Double {
     1.0 - cosineSimilarity(a, b)
 }
 
-let nodeNodeMinLength: CGFloat = 360
-private let nodeNodeDistanceScale: CGFloat = 320
+nonisolated let nodeNodeMinLength: CGFloat = 360
+nonisolated private let nodeNodeDistanceScale: CGFloat = 320
 
-func mapDistanceToLength(_ distance: Double) -> CGFloat {
+nonisolated func mapDistanceToLength(_ distance: Double) -> CGFloat {
     nodeNodeMinLength + CGFloat(max(distance, 0)) * nodeNodeDistanceScale
 }
 
 /// Bond length (insight connector radius) from how related an insight is to its parent node.
 /// More related (smaller distance) → shorter bond; floored so close chips don't crowd the node.
-func insightBondLength(_ distance: Double) -> CGFloat {
+nonisolated func insightBondLength(_ distance: Double) -> CGFloat {
     150 + CGFloat(min(max(distance, 0), 1)) * 180   // ~[150, 330]px
 }
 
-private func centroid(_ vectors: [[Double]]) -> [Double] {
+nonisolated func centroid(_ vectors: [[Double]]) -> [Double] {
     guard let first = vectors.first, !first.isEmpty else { return [] }
     var result = Array(repeating: 0.0, count: first.count)
     for vector in vectors where vector.count == first.count {

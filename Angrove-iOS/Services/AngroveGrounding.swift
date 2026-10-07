@@ -26,10 +26,17 @@ nonisolated struct AngroveGroundingReference: Sendable, Equatable {
 /// index so the contract works offline today. A MiniLM-backed provider can replace its ranking
 /// implementation later without changing conversation generation or UI code.
 nonisolated protocol AngroveGroundingProviding: Sendable {
+    func referencesAsync(for question: String, limit: Int) async -> [AngroveGroundingReference]
     func references(
         for question: String,
         limit: Int
     ) -> [AngroveGroundingReference]
+}
+
+nonisolated extension AngroveGroundingProviding {
+    func referencesAsync(for question: String, limit: Int) async -> [AngroveGroundingReference] {
+        await Task.detached(priority: .userInitiated) { references(for: question, limit: limit) }.value
+    }
 }
 
 nonisolated struct LocalAngroveGroundingProvider: AngroveGroundingProviding {

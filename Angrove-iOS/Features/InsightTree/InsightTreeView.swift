@@ -275,7 +275,7 @@ struct InsightTreeView: View {
         self.showQuestionBar       = showQuestionBar
         self.modelTasks            = modelTasks
         self.modelTaskOriginPage   = modelTaskOriginPage
-        // A synchronous local-file read, not something that needs to wait for the async
+        // A validated process-cache read, not something that needs to wait for the async
         // `.task`-driven load — passing it in at construction avoids a guaranteed blank-then-
         // populated flash on every tree open (the view model otherwise builds its first tree
         // with zero anchors, then rebuilds moments later once `setLocalSeedAnchors` runs).

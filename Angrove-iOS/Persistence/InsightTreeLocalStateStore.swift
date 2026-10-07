@@ -9,7 +9,7 @@ import Foundation
 /// Protected, atomic storage for on-device Insight Tree topology and presentation state. Each
 /// logical legacy key maps to its own file so one corrupt canvas detail cannot invalidate the rest
 /// of the tree. Existing `UserDefaults` values migrate on first read.
-struct InsightTreeLocalStateFileStore {
+nonisolated struct InsightTreeLocalStateFileStore: @unchecked Sendable {
     let rootDirectory: URL
     let defaults: UserDefaults
     let fileManager: FileManager
@@ -76,28 +76,34 @@ struct InsightTreeLocalStateFileStore {
             at: rootDirectory,
             withIntermediateDirectories: true
         )
-        let data = try JSONEncoder().encode(value)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data = try encoder.encode(value)
+        // Preserve existing-envelope/schema validation above; skip identical replacement bytes.
+        if let current = try? EncryptedPersonalFile.read(fileURL), current == data { return }
         try EncryptedPersonalFile.write(data, to: fileURL)
     }
 
-    private func url(for key: String) -> URL {
+    func url(for key: String) -> URL {
         let digest = SHA256.hash(data: Data(key.utf8))
         let name = digest.map { String(format: "%02x", $0) }.joined()
         return rootDirectory.appending(path: "\(name).json")
     }
 }
 
-enum InsightTreeLocalStateStore {
+nonisolated enum InsightTreeLocalStateStore {
     static func load<Value: Codable>(
         _ type: Value.Type,
         key: String,
         defaults: UserDefaults = .standard
     ) -> Value? {
-        store(defaults: defaults)?.load(type, key: key)
+        guard let store = store(defaults: defaults) else { return nil }
+        return SerializedPersonalStore.shared.load(type, key: key, store: store)
     }
 
     static func save<Value: Codable>(_ value: Value, key: String, defaults: UserDefaults = .standard) {
-        try? store(defaults: defaults)?.save(value, key: key)
+        guard let store = store(defaults: defaults) else { return }
+        SerializedPersonalStore.shared.save(value, key: key, store: store)
     }
 
     private static func store(defaults: UserDefaults) -> InsightTreeLocalStateFileStore? {

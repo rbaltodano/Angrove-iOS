@@ -302,36 +302,24 @@ struct PrivacyAndDataSettingsView: View {
     }
 
     private func exportConversations() {
-        do {
-            exportDocument = AngroveConversationDocument(
-                data: try InquiryPersistenceStore.exportData()
-            )
-            isExportingConversations = true
-        } catch {
-            dataTransferError = error.localizedDescription
+        Task {
+            do {
+                exportDocument = AngroveConversationDocument(data: try await InquiryPersistenceStore.exportDataAsync())
+                isExportingConversations = true
+            } catch { dataTransferError = error.localizedDescription }
         }
     }
 
-    private func importConversations(
-        from result: Result<[URL], any Error>
-    ) {
-        do {
-            guard let url = try result.get().first else { return }
-            let didAccess = url.startAccessingSecurityScopedResource()
-            defer {
-                if didAccess {
-                    url.stopAccessingSecurityScopedResource()
-                }
-            }
-            let snapshot = try InquiryPersistenceStore.importData(
-                Data(contentsOf: url)
-            )
-            NotificationCenter.default.post(
-                name: .angroveConversationStoreDidImport,
-                object: snapshot
-            )
-        } catch {
-            dataTransferError = error.localizedDescription
+    private func importConversations(from result: Result<[URL], any Error>) {
+        Task {
+            do {
+                guard let url = try result.get().first else { return }
+                let didAccess = url.startAccessingSecurityScopedResource()
+                defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+                let data = try await Task.detached(priority: .utility) { try Data(contentsOf: url) }.value
+                let snapshot = try await InquiryPersistenceStore.importDataAsync(data)
+                NotificationCenter.default.post(name: .angroveConversationStoreDidImport, object: snapshot)
+            } catch { dataTransferError = error.localizedDescription }
         }
     }
 }

@@ -9,7 +9,7 @@ import Foundation
 /// `sentence-transformers/all-MiniLM-L6-v2` (uncased, basic tokenization then
 /// greedy longest-match subword splitting). Only what MiniLMEmbedder needs:
 /// single-sequence encoding to fixed-length token/attention-mask arrays.
-struct WordPieceTokenizer {
+nonisolated struct WordPieceTokenizer: Sendable {
     let maxLength: Int
 
     private let vocab: [String: Int32]

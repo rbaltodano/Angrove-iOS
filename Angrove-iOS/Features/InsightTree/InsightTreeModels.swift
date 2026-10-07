@@ -8,7 +8,7 @@ import CoreGraphics
 
 // MARK: - Insight Tree Models
 
-struct InsightModel: Identifiable, Codable, Equatable, Hashable {
+nonisolated struct InsightModel: Sendable, Identifiable, Codable, Equatable, Hashable {
     let id: UUID
     let title: String
     let definition: String
@@ -60,7 +60,7 @@ struct InsightModel: Identifiable, Codable, Equatable, Hashable {
     }
 }
 
-struct NodeModel: Identifiable, Equatable {
+nonisolated struct NodeModel: Sendable, Identifiable, Equatable {
     let id: UUID
     private var titleCasedConceptLabel: String
     var conceptLabel: String {
@@ -98,7 +98,7 @@ struct NodeModel: Identifiable, Equatable {
     }
 }
 
-struct EdgeModel: Identifiable, Equatable {
+nonisolated struct EdgeModel: Sendable, Identifiable, Equatable {
     let id: UUID
     let fromNodeID: UUID
     let toNodeID: UUID
@@ -118,7 +118,7 @@ struct MidpointSource: Equatable, Codable {
 /// Keep that Insight in the model for its definition, persistence, and docked-card access, but do
 /// not draw a second same-named chip beside the Node. Placed Midpoints are exempt because their
 /// Node circle is intentionally hidden and the chip is their only visible representation.
-func canvasInsightMembers(
+nonisolated func canvasInsightMembers(
     nodeLabel: String,
     insights: [InsightModel],
     preservesMatchingTitle: Bool
@@ -131,7 +131,7 @@ func canvasInsightMembers(
     }
 }
 
-private func canonicalInsightTreeTitle(_ title: String) -> String {
+nonisolated private func canonicalInsightTreeTitle(_ title: String) -> String {
     var words = title
         .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
         .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
@@ -149,7 +149,7 @@ private func canonicalInsightTreeTitle(_ title: String) -> String {
 /// the longest title so adjacent chips don't overlap. Shared by the layout engine
 /// (`InsightTreeViewModel.nodeFootprintRadius`) and the renderer
 /// (`InsightTreeCanvasView.insightWorldPosition`) — both MUST use this so they never desync.
-func insightOrbitRadius(longestTitleChars: Int, count: Int, isSuggested: Bool) -> CGFloat {
+nonisolated func insightOrbitRadius(longestTitleChars: Int, count: Int, isSuggested: Bool) -> CGFloat {
     let base: CGFloat = isSuggested ? 118 : 190
     let n = max(count, 1)
     guard n > 1 else { return base }

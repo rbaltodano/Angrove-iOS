@@ -1454,7 +1454,7 @@ struct ContentView: View {
         )
         modelTasks.setApplicationActive(phase == .active)
         if phase == .background {
-            InquiryPersistenceStore.flush()
+            BackgroundPersistenceFlush.begin()
         }
         scheduleDailyQuestionRefreshIfNeeded()
     }

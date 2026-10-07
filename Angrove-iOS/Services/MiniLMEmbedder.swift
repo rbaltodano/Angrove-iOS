@@ -12,7 +12,8 @@ import Foundation
 /// Aquinas_Backend); this is the same embedding space the grounding corpus
 /// was built with, not the unrelated NLEmbedding space used elsewhere in
 /// this app's global Insight Library canvas.
-final class MiniLMEmbedder {
+nonisolated final class MiniLMEmbedder: @unchecked Sendable {
+    private let predictionLock = NSLock()
     private let model: MLModel
     private let tokenizer: WordPieceTokenizer
     private let sequenceLength: Int
@@ -40,6 +41,8 @@ final class MiniLMEmbedder {
 
     /// Returns a normalized 384-dimensional embedding for `text`.
     func embed(_ text: String) throws -> [Float] {
+        predictionLock.lock()
+        defer { predictionLock.unlock() }
         let (ids, mask) = tokenizer.encode(text)
 
         let idsArray = try MLMultiArray(

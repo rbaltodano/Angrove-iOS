@@ -27,7 +27,7 @@ protocol EmbeddingProvider {
 /// also calls directly (that call site stays synchronous — it's a separate, smaller feature
 /// outside the Insight Tree's versioned embedding pipeline).
 struct NLEmbeddingProvider: EmbeddingProvider {
-    static let version = "nl.en.v1"
+    nonisolated static let version = "nl.en.v1"
     var version: String { Self.version }
 
     func embed(_ text: String) async -> [Double]? {

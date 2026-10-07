@@ -28,13 +28,7 @@ final class AngroveApplicationRuntime {
 #endif
 
     private init(modelStore defaultModelStore: LiteRTModelStore = LiteRTModelStore()) {
-        do {
-            embeddingProvider = try MiniLMEmbeddingProvider()
-        } catch {
-            // Missing/corrupt on-device model assets fall back to NLEmbedding rather than
-            // losing Insight clustering entirely — degraded (noisy) rather than broken.
-            embeddingProvider = NLEmbeddingProvider()
-        }
+        embeddingProvider = LazySemanticEmbeddingProvider()
 #if DEBUG
         let modelStore: LiteRTModelStore
         do {
@@ -75,14 +69,7 @@ final class AngroveApplicationRuntime {
                 driver: runtime,
                 configuration: configuration
             )
-            var groundingProvider: any AngroveGroundingProviding
-            do {
-                groundingProvider = try MiniLMGroundingProvider()
-            } catch {
-                // Missing/corrupt corpus assets fall back to the small hardcoded
-                // reference set rather than losing grounding entirely.
-                groundingProvider = LocalAngroveGroundingProvider()
-            }
+            var groundingProvider: any AngroveGroundingProviding = LazyGroundingProvider()
 #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("--litert-sustained-probe") {
                 groundingProvider = LiteRTC9GroundingObserver(base: groundingProvider)

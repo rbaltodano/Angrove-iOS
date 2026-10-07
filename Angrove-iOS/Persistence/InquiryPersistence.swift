@@ -5,6 +5,50 @@
 
 import Foundation
 
+nonisolated extension InquiryPersistenceSnapshot {
+    func preservingCompletedResponses(from stored: InquiryPersistenceSnapshot?) -> InquiryPersistenceSnapshot {
+        var snapshot = self
+        if let stored {
+            for conversationIndex in snapshot.conversations.indices {
+                guard let savedConversation = stored.conversations.first(where: {
+                    $0.id == snapshot.conversations[conversationIndex].id
+                }) else { continue }
+                for branchIndex in snapshot.conversations[conversationIndex].branches.indices {
+                    var branch = snapshot.conversations[conversationIndex].branches[branchIndex]
+                    guard let savedBranch = savedConversation.branches.first(where: { $0.id == branch.id }),
+                          branch.topQuestionText == savedBranch.topQuestionText else { continue }
+                    // Preserve a title produced after this page's snapshot was captured.
+                    // Explicit renames set a branch title; clear replaces the branch identity.
+                    if branch.parentBranchID == nil, branch.generatedBranchTitle == nil,
+                       let title = savedBranch.generatedBranchTitle {
+                        branch.generatedBranchTitle = title
+                        if snapshot.conversations[conversationIndex].title == "New Conversation" {
+                            snapshot.conversations[conversationIndex].title = savedConversation.title
+                        }
+                    }
+                    for index in branch.activeChatBlocks.indices {
+                        guard branch.activeChatBlocks[index] == .text(""),
+                              savedBranch.activeChatBlocks.indices.contains(index),
+                              case .text(let answer) = savedBranch.activeChatBlocks[index],
+                              !answer.isEmpty,
+                              branch.activeChatBlocks.prefix(index) == savedBranch.activeChatBlocks.prefix(index)
+                        else { continue }
+                        branch.activeChatBlocks[index] = .text(answer)
+                        if let presentation = savedBranch.responsePresentation(at: index) {
+                            branch.setResponsePresentation(presentation)
+                        }
+                        if index == branch.activeChatBlocks.count - 1 {
+                            branch.showBottomInput = true
+                        }
+                    }
+                    snapshot.conversations[conversationIndex].branches[branchIndex] = branch
+                }
+            }
+        }
+        return snapshot
+    }
+}
+
 // MARK: - Inquiry Persistence
 
 /// The full piece of local state needed to restore the user's conversation canvases.
@@ -81,45 +125,7 @@ nonisolated struct InquirySnapshotFileStore {
     /// completed slots when that stale snapshot still contains the identical pending question.
     /// Imports use `write` directly; clear/delete change the branch or remove its blocks.
     func savePreservingCompletedResponses(_ snapshot: InquiryPersistenceSnapshot) throws {
-        var snapshot = snapshot
-        if let stored = load() {
-            for conversationIndex in snapshot.conversations.indices {
-                guard let savedConversation = stored.conversations.first(where: {
-                    $0.id == snapshot.conversations[conversationIndex].id
-                }) else { continue }
-                for branchIndex in snapshot.conversations[conversationIndex].branches.indices {
-                    var branch = snapshot.conversations[conversationIndex].branches[branchIndex]
-                    guard let savedBranch = savedConversation.branches.first(where: { $0.id == branch.id }),
-                          branch.topQuestionText == savedBranch.topQuestionText else { continue }
-                    // Preserve a title produced after this page's snapshot was captured.
-                    // Explicit renames set a branch title; clear replaces the branch identity.
-                    if branch.parentBranchID == nil, branch.generatedBranchTitle == nil,
-                       let title = savedBranch.generatedBranchTitle {
-                        branch.generatedBranchTitle = title
-                        if snapshot.conversations[conversationIndex].title == "New Conversation" {
-                            snapshot.conversations[conversationIndex].title = savedConversation.title
-                        }
-                    }
-                    for index in branch.activeChatBlocks.indices {
-                        guard branch.activeChatBlocks[index] == .text(""),
-                              savedBranch.activeChatBlocks.indices.contains(index),
-                              case .text(let answer) = savedBranch.activeChatBlocks[index],
-                              !answer.isEmpty,
-                              branch.activeChatBlocks.prefix(index) == savedBranch.activeChatBlocks.prefix(index)
-                        else { continue }
-                        branch.activeChatBlocks[index] = .text(answer)
-                        if let presentation = savedBranch.responsePresentation(at: index) {
-                            branch.setResponsePresentation(presentation)
-                        }
-                        if index == branch.activeChatBlocks.count - 1 {
-                            branch.showBottomInput = true
-                        }
-                    }
-                    snapshot.conversations[conversationIndex].branches[branchIndex] = branch
-                }
-            }
-        }
-        try save(snapshot)
+        try save(snapshot.preservingCompletedResponses(from: load()))
     }
 
     /// Replaces only the branch whose model response just completed. This narrow write is used by
@@ -300,12 +306,18 @@ nonisolated struct InquirySnapshotFileStore {
 /// Canonical process-facing conversation repository. All app features use this boundary; the
 /// concrete file store can later be replaced by normalized SwiftData records without another view
 /// rewrite.
-enum InquiryPersistenceStore {
+nonisolated enum InquiryPersistenceStore {
     nonisolated private static let shared = SerializedInquiryStore(makeStore: liveStore)
 
     static func load() -> InquiryPersistenceSnapshot? {
-        shared.load()
+        shared.readCached()
     }
+
+    static func preload() { _ = shared.load() }
+
+    static func invalidate() { shared.invalidate() }
+
+    static func flushAsync() async { await shared.flushAsync() }
 
     static func save(_ snapshot: InquiryPersistenceSnapshot) {
         shared.save(snapshot)
@@ -340,6 +352,14 @@ enum InquiryPersistenceStore {
         try shared.exportData()
     }
 
+    static func exportDataAsync() async throws -> Data {
+        try await Task.detached(priority: .utility) { try shared.exportData() }.value
+    }
+
+    static func importDataAsync(_ data: Data) async throws -> InquiryPersistenceSnapshot {
+        try await Task.detached(priority: .utility) { try shared.importData(data) }.value
+    }
+
     @discardableResult
     static func importData(_ data: Data) throws -> InquiryPersistenceSnapshot {
         try shared.importData(data)
@@ -371,6 +391,10 @@ enum InquiryPersistenceStore {
 /// queued writes, so a load never observes a stale file and writes never interleave.
 nonisolated final class SerializedInquiryStore: @unchecked Sendable {
     private let makeStore: () -> InquirySnapshotFileStore?
+    private let cacheLock = NSLock()
+    private var cached: InquiryPersistenceSnapshot?
+    private var didLoad = false
+    private var cacheRevision = 0
     private let queue = DispatchQueue(label: "com.aquinas.inquiry-persistence", qos: .utility)
 
     init(makeStore: @escaping () -> InquirySnapshotFileStore?) {
@@ -378,14 +402,37 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
     }
 
     func load() -> InquiryPersistenceSnapshot? {
-        queue.sync { makeStore()?.load() }
+        let revision = cacheLock.withLock { cacheRevision }
+        return queue.sync {
+            let value = makeStore()?.load()
+            cacheLock.withLock {
+                if cacheRevision == revision { cached = value; didLoad = true; cacheRevision += 1 }
+            }
+            return value
+        }
+    }
+
+    func readCached() -> InquiryPersistenceSnapshot? {
+        guard !PersonalDataProtection.isBlocked else { return nil }
+        let state = cacheLock.withLock { (didLoad, cached) }
+        return state.0 ? state.1 : load()
+    }
+
+    func flushAsync() async {
+        await withCheckedContinuation { continuation in queue.async { continuation.resume() } }
+    }
+
+    private func updateCached(_ operation: (inout InquiryPersistenceSnapshot) -> Void) {
+        cacheLock.withLock {
+            if var value = cached { operation(&value); cached = value; cacheRevision += 1 }
+        }
     }
 
     /// A whole-snapshot save that has been queued but not yet started. Views save after most
     /// edits, and each write re-reads, re-encodes and rewrites the full file, so a burst of saves
     /// collapses into one write of the newest snapshot. Any other queued operation closes the
     /// slot, so coalescing never reorders a save around a branch completion.
-    private final class PendingSave {
+    private final class PendingSave: @unchecked Sendable {
         var snapshot: InquiryPersistenceSnapshot
         init(_ snapshot: InquiryPersistenceSnapshot) { self.snapshot = snapshot }
     }
@@ -394,6 +441,7 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
     private var openSave: PendingSave?
 
     func save(_ snapshot: InquiryPersistenceSnapshot) {
+        cacheLock.withLock { cached = snapshot.preservingCompletedResponses(from: cached); didLoad = true; cacheRevision += 1 }
         let pending: PendingSave? = pendingLock.withLock {
             if let openSave {
                 openSave.snapshot = snapshot
@@ -422,6 +470,11 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
     }
 
     func saveCompletedBranch(_ completedBranch: ChatBranch, conversationID: UUID) {
+        updateCached { snapshot in
+            guard let i = snapshot.conversations.firstIndex(where: { $0.id == conversationID }),
+                  let j = snapshot.conversations[i].branches.firstIndex(where: { $0.id == completedBranch.id }) else { return }
+            snapshot.conversations[i].branches[j] = completedBranch
+        }
         enqueue("Unable to save completed response") {
             try $0.saveCompletedBranch(completedBranch, conversationID: conversationID)
         }
@@ -434,6 +487,14 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
         annotatedText: String,
         presentation: ResponsePresentationMetadata
     ) {
+        updateCached { snapshot in
+            guard let i = snapshot.conversations.firstIndex(where: { $0.id == conversationID }),
+                  let j = snapshot.conversations[i].branches.firstIndex(where: { $0.id == branchID }),
+                  snapshot.conversations[i].branches[j].activeChatBlocks.indices.contains(responseIndex) else { return }
+            snapshot.conversations[i].branches[j].activeChatBlocks[responseIndex] = .text(annotatedText)
+            snapshot.conversations[i].branches[j].setResponsePresentation(presentation)
+            snapshot.conversations[i].branches[j].showBottomInput = true
+        }
         enqueue("Unable to save detached response") {
             try $0.completeDetachedResponse(
                 branchID: branchID,
@@ -451,11 +512,20 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
 
     func importData(_ data: Data) throws -> InquiryPersistenceSnapshot {
         closePendingSave()
-        return try queue.sync { try requireStore().importData(data) }
+        return try queue.sync {
+            let value = try requireStore().importData(data)
+            cacheLock.withLock { cached = value; didLoad = true; cacheRevision += 1 }
+            return value
+        }
     }
 
     func flush() {
         queue.sync {}
+    }
+
+    func invalidate() {
+        closePendingSave()
+        queue.sync { cacheLock.withLock { cached = nil; didLoad = false; cacheRevision += 1 } }
     }
 
     private func enqueue(

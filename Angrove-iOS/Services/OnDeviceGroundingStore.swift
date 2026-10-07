@@ -10,7 +10,7 @@ import Foundation
 /// backend's `GroundingPassage` (see Aquinas_Backend/grounding_retrieval.py)
 /// so the local and backend prompt-construction paths can share the same
 /// shape and wording.
-struct GroundingPassage {
+nonisolated struct GroundingPassage: Sendable {
     let text: String
     let title: String
     let sourceID: String
@@ -29,7 +29,7 @@ private typealias PassageRecord = LibraryPassage
 /// for the matching embedding space) and serves nearest-passage queries with
 /// a vectorized linear scan. At ~41k chunks this is comfortably faster than
 /// generation itself, so no on-device approximate-NN index is needed.
-final class OnDeviceGroundingStore {
+nonisolated final class OnDeviceGroundingStore: Sendable {
     private let embeddingDimension = 384
     private let passages: [PassageRecord]
     private let embeddings: Data
@@ -303,62 +303,43 @@ final class OnDeviceGroundingStore {
             return []
         }
         let threshold = maxDistance ?? defaultMaxDistance
-        let candidateIndices = sourceIDs.map { ids in
-            ids.flatMap { sourceIndices[$0] ?? [] }
-        } ?? Array(passages.indices)
-
-        var similarities = [Float](repeating: 0, count: passages.count)
-        embeddings.withUnsafeBytes { (rawBuffer: UnsafeRawBufferPointer) in
-            let base = rawBuffer.bindMemory(to: Float.self).baseAddress!
-            queryEmbedding.withUnsafeBufferPointer { queryBuffer in
-                let query = queryBuffer.baseAddress!
-                for index in candidateIndices {
-                    let row = base + index * embeddingDimension
-                    var dot: Float = 0
-                    vDSP_dotpr(query, 1, row, 1, &dot, vDSP_Length(embeddingDimension))
-                    similarities[index] = dot
+        guard k > 0 else { return [] }
+        struct Ranked {
+            let index: Int
+            let distance: Float
+            let matchedTerms: Int
+        }
+        // Insertion keeps only k results and preserves encounter order for exact ties.
+        var ranked: [Ranked] = []
+        ranked.reserveCapacity(min(k, passages.count))
+        let permitsNamedSourceLookup = sourceIDs != nil
+        PerformanceTrace.measure("Exact Passage Ranking") {
+            embeddings.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+                guard let base = raw.bindMemory(to: Float.self).baseAddress else { return }
+                queryEmbedding.withUnsafeBufferPointer { query in
+                    guard let queryBase = query.baseAddress else { return }
+                    func consider(_ index: Int) {
+                        let record = passages[index]
+                        guard requiredTerms.allSatisfy({ record.text.localizedCaseInsensitiveContains($0) }) else { return }
+                        var dot: Float = 0
+                        vDSP_dotpr(queryBase, 1, base + index * embeddingDimension, 1, &dot, vDSP_Length(embeddingDimension))
+                        let distance = 1 - dot
+                        let matched = prioritizingTerms.reduce(0) { $0 + (record.text.localizedCaseInsensitiveContains($1) ? 1 : 0) }
+                        guard distance <= threshold || (permitsNamedSourceLookup && (prioritizingTerms.isEmpty || matched > 0)) else { return }
+                        let entry = Ranked(index: index, distance: distance, matchedTerms: matched)
+                        let slot = ranked.firstIndex { matched > $0.matchedTerms || (matched == $0.matchedTerms && distance < $0.distance) } ?? ranked.count
+                        guard slot < k else { return }
+                        ranked.insert(entry, at: slot)
+                        if ranked.count > k { ranked.removeLast() }
+                    }
+                    if let sourceIDs {
+                        for source in sourceIDs { for index in sourceIndices[source] ?? [] { consider(index) } }
+                    } else {
+                        for index in passages.indices { consider(index) }
+                    }
                 }
             }
         }
-
-        // An exact source title identifies a document, not merely a semantic topic. When the
-        // caller has no remaining topic terms ("What is the Didache?"), the best passage inside
-        // that explicitly selected source is still safe grounding even if it misses the global
-        // floor. With topic terms, retain the narrower literal-term requirement so front matter
-        // cannot outrank the requested section.
-        let permitsNamedSourceLookup = sourceIDs != nil
-        let ranked = candidateIndices.lazy
-            .map { index in
-                let record = self.passages[index]
-                let matchedTerms = prioritizingTerms.reduce(into: 0) { count, term in
-                    if record.text.localizedCaseInsensitiveContains(term) { count += 1 }
-                }
-                let satisfiesRequiredTerms = requiredTerms.allSatisfy {
-                    record.text.localizedCaseInsensitiveContains($0)
-                }
-                return (
-                    index: index,
-                    distance: 1 - similarities[index],
-                    matchedTerms: matchedTerms,
-                    satisfiesRequiredTerms: satisfiesRequiredTerms
-                )
-            }
-            // An explicit document title plus a real term in that document is a lookup hit, like
-            // a Bible citation. It may legitimately sit below the corpus-wide semantic floor,
-            // which exists to reject unrelated *global* matches such as Livy on "council".
-            .filter {
-                $0.satisfiesRequiredTerms
-                    && ($0.distance <= threshold
-                        || (permitsNamedSourceLookup
-                            && (prioritizingTerms.isEmpty || $0.matchedTerms > 0)))
-            }
-            .sorted {
-                if $0.matchedTerms != $1.matchedTerms {
-                    return $0.matchedTerms > $1.matchedTerms
-                }
-                return $0.distance < $1.distance
-            }
-            .prefix(k)
 
         return ranked.map { entry in
             let record = passages[entry.index]

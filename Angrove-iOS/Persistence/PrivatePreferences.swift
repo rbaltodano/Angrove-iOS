@@ -186,6 +186,12 @@ nonisolated enum PersonalDataProtection {
             // Temporarily unavailable; the widget keeps its value and the app opens normally.
         }
         lock.withLock { blocked = false }
+        if rootDirectory == nil {
+            SerializedPersonalStore.shared.preload(root: root.appending(path: "InsightTree/CanvasState"))
+            LocalInsightTreeSeedStore.preload()
+            SerializedPersonalStore.shared.preloadPreferences()
+            InquiryPersistenceStore.preload()
+        }
     }
 
     private static func quarantineStamp() -> String {
@@ -204,6 +210,8 @@ nonisolated enum PersonalDataProtection {
         rootDirectory: URL? = nil,
         removeUnusableKey: Bool
     ) throws {
+        SerializedPersonalStore.shared.invalidate()
+        if rootDirectory == nil { InquiryPersistenceStore.invalidate() }
         let fileManager = FileManager.default
         guard let base = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             throw InquiryPersistenceError.applicationSupportUnavailable

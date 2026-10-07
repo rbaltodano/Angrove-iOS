@@ -43,7 +43,7 @@ struct StreamingMessageView: View {
     private let responseWords: [String]
     private let insightLinkSequenceByWordStart: [Int: Int]
     private let streamBatchSize = 4
-    private let streamBatchDelay: UInt64 = 55_000_000
+    private let streamBatchDelay: UInt64 = 27_500_000
 
     // Process-level cache keyed by response text. parseSegments + tokenize is
     // O(words) and called every time a parent view re-renders (SwiftUI creates new

@@ -57,3 +57,46 @@ private enum UploadedFileImageCache {
         return image
     }
 }
+
+/// Background ImageIO decoding with a bounded pixel cache. Originals remain available for model
+/// input and export; only the small UI previews are downsampled.
+nonisolated final class AttachmentThumbnailStore: @unchecked Sendable {
+    static let shared = AttachmentThumbnailStore()
+    private let queue = DispatchQueue(label: "com.angrove.attachment-thumbnails", qos: .userInitiated)
+    private let images = NSCache<NSUUID, UIImage>()
+    private let maximumPixels = 1536
+
+    init() {
+        images.totalCostLimit = 16 * 1024 * 1024
+        images.countLimit = 64
+    }
+
+    func thumbnail(for file: UploadedFile) async -> UIImage? {
+        guard !Task.isCancelled, let data = file.imageData else { return nil }
+        return await withCheckedContinuation { continuation in
+            queue.async { [self] in
+                let key = file.id as NSUUID
+                if let image = images.object(forKey: key) { continuation.resume(returning: image); return }
+                let image: UIImage? = PerformanceTrace.measure("Attachment Thumbnail") {
+                    guard let source = CGImageSourceCreateWithData(data as CFData,
+                        [kCGImageSourceShouldCache: false] as CFDictionary) else { return nil }
+                    let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+                    let width = (properties?[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue ?? 1
+                    let height = (properties?[kCGImagePropertyPixelHeight] as? NSNumber)?.doubleValue ?? 1
+                    // Keep a 92pt aspect-fill crop sharp at @3x, subject to a fixed memory ceiling.
+                    let aspect = max(width, height) / max(1, min(width, height))
+                    let maxPixels = min(maximumPixels, max(384, Int(ceil(min(aspect, 100) * 276))))
+                    guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0,
+                            [kCGImageSourceCreateThumbnailFromImageAlways: true,
+                             kCGImageSourceCreateThumbnailWithTransform: true,
+                             kCGImageSourceShouldCacheImmediately: true,
+                             kCGImageSourceThumbnailMaxPixelSize: maxPixels] as CFDictionary) else { return nil }
+                    let image = UIImage(cgImage: cgImage)
+                    images.setObject(image, forKey: key, cost: cgImage.bytesPerRow * cgImage.height)
+                    return image
+                }
+                continuation.resume(returning: image)
+            }
+        }
+    }
+}

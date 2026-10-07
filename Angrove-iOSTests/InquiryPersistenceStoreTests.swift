@@ -355,6 +355,10 @@ private struct LocalTreeFixture {
     func cleanup() {
         try? FileManager.default.removeItem(at: root)
         defaults.removePersistentDomain(forName: suiteName)
+        // Corruption fixtures intentionally close the process-wide gate. Reopen only the empty
+        // fixture after cleanup so later tests do not inherit that intentional failure state.
+        try? PersonalDataProtection.prepare(preferences: PrivatePreferences(defaults: defaults),
+            rootDirectory: root, migrateWidget: {})
     }
 }
 
@@ -384,5 +388,9 @@ private struct Fixture {
     func cleanup() {
         try? FileManager.default.removeItem(at: root)
         defaults.removePersistentDomain(forName: suiteName)
+        // Corruption fixtures intentionally close the process-wide gate. Reopen only the empty
+        // fixture after cleanup so later tests do not inherit that intentional failure state.
+        try? PersonalDataProtection.prepare(preferences: PrivatePreferences(defaults: defaults),
+            rootDirectory: root, migrateWidget: {})
     }
 }

@@ -280,10 +280,16 @@ extension InsightTreeCanvasView {
                 dy: current.dy + force.dy
             )
         }
-        for firstIndex in chipInfos.indices {
-            for secondIndex in chipInfos.indices where secondIndex > firstIndex {
-                let first = chipInfos[firstIndex]
-                let second = chipInfos[secondIndex]
+        let chipRectangles = chipInfos.map {
+            CGRect(x: $0.pos.x - $0.halfWidth - Self.insightCollisionPadding / 2,
+                   y: $0.pos.y - $0.halfHeight - Self.insightCollisionPadding / 2,
+                   width: $0.halfWidth * 2 + Self.insightCollisionPadding,
+                   height: $0.halfHeight * 2 + Self.insightCollisionPadding)
+        }
+        for pair in SpatialCollisionIndex.pairs(for: chipRectangles) {
+            do {
+                let first = chipInfos[pair.first]
+                let second = chipInfos[pair.second]
                 let isSameNode = first.nodeID == second.nodeID
 
                 let dx = first.pos.x - second.pos.x
@@ -335,6 +341,16 @@ extension InsightTreeCanvasView {
         }
 
         // Anchor spring toward the MDS target + whole-node and global Insight separation.
+        let nodeRectangles = entries.map { entry -> CGRect in
+            let radius = nodeByID[entry.0].map { simFootprintRadius($0) } ?? 240
+            return CGRect(x: entry.1.pos.x - radius - Self.overlapPadding / 2, y: entry.1.pos.y - radius - Self.overlapPadding / 2,
+                          width: radius * 2 + Self.overlapPadding, height: radius * 2 + Self.overlapPadding)
+        }
+        var neighborIndices: [Int: [Int]] = [:]
+        for pair in SpatialCollisionIndex.pairs(for: nodeRectangles) {
+            neighborIndices[pair.first, default: []].append(pair.second)
+            neighborIndices[pair.second, default: []].append(pair.first)
+        }
         for i in entries.indices {
             let (idA, a) = entries[i]
             if pinned.contains(idA) { continue }
@@ -358,7 +374,7 @@ extension InsightTreeCanvasView {
                     fy += breezeDirection.dy * Self.breezeForce * envelope * localVariation
                 }
             }
-            for j in entries.indices where j != i {
+            for j in (neighborIndices[i] ?? []).sorted() {
                 let (idB, b) = entries[j]
                 var dx = a.pos.x - b.pos.x
                 var dy = a.pos.y - b.pos.y

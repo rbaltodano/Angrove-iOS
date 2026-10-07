@@ -13,7 +13,7 @@ struct InsightTreeLabelQueueTests {
         let scope = UUID()
         let tree = InsightTreeViewModel(
             insights: [source], model: model, modelTasks: queue,
-            modelTaskOriginPage: .conversation, midpointStoreScope: scope
+            modelTaskOriginPage: .conversation, midpointStoreScope: scope, usesBackgroundGraphWorker: false
         )
         #expect(tree.nodes.flatMap(\.insights).map(\.id) == [source.id])
         #expect(!queue.isBusy)
@@ -26,7 +26,7 @@ struct InsightTreeLabelQueueTests {
         try await eventually { !queue.isBusy }
         #expect(model.events == ["label", "definition"])
         let reopened = InsightTreeViewModel(
-            insights: [source], model: model, modelTasks: queue, midpointStoreScope: scope
+            insights: [source], model: model, modelTasks: queue, midpointStoreScope: scope, usesBackgroundGraphWorker: false
         )
         #expect(!queue.isBusy)
         reopened.startModelWork()
@@ -239,7 +239,7 @@ struct InsightTreeLabelQueueTests {
             id: UUID(), label: "Prudence", summary: "Old same-subject definition",
             embedding: computeEmbedding(for: "\(source.word). \(source.meaning)"), createdAt: Date()
         )] : []
-        let initial = InsightTreeViewModel(insights: [source], localSeedAnchors: seeds, midpointStoreScope: scope)
+        let initial = InsightTreeViewModel(insights: [source], localSeedAnchors: seeds, midpointStoreScope: scope, usesBackgroundGraphWorker: false)
         let originalNode = try #require(initial.nodes.first)
         if !conversation {
             let key = "aquinas.insight-tree.cluster-labels.v1"
@@ -257,7 +257,7 @@ struct InsightTreeLabelQueueTests {
         let model = LabelRecordingModel()
         model.label = "Moral Virtues"
         let tree = InsightTreeViewModel(insights: [source], model: model, modelTasks: queue,
-                                        localSeedAnchors: seeds, midpointStoreScope: scope)
+                                        localSeedAnchors: seeds, midpointStoreScope: scope, usesBackgroundGraphWorker: false)
         tree.startModelWork()
         #expect(queue.upcomingTasks.count == 1)
         #expect(tree.nodes.first?.id == originalNode.id)
@@ -274,7 +274,7 @@ struct InsightTreeLabelQueueTests {
         #expect(tree.selectedNode?.conceptLabel == "Moral Virtues")
         #expect(tree.nodes.first?.definition == "Generated definition")
         let reopened = InsightTreeViewModel(insights: [source], model: model, modelTasks: queue,
-                                            localSeedAnchors: seeds, midpointStoreScope: scope)
+                                            localSeedAnchors: seeds, midpointStoreScope: scope, usesBackgroundGraphWorker: false)
         #expect(reopened.nodes.first?.conceptLabel == "Moral Virtues")
         #expect(reopened.nodes.first?.definition == "Generated definition")
         #expect(!queue.isBusy)
@@ -301,7 +301,7 @@ struct InsightTreeLabelQueueTests {
         let tree = InsightTreeViewModel(insights: insights, showsAllClusterInsights: scope == nil,
                              model: model, modelTasks: queue,
                              modelTaskOriginPage: scope == nil ? .insights : .conversation,
-                             midpointStoreScope: scope)
+                             midpointStoreScope: scope, usesBackgroundGraphWorker: false)
         tree.startModelWork()
         return tree
     }

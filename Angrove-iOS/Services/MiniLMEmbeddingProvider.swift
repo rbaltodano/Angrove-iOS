@@ -18,16 +18,15 @@ struct MiniLMEmbeddingProvider: EmbeddingProvider {
     static let version = "minilm-l6-v2.v1"
     var version: String { Self.version }
 
-    private let embedder: MiniLMEmbedder
+    let sharedEmbedder: MiniLMEmbedder
+    private var embedder: MiniLMEmbedder { sharedEmbedder }
 
     init(embedder: MiniLMEmbedder) {
-        self.embedder = embedder
+        self.sharedEmbedder = embedder
     }
 
-    /// Loads its own `MiniLMEmbedder` from the bundled `LocalGrounding/` assets — the same model
-    /// file `MiniLMGroundingProvider` loads for grounding retrieval, just a second Core ML
-    /// instance. Small, one-time, once-per-launch cost; not worth threading a shared instance
-    /// across two otherwise-unrelated provider types for this.
+    /// Standalone construction for tests and diagnostics. The live asset service shares this
+    /// provider's embedder with grounding instead of loading a second Core ML model.
     init(bundle: Bundle = .main, computeUnits: MLComputeUnits? = nil) throws {
         guard let modelURL = bundle.url(
             forResource: "MiniLM",
@@ -43,7 +42,7 @@ struct MiniLMEmbeddingProvider: EmbeddingProvider {
         ) ?? bundle.url(forResource: "vocab", withExtension: "txt") else {
             throw MiniLMEmbeddingProviderError.resourceMissing("vocab.txt")
         }
-        self.embedder = try MiniLMEmbedder(
+        self.sharedEmbedder = try MiniLMEmbedder(
             modelURL: modelURL,
             vocabURL: vocabURL,
             computeUnits: computeUnits
@@ -51,7 +50,10 @@ struct MiniLMEmbeddingProvider: EmbeddingProvider {
     }
 
     func embed(_ text: String) async -> [Double]? {
-        try? embedder.embed(text).map(Double.init)
+        let embedder = embedder
+        return await Task.detached(priority: .userInitiated) {
+            try? embedder.embed(text).map(Double.init)
+        }.value
     }
 }
 

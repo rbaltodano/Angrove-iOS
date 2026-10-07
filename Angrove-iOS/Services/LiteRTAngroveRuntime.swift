@@ -795,6 +795,7 @@ actor LiteRTAngroveRuntime: ModelRuntimeDriver {
         onThought: (@Sendable (String) async -> Void)?
     ) async throws -> String {
         var accumulated = ""
+        var generationGuard = IncrementalGenerationGuard()
         var thought = ""
         // Gemma 4's native thinking mode: the chat template prepends `<|think|>` to the system
         // turn, and LiteRT-LM routes the reasoning into the `thought` channel, separate from the
@@ -815,12 +816,11 @@ actor LiteRTAngroveRuntime: ModelRuntimeDriver {
                 guard !text.isEmpty else { continue }
                 accumulated += text
                 if appliesDegenerateOutputGuard {
-                    if LiteRTGenerationGuard.hasMixedScriptCorruption(in: accumulated) {
+                    let guardResult = generationGuard.append(text)
+                    if guardResult.corrupt {
                         throw LiteRTAngroveRuntimeError.corruptResponse
                     }
-                    if let prefix = LiteRTGenerationGuard.responseBeforeRepetition(
-                        in: accumulated
-                    ) {
+                    if let prefix = guardResult.repetitionPrefix {
                         let cleanedPrefix = prefix.trimmingCharacters(
                             in: .whitespacesAndNewlines
                         )

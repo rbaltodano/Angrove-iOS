@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import Angrove_iOS
 
-@Suite("Personal data encryption", .serialized)
+@Suite("Personal data encryption", .serialized, EncryptedProtectionIsolation())
 struct PersonalDataEncryptionTests {
     @Test("Rejects tampering, wrong keys, and swapped stores; uses fresh nonces")
     func authentication() throws {

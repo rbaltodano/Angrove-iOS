@@ -29,7 +29,7 @@ struct LiteRTAngroveModel: AngroveModel {
         self.groundingProvider = groundingProvider
     }
 
-    static func definitionRequestTerm(
+    nonisolated static func definitionRequestTerm(
         in transcript: [ChatBlock]
     ) -> String? {
         requestedDefinitionTerm(in: transcript)
@@ -332,7 +332,7 @@ struct LiteRTAngroveModel: AngroveModel {
         do {
             onUpdate(.generationStarted)
             let latestQuestion = Self.latestUserQuestion(in: context.transcript)
-            let groundingReferences = groundingProvider.references(
+            let groundingReferences = await groundingProvider.referencesAsync(
                 for: Self.groundingQuery(for: context),
                 limit: 3
             )
@@ -626,7 +626,7 @@ struct LiteRTAngroveModel: AngroveModel {
             return try await generateDefinition(
                 term,
                 context: context,
-                references: definitionReferences(for: term, context: context)
+                references: await definitionReferences(for: term, context: context)
             )
         } catch {
             if Task.isCancelled { throw CancellationError() }
@@ -643,7 +643,7 @@ struct LiteRTAngroveModel: AngroveModel {
             return try await generateDefinition(
                 term,
                 context: context,
-                references: definitionReferences(for: term, context: context)
+                references: await definitionReferences(for: term, context: context)
             )
         } catch {
             if Task.isCancelled { throw CancellationError() }
@@ -969,8 +969,8 @@ struct LiteRTAngroveModel: AngroveModel {
     private func definitionReferences(
         for term: String,
         context: ConversationContext
-    ) -> [AngroveGroundingReference] {
-        let references = groundingProvider.references(
+    ) async -> [AngroveGroundingReference] {
+        let references = await groundingProvider.referencesAsync(
             for: Self.latestUserQuestion(in: context.transcript) + " " + term.trimmed,
             limit: 3
         )
@@ -1439,7 +1439,7 @@ private extension LiteRTAngroveModel {
         """
     }
 
-    static func latestUserQuestion(in transcript: [ChatBlock]) -> String {
+    nonisolated static func latestUserQuestion(in transcript: [ChatBlock]) -> String {
         for block in transcript.reversed() {
             if case .user(let question, _, _) = block {
                 return question.trimmed
@@ -1955,7 +1955,7 @@ private extension LiteRTAngroveModel {
         return "…\n" + text.suffix(maxCharacters)
     }
 
-    static func requestedDefinitionTerm(
+    nonisolated static func requestedDefinitionTerm(
         in transcript: [ChatBlock]
     ) -> String? {
         guard case .user(let raw, _, _) = transcript.last else { return nil }
@@ -1982,7 +1982,7 @@ private extension LiteRTAngroveModel {
         return isLikelyStandaloneConcept(candidate) ? candidate : nil
     }
 
-    static func isLikelyStandaloneConcept(_ candidate: String) -> Bool {
+    nonisolated static func isLikelyStandaloneConcept(_ candidate: String) -> Bool {
         let words = candidate
             .lowercased()
             .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
@@ -2060,7 +2060,7 @@ private extension LiteRTAngroveModel {
         }
     }
 
-    private static func singularStem(_ word: String) -> String {
+    nonisolated private static func singularStem(_ word: String) -> String {
         word.count > 3 && word.hasSuffix("s") ? String(word.dropLast()) : word
     }
 
@@ -2478,7 +2478,7 @@ private struct LocalKeyTermPayload: Decodable {
 }
 
 private extension String {
-    var trimmed: String {
+    nonisolated var trimmed: String {
         trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
@@ -2489,7 +2489,7 @@ private extension String {
 
 /// Expressions used to interpret prompts and clean model output, compiled once instead of on
 /// every call. Output cleanup runs on every response, so rebuilding them each time was wasted work.
-private enum LiteRTPatterns {
+private nonisolated enum LiteRTPatterns {
     static let authorshipCorrection = try! NSRegularExpression(
         pattern: #"(?i)([\p{L}\p{N}][\p{L}\p{N}'’\- ]{0,60}?)\s+(?:was|is)\s+not\s+(?:known\s+to\s+have\s+been\s+)?written\s+by\s+([\p{L}'’\-]+)"#
     )

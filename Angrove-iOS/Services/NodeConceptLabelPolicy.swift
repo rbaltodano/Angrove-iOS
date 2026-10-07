@@ -2,7 +2,7 @@ import Foundation
 
 /// Shared by generation and persisted-tree repair. This checks observable title collisions;
 /// the prompt remains responsible for choosing a semantically broader, useful category.
-enum NodeConceptLabelPolicy {
+nonisolated enum NodeConceptLabelPolicy {
     static func normalizedTitle(_ title: String) -> String {
         var words = title
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))

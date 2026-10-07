@@ -493,8 +493,8 @@ private struct BranchMapPreviewView: View {
             if !attachments.isEmpty {
                 HStack(spacing: -8) {
                     ForEach(attachments.prefix(3)) { file in
-                        if let img = file.image {
-                            Image(uiImage: img).resizable().scaledToFill()
+                        if file.imageData != nil {
+                            AttachmentPreview(file: file) { Color.clear }
                                 .frame(width: 52, height: 52)
                                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                                 .overlay { RoundedRectangle(cornerRadius: 8, style: .continuous)

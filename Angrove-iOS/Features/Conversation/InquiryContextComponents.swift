@@ -211,11 +211,7 @@ struct UploadedFileThumbnail: View {
         // Thumbnail size, border thickness, and shadow are tuned here.
         ZStack(alignment: .topTrailing) {
             ZStack {
-                if let uiImage = file.image {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFill()
-                } else {
+                AttachmentPreview(file: file) {
                     VStack(spacing: 8) {
                         Image(systemName: "doc.fill")
                             .font(.system(size: 24, weight: .semibold))

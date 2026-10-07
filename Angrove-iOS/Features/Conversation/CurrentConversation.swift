@@ -395,8 +395,8 @@ struct CurrentConversationView: View {
         modelTasks.enqueue(
             kind: .updateInsightTree,
             originPage: .conversation,
-            priority: runsNext ? .foreground : .background,
-            runsNext: runsNext
+            priority: .background,
+            runsNext: false
         ) {
             // Matches `InsightTreeViewModel.localMembershipThreshold`: below this similarity to
             // every existing Node, a subject counts as genuinely new rather than a continuation

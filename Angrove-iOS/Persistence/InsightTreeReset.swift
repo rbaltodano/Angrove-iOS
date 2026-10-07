@@ -35,6 +35,7 @@ enum InsightTreeReset {
         fileManager: FileManager = .default,
         applicationSupport: URL? = nil
     ) {
+        SerializedPersonalStore.shared.invalidate()
         for key in exactKeys {
             defaults.removeObject(forKey: key)
         }
