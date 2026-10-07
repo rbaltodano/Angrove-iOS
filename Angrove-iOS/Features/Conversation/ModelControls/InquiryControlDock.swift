@@ -25,6 +25,7 @@ struct InquiryControlDock: View {
     var onScrollToBottom: () -> Void
     var onViewEntireCanvas: () -> Void
     var onOpenInsights: () -> Void
+    var onOpenPassages: () -> Void = {}
     var onSend: () -> Void = {}
     var onSelectCanvasItem: () -> Void = {}
     var onCreateCanvasConcept: () -> Void = {}
@@ -541,7 +542,8 @@ struct InquiryControlDock: View {
                 onCamera: { isRecentPhotosOpen = false; showCamera = true },
                 onPhoto: { isRecentPhotosOpen = false; showPhotoPicker = true },
                 onFile: { isRecentPhotosOpen = false; showFilePicker = true },
-                onInsights: { isRecentPhotosOpen = false; onOpenInsights() }
+                onInsights: { isRecentPhotosOpen = false; onOpenInsights() },
+                onPassages: { isRecentPhotosOpen = false; onOpenPassages() }
             )
         } else {
         Menu {
@@ -571,6 +573,13 @@ struct InquiryControlDock: View {
                 onOpenInsights()
             } label: {
                 Label("Insights", systemImage: "text.bubble")
+            }
+
+            Button {
+                isRecentPhotosOpen = false
+                onOpenPassages()
+            } label: {
+                Label("Passages", systemImage: "books.vertical")
             }
         } label: {
             Image(systemName: "plus")

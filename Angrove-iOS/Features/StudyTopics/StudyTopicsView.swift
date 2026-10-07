@@ -5,6 +5,30 @@
 
 import PhotosUI
 import SwiftUI
+
+enum StudyTopicTreeUpdateRequests {
+    static let notification = Notification.Name("studyTopicTreeUpdateRequested")
+    private static let storageKey = "aquinas.studyTopicTreeUpdateRequests"
+
+    static func request(for topicID: UUID) {
+        var pending = PrivatePreferences.standard.stringArray(forKey: storageKey) ?? []
+        let value = topicID.uuidString
+        if !pending.contains(value) { pending.append(value) }
+        PrivatePreferences.standard.set(pending, forKey: storageKey)
+        NotificationCenter.default.post(name: notification, object: topicID)
+    }
+
+    static func pendingTopicIDs() -> Set<UUID> {
+        Set((PrivatePreferences.standard.stringArray(forKey: storageKey) ?? []).compactMap(UUID.init(uuidString:)))
+    }
+
+    static func clear(_ topicID: UUID) {
+        let value = topicID.uuidString
+        let pending = (PrivatePreferences.standard.stringArray(forKey: storageKey) ?? [])
+            .filter { $0 != value }
+        PrivatePreferences.standard.set(pending, forKey: storageKey)
+    }
+}
 import UIKit
 import UniformTypeIdentifiers
 
@@ -121,6 +145,7 @@ struct StudyTopicsView: View {
     @State private var topicRenameDraft: String = ""
     @State private var isExistingConversationPickerOpen = false
     @State private var pendingTreeUpdateTopicID: UUID? = nil
+    @State private var topicsNeedingTreeUpdate: Set<UUID> = []
     @State private var topicTreeSnapshots = StudyTopicInsightTreeStore.load()
     @State private var restoredTreeInsightID: UUID? = nil
     @State private var restoredTreeTopicID: UUID? = nil
@@ -260,9 +285,12 @@ struct StudyTopicsView: View {
             modelTasksPopupState.reset()
             // Only ask to update when the topic's conversations hold Insights the tree lacks
             // (or the tree holds ones no longer bookmarked there).
-            pendingTreeUpdateTopicID = restoredTreeTopicID == newValue
-                ? nil
-                : newValue.flatMap { topicTreeNeedsUpdate($0) ? $0 : nil }
+            pendingTreeUpdateTopicID = newValue.flatMap { topicID in
+                if topicsNeedingTreeUpdate.contains(topicID) { return topicID }
+                return restoredTreeTopicID == topicID || !topicTreeNeedsUpdate(topicID)
+                    ? nil
+                    : topicID
+            }
             if newValue == nil {
                 isExistingConversationPickerOpen = false
             }
@@ -276,6 +304,10 @@ struct StudyTopicsView: View {
         .onChange(of: pendingTreeUpdateTopicID) { _, _ in
             reportControls()
         }
+        .onReceive(NotificationCenter.default.publisher(for: StudyTopicTreeUpdateRequests.notification)) { notification in
+            guard let topicID = notification.object as? UUID else { return }
+            receiveTreeUpdateRequest(for: topicID)
+        }
         .onChange(of: conversations.isEmpty) { _, isEmpty in
             if isEmpty {
                 isExistingConversationPickerOpen = false
@@ -285,6 +317,7 @@ struct StudyTopicsView: View {
         .onAppear {
             onSelectedTopicChange(selectedTopicID)
             reportControls()
+            topicsNeedingTreeUpdate.formUnion(StudyTopicTreeUpdateRequests.pendingTopicIDs())
             let selectionRequest = requestedTreeSelection
             let targetTopicID = selectionRequest?.topicID ?? requestedTopicID
             guard let id = targetTopicID,
@@ -615,7 +648,9 @@ struct StudyTopicsView: View {
         withAnimation(.springStandard) {
             topicTreeSnapshots[topicID.uuidString] = aggregatedInsights
             pendingTreeUpdateTopicID = nil
+            topicsNeedingTreeUpdate.remove(topicID)
         }
+        StudyTopicTreeUpdateRequests.clear(topicID)
         StudyTopicInsightTreeStore.save(topicTreeSnapshots)
         UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.7)
     }
@@ -651,7 +686,18 @@ struct StudyTopicsView: View {
 
     private func dismissTreeUpdateConfirmation() {
         withAnimation(.springStandard) {
+            if let pendingTreeUpdateTopicID {
+                topicsNeedingTreeUpdate.remove(pendingTreeUpdateTopicID)
+                StudyTopicTreeUpdateRequests.clear(pendingTreeUpdateTopicID)
+            }
             pendingTreeUpdateTopicID = nil
+        }
+    }
+
+    private func receiveTreeUpdateRequest(for topicID: UUID) {
+        topicsNeedingTreeUpdate.insert(topicID)
+        if selectedTopicID == topicID {
+            pendingTreeUpdateTopicID = topicID
         }
     }
 

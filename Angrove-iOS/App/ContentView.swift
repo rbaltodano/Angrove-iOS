@@ -115,6 +115,8 @@ struct ContentView: View {
     @State private var globalInsightQuoteTarget: ConceptDefinition? = nil
     @State private var isGlobalInsightAskMode: Bool = false
     @State private var globalInsightExistingConversationTarget: ConceptDefinition? = nil
+    @State private var libraryExistingConversationTarget: ConceptDefinition? = nil
+    @State private var clippedPassages: [ConceptDefinition] = ClippedPassageStore.load()
     @State private var globalInsightIsMidpointMode: Bool = false
     @State private var globalInsightIsGenerating: Bool = false
     @State private var globalInsightSelectedPersonality: String = "Balanced"
@@ -205,6 +207,7 @@ struct ContentView: View {
 
     private func presentGlobalSideMenu() {
         dismissKeyboard()
+        SideMenuEntrance.prepareOpening()
         withAnimation(.springStandard) {
             isGlobalSideMenuOpen = true
         }
@@ -311,14 +314,31 @@ struct ContentView: View {
                         return trimmed.isEmpty ? nil : trimmed
                     }()
             }
+        let completedResponse = conversation?
+            .branches
+            .first(where: { $0.id == branchID })
+            .flatMap { branch -> String? in
+                guard branch.activeChatBlocks.indices.contains(responseIndex),
+                      case .text(let response) = branch.activeChatBlocks[responseIndex] else {
+                    return nil
+                }
+                let trimmed = response.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
         let fallbackTitle = conversation?.title.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
         let notificationTitle = completedQuestion
             ?? fallbackTitle.flatMap { $0.isEmpty ? nil : $0 }
             ?? "Answer ready"
+        let conversationTitle = fallbackTitle.flatMap { $0.isEmpty ? nil : $0 }
+            ?? "Angrove"
 
-        modelCompletionNotifications.post(title: notificationTitle) {
+        modelCompletionNotifications.post(
+            title: notificationTitle,
+            systemNotificationTitle: conversationTitle,
+            systemNotificationBody: completedResponse ?? notificationTitle
+        ) {
             requestedConversationID = conversationID
             redirect(to: .conversation)
         }
@@ -475,6 +495,7 @@ struct ContentView: View {
         HStack(spacing: 8) {
             SideMenuTriggerButton {
                 dismissKeyboard()
+                SideMenuEntrance.prepareOpening()
                 withAnimation(.springStandard) {
                     isGlobalSideMenuOpen = true
                 }
@@ -630,6 +651,28 @@ struct ContentView: View {
             .presentationDragIndicator(.visible)
             .presentationBackground(AngroveTheme.Colors.canvas)
         }
+        .sheet(item: $libraryExistingConversationTarget) { quote in
+            InsightConversationPickerSheet(
+                title: "Existing Conversations",
+                searchPrompt: "Search Conversations",
+                emptyMessage: "There are no matching conversations yet.",
+                conversations: sideMenuConversations,
+                activeConversationID: sideMenuActiveConversationID,
+                savedInsights: collectedDefinitions,
+                onSelect: { conversation in
+                    libraryExistingConversationTarget = nil
+                    insightConversationQuoteRequest = InsightConversationQuoteRequest(
+                        conversationID: conversation.id,
+                        insight: quote
+                    )
+                    activePage = .conversation
+                },
+                onCancel: { libraryExistingConversationTarget = nil }
+            )
+            .presentationDetents([.height(520), .large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(AngroveTheme.Colors.canvas)
+        }
     }
 
     /// Extracted so the compiler doesn't time out type-checking a single large expression.
@@ -653,6 +696,7 @@ struct ContentView: View {
             onQuestionOfTheDayAnswered: markQuestionOfTheDayAnswered,
             onTodayInHistoryAnswered: markTodayInHistoryAnswered,
             collectedDefinitions: $collectedDefinitions,
+            clippedPassages: $clippedPassages,
             sideMenuConversations: $sideMenuConversations,
             sideMenuCurrentTitle: $sideMenuCurrentTitle,
             sideMenuActiveConversationID: $sideMenuActiveConversationID,
@@ -1186,6 +1230,9 @@ struct ContentView: View {
         .onChange(of: collectedDefinitions) { _, _ in
             scheduleDailyQuestionRefreshIfNeeded()
         }
+        .onChange(of: clippedPassages) { _, passages in
+            ClippedPassageStore.save(passages)
+        }
     }
 
     private var libraryPage: some View {
@@ -1194,7 +1241,18 @@ struct ContentView: View {
             modelTasks: modelTasks,
             modelTasksPopupState: modelTasksPopupState,
             onReaderVisibilityChange: { isLibraryReaderVisible = $0 },
-            navigationRequest: libraryNavigationRequest
+            navigationRequest: libraryNavigationRequest,
+            onAskInNewConversation: { quote in
+                newConversationRequests.submit(NewConversationRequest(
+                    quote: NewConversationInsightQuoteRequest(insight: quote)
+                ))
+                activePage = .conversation
+            },
+            onAskInExistingConversation: { libraryExistingConversationTarget = $0 },
+            clippedPassages: clippedPassages,
+            onRemoveClippedPassage: { passage in
+                clippedPassages.removeAll { $0.id == passage.id }
+            }
         )
     }
 
@@ -1769,6 +1827,11 @@ struct ContentView: View {
     }
 
     private func attachConversation(_ conversation: InquiryConversation, toStudyTopic topicID: UUID) {
+        let wasAlreadyAttached = sideMenuConversations.first(where: { $0.id == conversation.id })?
+            .studyTopicID == topicID
+        if !wasAlreadyAttached {
+            StudyTopicTreeUpdateRequests.request(for: topicID)
+        }
         // Update in-memory — CurrentConversationView's onChange will pick this up
         // and call persistConversations() if it is currently mounted.
         if let index = sideMenuConversations.firstIndex(where: { $0.id == conversation.id }) {

@@ -13,19 +13,22 @@ struct DynamicInsightSheetCard: View {
     /// nil while the definition is generating; set once ready.
     let concept: ConceptDefinition?
     let isSaved: Bool
+    var isClipped: Bool = false
     var funStatusText: String? = nil
     var onQuote: () -> Void
     var onFork: () -> Void
     var onToggleSaved: () -> Void
+    var onToggleClipped: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             if let concept {
-                loadedHeader
-
-                InsightDefinitionsContent(
-                    definitions: concept.contextualDefinitions
-                )
+                if concept.isLibraryQuote {
+                    libraryQuoteContent(concept)
+                } else {
+                    loadedHeader
+                    InsightDefinitionsContent(definitions: concept.contextualDefinitions)
+                }
             } else {
                 HStack(spacing: 10) {
                     ProgressView()
@@ -77,6 +80,45 @@ struct DynamicInsightSheetCard: View {
                 onQuote: onQuote,
                 onFork: onFork
             )
+        }
+    }
+
+    private func libraryQuoteContent(_ concept: ConceptDefinition) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 8) {
+                Image(systemName: "books.vertical")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(AngroveTheme.Colors.darkGreen)
+                Text(concept.word)
+                    .font(.custom("Figtree-Bold", size: 18))
+                    .foregroundColor(AngroveTheme.Colors.primaryReadable)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                ResponseButtons(
+                    isSaved: isClipped,
+                    canQuote: true,
+                    canFork: false,
+                    quoteAccessibilityLabel: "Ask about passage",
+                    tintColor: AngroveTheme.Colors.placeholderText,
+                    saveTintColor: AngroveTheme.Colors.accentRed,
+                    onSave: onToggleClipped,
+                    onQuote: onQuote
+                )
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                Text("“\(concept.semanticDefinition)”")
+                    .paragraphFont()
+                    .italic()
+                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let attribution = concept.libraryAttribution {
+                    Text(attribution)
+                        .paragraphFont()
+                        .foregroundStyle(AngroveTheme.Colors.placeholderText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
     }
 }

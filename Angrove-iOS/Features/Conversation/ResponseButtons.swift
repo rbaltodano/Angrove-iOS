@@ -178,6 +178,7 @@ struct ResponseButtons: View {
     var canQuote: Bool = false
     var canFork: Bool = true
     var copyText: String? = nil
+    var quoteAccessibilityLabel: String = "Quote"
     /// When set, overrides the default `responseButton` color for all icons.
     var tintColor: Color? = nil
     /// When set, overrides the save/bookmark icon color independently.
@@ -228,6 +229,7 @@ struct ResponseButtons: View {
                     animates: !reduceMotion
                 ))
                 .frame(width: 16, height: 16)
+                .accessibilityLabel(action == .quote ? quoteAccessibilityLabel : (action == .save(isSaved: true) ? "Remove bookmark" : "Bookmark"))
             }
         }
         .onAppear(perform: revealButtons)

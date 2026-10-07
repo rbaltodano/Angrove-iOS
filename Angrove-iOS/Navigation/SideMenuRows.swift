@@ -84,6 +84,12 @@ struct SideMenuRow: View {
         // prevents its content from fading away before that animation ends.
         guard isPresented else { return }
 
+        guard SideMenuEntrance.shouldAnimateCurrentOpening else {
+            showsIcon = true
+            showsText = true
+            return
+        }
+
         showsIcon = false
         showsText = false
 
@@ -291,6 +297,11 @@ struct ConversationMenuRow: View {
         // Keep the row rendered while the parent panel is closing.
         guard isPresented else { return }
 
+        guard SideMenuEntrance.shouldAnimateCurrentOpening else {
+            isVisible = true
+            return
+        }
+
         isVisible = false
 
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
@@ -436,6 +447,11 @@ struct StudyTopicMenuRow: View {
         entranceRunID = runID
         // Keep the row rendered while the parent panel is closing.
         guard isPresented else { return }
+
+        guard SideMenuEntrance.shouldAnimateCurrentOpening else {
+            isVisible = true
+            return
+        }
         isVisible = false
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
             guard entranceRunID == runID, isPresented else { return }

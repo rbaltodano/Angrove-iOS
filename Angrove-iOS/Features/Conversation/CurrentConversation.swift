@@ -83,6 +83,7 @@ struct CurrentConversationView: View {
     var onQuestionOfTheDayAnswered: () -> Void = {}
     var onTodayInHistoryAnswered: () -> Void = {}
     @Binding var collectedDefinitions:         [ConceptDefinition]
+    @Binding var clippedPassages: [ConceptDefinition]
     @Binding var sideMenuConversations:        [InquiryConversation]
     @Binding var sideMenuCurrentTitle:         String
     @Binding var sideMenuActiveConversationID: UUID?
@@ -193,6 +194,7 @@ struct CurrentConversationView: View {
 
     // MARK: Insight library sheet
     @State private var isInsightLibraryOpen: Bool = false
+    @State private var opensPassagesInInsightPicker = false
     @State private var insightLibraryPopupHeight: CGFloat = 520
 
     // MARK: Insight word sheet (aq:// links)
@@ -802,7 +804,7 @@ struct CurrentConversationView: View {
         }
 
         switchToConversation(conversation)
-        pendingStudyTopicQuoteReturn = request
+        pendingStudyTopicQuoteReturn = request.insight.isLibraryQuote ? nil : request
         insightConversationQuoteRequest = nil
         quoteConceptIntoCurrentConversation(request.insight)
         Task {
@@ -870,9 +872,14 @@ struct CurrentConversationView: View {
             onScrollToBottom: { scrollToBottomRequest += 1 },
             onViewEntireCanvas: { },
             onOpenInsights: {
+                opensPassagesInInsightPicker = false
                 withAnimation(.springQuick) {
                     isInsightLibraryOpen = true
                 }
+            },
+            onOpenPassages: {
+                opensPassagesInInsightPicker = true
+                withAnimation(.springQuick) { isInsightLibraryOpen = true }
             },
             onSend: {
                 withAnimation(.springStandard) {
@@ -979,7 +986,9 @@ struct CurrentConversationView: View {
             InsightLibraryPopup(
                 currentConversationInsights: currentConversationInsights(),
                 allInsights: collectedDefinitions,
+                clippedPassages: clippedPassages,
                 savedInsights: $collectedDefinitions,
+                opensPassages: opensPassagesInInsightPicker,
                 onQuote: { concept in
                     withAnimation(.springBouncy) {
                         attachedConcept = concept
@@ -1013,6 +1022,13 @@ struct CurrentConversationView: View {
                         } else {
                             collectedDefinitions.append(concept)
                         }
+                    }
+                },
+                onToggleClipped: { passage in
+                    if clippedPassages.contains(where: { $0.id == passage.id }) {
+                        clippedPassages.removeAll { $0.id == passage.id }
+                    } else {
+                        clippedPassages.append(passage)
                     }
                 }
             )
@@ -1791,11 +1807,15 @@ struct CurrentConversationView: View {
                     && $0.containsDefinitions(from: c)
             }
         } ?? false
+        let isClipped = definition.map { c in
+            clippedPassages.contains { $0.id == c.id }
+        } ?? false
 
         return DynamicInsightSheetCard(
             word: sheetData.text,
             concept: definition,
             isSaved: isSaved,
+            isClipped: isClipped,
             funStatusText: modelTasks.allTasks.first {
                 $0.kind.definitionKey == sheetData.id && $0.phase != .completed
             }?.funStatusText,
@@ -1829,6 +1849,14 @@ struct CurrentConversationView: View {
             onToggleSaved: {
                 guard let concept = definition else { return }
                 toggleSavedConcept(concept)
+            },
+            onToggleClipped: {
+                guard let concept = definition else { return }
+                if clippedPassages.contains(where: { $0.id == concept.id }) {
+                    clippedPassages.removeAll { $0.id == concept.id }
+                } else {
+                    clippedPassages.append(concept)
+                }
             }
         )
         .padding(.horizontal, 24)
@@ -2198,7 +2226,7 @@ struct CurrentConversationView: View {
             // already models it as optional) — removing the quoted chip should return to
             // whichever tree it came from with the Insight hovered; see
             // `returnToStudyTopicTreeAfterQuoteCancellation`'s topicID branch.
-            pendingStudyTopicQuoteReturn = InsightConversationQuoteRequest(
+            pendingStudyTopicQuoteReturn = quoteRequest.insight.isLibraryQuote ? nil : InsightConversationQuoteRequest(
                 topicID: quoteRequest.topicID,
                 conversationID: fresh.id,
                 insight: quoteRequest.insight

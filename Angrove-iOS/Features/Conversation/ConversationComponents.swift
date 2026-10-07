@@ -1366,8 +1366,8 @@ struct ChatThreadColumn: View {
 
                     if let concept = branchData.branchContextConcept {
                         BranchContextChip(
-                            title: concept.word.capitalized,
-                            icon: branchData.topQuestionSubmitted ? "text.bubble.fill" : "text.bubble",
+                            title: concept.isLibraryQuote ? concept.word : concept.word.capitalized,
+                            icon: concept.isLibraryQuote ? "books.vertical" : (branchData.topQuestionSubmitted ? "text.bubble.fill" : "text.bubble"),
                             animationKey: branchData.topQuestionSubmitted ? "submitted" : "pending",
                             isFilled: branchData.topQuestionSubmitted,
                             appearDelay: 0.25,
@@ -1528,8 +1528,8 @@ struct ChatThreadColumn: View {
 
                         if let concept {
                             BranchContextChip(
-                                title: concept.word.capitalized,
-                                icon: "text.bubble.fill",
+                                title: concept.isLibraryQuote ? concept.word : concept.word.capitalized,
+                                icon: concept.isLibraryQuote ? "books.vertical" : "text.bubble.fill",
                                 isFilled: true,
                                 animatesAppearance: false,
                                 showRemove: false,
@@ -1580,8 +1580,8 @@ struct ChatThreadColumn: View {
 
                         if let concept = branchData.attachedConcept {
                             BranchContextChip(
-                                title: concept.word.capitalized,
-                                icon: "text.bubble",
+                                title: concept.isLibraryQuote ? concept.word : concept.word.capitalized,
+                                icon: concept.isLibraryQuote ? "books.vertical" : "text.bubble",
                                 isFilled: false,
                                 showRemove: true,
                                 onTap: { onQuotedConceptTap(concept) },

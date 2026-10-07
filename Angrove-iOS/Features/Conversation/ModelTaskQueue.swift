@@ -5,6 +5,7 @@
 
 import Foundation
 import Observation
+import UIKit
 
 enum ModelTaskKind: Hashable {
     case userQuestion(branchID: UUID, responseIndex: Int)
@@ -218,6 +219,9 @@ final class ModelTaskQueue {
     @ObservationIgnored private var lifecycleTransitionGeneration = 0
     @ObservationIgnored private var isExecutionSuspended = false
     @ObservationIgnored private var applicationIsActive = true
+    /// Lets an in-flight response continue during iOS's finite background execution window.
+    /// The system may still expire this window before generation finishes.
+    @ObservationIgnored private var backgroundExecutionTask: UIBackgroundTaskIdentifier = .invalid
 
     init(
         runtimeLifecycle: ModelRuntimeLifecycleManager = ModelRuntimeLifecycleManager()
@@ -312,6 +316,7 @@ final class ModelTaskQueue {
     func stopCurrent() {
         guard let job = currentJob else { return }
         LiteRTLifecycleTrace.shared.record("queue-stop")
+        endBackgroundExecutionTask()
         runningTask?.cancel()
         runningTask = nil
         currentJob = nil
@@ -357,6 +362,7 @@ final class ModelTaskQueue {
     func cancelTasks(where predicate: (ModelTaskSnapshot) -> Bool) {
         if let currentTask, predicate(currentTask) {
             let job = currentJob
+            endBackgroundExecutionTask()
             runningTask?.cancel()
             runningTask = nil
             currentJob = nil
@@ -389,6 +395,7 @@ final class ModelTaskQueue {
         applicationIsActive = isActive
         LiteRTLifecycleTrace.shared.record("app-active", ["isActive": isActive])
         if isActive {
+            endBackgroundExecutionTask()
             // Returning to the foreground must ALWAYS resume execution. This previously bailed
             // out whenever an unload transition was still in flight
             // (`guard lifecycleTransitionTask == nil else { return }`), deferring entirely to
@@ -405,6 +412,7 @@ final class ModelTaskQueue {
             isExecutionSuspended = false
             startNextIfNeeded()
         } else {
+            beginBackgroundExecutionTaskIfNeeded()
             beginImmediateUnload(reason: .background)
         }
     }
@@ -469,6 +477,7 @@ final class ModelTaskQueue {
 
     private func failCurrent(id: UUID) {
         guard let job = currentJob, job.id == id else { return }
+        endBackgroundExecutionTask()
         isRuntimeLoading = false
         currentJob = nil
         currentTask = nil
@@ -479,6 +488,7 @@ final class ModelTaskQueue {
 
     private func completeCurrent(id: UUID) {
         guard let job = currentJob, job.id == id else { return }
+        endBackgroundExecutionTask()
         isRuntimeLoading = false
         let completedTask = snapshot(for: job, phase: .completed)
         completedTasks.append(completedTask)
@@ -511,6 +521,24 @@ final class ModelTaskQueue {
             isExecutionSuspended = false
             startNextIfNeeded()
         }
+    }
+
+    private func beginBackgroundExecutionTaskIfNeeded() {
+        guard backgroundExecutionTask == .invalid, currentJob != nil else { return }
+        backgroundExecutionTask = UIApplication.shared.beginBackgroundTask(
+            withName: "Angrove model response"
+        ) { [weak self] in
+            Task { @MainActor in
+                self?.endBackgroundExecutionTask()
+            }
+        }
+    }
+
+    private func endBackgroundExecutionTask() {
+        guard backgroundExecutionTask != .invalid else { return }
+        let task = backgroundExecutionTask
+        backgroundExecutionTask = .invalid
+        UIApplication.shared.endBackgroundTask(task)
     }
 
     private func preemptCurrentBackgroundPreservingJob() {

@@ -10,10 +10,13 @@ import SwiftUI
 struct InsightLibraryPopup: View {
     let currentConversationInsights: [ConceptDefinition]
     let allInsights: [ConceptDefinition]
+    let clippedPassages: [ConceptDefinition]
     @Binding var savedInsights: [ConceptDefinition]
+    var opensPassages: Bool = false
     var onQuote: (ConceptDefinition) -> Void
     var onFork: (ConceptDefinition) -> Void
     var onToggleSaved: (ConceptDefinition) -> Void
+    var onToggleClipped: (ConceptDefinition) -> Void = { _ in }
 
     @State private var selectedScope: InsightLibraryScope = .currentConversation
     @State private var selectedIndex: Int = 0
@@ -24,7 +27,9 @@ struct InsightLibraryPopup: View {
         case .currentConversation:
             return currentConversationInsights
         case .all:
-            return allInsights
+            return allInsights.filter { !$0.isLibraryQuote }
+        case .passages:
+            return clippedPassages
         }
     }
 
@@ -44,10 +49,13 @@ struct InsightLibraryPopup: View {
                     ForEach(Array(visibleInsights.enumerated()), id: \.element.id) { index, insight in
                         InsightLibraryCard(
                             insight: insight,
-                            isSaved: isSaved(insight),
+                            isSaved: selectedScope == .passages ? isClipped(insight) : isSaved(insight),
                             onQuote: { onQuote(insight) },
                             onFork: { onFork(insight) },
-                            onToggleSaved: { onToggleSaved(insight) }
+                            onToggleSaved: {
+                                if selectedScope == .passages { onToggleClipped(insight) }
+                                else { onToggleSaved(insight) }
+                            }
                         )
                         .frame(maxWidth: 315)
                         .offset(x: CGFloat(index - selectedIndex) * 339 + dragOffset)
@@ -103,10 +111,17 @@ struct InsightLibraryPopup: View {
         .onChange(of: pageCount) { oldValue, newValue in
             selectedIndex = min(selectedIndex, max(0, newValue - 1))
         }
+        .onAppear {
+            if opensPassages { selectedScope = .passages }
+        }
     }
 
     private func isSaved(_ insight: ConceptDefinition) -> Bool {
         savedInsights.contains { $0.word.caseInsensitiveCompare(insight.word) == .orderedSame }
+    }
+
+    private func isClipped(_ passage: ConceptDefinition) -> Bool {
+        clippedPassages.contains { $0.id == passage.id }
     }
 
     private func showPreviousInsight() {
@@ -124,9 +139,10 @@ struct InsightLibraryPopup: View {
     }
 }
 
-private enum InsightLibraryScope {
+enum InsightLibraryScope {
     case currentConversation
     case all
+    case passages
 }
 
 private struct InsightLibraryScopeTabs: View {
@@ -137,6 +153,7 @@ private struct InsightLibraryScopeTabs: View {
         HStack(spacing: 0) {
             tabButton(title: "This Conversation", scope: .currentConversation)
             tabButton(title: "All", scope: .all)
+            tabButton(title: "Passages", scope: .passages)
         }
         .padding(6)
         .background(AngroveTheme.Colors.surface)
@@ -156,7 +173,7 @@ private struct InsightLibraryScopeTabs: View {
             Text(title)
                 .font(.figtreeHeading3)
                 .foregroundColor(AngroveTheme.Colors.primaryReadable)
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 10)
                 .padding(.vertical, 12)
                 .background {
                     if selectedScope == scope {
@@ -186,12 +203,12 @@ struct InsightLibraryCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center, spacing: 8) {
-                Image(systemName: "text.bubble.fill")
+                Image(systemName: insight.isLibraryQuote ? "books.vertical" : "text.bubble.fill")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundColor(AngroveTheme.Colors.darkGreen)
                     .sfSymbolDrawOn()
 
-                Text(insight.word.capitalized)
+                Text(insight.isLibraryQuote ? insight.word : insight.word.capitalized)
                     .font(.custom("Figtree-Bold", size: 18))
                     .foregroundColor(AngroveTheme.Colors.primaryReadable)
                     .lineLimit(1)
@@ -202,7 +219,8 @@ struct InsightLibraryCard: View {
                 ResponseButtons(
                     isSaved: isSaved,
                     canQuote: true,
-                    canFork: true,
+                    canFork: !insight.isLibraryQuote,
+                    quoteAccessibilityLabel: insight.isLibraryQuote ? "Ask about passage" : "Quote",
                     tintColor: AngroveTheme.Colors.placeholderText,
                     saveTintColor: AngroveTheme.Colors.accentRed,
                     onSave: handleSaveTapped,
@@ -211,9 +229,22 @@ struct InsightLibraryCard: View {
                 )
             }
 
-            InsightDefinitionsContent(
-                definitions: insight.contextualDefinitions
-            )
+            if insight.isLibraryQuote {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("“\(insight.semanticDefinition)”")
+                        .paragraphFont()
+                        .italic()
+                        .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let attribution = insight.libraryAttribution {
+                        Text(attribution)
+                            .paragraphFont()
+                            .foregroundStyle(AngroveTheme.Colors.placeholderText)
+                    }
+                }
+            } else {
+                InsightDefinitionsContent(definitions: insight.contextualDefinitions)
+            }
         }
         .padding(24)
         .frame(maxWidth: maxWidth)
@@ -230,13 +261,15 @@ struct InsightLibraryCard: View {
             x: 0,
             y: 16
         )
-        .alert("Remove bookmark?", isPresented: $isConfirmingUnbookmark) {
+        .alert(insight.isLibraryQuote ? "Unclip passage?" : "Remove bookmark?", isPresented: $isConfirmingUnbookmark) {
             Button("Cancel", role: .cancel) {}
             Button("Remove", role: .destructive) {
                 onToggleSaved()
             }
         } message: {
-            Text("This insight may still appear in the current conversation, but it will be removed from your saved insights.")
+            Text(insight.isLibraryQuote
+                ? "This passage will be removed from Clipped Passages."
+                : "This insight may still appear in the current conversation, but it will be removed from your saved insights.")
         }
     }
 
@@ -307,19 +340,39 @@ private struct InsightLibraryPager: View {
 private struct InsightLibraryEmptyState: View {
     let scope: InsightLibraryScope
 
+    private var title: String {
+        switch scope {
+        case .currentConversation: "No insights in this conversation yet"
+        case .all: "No saved insights yet"
+        case .passages: "No clipped passages yet"
+        }
+    }
+
+    private var message: String {
+        switch scope {
+        case .currentConversation: "Tap an insight link in a response, then save it to collect it here."
+        case .all: "Saved insights will appear here across conversations."
+        case .passages: "Bookmark a passage in the Library to keep it here and add it to a conversation."
+        }
+    }
+
+    private var symbol: String {
+        scope == .passages ? "books.vertical" : "text.bubble"
+    }
+
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: "text.bubble")
+            Image(systemName: symbol)
                 .font(.system(size: 28, weight: .semibold))
                 .foregroundColor(AngroveTheme.Colors.darkGreen)
                 .sfSymbolDrawOn()
 
-            Text(scope == .currentConversation ? "No insights in this conversation yet" : "No saved insights yet")
+            Text(title)
                 .font(.custom("LibreBaskerville-Regular", size: 22))
                 .foregroundColor(AngroveTheme.Colors.primaryReadable)
                 .multilineTextAlignment(.center)
 
-            Text(scope == .currentConversation ? "Tap an insight link in a response, then save it to collect it here." : "Saved insights will appear here across conversations.")
+            Text(message)
                 .paragraphFont()
                 .foregroundColor(AngroveTheme.Colors.bodyText)
                 .multilineTextAlignment(.center)

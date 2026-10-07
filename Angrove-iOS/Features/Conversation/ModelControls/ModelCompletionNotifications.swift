@@ -37,6 +37,8 @@ final class ModelCompletionNotificationCenter {
         title: String,
         kind: ModelCompletionNotificationKind = .question,
         returnPage: AppPage? = nil,
+        systemNotificationTitle: String? = nil,
+        systemNotificationBody: String? = nil,
         openAction: @escaping @MainActor () -> Void
     ) {
         withAnimation(.springStandard) {
@@ -54,7 +56,10 @@ final class ModelCompletionNotificationCenter {
             )
         }
         if kind != .pageReturn, UIApplication.shared.applicationState != .active {
-            AngroveSystemNotifications.postCompletedResponse(title: title)
+            AngroveSystemNotifications.postCompletedResponse(
+                title: systemNotificationTitle ?? "Response Ready",
+                body: systemNotificationBody ?? title
+            )
         }
         playCompletionHaptics()
     }

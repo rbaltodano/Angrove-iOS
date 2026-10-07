@@ -306,6 +306,9 @@ struct LibraryHomeView: View {
     @Binding var searchText: String
     let onOpenWork: (LibraryWork) -> Void
     let onOpenPassage: (LibraryFeaturedPassage) -> Void
+    var clippedPassages: [ConceptDefinition] = []
+    var onRemoveClippedPassage: (ConceptDefinition) -> Void = { _ in }
+    var onAskClippedPassage: (ConceptDefinition) -> Void = { _ in }
 
     private var isSearching: Bool {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -358,6 +361,14 @@ struct LibraryHomeView: View {
     private func homeSections(_ catalog: LibraryCatalog) -> some View {
         let recentWorks = recentWorkIDs.compactMap { id in catalog.works.first { $0.id == id } }
         return VStack(alignment: .leading, spacing: 48) {
+            if !clippedPassages.isEmpty {
+                ClippedPassagesShelf(
+                    passages: clippedPassages,
+                    onRemove: onRemoveClippedPassage,
+                    onAsk: onAskClippedPassage
+                )
+            }
+
             if let passage = catalog.featuredPassage {
                 LibraryPassageOfTheDayCard(passage: passage) { onOpenPassage(passage) }
                     .padding(.horizontal, 24)
@@ -377,6 +388,87 @@ struct LibraryHomeView: View {
             LibraryIndexCard(works: catalog.works, onOpenWork: onOpenWork)
                 .padding(.horizontal, 24)
         }
+    }
+}
+
+private struct ClippedPassagesShelf: View {
+    let passages: [ConceptDefinition]
+    let onRemove: (ConceptDefinition) -> Void
+    let onAsk: (ConceptDefinition) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Clipped Passages")
+                    .font(AngroveTheme.Typography.heading)
+                    .foregroundStyle(AngroveTheme.Colors.headingText)
+                Spacer()
+                Text(passages.count.formatted(.number))
+                    .font(AngroveTheme.Typography.chipLabel)
+                    .foregroundStyle(AngroveTheme.Colors.placeholderText)
+            }
+            .padding(.horizontal, 24)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(alignment: .top, spacing: 12) {
+                    ForEach(passages) { passage in
+                        ClippedPassageLibraryCard(
+                            passage: passage,
+                            onRemove: { onRemove(passage) },
+                            onAsk: { onAsk(passage) }
+                        )
+                    }
+                }
+                .padding(.vertical, 1)
+            }
+            .contentMargins(.horizontal, 24, for: .scrollContent)
+        }
+    }
+}
+
+private struct ClippedPassageLibraryCard: View {
+    let passage: ConceptDefinition
+    let onRemove: () -> Void
+    let onAsk: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "books.vertical")
+                    .foregroundStyle(AngroveTheme.Colors.darkGreen)
+                Text(passage.word)
+                    .font(.custom("Figtree-Bold", size: 16))
+                    .foregroundStyle(AngroveTheme.Colors.primaryReadable)
+                    .lineLimit(2)
+                Spacer(minLength: 0)
+                ResponseButtons(
+                    isSaved: true,
+                    canQuote: true,
+                    canFork: false,
+                    quoteAccessibilityLabel: "Ask about passage",
+                    saveTintColor: AngroveTheme.Colors.accentRed,
+                    onSave: onRemove,
+                    onQuote: onAsk
+                )
+            }
+            Text("“\(passage.semanticDefinition)”")
+                .paragraphFont()
+                .italic()
+                .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                .lineLimit(5)
+                .fixedSize(horizontal: false, vertical: true)
+            if let attribution = passage.libraryAttribution {
+                Text(attribution)
+                    .font(AngroveTheme.Typography.chipLabel)
+                    .foregroundStyle(AngroveTheme.Colors.placeholderText)
+                    .lineLimit(2)
+            }
+        }
+        .padding(16)
+        .frame(width: 292, alignment: .leading)
+        .background(AngroveTheme.Colors.canvasSecondary)
+        .clipShape(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.smallCardRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.smallCardRadius, style: .continuous).stroke(AngroveTheme.Colors.quietBorder, lineWidth: 1))
     }
 }
 

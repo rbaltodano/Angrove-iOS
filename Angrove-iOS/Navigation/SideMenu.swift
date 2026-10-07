@@ -430,6 +430,12 @@ struct AngroveSideMenu: View, Equatable {
         // closed. They are reset only for the next presentation.
         guard isPresented else { return }
 
+        guard SideMenuEntrance.shouldAnimateCurrentOpening else {
+            showsTitle = true
+            showsOpenConversationsTitle = true
+            return
+        }
+
         showsTitle = false
         showsOpenConversationsTitle = false
 
@@ -451,6 +457,13 @@ struct AngroveSideMenu: View, Equatable {
 /// skip the entrance animation and only rows present at open time animate in.
 enum SideMenuEntrance {
     static var openedAt = Date.distantPast
+    private(set) static var shouldAnimateCurrentOpening = false
+    private static var hasAnimatedInitialOpening = false
+
+    static func prepareOpening() {
+        shouldAnimateCurrentOpening = !hasAnimatedInitialOpening
+        hasAnimatedInitialOpening = true
+    }
 
     static var isScrollRecycle: Bool {
         Date().timeIntervalSince(openedAt) > 1.2
@@ -493,6 +506,11 @@ private struct FooterDivider: View {
 
         // Keep the divider in place while the parent panel is closing.
         guard isPresented else { return }
+
+        guard SideMenuEntrance.shouldAnimateCurrentOpening else {
+            showsDivider = true
+            return
+        }
 
         showsDivider = false
 

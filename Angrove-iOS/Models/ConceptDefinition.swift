@@ -83,6 +83,8 @@ nonisolated struct ConceptDefinition: Identifiable, Equatable, Hashable, Codable
     let meaning: String
     let example: String
     let definitions: [InsightDefinition]
+    let isLibraryQuote: Bool
+    let libraryAttribution: String?
 
     init(
         id: UUID = UUID(),
@@ -92,7 +94,9 @@ nonisolated struct ConceptDefinition: Identifiable, Equatable, Hashable, Codable
         meaning: String,
         example: String,
         context: String = "",
-        definitions: [InsightDefinition]? = nil
+        definitions: [InsightDefinition]? = nil,
+        isLibraryQuote: Bool = false,
+        libraryAttribution: String? = nil
     ) {
         self.id = id
         self.word = word
@@ -100,6 +104,8 @@ nonisolated struct ConceptDefinition: Identifiable, Equatable, Hashable, Codable
         self.pronunciation = pronunciation
         self.meaning = meaning
         self.example = example
+        self.isLibraryQuote = isLibraryQuote
+        self.libraryAttribution = libraryAttribution
         self.definitions = InsightDefinition.unique(definitions ?? (
             meaning.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 ? []
@@ -140,7 +146,9 @@ nonisolated struct ConceptDefinition: Identifiable, Equatable, Hashable, Codable
             pronunciation: "",
             meaning: merged.first?.meaning ?? meaning,
             example: "",
-            definitions: merged
+            definitions: merged,
+            isLibraryQuote: isLibraryQuote,
+            libraryAttribution: libraryAttribution
         )
     }
 
@@ -160,6 +168,8 @@ nonisolated struct ConceptDefinition: Identifiable, Equatable, Hashable, Codable
         case meaning
         case example
         case definitions
+        case isLibraryQuote
+        case libraryAttribution
     }
 
     init(from decoder: Decoder) throws {
@@ -176,6 +186,8 @@ nonisolated struct ConceptDefinition: Identifiable, Equatable, Hashable, Codable
         ) ?? (
             meaning.isEmpty ? [] : [InsightDefinition(context: "", meaning: meaning)]
         ))
+        isLibraryQuote = try container.decodeIfPresent(Bool.self, forKey: .isLibraryQuote) ?? false
+        libraryAttribution = try container.decodeIfPresent(String.self, forKey: .libraryAttribution)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -187,5 +199,7 @@ nonisolated struct ConceptDefinition: Identifiable, Equatable, Hashable, Codable
         try container.encode(meaning, forKey: .meaning)
         try container.encode(example, forKey: .example)
         try container.encode(definitions, forKey: .definitions)
+        try container.encode(isLibraryQuote, forKey: .isLibraryQuote)
+        try container.encodeIfPresent(libraryAttribution, forKey: .libraryAttribution)
     }
 }

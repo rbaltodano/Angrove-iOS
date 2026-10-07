@@ -692,12 +692,19 @@ struct LibraryView: View {
     let modelTasksPopupState: ModelTasksPopupState
     let onReaderVisibilityChange: (Bool) -> Void
     let navigationRequest: LibraryNavigationRequest?
+    var onAskInNewConversation: (ConceptDefinition) -> Void = { _ in }
+    var onAskInExistingConversation: (ConceptDefinition) -> Void = { _ in }
+    var clippedPassages: [ConceptDefinition] = []
+    var onRemoveClippedPassage: (ConceptDefinition) -> Void = { _ in }
     @State private var catalog: LibraryCatalog?
     @State private var searchText = ""
     @State private var selectedWorkID: String?
     @State private var targetChunkIndex: Int?
     @State private var targetScripture: LibraryTextFormatter.ScriptureTarget?
     @State private var pendingNavigationRequest: LibraryNavigationRequest?
+    @State private var isAskMode = false
+    @State private var selectedLibraryQuote: ConceptDefinition?
+    @State private var showsClippedPassageAskChoices = false
     @EncryptedStringStorage(LibraryRecents.storageKey) private var recentWorkIDsRaw = ""
 
     private var works: [LibraryWork] { catalog?.works ?? [] }
@@ -713,7 +720,10 @@ struct LibraryView: View {
                 recentWorkIDs: LibraryRecents.decode(recentWorkIDsRaw),
                 searchText: $searchText,
                 onOpenWork: { openWork(id: $0.id) },
-                onOpenPassage: { openWork(id: $0.workID, atChunk: $0.chunkIndex) }
+                onOpenPassage: { openWork(id: $0.workID, atChunk: $0.chunkIndex) },
+                clippedPassages: clippedPassages,
+                onRemoveClippedPassage: onRemoveClippedPassage,
+                onAskClippedPassage: askAboutClippedPassage
             )
 
             if let selectedWork {
@@ -725,6 +735,11 @@ struct LibraryView: View {
                     navigationRequestID: navigationRequest?.id,
                     modelTasks: modelTasks,
                     modelTasksPopupState: modelTasksPopupState,
+                    isAskMode: $isAskMode,
+                    selectedLibraryQuote: $selectedLibraryQuote,
+                    onAskNewConversation: { if let selectedLibraryQuote { onAskInNewConversation(selectedLibraryQuote); isAskMode = false } },
+                    onAskExistingConversation: { if let selectedLibraryQuote { onAskInExistingConversation(selectedLibraryQuote); isAskMode = false } },
+                    onCancelAsk: { isAskMode = false; selectedLibraryQuote = nil },
                     onOpenScripture: openScripture
                 )
                 .transition(.move(edge: .trailing))
@@ -759,6 +774,15 @@ struct LibraryView: View {
             }
         }
         .onDisappear { onReaderVisibilityChange(false) }
+        .confirmationDialog("Ask about this passage", isPresented: $showsClippedPassageAskChoices, titleVisibility: .visible) {
+            Button("New Conversation") {
+                if let selectedLibraryQuote { onAskInNewConversation(selectedLibraryQuote) }
+            }
+            Button("Existing Conversation") {
+                if let selectedLibraryQuote { onAskInExistingConversation(selectedLibraryQuote) }
+            }
+            Button("Cancel", role: .cancel) { selectedLibraryQuote = nil }
+        }
         .task {
             // The bundled corpus is tens of megabytes; decode it off the main actor so the
             // homepage chrome appears immediately.
@@ -813,11 +837,18 @@ struct LibraryView: View {
     }
 
     private func closeDocument() {
+        isAskMode = false
+        selectedLibraryQuote = nil
         withAnimation(.springStandard) {
             selectedWorkID = nil
             targetChunkIndex = nil
             targetScripture = nil
         }
+    }
+
+    private func askAboutClippedPassage(_ passage: ConceptDefinition) {
+        selectedLibraryQuote = passage
+        showsClippedPassageAskChoices = true
     }
 }
 
@@ -836,6 +867,11 @@ private struct LibraryDocumentDetail: View {
     let navigationRequestID: UUID?
     let modelTasks: ModelTaskQueue
     let modelTasksPopupState: ModelTasksPopupState
+    @Binding var isAskMode: Bool
+    @Binding var selectedLibraryQuote: ConceptDefinition?
+    var onAskNewConversation: () -> Void
+    var onAskExistingConversation: () -> Void
+    var onCancelAsk: () -> Void
     let onOpenScripture: (LibraryTextFormatter.ScriptureTarget) -> Void
     @State private var document: LibraryDocument?
     @State private var selectedSectionID = "chapter-1"
@@ -869,7 +905,24 @@ private struct LibraryDocumentDetail: View {
                                 sourceID: work.id,
                                 highlightedChunkIndex: targetChunkIndex,
                                 isVisible: isPageTextVisible,
-                                onOpenScripture: onOpenScripture
+                                onOpenScripture: onOpenScripture,
+                                onAsk: { selectedText in
+                                    selectedLibraryQuote = ConceptDefinition(
+                                        id: stableUUID(from: "library-quote:\(work.id):\(selectedText.lowercased())"),
+                                        word: work.title,
+                                        partOfSpeech: "",
+                                        pronunciation: "",
+                                        meaning: selectedText,
+                                        example: "",
+                                        context: work.title,
+                                        isLibraryQuote: true,
+                                        libraryAttribution: LibraryWorkAttribution.line(
+                                            workID: work.id,
+                                            bibleBook: work.id == "web-bible" ? selectedSection.title : nil
+                                        )
+                                    )
+                                    isAskMode = true
+                                }
                             )
                             .id(selectedOutline.id)
                             .transition(.opacity.combined(with: .move(edge: .trailing)))
@@ -912,7 +965,11 @@ private struct LibraryDocumentDetail: View {
                                     sectionID: document.sections[selectedIndex + 1].id,
                                     outlineID: document.sections[selectedIndex + 1].firstReadableDescendant.id
                                 )
-                            }
+                            },
+                            isAskMode: $isAskMode,
+                            onAskNewConversation: onAskNewConversation,
+                            onAskExistingConversation: onAskExistingConversation,
+                            onCancelAsk: onCancelAsk
                         ) {
                             LibraryContentsCard(
                                 sections: document.sections,
@@ -1032,6 +1089,7 @@ private struct LibraryTextSection: View {
     var highlightedChunkIndex: Int?
     let isVisible: Bool
     let onOpenScripture: (LibraryTextFormatter.ScriptureTarget) -> Void
+    let onAsk: (String) -> Void
     @AppStorage("aquinas.settings.conversationFontSize")
     private var conversationFontSize: ConversationFontSizeOption = .medium
     @AppStorage("aquinas.settings.responseFont")
@@ -1070,8 +1128,15 @@ private struct LibraryTextSection: View {
                             verseColor: AngroveTheme.Colors.lightGreen,
                             verseFont: .custom("Figtree-Bold", size: max(9, conversationFontSize.pointSize - 4))
                         ),
-                        font: responseFont.textFont(size: conversationFontSize),
-                        isHighlighted: passage.chunkIndex == highlightedChunkIndex
+                        fontName: responseFont == .sans ? "Figtree-Regular" : "LibreBaskerville-Regular",
+                        fontSize: conversationFontSize.pointSize,
+                        isHighlighted: passage.chunkIndex == highlightedChunkIndex,
+                        onAsk: onAsk,
+                        onOpenURL: { url in
+                            guard let target = LibraryTextFormatter.ScriptureTarget(url: url) else { return false }
+                            onOpenScripture(target)
+                            return true
+                        }
                     )
                     .id(passage.chunkIndex)
                 }
@@ -1096,23 +1161,28 @@ private struct LibraryTextSection: View {
 /// and lets the reader scroll straight to a featured passage.
 private struct LibraryParagraph: View {
     let text: AttributedString
-    let font: Font
+    let fontName: String
+    let fontSize: CGFloat
     let isHighlighted: Bool
+    let onAsk: (String) -> Void
+    let onOpenURL: (URL) -> Bool
 
     var body: some View {
-        Text(text)
-            .font(font)
-            .lineSpacing(8)
-            .foregroundStyle(isHighlighted ? AngroveTheme.Colors.primaryReadable : AngroveTheme.Colors.paragraphText)
+        LibrarySelectionText(
+            text: text,
+            onAsk: onAsk,
+            onOpenURL: onOpenURL,
+            textColor: isHighlighted ? AngroveTheme.Colors.primaryReadable : AngroveTheme.Colors.paragraphText,
+            fontName: fontName,
+            fontSize: fontSize
+        )
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(isHighlighted ? 24 : 0)
             .background {
                 if isHighlighted {
                     let shape = RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous)
-                    shape
-                        .fill(AngroveTheme.Colors.canvasSecondary)
-                        .overlay(shape.stroke(AngroveTheme.Colors.quietBorder, lineWidth: 1))
+                    shape.fill(AngroveTheme.Colors.canvasSecondary).overlay(shape.stroke(AngroveTheme.Colors.quietBorder, lineWidth: 1))
                 }
             }
     }

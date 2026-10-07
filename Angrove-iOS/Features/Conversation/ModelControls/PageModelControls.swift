@@ -119,6 +119,10 @@ struct LibraryModelControls<Contents: View>: View {
     var nextChapterTitle: String? = nil
     var onPreviousChapter: () -> Void = {}
     var onNextChapter: () -> Void = {}
+    @Binding var isAskMode: Bool
+    var onAskNewConversation: () -> Void = {}
+    var onAskExistingConversation: () -> Void = {}
+    var onCancelAsk: () -> Void = {}
     let contents: Contents
     @State private var isControlButtonPressed = false
 
@@ -130,6 +134,10 @@ struct LibraryModelControls<Contents: View>: View {
         nextChapterTitle: String? = nil,
         onPreviousChapter: @escaping () -> Void = {},
         onNextChapter: @escaping () -> Void = {},
+        isAskMode: Binding<Bool> = .constant(false),
+        onAskNewConversation: @escaping () -> Void = {},
+        onAskExistingConversation: @escaping () -> Void = {},
+        onCancelAsk: @escaping () -> Void = {},
         @ViewBuilder contents: () -> Contents
     ) {
         self.modelTasks = modelTasks
@@ -139,6 +147,10 @@ struct LibraryModelControls<Contents: View>: View {
         self.nextChapterTitle = nextChapterTitle
         self.onPreviousChapter = onPreviousChapter
         self.onNextChapter = onNextChapter
+        _isAskMode = isAskMode
+        self.onAskNewConversation = onAskNewConversation
+        self.onAskExistingConversation = onAskExistingConversation
+        self.onCancelAsk = onCancelAsk
         self.contents = contents()
     }
 
@@ -164,7 +176,12 @@ struct LibraryModelControls<Contents: View>: View {
     }
 
     private var buttons: some View {
-        HStack(spacing: 24) {
+        HStack(spacing: isAskMode ? 8 : 24) {
+            if isAskMode {
+                ReaderChapterControlButton(title: "New Conversation", icon: "plus.bubble", iconFirst: true, compact: true, action: onAskNewConversation)
+                ReaderChapterControlButton(title: "Existing Conversation", icon: "bubble.left.and.bubble.right", iconFirst: true, compact: true, action: onAskExistingConversation)
+                ReaderChapterControlButton(title: "Cancel", icon: "xmark", iconFirst: true, compact: true, action: onCancelAsk)
+            } else {
             if let previousChapterTitle {
                 ReaderChapterControlButton(
                     title: previousChapterTitle,
@@ -207,6 +224,7 @@ struct LibraryModelControls<Contents: View>: View {
                 .id(nextChapterTitle)
                     .transition(.blurFade)
             }
+            }
         }
     }
 
@@ -228,7 +246,7 @@ struct LibraryModelControls<Contents: View>: View {
         let taskKey = modelTasks.isBusy
             ? "\(modelTasks.currentPosition)/\(modelTasks.totalCount)"
             : "idle"
-        return "\(previousChapterTitle ?? "")|\(nextChapterTitle ?? "")|\(taskKey)"
+        return "\(previousChapterTitle ?? "")|\(nextChapterTitle ?? "")|\(taskKey)|ask:\(isAskMode)"
     }
 
 }
@@ -237,6 +255,7 @@ private struct ReaderChapterControlButton: View {
     let title: String
     let icon: String
     let iconFirst: Bool
+    var compact = false
     let action: () -> Void
 
     var body: some View {
@@ -246,9 +265,11 @@ private struct ReaderChapterControlButton: View {
                 Text(title)
                 if !iconFirst { iconView }
             }
-            .font(.custom("Figtree-SemiBold", size: 14))
+            .font(.custom("Figtree-SemiBold", size: compact ? 11 : 14))
             .foregroundStyle(AngroveTheme.Colors.lightGreen)
             .frame(minHeight: 21)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)

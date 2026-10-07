@@ -11,6 +11,7 @@ struct PhotoAttachmentControl: View {
     let onPhoto: () -> Void
     let onFile: () -> Void
     let onInsights: () -> Void
+    let onPassages: () -> Void
     @State private var isMenuOpen = false
     @State private var pendingAction: Task<Void, Never>?
 
@@ -43,7 +44,8 @@ struct PhotoAttachmentControl: View {
                 onCamera: { select(onCamera) },
                 onPhoto: { select(onPhoto) },
                 onFile: { select(onFile) },
-                onInsights: { select(onInsights) }
+                onInsights: { select(onInsights) },
+                onPassages: { select(onPassages) }
             )
             .presentationCompactAdaptation(.popover)
         }
@@ -79,6 +81,7 @@ private struct AttachmentActionsMenu: View {
     let onPhoto: () -> Void
     let onFile: () -> Void
     let onInsights: () -> Void
+    let onPassages: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -86,6 +89,7 @@ private struct AttachmentActionsMenu: View {
             AttachmentActionRow(title: "Photo", icon: "photo", action: onPhoto)
             AttachmentActionRow(title: "File", icon: "doc", action: onFile)
             AttachmentActionRow(title: "Insights", icon: "text.bubble", action: onInsights)
+            AttachmentActionRow(title: "Passages", icon: "books.vertical", action: onPassages)
         }
         .padding(8)
         .frame(width: 200)

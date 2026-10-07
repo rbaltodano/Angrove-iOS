@@ -22,6 +22,25 @@ enum InsightLibraryStore {
     }
 }
 
+/// Persisted library excerpts saved from passage quote cards.
+enum ClippedPassageStore {
+    private static let storeKey = "aquinas.library.clipped-passages.v1"
+
+    static func load() -> [ConceptDefinition] {
+        (InsightTreeLocalStateStore.load([ConceptDefinition].self, key: storeKey) ?? [])
+            .filter(\.isLibraryQuote)
+    }
+
+    static func save(_ passages: [ConceptDefinition]) {
+        var seen = Set<String>()
+        let unique = passages.filter { passage in
+            let key = "\(passage.word.lowercased())\u{1f}\(passage.semanticDefinition.lowercased())"
+            return passage.isLibraryQuote && seen.insert(key).inserted
+        }
+        InsightTreeLocalStateStore.save(unique, key: storeKey)
+    }
+}
+
 /// The last bookmark collection the user explicitly accepted for the Global Insight Tree.
 ///
 /// Keeping this separate from `InsightLibraryStore` lets saving remain immediate while the

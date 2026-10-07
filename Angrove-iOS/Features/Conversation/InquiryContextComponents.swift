@@ -28,17 +28,18 @@ struct BranchContextChip: View {
     private var isInsightChip: Bool {
         icon == "text.bubble" || icon == "text.bubble.fill"
     }
+    private var isLibraryChip: Bool { icon == "books.vertical" }
 
     private var labelContents: some View {
         HStack(spacing: 6) {
             Image(systemName: icon)
-                .font(.system(size: isInsightChip ? 14 : 12, weight: .bold))
+                .font(.system(size: (isInsightChip || isLibraryChip) ? 14 : 12, weight: .bold))
                 .foregroundColor(AngroveTheme.Colors.darkGreen)
                 .rotationEffect(icon == "arrow.triangle.branch" ? .degrees(90) : .degrees(0))
                 .id(icon)
                 .sfSymbolDrawOn(delay: appearDelay + 0.25)
             Text(title)
-                .font(isInsightChip ? .figtreeHeading2 : .figtreeChipLabel)
+                .font((isInsightChip || isLibraryChip) ? .figtreeHeading2 : .figtreeChipLabel)
                 .foregroundColor(AngroveTheme.Colors.darkGreen)
                 .lineLimit(1)
         }
@@ -51,7 +52,7 @@ struct BranchContextChip: View {
                 paddedLabelContents
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Open \(title) Insight")
+            .accessibilityLabel("Open \(title) \(isLibraryChip ? "Library quote" : "Insight")")
         } else {
             paddedLabelContents
         }

@@ -467,7 +467,7 @@ enum AngroveSystemNotifications {
             .removePendingNotificationRequests(withIdentifiers: [dailyQuestionIdentifier])
     }
 
-    static func postCompletedResponse(title: String) {
+    static func postCompletedResponse(title: String, body: String) {
         guard PrivatePreferences.standard.bool(
             forKey: SettingsStorageKey.completedResponseNotifications
         ) else {
@@ -475,8 +475,8 @@ enum AngroveSystemNotifications {
         }
 
         let content = UNMutableNotificationContent()
-        content.title = "Response Ready"
-        content.body = title
+        content.title = title
+        content.body = body
         content.sound = .default
 
         let request = UNNotificationRequest(
