@@ -129,6 +129,6 @@ struct ResponseCitationTests {
     func locatorLabels() {
         #expect(LibraryPassageLocator.label(sourceID: "web-bible", chunkIndex: 3762) == "John 14")
         #expect(LibraryPassageLocator.label(sourceID: "aristotle-nicomachean-ethics", chunkIndex: 170)
-            == "Nicomachean Ethics, Book V")
+            == "Nicomachean Ethics, Book Five")
     }
 }
