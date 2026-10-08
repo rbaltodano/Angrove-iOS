@@ -306,9 +306,35 @@ struct LibraryHomeView: View {
     @Binding var searchText: String
     let onOpenWork: (LibraryWork) -> Void
     let onOpenPassage: (LibraryFeaturedPassage) -> Void
+    /// Opens the work being read aloud at the page being read.
+    var onOpenReading: (LibraryWork) -> Void = { _ in }
     var clippedPassages: [ConceptDefinition] = []
     var onRemoveClippedPassage: (ConceptDefinition) -> Void = { _ in }
     var onAskClippedPassage: (ConceptDefinition) -> Void = { _ in }
+
+    private var speech = ResponseSpeechPlayer.shared
+
+    init(
+        catalog: LibraryCatalog?,
+        recentWorkIDs: [String],
+        searchText: Binding<String>,
+        onOpenWork: @escaping (LibraryWork) -> Void,
+        onOpenPassage: @escaping (LibraryFeaturedPassage) -> Void,
+        onOpenReading: @escaping (LibraryWork) -> Void = { _ in },
+        clippedPassages: [ConceptDefinition] = [],
+        onRemoveClippedPassage: @escaping (ConceptDefinition) -> Void = { _ in },
+        onAskClippedPassage: @escaping (ConceptDefinition) -> Void = { _ in }
+    ) {
+        self.catalog = catalog
+        self.recentWorkIDs = recentWorkIDs
+        _searchText = searchText
+        self.onOpenWork = onOpenWork
+        self.onOpenPassage = onOpenPassage
+        self.onOpenReading = onOpenReading
+        self.clippedPassages = clippedPassages
+        self.onRemoveClippedPassage = onRemoveClippedPassage
+        self.onAskClippedPassage = onAskClippedPassage
+    }
 
     private var isSearching: Bool {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -361,6 +387,15 @@ struct LibraryHomeView: View {
     private func homeSections(_ catalog: LibraryCatalog) -> some View {
         let recentWorks = recentWorkIDs.compactMap { id in catalog.works.first { $0.id == id } }
         return VStack(alignment: .leading, spacing: 48) {
+            // The work being read aloud comes first, so it is one tap from the page being read.
+            if speech.phase != .idle,
+               let workID = speech.activeLibraryWorkID,
+               let work = catalog.works.first(where: { $0.id == workID }) {
+                LibraryListeningCard(work: work) { onOpenReading(work) }
+                    .padding(.horizontal, 24)
+                    .transition(.blurFadeShrink)
+            }
+
             if !clippedPassages.isEmpty {
                 ClippedPassagesShelf(
                     passages: clippedPassages,
@@ -391,6 +426,81 @@ struct LibraryHomeView: View {
         }
         // Clipping or unclipping a passage animates it in or out of the stack.
         .animation(.springQuick, value: clippedPassages.map(\.id))
+        .animation(.springQuick, value: speech.activeLibraryWorkID)
+    }
+}
+
+/// A speaker beside a work whose page is being read aloud.
+struct LibrarySpeakingIndicator: View {
+    let workID: String
+    private var speech = ResponseSpeechPlayer.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(workID: String) {
+        self.workID = workID
+    }
+
+    var body: some View {
+        if speech.activeLibraryWorkID == workID, speech.phase != .idle {
+            Image(systemName: "speaker.wave.2.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(AngroveTheme.Colors.accentGreen)
+                .symbolEffect(.variableColor.iterative, isActive: speech.phase == .speaking && !speech.isPaused && !reduceMotion)
+                .accessibilityLabel("Reading aloud")
+        }
+    }
+}
+
+/// The work being read aloud, at the top of the Library.
+private struct LibraryListeningCard: View {
+    let work: LibraryWork
+    let action: () -> Void
+    private var speech = ResponseSpeechPlayer.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(work: LibraryWork, action: @escaping () -> Void) {
+        self.work = work
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: "speaker.wave.2.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(AngroveTheme.Colors.accentGreen)
+                    .symbolEffect(.variableColor.iterative, isActive: speech.phase == .speaking && !speech.isPaused && !reduceMotion)
+                    .frame(width: 22)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("LISTENING")
+                        .font(.custom("Figtree-Bold", size: 10))
+                        .tracking(1.2)
+                        .foregroundStyle(AngroveTheme.Colors.accentGreen)
+                    Text(work.title)
+                        .font(.custom("LibreBaskerville-Regular", size: 18))
+                        .foregroundStyle(AngroveTheme.Colors.headingText)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(2)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(AngroveTheme.Colors.placeholderText)
+            }
+            .padding(20)
+            .background(AngroveTheme.Colors.canvasSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(AngroveTheme.Colors.controlBorder, lineWidth: 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Listening to \(work.title)")
+        .accessibilityHint("Opens the page being read")
     }
 }
 
@@ -601,10 +711,14 @@ private struct LibraryBookCover: View {
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 0) {
-                Image(systemName: subject.systemImage)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(AngroveTheme.Colors.lightGreen)
-                    .frame(height: 20, alignment: .leading)
+                HStack {
+                    Image(systemName: subject.systemImage)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(AngroveTheme.Colors.lightGreen)
+                    Spacer(minLength: 4)
+                    LibrarySpeakingIndicator(workID: work.id)
+                }
+                .frame(height: 20, alignment: .leading)
 
                 Spacer(minLength: 12)
 
@@ -705,6 +819,7 @@ private struct LibraryIndexRow: View {
                     .font(AngroveTheme.Typography.chipLabel)
                     .foregroundStyle(AngroveTheme.Colors.placeholderText)
                     .monospacedDigit()
+                LibrarySpeakingIndicator(workID: work.id)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(AngroveTheme.Colors.placeholderText)
@@ -755,6 +870,7 @@ private struct LibrarySearchResultCard: View {
                     Text(subject.title.uppercased())
                         .font(AngroveTheme.Typography.uiLabel)
                     Spacer()
+                    LibrarySpeakingIndicator(workID: work.id)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(AngroveTheme.Colors.placeholderText)

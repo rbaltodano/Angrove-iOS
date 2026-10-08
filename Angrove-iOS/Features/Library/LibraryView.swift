@@ -748,6 +748,7 @@ struct LibraryView: View {
                 searchText: $searchText,
                 onOpenWork: { openWork(id: $0.id) },
                 onOpenPassage: { openWork(id: $0.workID, atChunk: $0.chunkIndex) },
+                onOpenReading: openReading,
                 clippedPassages: clippedPassages,
                 onRemoveClippedPassage: onRemoveClippedPassage,
                 onAskClippedPassage: askAboutClippedPassage
@@ -868,6 +869,18 @@ struct LibraryView: View {
             in: BundledPassageCorpus.bundled()?.passages(forSource: work.id) ?? []
         )
         selectedWorkID = work.id
+    }
+
+    /// Opens the work being read aloud on the page being read, and scrolls to the word.
+    private func openReading(_ work: LibraryWork) {
+        let speech = ResponseSpeechPlayer.shared
+        speech.requestScrollToActiveWord()
+        withAnimation(.springStandard) {
+            applyNavigationRequest(LibraryNavigationRequest(
+                sourceTitle: work.title, sourceName: work.title, sourceID: work.id,
+                readerChunkIndex: speech.activeWord.map { $0 / LibrarySpeech.wordsPerChunk }
+            ))
+        }
     }
 
     private func openScripture(_ target: LibraryTextFormatter.ScriptureTarget) {
