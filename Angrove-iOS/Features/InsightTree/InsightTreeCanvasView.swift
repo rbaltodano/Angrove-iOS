@@ -48,6 +48,8 @@ struct InsightTreeCanvasView: View {
     /// Matches the presentation revision only when that snapshot follows a real mutation.
     var animatedPersistedTreePresentationRevision: Int = 0
     var isHoveringTarget: Bool = false
+    /// Nodes whose generated name is still pending; their label shimmers until it arrives.
+    var namingNodeIDs: Set<UUID> = []
     var isMidpointMode: Bool = false
     var midpointCenterRequest: Int = 0
     var midpointPlaceRequest: Int = 0

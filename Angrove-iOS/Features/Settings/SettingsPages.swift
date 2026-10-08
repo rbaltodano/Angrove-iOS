@@ -3,6 +3,7 @@
 //  Angrove-iOS
 //
 
+import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -543,5 +544,256 @@ struct SettingsInformationView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+}
+
+struct BugReportSettingsView: View {
+    private enum Field { case description, steps, email }
+
+    @State private var description = ""
+    @State private var steps = ""
+    @State private var replyEmail = ""
+    @State private var isSending = false
+    @State private var hasSent = false
+    @State private var hasFailed = false
+    @State private var statusMessage = ""
+    @FocusState private var focusedField: Field?
+
+    private var canSend: Bool {
+        !isSending && !hasSent
+            && !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        SettingsDetailScaffold(title: "Report a Bug") {
+            VStack(alignment: .leading, spacing: 24) {
+                HStack(alignment: .top, spacing: 14) {
+                    Image(systemName: "lock.shield")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(AngroveTheme.Colors.accentGreen)
+                        .frame(width: 24, height: 24)
+                        .accessibilityHidden(true)
+                    Text("Tell us what went wrong. Your report and basic app details go to the Angrove bug report inbox. Please leave out passwords or private conversations.")
+                        .settingsText(.paragraph)
+                        .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                reportField(
+                    title: "What happened?",
+                    badge: "Required",
+                    isFocused: focusedField == .description
+                ) {
+                    multilineInput(
+                        text: $description,
+                        prompt: "Describe the problem you ran into",
+                        minHeight: 140,
+                        field: .description,
+                        label: "What happened?"
+                    )
+                }
+
+                reportField(
+                    title: "Steps to reproduce",
+                    badge: "Optional",
+                    isFocused: focusedField == .steps
+                ) {
+                    multilineInput(
+                        text: $steps,
+                        prompt: "What did you do right before it happened?",
+                        minHeight: 100,
+                        field: .steps,
+                        label: "Steps to reproduce, optional"
+                    )
+                }
+
+                reportField(
+                    title: "Your email",
+                    badge: "Optional",
+                    footnote: "Only if you’d like a reply.",
+                    isFocused: focusedField == .email
+                ) {
+                    TextField("you@example.com", text: $replyEmail)
+                        .settingsText(.control)
+                        .foregroundStyle(AngroveTheme.Colors.primaryReadable)
+                        .textContentType(.emailAddress)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .focused($focusedField, equals: .email)
+                        .accessibilityLabel("Your email, optional")
+                }
+
+                VStack(alignment: .leading, spacing: 14) {
+                    Button(action: sendReport) {
+                        HStack(spacing: 10) {
+                            Image(systemName: hasSent ? "checkmark.circle" : "paperplane")
+                            Text(isSending ? "Sending…" : hasSent ? "Report Sent" : "Send Report")
+                                .settingsText(.label)
+                        }
+                        .foregroundStyle(AngroveTheme.Colors.onAccent)
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .background(AngroveTheme.Colors.darkGreen)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canSend)
+                    .opacity(canSend || hasSent || isSending ? 1 : 0.55)
+
+                    if !statusMessage.isEmpty {
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: hasFailed ? "exclamationmark.circle" : hasSent ? "checkmark.circle" : "ellipsis.circle")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(hasFailed ? AngroveTheme.Colors.accentRed : AngroveTheme.Colors.accentGreen)
+                                .accessibilityHidden(true)
+                            Text(statusMessage)
+                                .settingsText(.paragraph)
+                                .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityAddTraits(.updatesFrequently)
+                    }
+                }
+            }
+            .animation(.springQuick, value: statusMessage)
+        }
+    }
+
+    /// A label above a bordered input that picks up the accent color while focused.
+    private func reportField<Input: View>(
+        title: LocalizedStringResource,
+        badge: LocalizedStringResource,
+        footnote: LocalizedStringResource? = nil,
+        isFocused: Bool,
+        @ViewBuilder input: () -> Input
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title)
+                    .settingsText(.label)
+                    .foregroundStyle(AngroveTheme.Colors.headingText)
+                Spacer(minLength: 8)
+                Text(badge)
+                    .font(.custom("Figtree-Bold", size: 12))
+                    .foregroundStyle(AngroveTheme.Colors.paragraphText.opacity(0.7))
+            }
+
+            input()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(AngroveTheme.Colors.canvasSecondary)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(
+                            isFocused ? AngroveTheme.Colors.accentGreen : AngroveTheme.Colors.controlBorder,
+                            lineWidth: isFocused ? 1.5 : 1
+                        )
+                }
+                .animation(.springQuick, value: isFocused)
+
+            if let footnote {
+                Text(footnote)
+                    .settingsText(.paragraph)
+                    .foregroundStyle(AngroveTheme.Colors.paragraphText.opacity(0.8))
+            }
+        }
+    }
+
+    private func multilineInput(
+        text: Binding<String>,
+        prompt: LocalizedStringResource,
+        minHeight: CGFloat,
+        field: Field,
+        label: String
+    ) -> some View {
+        TextEditor(text: text)
+            .settingsText(.control)
+            .foregroundStyle(AngroveTheme.Colors.primaryReadable)
+            .scrollContentBackground(.hidden)
+            .focused($focusedField, equals: field)
+            .frame(minHeight: minHeight)
+            .padding(.horizontal, -5)
+            .padding(.vertical, -8)
+            .overlay(alignment: .topLeading) {
+                if text.wrappedValue.isEmpty {
+                    Text(prompt)
+                        .settingsText(.control)
+                        .foregroundStyle(AngroveTheme.Colors.paragraphText.opacity(0.55))
+                        .allowsHitTesting(false)
+                }
+            }
+            .accessibilityLabel(label)
+    }
+
+    private func sendReport() {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "Unknown"
+        let build = info?["CFBundleVersion"] as? String ?? "Unknown"
+        let system = ProcessInfo.processInfo.operatingSystemVersionString
+        let trimmedSteps = steps.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedEmail = replyEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        var fields = [
+            "_subject": "Angrove bug report",
+            "description": description.trimmingCharacters(in: .whitespacesAndNewlines),
+            "steps": trimmedSteps.isEmpty ? "Not provided" : trimmedSteps,
+            "app_version": version,
+            "app_build": build,
+            "operating_system": system
+        ]
+        if !trimmedEmail.isEmpty {
+            fields["_replyto"] = trimmedEmail
+        }
+
+        isSending = true
+        hasFailed = false
+        focusedField = nil
+        statusMessage = "Sending your report…"
+        Task { @MainActor in
+            do {
+                try await BugReportSubmission.send(fields: fields)
+                hasSent = true
+                description = ""
+                steps = ""
+                replyEmail = ""
+                statusMessage = "Thanks. Your report was sent to the Angrove team."
+            } catch {
+                hasFailed = true
+                statusMessage = "We couldn’t send your report. Check your connection and try again, or email bugreport@angrove.app directly."
+            }
+            isSending = false
+        }
+    }
+}
+
+private enum BugReportSubmission {
+    private static let endpoint = URL(string: "https://formspree.io/f/xnpjppgj")!
+
+    static func send(fields: [String: String]) async throws {
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = multipartBody(fields: fields, boundary: boundary)
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
+    private static func multipartBody(fields: [String: String], boundary: String) -> Data {
+        var body = Data()
+        for key in fields.keys.sorted() {
+            guard let value = fields[key] else { continue }
+            body.append(Data("--\(boundary)\r\n".utf8))
+            body.append(Data("Content-Disposition: form-data; name=\"\(key)\"\r\n\r\n".utf8))
+            body.append(Data("\(value)\r\n".utf8))
+        }
+        body.append(Data("--\(boundary)--\r\n".utf8))
+        return body
     }
 }

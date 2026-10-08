@@ -24,7 +24,7 @@ struct SideMenuRow: View {
                     if showsIcon {
                         Image(systemName: icon)
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(AngroveTheme.Colors.headingText)
+                            .foregroundColor(AngroveTheme.Colors.accentGreen)
                             .frame(width: 16, height: 16)
                             .sfSymbolDrawOn()
                     } else {
@@ -90,8 +90,12 @@ struct SideMenuRow: View {
             return
         }
 
-        showsIcon = false
-        showsText = false
+        // Reset instantly: this runs inside the panel's opening transaction, which
+        // would otherwise animate the stale contents out before they fade back in.
+        SideMenuEntrance.withoutAnimation {
+            showsIcon = false
+            showsText = false
+        }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
             guard entranceRunID == runID, isPresented else { return }
@@ -302,7 +306,7 @@ struct ConversationMenuRow: View {
             return
         }
 
-        isVisible = false
+        SideMenuEntrance.withoutAnimation { isVisible = false }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
             guard entranceRunID == runID, isPresented else { return }
@@ -341,7 +345,7 @@ struct StudyTopicMenuRow: View {
             HStack(spacing: 12) {
                 Image(systemName: "square.stack")
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(AngroveTheme.Colors.lightGreen)
+                    .foregroundColor(AngroveTheme.Colors.accentGreen)
                     .frame(width: 16, height: 16)
                     .sfSymbolDrawOn()
 
@@ -452,7 +456,7 @@ struct StudyTopicMenuRow: View {
             isVisible = true
             return
         }
-        isVisible = false
+        SideMenuEntrance.withoutAnimation { isVisible = false }
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
             guard entranceRunID == runID, isPresented else { return }
             withAnimation(.easeOut(duration: 0.30)) { isVisible = true }

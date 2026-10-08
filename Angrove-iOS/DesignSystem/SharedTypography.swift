@@ -31,7 +31,7 @@ enum AngroveTheme {
             dark: 0xFFFAF0,
             darkAlpha: 0.25
         )
-        static let lightGreen = Color(light: 0x86803E, dark: 0xB7AE78)
+        static let lightGreen = Color(UIColor.angroveLinkGreen)
         static let accentGreen = Color(light: 0xA28F1E, dark: 0xB7AE78)
         static let darkGreen = Color(light: 0x6F6844, dark: 0xB7AE78)
         static let primaryBrown = Color(light: 0x4A321C, dark: 0xFFFAF0)
@@ -284,6 +284,7 @@ extension Color {
 
 extension UIColor {
     static let angroveAccent = UIColor(light: 0xAF4949, dark: 0xAF4949)
+    static let angroveLinkGreen = UIColor(light: 0x86803E, dark: 0xB7AE78)
     /// Primary readable text — warm brown in light, warm cream in dark.
     /// Prefer this over UIColor(AngroveTheme.Colors.primaryReadable) for UIKit
     /// text-color properties; the Color→UIColor round-trip can freeze at the

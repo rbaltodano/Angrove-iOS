@@ -22,6 +22,8 @@ LocalModels/
 Angrove-iOS/LocalModels/
 LocalGrounding/
 Angrove-iOS/LocalGrounding/
+Angrove-iOS/LibraryDocuments/
+output/library-source-cache/
 
 # Swift Package Manager
 .swiftpm/

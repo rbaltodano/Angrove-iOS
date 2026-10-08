@@ -108,6 +108,7 @@ struct DynamicInsightSheetCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("“\(concept.semanticDefinition)”")
                     .paragraphFont()
+                    .lineSpacing(FlowLayout.rowSpacing)
                     .italic()
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -115,8 +116,11 @@ struct DynamicInsightSheetCard: View {
                 if let attribution = concept.libraryAttribution {
                     Text(attribution)
                         .paragraphFont()
+                        .lineSpacing(FlowLayout.rowSpacing)
                         .foregroundStyle(AngroveTheme.Colors.placeholderText)
+                        .multilineTextAlignment(.trailing)
                         .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
         }

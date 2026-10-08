@@ -93,6 +93,12 @@ enum ModelTaskOriginPage: Hashable {
     case studyTopics
 }
 
+/// Shared work identity survives recreation of the view that requested it. Response analysis
+/// intentionally has no shared key: each completed turn needs its own mapping job.
+enum ModelTaskWorkKey: Hashable {
+    case insightTreeCluster(scope: UUID?, nodeID: UUID)
+}
+
 enum FunModelStatusCopy {
     static let general = [
         "Uhhh...",
@@ -190,10 +196,12 @@ final class ModelTaskQueue {
         let originPage: ModelTaskOriginPage
         let conversationID: UUID?
         let priority: ModelTaskPriority
+        let workKey: ModelTaskWorkKey?
         let funStatusText: String?
         let funLoadingStatusText: String?
         let onStart: () -> Void
-        let onCancel: () -> Void
+        var onCancel: () -> Void
+        var onCompletion: () -> Void
         let operation: () async -> Void
     }
 
@@ -257,10 +265,23 @@ final class ModelTaskQueue {
         conversationID: UUID? = nil,
         priority: ModelTaskPriority = .foreground,
         runsNext: Bool = false,
+        workKey: ModelTaskWorkKey? = nil,
         onStart: @escaping () -> Void = {},
         onCancel: @escaping () -> Void = {},
+        onCompletion: @escaping () -> Void = {},
         operation: @escaping () async -> Void
     ) -> UUID {
+        if let workKey {
+            if var job = currentJob, job.workKey == workKey {
+                join(&job, onCancel: onCancel, onCompletion: onCompletion)
+                currentJob = job
+                return job.id
+            }
+            if let index = waitingJobs.firstIndex(where: { $0.workKey == workKey }) {
+                join(&waitingJobs[index], onCancel: onCancel, onCompletion: onCompletion)
+                return waitingJobs[index].id
+            }
+        }
         completedTasksClearTask?.cancel()
         completedTasksClearTask = nil
         if let branchID = kind.userQuestionBranchID {
@@ -277,6 +298,7 @@ final class ModelTaskQueue {
             originPage: originPage ?? kind.defaultOriginPage,
             conversationID: conversationID,
             priority: priority,
+            workKey: workKey,
             funStatusText: personality == .fun
                 ? FunModelStatusCopy.randomStatus(for: kind)
                 : nil,
@@ -285,6 +307,7 @@ final class ModelTaskQueue {
                 : nil,
             onStart: onStart,
             onCancel: onCancel,
+            onCompletion: onCompletion,
             operation: operation
         )
         if priority == .foreground,
@@ -303,6 +326,17 @@ final class ModelTaskQueue {
         publishUpcomingTasks()
         startNextIfNeeded()
         return job.id
+    }
+
+    private func join(
+        _ job: inout Job,
+        onCancel: @escaping () -> Void,
+        onCompletion: @escaping () -> Void
+    ) {
+        let previousCancel = job.onCancel
+        let previousCompletion = job.onCompletion
+        job.onCancel = { previousCancel(); onCancel() }
+        job.onCompletion = { previousCompletion(); onCompletion() }
     }
 
     func contains(where predicate: (ModelTaskSnapshot) -> Bool) -> Bool {
@@ -499,6 +533,7 @@ final class ModelTaskQueue {
         currentJob = nil
         currentTask = nil
         runningTask = nil
+        job.onCompletion()
         startNextIfNeeded()
     }
 

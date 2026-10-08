@@ -435,6 +435,7 @@ extension InsightTreeCanvasView {
         InsightTreeCanvasConceptNode(
             title: node.conceptLabel,
             isSuggested: node.isSuggested,
+            isNaming: namingNodeIDs.contains(node.id),
             isUndiscovered: undiscoveredNodeIDs.contains(node.id),
             hasAppeared: hasAppeared,
             labelOpacity: labelOpacity,

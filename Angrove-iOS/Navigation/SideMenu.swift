@@ -436,8 +436,10 @@ struct AngroveSideMenu: View, Equatable {
             return
         }
 
-        showsTitle = false
-        showsOpenConversationsTitle = false
+        SideMenuEntrance.withoutAnimation {
+            showsTitle = false
+            showsOpenConversationsTitle = false
+        }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             withAnimation(.easeOut(duration: 0.32)) {
@@ -467,6 +469,13 @@ enum SideMenuEntrance {
 
     static var isScrollRecycle: Bool {
         Date().timeIntervalSince(openedAt) > 1.2
+    }
+
+    /// Hides entrance content before it animates in, outside the panel's opening animation.
+    static func withoutAnimation(_ changes: () -> Void) {
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction, changes)
     }
 }
 
@@ -512,7 +521,7 @@ private struct FooterDivider: View {
             return
         }
 
-        showsDivider = false
+        SideMenuEntrance.withoutAnimation { showsDivider = false }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
             guard entranceRunID == runID, isPresented else { return }

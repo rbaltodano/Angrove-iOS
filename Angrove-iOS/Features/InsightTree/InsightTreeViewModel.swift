@@ -87,6 +87,9 @@ final class InsightTreeViewModel: ObservableObject {
     }
     private var generatedClusterLabels: [UUID: String] = [:]
     private var clusterLabelGenerationInFlight: Set<UUID> = []
+    /// Auto-clustered Nodes still waiting on a generated name, so the canvas can shimmer their
+    /// provisional label. Cleared the moment the name lands, before the definition follows.
+    @Published private(set) var namingClusterIDs: Set<UUID> = []
     /// Real generated definitions for auto-clustered Nodes, keyed by cluster id — requested right
     /// after the label (see `requestClusterLabels`). Until it arrives, the Node's docked card
     /// falls back to `DockedNodeTreeCard.summaryText`.
@@ -752,23 +755,37 @@ final class InsightTreeViewModel: ObservableObject {
             let needsLabel = existingLabel.map {
                 NodeConceptLabelPolicy.repeatsInsightTitle($0, insightTitles: cluster.insights.map(\.title))
             } ?? true
-            guard !subjects.isEmpty, needsLabel,
+            let needsDefinition = generatedClusterLabels[cluster.id] != nil
+                && generatedClusterDefinitions[cluster.id] == nil
+            guard !subjects.isEmpty, needsLabel || needsDefinition,
                   clusterLabelGenerationInFlight.insert(cluster.id).inserted else { continue }
             let nodeID = cluster.id
+            if needsLabel { namingClusterIDs.insert(nodeID) }
             modelTasks.enqueue(
                 kind: .labelInsightTree,
                 originPage: modelTaskOriginPage,
                 conversationID: midpointStoreScope,
                 priority: .background,
+                workKey: .insightTreeCluster(scope: midpointStoreScope, nodeID: nodeID),
                 onCancel: { [weak self] in
                     self?.clusterLabelGenerationInFlight.remove(nodeID)
+                    self?.namingClusterIDs.remove(nodeID)
+                },
+                onCompletion: { [weak self] in
+                    self?.clusterLabelGenerationInFlight.remove(nodeID)
+                    self?.namingClusterIDs.remove(nodeID)
+                    self?.reloadGeneratedClusterContent()
                 }
-            ) { [weak self] in
-                guard let self else { return }
+            ) { [self] in
+                // The queue owns this work even when its original canvas closes. Reopened
+                // instances join the same job and read its persisted result on completion.
                 // Preemption preserves the job for retry. Only explicit cancellation (above)
                 // or a finished attempt releases the dedupe reservation.
                 defer {
-                    if !Task.isCancelled { clusterLabelGenerationInFlight.remove(nodeID) }
+                    if !Task.isCancelled {
+                        clusterLabelGenerationInFlight.remove(nodeID)
+                        namingClusterIDs.remove(nodeID)
+                    }
                 }
                 guard nodes.contains(where: { $0.id == nodeID }) else { return }
                 do {
@@ -792,12 +809,13 @@ final class InsightTreeViewModel: ObservableObject {
                     guard NodeConceptLabelPolicy.isValid(label, insightTitles: nodes[index].insights.map(\.title)) else { return }
                     if generatedClusterLabels[nodeID] != label {
                         generatedClusterDefinitions.removeValue(forKey: nodeID)
-                        persistClusterDefinitions()
+                        persistClusterDefinitions(for: nodeID)
                         nodes[index].definition = ""
                     }
                     generatedClusterLabels[nodeID] = label
-                    persistClusterLabels()
+                    persistClusterLabels(for: nodeID)
                     nodes[index].conceptLabel = label
+                    namingClusterIDs.remove(nodeID)
                     if selectedNode?.id == nodeID {
                         selectedNode?.conceptLabel = label
                         selectedNode?.definition = nodes[index].definition
@@ -821,7 +839,7 @@ final class InsightTreeViewModel: ObservableObject {
         guard !concept.meaning.isEmpty,
               let index = nodes.firstIndex(where: { $0.id == nodeID }) else { return }
         generatedClusterDefinitions[nodeID] = concept.meaning
-        persistClusterDefinitions()
+        persistClusterDefinitions(for: nodeID)
         nodes[index].definition = concept.meaning
         if selectedNode?.id == nodeID {
             selectedNode?.definition = concept.meaning
@@ -1379,22 +1397,41 @@ final class InsightTreeViewModel: ObservableObject {
         }
     }
 
-    private func persistClusterLabels() {
-        let stored = Dictionary(
-            uniqueKeysWithValues: generatedClusterLabels.map {
-                ($0.key.uuidString, $0.value)
-            }
-        )
+    private func persistClusterLabels(for nodeID: UUID) {
+        var stored = InsightTreeLocalStateStore.load([String: String].self, key: Self.clusterLabelStoreKey) ?? [:]
+        stored[nodeID.uuidString] = generatedClusterLabels[nodeID]
         InsightTreeLocalStateStore.save(stored, key: Self.clusterLabelStoreKey)
     }
 
-    private func persistClusterDefinitions() {
-        let stored = Dictionary(
-            uniqueKeysWithValues: generatedClusterDefinitions.map {
-                ($0.key.uuidString, $0.value)
-            }
-        )
+    private func persistClusterDefinitions(for nodeID: UUID) {
+        var stored = InsightTreeLocalStateStore.load([String: String].self, key: Self.clusterDefinitionStoreKey) ?? [:]
+        stored[nodeID.uuidString] = generatedClusterDefinitions[nodeID]
         InsightTreeLocalStateStore.save(stored, key: Self.clusterDefinitionStoreKey)
+    }
+
+    /// A different instance may own the shared label job. Publish its result to this canvas
+    /// without rebuilding after a failed attempt (which would immediately queue another retry).
+    private func reloadGeneratedClusterContent() {
+        generatedClusterLabels = Self.loadClusterLabels(storageKey: Self.clusterLabelStoreKey)
+        generatedClusterDefinitions = Self.loadClusterLabels(storageKey: Self.clusterDefinitionStoreKey)
+        var changed = false
+        for index in nodes.indices {
+            let id = nodes[index].id
+            if let label = generatedClusterLabels[id], nodes[index].conceptLabel != label {
+                nodes[index].conceptLabel = label
+                changed = true
+            }
+            if let definition = generatedClusterDefinitions[id], nodes[index].definition != definition {
+                nodes[index].definition = definition
+                changed = true
+            }
+        }
+        if let id = selectedNode?.id, let updated = nodes.first(where: { $0.id == id }) {
+            selectedNode = updated
+        }
+        guard changed else { return }
+        scene.render(nodes: nodes, edges: edges, animated: false)
+        refreshEmbeddingsIfNeeded()
     }
 
     private static func loadUUIDMapping(storageKey: String) -> [UUID: UUID] {

@@ -24,9 +24,8 @@ struct ModelResponseCard: View {
     /// The model's current line of reasoning while it thinks; `nil` once it starts answering.
     let liveThought: String?
     let thinkingDurationSeconds: TimeInterval?
-    /// The summary as it stood when the model began thinking. The finished response appends the
-    /// full thought to `thinkingSummary`; without this the live view would flash every line just
-    /// before collapsing.
+    /// The last summary shown during generation. Completion appends the full thought to
+    /// `thinkingSummary`; this snapshot keeps those saved lines out of the outgoing live view.
     @State private var liveSummarySnapshot: [String]?
     /// Retrieved grounding passages for the turn currently generating, rendered as expandable
     /// Source rows in the loading state. Empty once the response is complete.
@@ -61,6 +60,7 @@ struct ModelResponseCard: View {
     @State private var visibleThinkingLineCount: Int = 0
     @State private var isThinkingCollapsing: Bool = false
     @State private var hasStartedFinishThinking: Bool = false
+    @State private var isLiveThinkingVisible: Bool = true
     @State private var thinkingStartedAt: Date
 
     let brandBrown = AngroveTheme.Colors.primaryReadable
@@ -161,6 +161,7 @@ struct ModelResponseCard: View {
         _isThinking = State(initialValue: shouldShowThinking)
         _isThinkingDocked = State(initialValue: !shouldShowThinking)
         _isShowingWritingStatus = State(initialValue: isReceivingStream)
+        _liveSummarySnapshot = State(initialValue: isAwaitingResponse ? thinkingSummary : [])
         _showTitle = State(initialValue: !shouldAnimateOnAppear)
         _showResponseContent = State(initialValue: !shouldAnimateOnAppear)
         _thinkingStartedAt = State(initialValue: Date())
@@ -182,7 +183,7 @@ struct ModelResponseCard: View {
                     // ── "Thinking…" / expandable thinking summary ─────────────
                     if isThinking {
                         LiveThinkingProgressView(
-                            summaryLines: liveSummarySnapshot ?? thinkingSummary,
+                            summaryLines: isAwaitingResponse ? thinkingSummary : (liveSummarySnapshot ?? []),
                             liveThought: liveThought,
                             groundingSources: groundingSources,
                             isWritingResponse: isShowingWritingStatus,
@@ -193,6 +194,7 @@ struct ModelResponseCard: View {
                             startedAt: thinkingStartedAt,
                             responseTextAlignment: responseTextAlignment
                         )
+                            .opacity(isLiveThinkingVisible ? 1 : 0)
                             .transition(.opacity.combined(with: .scale(scale: 0.96)))
                     } else if canShowThinkingSummaryButton {
                         Button(action: {
@@ -428,17 +430,18 @@ struct ModelResponseCard: View {
                 isThinkingDocked = true
             }
         }
-        .onChange(of: liveThought != nil) { _, isThinkingLive in
-            if isThinkingLive, liveSummarySnapshot == nil {
-                liveSummarySnapshot = thinkingSummary
-            }
+        .onChange(of: thinkingSummary) { _, summary in
+            // Completion replaces this input with the full saved reasoning. The outgoing
+            // progress view must keep only the summary it displayed during generation.
+            guard isAwaitingResponse else { return }
+            liveSummarySnapshot = summary
         }
         .onChange(of: thinkingSummary.isEmpty) { _, isEmpty in
             // A regenerate clears the summary; start the next answer's snapshot fresh.
             if isEmpty { liveSummarySnapshot = nil }
         }
         .onChange(of: thinkingSummary.count) { _, count in
-            guard count > 0, isThinking else { return }
+            guard count > 0, isThinking, isAwaitingResponse else { return }
             withAnimation(.springStandard) {
                 isThinkingDocked = true
             }
@@ -455,6 +458,8 @@ struct ModelResponseCard: View {
     private func startThinking() {
         thinkingStartedAt = Date()
         hasStartedFinishThinking = false
+        isLiveThinkingVisible = true
+        liveSummarySnapshot = isAwaitingResponse ? thinkingSummary : []
         isThinkingExpanded = false
         isThinkingBasisVisible = false
         isThinkingDescriptionVisible = false
@@ -498,6 +503,13 @@ struct ModelResponseCard: View {
             try? await Task.sleep(for: .milliseconds(Int((minimumVisibleDuration - elapsed) * 1_000)))
             guard !Task.isCancelled else { return }
         }
+        // Fade the existing progress text before changing its layout into the disclosure.
+        // Never briefly render the completed reasoning in this outgoing live view.
+        withAnimation(.easeOut(duration: 0.18)) {
+            isLiveThinkingVisible = false
+        }
+        try? await Task.sleep(for: .milliseconds(180))
+        guard !Task.isCancelled else { return }
         withAnimation(.springRelaxed) {
             isThinkingDocked = true
         }

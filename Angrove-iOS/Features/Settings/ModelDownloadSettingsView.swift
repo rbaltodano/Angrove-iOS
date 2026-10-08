@@ -6,8 +6,10 @@ struct ModelDownloadSettingsView: View {
     var body: some View {
         SettingsDetailScaffold(title: "On-device Model") {
             VStack(alignment: .leading, spacing: AngroveTheme.Spacing.screenPadding) {
-                SettingsControlCard {
-                    ModelDownloadStatusView(delivery: delivery)
+                if delivery.phase != .development {
+                    SettingsControlCard {
+                        ModelDownloadStatusView(delivery: delivery)
+                    }
                 }
                 Text("The 3.66 GB model downloads through Apple during installation. If installation is interrupted, you can finish preparing it here. Once the model is ready, generation runs on your device without a connection.")
                     .font(AngroveTheme.Typography.settingsBody)
@@ -26,41 +28,44 @@ struct ModelDownloadSettingsView: View {
 struct ModelDownloadStatusView: View {
     let delivery: ModelDeliveryState
 
+    @ViewBuilder
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(delivery.phase.title)
-                .font(AngroveTheme.Typography.settingsHeading)
-                .foregroundStyle(AngroveTheme.Colors.headingText)
-                .accessibilityIdentifier("model-delivery-title")
+        if delivery.phase != .development {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(delivery.phase.title)
+                    .font(AngroveTheme.Typography.settingsHeading)
+                    .foregroundStyle(AngroveTheme.Colors.headingText)
+                    .accessibilityIdentifier("model-delivery-title")
 
-            if case let .downloading(completed, total) = delivery.phase, total > 0 {
-                ProgressView(value: delivery.phase.fractionCompleted ?? 0)
-                    .tint(AngroveTheme.Colors.headingText)
-                Text("\(ByteCountFormatter.string(fromByteCount: max(0, completed), countStyle: .file)) of \(ByteCountFormatter.string(fromByteCount: total, countStyle: .file))")
-                    .font(AngroveTheme.Typography.settingsDetail)
-                    .monospacedDigit()
-            } else if delivery.phase.isBusy {
-                ProgressView().tint(AngroveTheme.Colors.headingText)
-                    .accessibilityLabel(delivery.phase.title)
-            }
-
-            Text(explanation)
-                .font(AngroveTheme.Typography.settingsDetail)
-                .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if canRetry {
-                Button(action: delivery.retry) {
-                    Text(retryTitle)
-                        .font(AngroveTheme.Typography.settingsLabel)
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                if case let .downloading(completed, total) = delivery.phase, total > 0 {
+                    ProgressView(value: delivery.phase.fractionCompleted ?? 0)
+                        .tint(AngroveTheme.Colors.headingText)
+                    Text("\(ByteCountFormatter.string(fromByteCount: max(0, completed), countStyle: .file)) of \(ByteCountFormatter.string(fromByteCount: total, countStyle: .file))")
+                        .font(AngroveTheme.Typography.settingsDetail)
+                        .monospacedDigit()
+                } else if delivery.phase.isBusy {
+                    ProgressView().tint(AngroveTheme.Colors.headingText)
+                        .accessibilityLabel(delivery.phase.title)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(AngroveTheme.Colors.headingText)
-                .accessibilityIdentifier("model-delivery-retry")
+
+                Text(explanation)
+                    .font(AngroveTheme.Typography.settingsDetail)
+                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if canRetry {
+                    Button(action: delivery.retry) {
+                        Text(retryTitle)
+                            .font(AngroveTheme.Typography.settingsLabel)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(AngroveTheme.Colors.headingText)
+                    .accessibilityIdentifier("model-delivery-retry")
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var canRetry: Bool {
@@ -88,7 +93,7 @@ struct ModelDownloadStatusView: View {
         case .paused: "iOS paused the download. Check your connection and available storage; it resumes when the system allows."
         case .verifying: "Checking the model before it can be used. This may take a little time."
         case .ready: "The model passed its integrity check. It’s ready for on-device generation."
-        case .development: "This development build uses its local model file. Hosted installation still needs TestFlight verification."
+        case .development: ""
         case let .failed(reason): reason.message
         }
     }

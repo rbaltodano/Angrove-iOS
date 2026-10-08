@@ -9,6 +9,7 @@ import SwiftUI
 
 struct InsightLibraryPopup: View {
     let currentConversationInsights: [ConceptDefinition]
+    let currentConversationPassages: [ConceptDefinition]
     let allInsights: [ConceptDefinition]
     let clippedPassages: [ConceptDefinition]
     @Binding var savedInsights: [ConceptDefinition]
@@ -18,19 +19,21 @@ struct InsightLibraryPopup: View {
     var onToggleSaved: (ConceptDefinition) -> Void
     var onToggleClipped: (ConceptDefinition) -> Void = { _ in }
 
-    @State private var selectedScope: InsightLibraryScope = .currentConversation
+    @State private var selectedScope: InsightLibraryScope?
     @State private var selectedIndex: Int = 0
     @State private var dragOffset: CGFloat = 0
 
+    private var activeScope: InsightLibraryScope {
+        selectedScope ?? (opensPassages ? .all : .currentConversation)
+    }
+
     private var visibleInsights: [ConceptDefinition] {
-        switch selectedScope {
-        case .currentConversation:
-            return currentConversationInsights
-        case .all:
-            return allInsights.filter { !$0.isLibraryQuote }
-        case .passages:
-            return clippedPassages
+        if opensPassages {
+            let passages = activeScope == .all ? clippedPassages : currentConversationPassages
+            return passages.filter(\.isLibraryQuote)
         }
+        let insights = activeScope == .all ? allInsights : currentConversationInsights
+        return insights.filter { !$0.isLibraryQuote }
     }
 
     private var pageCount: Int {
@@ -39,21 +42,24 @@ struct InsightLibraryPopup: View {
 
     var body: some View {
         VStack(spacing: 24) {
-            InsightLibraryScopeTabs(selectedScope: $selectedScope)
+            InsightLibraryScopeTabs(
+                selectedScope: Binding(get: { activeScope }, set: { selectedScope = $0 }),
+                opensPassages: opensPassages
+            )
 
             if visibleInsights.isEmpty {
-                InsightLibraryEmptyState(scope: selectedScope)
+                InsightLibraryEmptyState(scope: activeScope, opensPassages: opensPassages)
                     .frame(maxWidth: .infinity)
             } else {
                 ZStack {
                     ForEach(Array(visibleInsights.enumerated()), id: \.element.id) { index, insight in
                         InsightLibraryCard(
                             insight: insight,
-                            isSaved: selectedScope == .passages ? isClipped(insight) : isSaved(insight),
+                            isSaved: insight.isLibraryQuote ? isClipped(insight) : isSaved(insight),
                             onQuote: { onQuote(insight) },
                             onFork: { onFork(insight) },
                             onToggleSaved: {
-                                if selectedScope == .passages { onToggleClipped(insight) }
+                                if insight.isLibraryQuote { onToggleClipped(insight) }
                                 else { onToggleSaved(insight) }
                             }
                         )
@@ -111,8 +117,10 @@ struct InsightLibraryPopup: View {
         .onChange(of: pageCount) { oldValue, newValue in
             selectedIndex = min(selectedIndex, max(0, newValue - 1))
         }
-        .onAppear {
-            if opensPassages { selectedScope = .passages }
+        .onChange(of: opensPassages) { _, _ in
+            selectedScope = nil
+            selectedIndex = 0
+            dragOffset = 0
         }
     }
 
@@ -142,18 +150,22 @@ struct InsightLibraryPopup: View {
 enum InsightLibraryScope {
     case currentConversation
     case all
-    case passages
 }
 
 private struct InsightLibraryScopeTabs: View {
     @Binding var selectedScope: InsightLibraryScope
+    let opensPassages: Bool
     @Namespace private var selectedTabNamespace
 
     var body: some View {
         HStack(spacing: 0) {
-            tabButton(title: "This Conversation", scope: .currentConversation)
-            tabButton(title: "All", scope: .all)
-            tabButton(title: "Passages", scope: .passages)
+            if opensPassages {
+                tabButton(title: "All", scope: .all)
+                tabButton(title: "This Conversation", scope: .currentConversation)
+            } else {
+                tabButton(title: "This Conversation", scope: .currentConversation)
+                tabButton(title: "All", scope: .all)
+            }
         }
         .padding(6)
         .background(AngroveTheme.Colors.surface)
@@ -233,13 +245,17 @@ struct InsightLibraryCard: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("“\(insight.semanticDefinition)”")
                         .paragraphFont()
+                        .lineSpacing(FlowLayout.rowSpacing)
                         .italic()
                         .foregroundStyle(AngroveTheme.Colors.paragraphText)
                         .fixedSize(horizontal: false, vertical: true)
                     if let attribution = insight.libraryAttribution {
                         Text(attribution)
                             .paragraphFont()
+                            .lineSpacing(FlowLayout.rowSpacing)
                             .foregroundStyle(AngroveTheme.Colors.placeholderText)
+                            .multilineTextAlignment(.trailing)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }
             } else {
@@ -339,25 +355,28 @@ private struct InsightLibraryPager: View {
 
 private struct InsightLibraryEmptyState: View {
     let scope: InsightLibraryScope
+    let opensPassages: Bool
 
     private var title: String {
-        switch scope {
-        case .currentConversation: "No insights in this conversation yet"
-        case .all: "No saved insights yet"
-        case .passages: "No clipped passages yet"
+        if opensPassages {
+            return scope == .all ? "No clipped passages yet" : "No passages in this conversation yet"
         }
+        return scope == .currentConversation ? "No insights in this conversation yet" : "No saved insights yet"
     }
 
     private var message: String {
-        switch scope {
-        case .currentConversation: "Tap an insight link in a response, then save it to collect it here."
-        case .all: "Saved insights will appear here across conversations."
-        case .passages: "Bookmark a passage in the Library to keep it here and add it to a conversation."
+        if opensPassages {
+            return scope == .all
+                ? "Select text in the Library and tap Clip to collect passages here."
+                : "Passages added to this conversation will appear here. Choose All to add a clipped passage."
         }
+        return scope == .currentConversation
+            ? "Tap an insight link in a response, then save it to collect it here."
+            : "Saved insights will appear here across conversations."
     }
 
     private var symbol: String {
-        scope == .passages ? "books.vertical" : "text.bubble"
+        opensPassages ? "books.vertical" : "text.bubble"
     }
 
     var body: some View {

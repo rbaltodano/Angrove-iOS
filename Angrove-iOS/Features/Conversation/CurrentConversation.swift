@@ -693,9 +693,11 @@ struct CurrentConversationView: View {
 
     private func quoteConceptIntoCurrentConversation(_ concept: ConceptDefinition) {
         withAnimation(.springBouncy) {
-            attachedConcept = concept
-            if session.focusedBranchID == nil {
-                session.focusedBranchID = session.activeBranches.first?.id
+            if let branchIndex = session.activeBranches.firstIndex(where: { $0.id == session.focusedBranchID })
+                ?? session.activeBranches.indices.first {
+                session.activeBranches[branchIndex].attachQuote(concept)
+                session.focusedBranchID = session.activeBranches[branchIndex].id
+                attachedConcept = nil
             }
             canvasMode.isTopicCanvasVisible = false
             canvasMode.hasCanvasHover = false
@@ -913,6 +915,7 @@ struct CurrentConversationView: View {
         .sheet(isPresented: $isInsightLibraryOpen) {
             InsightLibraryPopup(
                 currentConversationInsights: currentConversationInsights(),
+                currentConversationPassages: currentConversationPassages(),
                 allInsights: collectedDefinitions,
                 clippedPassages: clippedPassages,
                 savedInsights: $collectedDefinitions,
@@ -1415,6 +1418,15 @@ struct CurrentConversationView: View {
     private var insightLibrarySheetHeight: CGFloat {
         let available = max(viewportSize.height, 1)
         return min(max(insightLibraryPopupHeight, 220), available * 0.86)
+    }
+
+    private func currentConversationPassages() -> [ConceptDefinition] {
+        var passages = ChatBranch.quotedLibraryPassages(in: session.activeBranches)
+        if let attachedConcept, attachedConcept.isLibraryQuote,
+           !passages.contains(where: { $0.id == attachedConcept.id }) {
+            passages.append(attachedConcept)
+        }
+        return passages
     }
 
     private func currentConversationInsights() -> [ConceptDefinition] {
@@ -1974,8 +1986,7 @@ struct CurrentConversationView: View {
         if let attachedConcept,
            let branchIndex = session.activeBranches.firstIndex(where: { $0.id == session.focusedBranchID })
                 ?? session.activeBranches.indices.first {
-            session.activeBranches[branchIndex].attachedConcept = attachedConcept
-            session.activeBranches[branchIndex].showBottomInput = true
+            session.activeBranches[branchIndex].attachQuote(attachedConcept)
             self.attachedConcept = nil
         }
         saveCurrentConversation()
@@ -2131,7 +2142,15 @@ struct CurrentConversationView: View {
         if ["QUESTION OF THE DAY", "TODAY IN HISTORY"].contains(pendingEyebrow), !pendingQuestion.isEmpty {
             freshBranch.pinnedHeaderQuestion = pendingQuestion
         }
-        var fresh = InquiryConversation(isStudyTopic: request.isStudyTopic, studyTopicID: request.topicID)
+        if let quote = request.quote?.insight {
+            freshBranch.attachQuote(quote)
+        }
+        attachedConcept = nil
+        var fresh = InquiryConversation(
+            isStudyTopic: request.isStudyTopic,
+            studyTopicID: request.topicID,
+            branches: [freshBranch]
+        )
         if let pinned = freshBranch.pinnedHeaderQuestion {
             fresh.title = pinned
         }
@@ -2147,7 +2166,6 @@ struct CurrentConversationView: View {
         canvasMode.promotedCanvasInsightIDs = []
         session.focusedBranchID = session.activeBranches.first?.id
         if let quoteRequest = request.quote {
-            attachedConcept = quoteRequest.insight
             // Set regardless of whether this came from a Study Topic or the global Insight
             // Tree (`topicID` nil either way is fine — `InsightConversationQuoteRequest`
             // already models it as optional) — removing the quoted chip should return to

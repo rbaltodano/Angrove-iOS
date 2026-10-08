@@ -393,10 +393,7 @@ private struct SettingsDestinationView: View {
                 UserGuideTopicView(topic: topic, collectedDefinitions: $collectedDefinitions, savedTerms: $guideSavedTerms)
             }
         case .reportBug:
-            SettingsInformationView(
-                title: "Report a Bug",
-                message: "Bug reporting will be connected before release."
-            )
+            BugReportSettingsView()
         }
     }
 }

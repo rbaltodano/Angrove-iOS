@@ -36,6 +36,9 @@ struct HomeDashboardView: View {
     @State private var usageMonth = MonthlyUsageStore.currentMonth()
     @State private var activeInsight: ConceptDefinition? = nil
     @State private var readingWorks: [RecommendedWork] = []
+    /// Embedding every saved Insight is far too slow for `body`, which re-runs on unrelated
+    /// shell changes such as the side menu opening. It is computed off the main actor instead.
+    @State private var bridgeSuggestion: HomeInsightBridgeSuggestion?
 
     private var regularConversations: [InquiryConversation] {
         conversations.filter { !$0.isStudyTopic }
@@ -52,10 +55,6 @@ struct HomeDashboardView: View {
         regularConversations
             .filter(HomeDashboardContent.isUnfinished)
             .filter { $0.id != featuredConversation?.id }
-    }
-
-    private var bridgeSuggestion: HomeInsightBridgeSuggestion? {
-        HomeDashboardContent.bridgeSuggestion(from: savedInsights)
     }
 
     private var displayUserName: String {
@@ -192,6 +191,14 @@ struct HomeDashboardView: View {
             studyTopics = StudyTopicStore.load()
             readingWorks = RecommendedReading.works(for: regularConversations)
             onLoadHomeSections()
+        }
+        .task(id: savedInsights) {
+            let insights = savedInsights
+            let suggestion = await Task.detached(priority: .utility) {
+                HomeDashboardContent.bridgeSuggestion(from: insights)
+            }.value
+            guard !Task.isCancelled else { return }
+            bridgeSuggestion = suggestion
         }
         .onChange(of: regularConversations.count) {
             readingWorks = RecommendedReading.works(for: regularConversations)
@@ -760,7 +767,7 @@ private func figmaUsageColor(for level: Int) -> Color {
 
 // MARK: - Dashboard Content
 
-private struct HomeInsightBridgeSuggestion {
+private nonisolated struct HomeInsightBridgeSuggestion: Sendable {
     let first: ConceptDefinition
     let second: ConceptDefinition
     let distance: Double
@@ -799,7 +806,7 @@ private enum HomeDashboardContent {
         return dailyQuestions[(day - 1) % dailyQuestions.count]
     }
 
-    static func bridgeSuggestion(from insights: [ConceptDefinition]) -> HomeInsightBridgeSuggestion? {
+    nonisolated static func bridgeSuggestion(from insights: [ConceptDefinition]) -> HomeInsightBridgeSuggestion? {
         let embeddedInsights = insights.compactMap { insight -> (ConceptDefinition, [Double])? in
             let title = insight.word.trimmingCharacters(in: .whitespacesAndNewlines)
             let definition = insight.meaning.trimmingCharacters(in: .whitespacesAndNewlines)

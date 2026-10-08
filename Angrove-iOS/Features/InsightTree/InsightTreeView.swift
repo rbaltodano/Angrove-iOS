@@ -513,6 +513,7 @@ struct InsightTreeView: View {
                 animatedPersistedTreePresentationRevision:
                     animatedPersistedTreePresentationRevision,
                 isHoveringTarget: selectedInsight != nil || selectedNode != nil || hoveredConcept != nil,
+                namingNodeIDs: viewModel.namingClusterIDs,
                 isMidpointMode: isMidpointMode,
                 midpointCenterRequest: midpointCenterRequest,
                 midpointPlaceRequest: midpointPlaceRequest,

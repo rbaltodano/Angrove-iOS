@@ -58,6 +58,19 @@ nonisolated struct ChatBranch: Identifiable, Codable, Equatable {
         self.hiddenPromptContext = hiddenPromptContext
     }
 
+    /// Quotes use the current editable question. An unanswered first question never needs
+    /// a second composer just to hold an attachment.
+    mutating func attachQuote(_ concept: ConceptDefinition) {
+        if !topQuestionSubmitted && activeChatBlocks.isEmpty {
+            branchContextConcept = concept
+            attachedConcept = nil
+            showBottomInput = false
+        } else {
+            attachedConcept = concept
+            showBottomInput = true
+        }
+    }
+
     func responsePresentation(at responseIndex: Int) -> ResponsePresentationMetadata? {
         responsePresentations?.first { $0.responseIndex == responseIndex }
     }
@@ -134,6 +147,23 @@ nonisolated struct InquiryConversation: Identifiable, Codable, Equatable {
         self.branches = branches
         self.promotedInsightIDs = promotedInsightIDs
         self.createdAt = createdAt
+    }
+}
+
+extension InquiryConversation {
+    /// The side menu's Current Topic label for a conversation started from a Home daily
+    /// prompt, read from the root branch's persisted prompt source tag.
+    var dailyPromptTopicTitle: String? {
+        guard let context = branches.first(where: { $0.parentBranchID == nil })?.hiddenPromptContext else {
+            return nil
+        }
+        if context.localizedCaseInsensitiveContains("<question of the day>") {
+            return String(localized: "Question of the Day")
+        }
+        if context.localizedCaseInsensitiveContains("<today in history>") {
+            return String(localized: "Today in History")
+        }
+        return nil
     }
 }
 
@@ -286,6 +316,25 @@ extension ChatBranch {
                 case .text(let text):
                     InlineInsightMarkup.insights(in: text).forEach(add)
                 }
+            }
+        }
+        return result
+    }
+
+    /// Passage identity is the quote's ID: several excerpts from the same work stay distinct.
+    static func quotedLibraryPassages(in branches: [ChatBranch]) -> [ConceptDefinition] {
+        var seen = Set<UUID>()
+        var result: [ConceptDefinition] = []
+        func add(_ concept: ConceptDefinition) {
+            guard concept.isLibraryQuote, seen.insert(concept.id).inserted else { return }
+            result.append(concept)
+        }
+        for branch in branches {
+            [branch.startingConcept, branch.branchContextConcept, branch.attachedConcept]
+                .compactMap { $0 }
+                .forEach(add)
+            for block in branch.activeChatBlocks {
+                if case .user(_, let concept?, _) = block { add(concept) }
             }
         }
         return result

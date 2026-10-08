@@ -390,7 +390,6 @@ struct ChatThreadColumn: View {
             && branchData.activeChatBlocks.isEmpty
             && !branchData.showBottomInput
             && visibleUploads.isEmpty
-            && quotedConcept == nil
             && localConnectionConcepts == nil
     }
 
@@ -1043,6 +1042,10 @@ struct ChatThreadColumn: View {
     }
 
     // Locks the first branch question, uploads, and context chip.
+    private func attachQuotedConcept(_ concept: ConceptDefinition) {
+        branchData.attachQuote(concept)
+    }
+
     private func submitTopQuestionIfNeeded() {
         // Flush the UITextView's live buffer into the binding synchronously.
         // Because we stopped per-keystroke binding writes, the relay is the only
@@ -1092,6 +1095,9 @@ struct ChatThreadColumn: View {
         }
         withAnimation(.springLively) {
             branchData.topQuestionSubmitted = true
+        }
+        if branchData.branchContextConcept != nil {
+            onQuotedConceptSubmitted()
         }
         onTopQuestionSubmitted()
         appendSimulatedResponse {
@@ -1257,7 +1263,27 @@ struct ChatThreadColumn: View {
     }
 
     private var newConversationQuestionField: some View {
-        VStack(spacing: 12) {
+        VStack(alignment: questionContextHorizontalAlignment, spacing: 12) {
+            if let concept = branchData.branchContextConcept {
+                BranchContextChip(
+                    title: concept.isLibraryQuote ? concept.word : concept.word.capitalized,
+                    icon: concept.isLibraryQuote ? "books.vertical" : "text.bubble",
+                    isFilled: branchData.topQuestionSubmitted,
+                    showRemove: !branchData.topQuestionSubmitted,
+                    onTap: { onQuotedConceptTap(concept) },
+                    onRemove: {
+                        withAnimation(.springLively) {
+                            branchData.branchContextConcept = nil
+                        }
+                        onQuotedConceptRemoved()
+                    }
+                )
+                .matchedGeometryEffect(
+                    id: quotedConceptMatchID(concept.id, responseIndex: 0),
+                    in: quotedContextChipNamespace
+                )
+            }
+
             QuestionInputField(
                 placeholder: "Ask a question...",
                 text: $branchData.topQuestionText,
@@ -1292,6 +1318,8 @@ struct ChatThreadColumn: View {
             .overlay(alignment: .top) {
                 slashCommandMenuOverlay(forBottomField: false, yOffset: 34)
             }
+
+
         }
         .frame(maxWidth: .infinity, alignment: .center)
         .zIndex(showsSlashCommandMenu && !bottomFieldIsActive ? 50 : 0)
@@ -1364,7 +1392,7 @@ struct ChatThreadColumn: View {
                         }
                     )
 
-                    if let concept = branchData.branchContextConcept {
+                    if let concept = branchData.branchContextConcept, !usesNewConversationPromptHeader {
                         BranchContextChip(
                             title: concept.isLibraryQuote ? concept.word : concept.word.capitalized,
                             icon: concept.isLibraryQuote ? "books.vertical" : (branchData.topQuestionSubmitted ? "text.bubble.fill" : "text.bubble"),
@@ -1681,9 +1709,13 @@ struct ChatThreadColumn: View {
             // appear. Handle that arrives-already-set case here; `.onChange` still covers quoting
             // into an already-mounted branch (e.g. an insight tapped mid-conversation).
             if let concept = quotedConcept {
-                branchData.attachedConcept = concept
-                branchData.showBottomInput = true
+                attachQuotedConcept(concept)
                 onQuoteHandled()
+            } else if !branchData.topQuestionSubmitted,
+                      branchData.activeChatBlocks.isEmpty,
+                      let concept = branchData.attachedConcept {
+                // Normalize drafts saved before quotes used the first question field.
+                attachQuotedConcept(concept)
             }
             // Sync placeholder visibility with any pre-filled text (e.g. restored branch)
             topFieldIsEmpty    = branchData.topQuestionText.isEmpty
@@ -1702,8 +1734,7 @@ struct ChatThreadColumn: View {
         .onChange(of: quotedConcept) { oldValue, newValue in
             if let concept = newValue {
                 withAnimation(.springLively) {
-                    branchData.attachedConcept = concept
-                    branchData.showBottomInput = true
+                    attachQuotedConcept(concept)
                 }
                 onQuoteHandled()
             }

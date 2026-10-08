@@ -129,6 +129,7 @@ struct ModelCompletionNotificationPill: View {
     let kind: ModelCompletionNotificationKind
     let width: CGFloat
     let onOpen: () -> Void
+    let onDismiss: () -> Void
 
     private var iconName: String {
         switch kind {
@@ -164,8 +165,8 @@ struct ModelCompletionNotificationPill: View {
     }
 
     var body: some View {
-        Button(action: onOpen) {
-            HStack(spacing: 8) {
+        ZStack(alignment: .trailing) {
+            Button(action: onOpen) {
                 HStack(spacing: 4) {
                     Image(iconName)
                         .renderingMode(.template)
@@ -178,21 +179,28 @@ struct ModelCompletionNotificationPill: View {
                         .foregroundStyle(titleColor)
                         .lineLimit(1)
                         .truncationMode(.tail)
+
+                    Spacer(minLength: 0)
                 }
-                .frame(maxWidth: 238, alignment: .leading)
+                .padding(.leading, 24)
+                .padding(.trailing, 68)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(accessibilityDescription)
 
-                Spacer(minLength: 0)
-
-                Text("View", comment: "Action that opens completed model content.")
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
                     .font(AngroveTheme.Typography.uiLabel)
                     .foregroundStyle(iconColor)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss notification")
+            .padding(.trailing, 12)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(accessibilityDescription)
-        .padding(.horizontal, 24)
         .frame(width: width, height: 50)
         .background(AngroveTheme.Colors.canvasSecondary)
         .clipShape(Capsule())

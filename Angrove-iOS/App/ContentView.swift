@@ -213,30 +213,27 @@ struct ContentView: View {
         }
     }
 
-    /// Content links can take the reader away from their current page. Keep one explicit
-    /// return action, independent of the destination page's own confirmation controls.
-    private func redirect(to page: AppPage) {
+    /// Source citations and Read More can temporarily take the reader out of a thread.
+    /// Other navigation clears the prompt without offering a return action.
+    private func redirect(to page: AppPage, opensConversationSource: Bool = false) {
         guard activePage != page else { return }
-        // Home is a hub: its entry points do not need a return notification.
-        guard activePage != .home else {
+        guard opensConversationSource,
+              activePage == .conversation,
+              !isConversationCanvasMode,
+              page == .library else {
             navigateWithoutReturn(to: page)
             return
         }
-        let origin = activePage
         let conversationID = sideMenuActiveConversationID
-        let topicID = selectedStudyTopicID
-        let libraryRequest = libraryNavigationRequest
         modelCompletionNotifications.dismissPageReturn()
         pendingPageReturnAction = {
             guard activePage == page else { return }
             modelCompletionNotifications.schedulePageReturn(
-                title: String(localized: "Return to \(origin.returnTitle)"),
-                returnPage: origin
+                title: String(localized: "Return to \(AppPage.conversation.returnTitle)"),
+                returnPage: .conversation
             ) {
-                if origin == .conversation { requestedConversationID = conversationID }
-                if origin == .studyTopics { requestedTopicID = topicID }
-                if origin == .library { libraryNavigationRequest = libraryRequest }
-                navigateWithoutReturn(to: origin)
+                requestedConversationID = conversationID
+                navigateWithoutReturn(to: .conversation)
             }
         }
         activePage = page
@@ -651,28 +648,7 @@ struct ContentView: View {
             .presentationDragIndicator(.visible)
             .presentationBackground(AngroveTheme.Colors.canvas)
         }
-        .sheet(item: $libraryExistingConversationTarget) { quote in
-            InsightConversationPickerSheet(
-                title: "Existing Conversations",
-                searchPrompt: "Search Conversations",
-                emptyMessage: "There are no matching conversations yet.",
-                conversations: sideMenuConversations,
-                activeConversationID: sideMenuActiveConversationID,
-                savedInsights: collectedDefinitions,
-                onSelect: { conversation in
-                    libraryExistingConversationTarget = nil
-                    insightConversationQuoteRequest = InsightConversationQuoteRequest(
-                        conversationID: conversation.id,
-                        insight: quote
-                    )
-                    activePage = .conversation
-                },
-                onCancel: { libraryExistingConversationTarget = nil }
-            )
-            .presentationDetents([.height(520), .large])
-            .presentationDragIndicator(.visible)
-            .presentationBackground(AngroveTheme.Colors.canvas)
-        }
+
     }
 
     /// Extracted so the compiler doesn't time out type-checking a single large expression.
@@ -722,7 +698,9 @@ struct ContentView: View {
 
     private var globalSideMenu: AnyView {
         AnyView(AngroveSideMenu(
-            currentTitle: sideMenuCurrentTitle,
+            currentTitle: sideMenuConversations
+                .first { $0.id == sideMenuActiveConversationID }?
+                .dailyPromptTopicTitle ?? sideMenuCurrentTitle,
             conversations: sideMenuConversations,
             activeConversationID: sideMenuActiveConversationID,
             activePage: activePage,
@@ -804,7 +782,7 @@ struct ContentView: View {
                 NotificationCenter.default.publisher(for: .openGroundingSourceInLibrary)
                     .compactMap { $0.object as? LibraryNavigationRequest }
             ) { request in
-                redirect(to: .library)
+                redirect(to: .library, opensConversationSource: true)
                 libraryNavigationRequest = request
             }
             .onChange(of: collectedDefinitions) { _, newValue in handleCollectedDefinitionsChange(newValue) }
@@ -1246,14 +1224,41 @@ struct ContentView: View {
                 newConversationRequests.submit(NewConversationRequest(
                     quote: NewConversationInsightQuoteRequest(insight: quote)
                 ))
-                activePage = .conversation
+                redirect(to: .conversation)
             },
             onAskInExistingConversation: { libraryExistingConversationTarget = $0 },
             clippedPassages: clippedPassages,
             onRemoveClippedPassage: { passage in
                 clippedPassages.removeAll { $0.id == passage.id }
+            },
+            onSaveClippedPassage: { passage in
+                if !clippedPassages.contains(where: { $0.id == passage.id }) {
+                    clippedPassages.append(passage)
+                }
             }
         )
+        .sheet(item: $libraryExistingConversationTarget) { quote in
+            InsightConversationPickerSheet(
+                title: "Existing Conversations",
+                searchPrompt: "Search Conversations",
+                emptyMessage: "There are no matching conversations yet.",
+                conversations: sideMenuConversations,
+                activeConversationID: sideMenuActiveConversationID,
+                savedInsights: collectedDefinitions,
+                onSelect: { conversation in
+                    libraryExistingConversationTarget = nil
+                    insightConversationQuoteRequest = InsightConversationQuoteRequest(
+                        conversationID: conversation.id,
+                        insight: quote
+                    )
+                    redirect(to: .conversation)
+                },
+                onCancel: { libraryExistingConversationTarget = nil }
+            )
+            .presentationDetents([.height(520), .large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(AngroveTheme.Colors.canvas)
+        }
     }
 
     // MARK: - Side Menu

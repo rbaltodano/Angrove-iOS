@@ -32,7 +32,6 @@ private struct SideMenuDragPresentation: ViewModifier {
                 .ignoresSafeArea()
                 .allowsHitTesting(progress > 0.02)
                 .onTapGesture(perform: onDismiss)
-                .animation(.easeInOut(duration: 0.22), value: isPresented)
                 .zIndex(3)
 
             menu
@@ -42,7 +41,6 @@ private struct SideMenuDragPresentation: ViewModifier {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .allowsHitTesting(isPresented || isDragging)
                 .zIndex(1000)
-                .animation(.springStandard, value: isPresented)
         }
     }
 
@@ -78,9 +76,21 @@ private struct SideMenuDragPresentation: ViewModifier {
                 let shouldOpen = value.translation.width > 175
                     || value.predictedEndTranslation.width > 250
                 if shouldOpen {
-                    isDragging = false
-                    dragOffset = 0
-                    isPresented = true
+                    // Same entrance bookkeeping as the menu buttons, so a swipe-first
+                    // opening never leaves the first-opening fade for a later tap.
+                    SideMenuEntrance.prepareOpening()
+                    // Every presenter animates explicitly, so the release can carry the
+                    // finger's velocity into the spring instead of restarting from rest.
+                    let remaining = max(1, 345 - dragOffset)
+                    let velocity = min(max(value.velocity.width / remaining, 0), 12)
+                    withAnimation(.interpolatingSpring(
+                        Spring(response: 0.42, dampingRatio: 0.86),
+                        initialVelocity: velocity
+                    )) {
+                        isDragging = false
+                        dragOffset = 0
+                        isPresented = true
+                    }
                 } else {
                     withAnimation(.springStandard) {
                         isDragging = false

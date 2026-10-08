@@ -48,7 +48,7 @@ nonisolated enum ModelDeliveryPhase: Equatable, Sendable {
         case .paused: "Download paused"
         case .verifying: "Verifying model"
         case .ready: "Model ready"
-        case .development: "Development model available"
+        case .development: ""
         case .failed: "Model needs attention"
         }
     }

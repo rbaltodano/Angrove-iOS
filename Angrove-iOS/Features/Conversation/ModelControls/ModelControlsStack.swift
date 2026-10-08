@@ -91,7 +91,8 @@ struct ModelControlsStack<Controls: View>: View {
                                 title: notification.title,
                                 kind: notification.kind,
                                 width: controlsWidth,
-                                onOpen: { completionNotifications.open(id: notification.id) }
+                                onOpen: { completionNotifications.open(id: notification.id) },
+                                onDismiss: { completionNotifications.dismiss(id: notification.id) }
                             )
                         }
                     }

@@ -4,6 +4,7 @@ import SwiftUI
 struct InsightTreeCanvasConceptNode: View {
     let title: String
     let isSuggested: Bool
+    var isNaming: Bool = false
     let isUndiscovered: Bool
     let hasAppeared: Bool
     let labelOpacity: Double
@@ -32,7 +33,7 @@ struct InsightTreeCanvasConceptNode: View {
                     Text(label)
                         .font(.custom("Figtree-Bold", size: 18))
                         .lineSpacing(8)
-                        .foregroundStyle(AngroveTheme.Colors.primaryReadable)
+                        .modifier(NamingShimmer(isNaming: isNaming))
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
                         .minimumScaleFactor(0.75)
@@ -87,5 +88,19 @@ struct InsightTreeCanvasConceptNode: View {
         .opacity(opacity)
         .position(position)
         .zIndex(zOrder)
+    }
+}
+
+/// The thinking shimmer while a Node's name is being generated; the heading's own blur-fade
+/// swaps in the finished name.
+private struct NamingShimmer: ViewModifier {
+    let isNaming: Bool
+
+    func body(content: Content) -> some View {
+        if isNaming {
+            content.modifier(ThinkingShimmer(isActive: true, color: AngroveTheme.Colors.primaryReadable))
+        } else {
+            content.foregroundStyle(AngroveTheme.Colors.primaryReadable)
+        }
     }
 }

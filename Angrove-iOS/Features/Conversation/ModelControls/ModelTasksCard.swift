@@ -44,7 +44,9 @@ struct ModelTasksCard: View {
                 }
             }
 
-            ModelDownloadStatusView(delivery: .shared)
+            if ModelDeliveryState.shared.phase != .development {
+                ModelDownloadStatusView(delivery: .shared)
+            }
 
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(modelTasks.allTasks.enumerated(), id: \.element.id) { index, task in

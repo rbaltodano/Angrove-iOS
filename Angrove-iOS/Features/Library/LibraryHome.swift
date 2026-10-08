@@ -453,15 +453,19 @@ private struct ClippedPassageLibraryCard: View {
             }
             Text("“\(passage.semanticDefinition)”")
                 .paragraphFont()
+                .lineSpacing(FlowLayout.rowSpacing)
                 .italic()
                 .foregroundStyle(AngroveTheme.Colors.paragraphText)
                 .lineLimit(5)
                 .fixedSize(horizontal: false, vertical: true)
             if let attribution = passage.libraryAttribution {
                 Text(attribution)
-                    .font(AngroveTheme.Typography.chipLabel)
+                    .paragraphFont()
+                    .lineSpacing(FlowLayout.rowSpacing)
                     .foregroundStyle(AngroveTheme.Colors.placeholderText)
                     .lineLimit(2)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
         .padding(16)
@@ -482,8 +486,8 @@ private struct LibraryHomeHeader: View {
 
             Text("The primary sources Angrove draws on when it grounds an answer.")
                 .paragraphFont()
+                .lineSpacing(FlowLayout.rowSpacing)
                 .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                .lineSpacing(4)
                 .padding(.top, 8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -511,7 +515,7 @@ private struct LibraryPassageOfTheDayCard: View {
                 Text(passage.excerpt)
                     .font(.custom("LibreBaskerville-Italic", size: 18))
                     .foregroundStyle(AngroveTheme.Colors.primaryReadable)
-                    .lineSpacing(7)
+                    .lineSpacing(FlowLayout.rowSpacing)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -760,6 +764,7 @@ private struct LibrarySearchResultCard: View {
 
                 Text("\(work.passageCount.formatted(.number)) passages")
                     .paragraphFont()
+                    .lineSpacing(FlowLayout.rowSpacing)
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

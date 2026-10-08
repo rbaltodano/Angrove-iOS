@@ -5,6 +5,90 @@ import Testing
 @MainActor
 @Suite("Insight Tree label queue", .serialized)
 struct InsightTreeLabelQueueTests {
+    @Test("Reopening shares pending labels, running labels, and definitions", arguments: [false, true], ["queued", "label", "definition"])
+    func reopeningSharesWork(conversation: Bool, stage: String) async throws {
+        let queue = ModelTaskQueue()
+        let model = LabelRecordingModel()
+        let gate = LabelGate()
+        let source = concept()
+        let scope = conversation ? UUID() : nil
+        if stage == "queued" {
+            queue.enqueue(kind: .userQuestion(branchID: UUID(), responseIndex: 0)) { await gate.wait() }
+        } else if stage == "label" {
+            model.labelGate = gate
+        } else {
+            model.definitionGate = gate
+        }
+        var original: InsightTreeViewModel? = makeTree([source], model: model, queue: queue, scope: scope)
+        weak var originalOwner = original
+        if stage != "queued" {
+            try await eventually { model.events.contains(stage) }
+        }
+        let jobID = try #require(queue.allTasks.first(where: { $0.kind == .labelInsightTree })?.id)
+        let pendingCount = queue.pendingCount
+        original = nil
+        #expect(originalOwner != nil)
+        var reopened: [InsightTreeViewModel] = []
+        for _ in 0..<3 {
+            reopened.append(makeTree([source], model: model, queue: queue, scope: scope))
+            #expect(queue.pendingCount == pendingCount)
+            #expect(queue.allTasks.filter { $0.kind == .labelInsightTree }.map(\.id) == [jobID])
+        }
+        gate.open()
+        try await eventually { !queue.isBusy }
+        #expect(model.events == ["label", "definition"])
+        for tree in reopened {
+            #expect(tree.nodes.first?.conceptLabel == "Generated Subject")
+            #expect(tree.nodes.first?.definition == "Generated definition")
+        }
+    }
+
+    @Test("Cancelling a shared pending job allows a reopened tree to retry")
+    func reopenedCancellationRetry() async throws {
+        let queue = ModelTaskQueue()
+        let model = LabelRecordingModel()
+        let gate = LabelGate()
+        let source = concept()
+        queue.enqueue(kind: .userQuestion(branchID: UUID(), responseIndex: 0)) { await gate.wait() }
+        let original = makeTree([source], model: model, queue: queue)
+        let reopened = makeTree([source], model: model, queue: queue)
+        #expect(queue.upcomingTasks.count == 1)
+        let cancelledID = try #require(queue.upcomingTasks.first?.id)
+        queue.removeUpcoming(id: cancelledID)
+        reopened.updateInsights([source])
+        original.updateInsights([source])
+        #expect(queue.upcomingTasks.count == 1)
+        #expect(queue.upcomingTasks.first?.id != cancelledID)
+        gate.open()
+        try await eventually { !queue.isBusy }
+        #expect(model.events == ["label", "definition"])
+        #expect(original.nodes.first?.definition == "Generated definition")
+        #expect(reopened.nodes.first?.definition == "Generated definition")
+    }
+
+    @Test("Reopening after foreground preemption keeps the same background job")
+    func reopeningAfterPreemption() async throws {
+        let queue = ModelTaskQueue()
+        let model = LabelRecordingModel()
+        let gate = LabelGate()
+        model.labelGate = gate
+        let source = concept()
+        let original = makeTree([source], model: model, queue: queue)
+        try await eventually { model.inputs.count == 1 }
+        let jobID = try #require(queue.currentTask?.id)
+        queue.enqueue(kind: .userQuestion(branchID: UUID(), responseIndex: 0)) {
+            model.events.append("question")
+        }
+        let reopened = makeTree([source], model: model, queue: queue)
+        #expect(queue.pendingCount == 2)
+        #expect(queue.upcomingTasks.map(\.id) == [jobID])
+        gate.open()
+        try await eventually { !queue.isBusy }
+        #expect(model.events == ["label", "question", "label", "definition"])
+        #expect(original.nodes.first?.definition == "Generated definition")
+        #expect(reopened.nodes.first?.definition == "Generated definition")
+    }
+
     @Test("Opening a saved manual term builds the tree without mutating the shared queue during initialization")
     func manualTermInitializationDefersModelWork() async throws {
         let queue = ModelTaskQueue()

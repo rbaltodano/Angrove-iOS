@@ -271,22 +271,9 @@ struct InquiryControlDock: View {
             onClearConversation: onClearConversation,
             modelTasksPopupState: modelTasksPopupState,
             modelTasks: modelTasks,
-            supplementalPopupIsOpen: isRecentPhotosOpen,
-            supplementalPopup: onAttachRecentPhoto.map { attach in
-                AnyView(RecentPhotosCard(
-                    onSelect: { data in
-                        attach(data)
-                        withAnimation(.springStandard) { isRecentPhotosOpen = false }
-                    },
-                    onDismiss: {
-                        withAnimation(.springStandard) { isRecentPhotosOpen = false }
-                    },
-                    onChoosePhoto: {
-                        withAnimation(.springStandard) { isRecentPhotosOpen = false }
-                        showPhotoPicker = true
-                    }
-                ))
-            },
+            // Image and file inputs, including the recent-photo shortcut, are post-launch.
+            supplementalPopupIsOpen: false,
+            supplementalPopup: nil,
             confirmationTitle: confirmationTitle,
             onConfirm: onConfirm,
             onDecline: onDecline,
@@ -534,40 +521,11 @@ struct InquiryControlDock: View {
         if onAttachRecentPhoto != nil {
             PhotoAttachmentControl(
                 isPressed: $isControlButtonPressed,
-                isRecentPhotosOpen: isRecentPhotosOpen,
-                onHold: toggleRecentPhotos,
-                onCloseRecentPhotos: {
-                    withAnimation(.springStandard) { isRecentPhotosOpen = false }
-                },
-                onCamera: { isRecentPhotosOpen = false; showCamera = true },
-                onPhoto: { isRecentPhotosOpen = false; showPhotoPicker = true },
-                onFile: { isRecentPhotosOpen = false; showFilePicker = true },
                 onInsights: { isRecentPhotosOpen = false; onOpenInsights() },
                 onPassages: { isRecentPhotosOpen = false; onOpenPassages() }
             )
         } else {
         Menu {
-            Button {
-                isRecentPhotosOpen = false
-                showCamera = true
-            } label: {
-                Label("Camera", systemImage: "camera")
-            }
-
-            Button {
-                isRecentPhotosOpen = false
-                showPhotoPicker = true
-            } label: {
-                Label("Photo", systemImage: "photo")
-            }
-
-            Button {
-                isRecentPhotosOpen = false
-                showFilePicker = true
-            } label: {
-                Label("File", systemImage: "doc")
-            }
-
             Button {
                 isRecentPhotosOpen = false
                 onOpenInsights()
@@ -589,16 +547,6 @@ struct InquiryControlDock: View {
         }
         .menuStyle(.button)
         .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
-        }
-    }
-
-    private func toggleRecentPhotos() {
-        guard onAttachRecentPhoto != nil, !contextCard.isCompacting else { return }
-        UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.65)
-        withAnimation(.springStandard) {
-            contextCard.isOpen = false
-            modelTasksPopupState?.isOpen = false
-            isRecentPhotosOpen.toggle()
         }
     }
 

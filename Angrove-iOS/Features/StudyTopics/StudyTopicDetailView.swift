@@ -164,12 +164,6 @@ struct StudyTopicDetailView: View {
                                     Button("Rename", systemImage: "pencil.line") {
                                         isTitleFocused = true
                                     }
-                                    Button("Upload Image", systemImage: "photo") {
-                                        onRequestPhotoPicker()
-                                    }
-                                    Button("Upload File", systemImage: "doc") {
-                                        onRequestFilePicker()
-                                    }
                                     Divider()
                                     Button("Delete Topic", systemImage: "trash", role: .destructive) {
                                         onDeleteTopic()
