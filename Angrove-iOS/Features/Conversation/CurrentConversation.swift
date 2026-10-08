@@ -1200,7 +1200,7 @@ struct CurrentConversationView: View {
 
                 // Horizontal branch pager
                 branchPager(in: geo)
-                    .environment(\.speechTitle, activeTitle)
+                    .environment(\.speechSource, SpeechSource(title: activeTitle, conversationID: session.activeConversationID))
 
                 // Photo backgrounds carry their own scrim, so the canvas-colored fades are skipped.
                 if !(canvasMode.isTopicCanvasVisible ? insightTreeBackground : conversationBackground).isPhoto {

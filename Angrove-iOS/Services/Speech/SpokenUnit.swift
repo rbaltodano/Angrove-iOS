@@ -5,6 +5,12 @@
 
 import Foundation
 
+/// Where a reading comes from: shown as the Lock Screen title and used to mark its conversation.
+struct SpeechSource {
+    var title = ""
+    var conversationID: UUID?
+}
+
 /// A stretch of a response read as one block (a paragraph, heading, or list item), keeping the
 /// displayed word each spoken word belongs to so playback can highlight it.
 struct SpokenUnit {

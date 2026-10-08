@@ -337,7 +337,7 @@ struct ContentView: View {
                       case .text(let response) = branch.activeChatBlocks[responseIndex] else { return nil }
                 return response
             },
-            title: conversationTitle
+            source: SpeechSource(title: conversationTitle, conversationID: conversationID)
         )
 
         modelCompletionNotifications.post(
@@ -352,7 +352,7 @@ struct ContentView: View {
 
     /// Reads an answer that finished while the reader was elsewhere, unless something is already
     /// being read or the app cannot play audio from where it is.
-    private func readCompletedResponseAloudIfNeeded(_ response: String?, title: String) {
+    private func readCompletedResponseAloudIfNeeded(_ response: String?, source: SpeechSource) {
         guard AudioSettings.readsAnswersElsewhere,
               let response, !response.isEmpty, response != questionCanceledResponseText,
               scenePhase == .active || AudioSettings.playsInBackground,
@@ -360,7 +360,7 @@ struct ContentView: View {
         ResponseSpeechPlayer.shared.toggleStarting(
             InlineInsightMarkup.plainText(from: response),
             units: SpokenUnit.units(from: ResponseParser.parseSegments(from: response)),
-            title: title
+            source: source
         )
     }
 

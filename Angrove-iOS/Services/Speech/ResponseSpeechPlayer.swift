@@ -29,6 +29,8 @@ final class ResponseSpeechPlayer {
     private(set) var activeWord: Int?
     /// The first displayed word of this reading; words before it were not read.
     private(set) var firstWord: Int?
+    /// The conversation whose response is being read, for marking it in the sidebar.
+    private(set) var activeConversationID: UUID?
     private(set) var isScrubbing = false
     private(set) var isPaused = false
 
@@ -77,6 +79,7 @@ final class ResponseSpeechPlayer {
     @ObservationIgnored private var scrubFrame = 0
     @ObservationIgnored private var scrubOriginFrame = 0
     @ObservationIgnored private var nowPlayingTitle = ""
+    @ObservationIgnored private var pendingConversationID: UUID?
     @ObservationIgnored private var lastNowPlayingUpdate = Date.distantPast
 
     @ObservationIgnored private let audioEngine = AVAudioEngine()
@@ -113,26 +116,28 @@ final class ResponseSpeechPlayer {
 
     /// Starts reading `text`, or stops if it is already being read. `units` carries the displayed
     /// words so they can be highlighted; without them `text` is read with no highlight.
-    func toggle(_ text: String, units: [SpokenUnit] = [], title: String = "") {
+    func toggle(_ text: String, units: [SpokenUnit] = [], source: SpeechSource = SpeechSource()) {
         if activeText == text {
             stop()
         } else {
-            nowPlayingTitle = title
+            nowPlayingTitle = source.title
+            pendingConversationID = source.conversationID
             speak(text, units: units.isEmpty ? [SpokenUnit(unhighlightedText: text)] : units)
         }
     }
 
     /// Starts reading `text` unless it is already being read.
-    func toggleStarting(_ text: String, units: [SpokenUnit], title: String = "") {
+    func toggleStarting(_ text: String, units: [SpokenUnit], source: SpeechSource = SpeechSource()) {
         guard activeText != text else { return }
-        toggle(text, units: units, title: title)
+        toggle(text, units: units, source: source)
     }
 
     /// Starts reading `text` at displayed word `index`, replacing any reading in progress.
-    func read(_ text: String, units: [SpokenUnit], fromWord index: Int, title: String = "") {
+    func read(_ text: String, units: [SpokenUnit], fromWord index: Int, source: SpeechSource = SpeechSource()) {
         let remaining = SpokenUnit.units(units, fromWord: index)
         guard !remaining.isEmpty else { return }
-        nowPlayingTitle = title
+        nowPlayingTitle = source.title
+        pendingConversationID = source.conversationID
         speak(text, units: remaining, firstWord: index)
     }
 
@@ -158,6 +163,7 @@ final class ResponseSpeechPlayer {
         activeText = nil
         activeWord = nil
         firstWord = nil
+        activeConversationID = nil
         isScrubbing = false
         isPaused = false
         phase = .idle
@@ -297,6 +303,7 @@ final class ResponseSpeechPlayer {
         stop()
         let id = runID
         activeText = text
+        activeConversationID = pendingConversationID
         self.firstWord = firstWord
         phase = .preparing
         pendingBuffers = 0

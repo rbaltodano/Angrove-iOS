@@ -55,7 +55,7 @@ struct StreamingMessageView: View {
 
     @State private var displayedWords: [String] = []
     @State private var isFinished: Bool = false
-    @Environment(\.speechTitle) private var speechTitle
+    @Environment(\.speechSource) private var speechSource
     @State private var hasReportedFinish = false
     @State private var hasReportedRevealStart = false
     @State private var showsInsightUnderlines: Bool
@@ -245,7 +245,7 @@ struct StreamingMessageView: View {
                 reportFinishIfNeeded()
                 if isFirstFinish, AudioSettings.readsResponsesAutomatically {
                     ResponseSpeechPlayer.shared.toggleStarting(
-                        speechText, units: SpokenUnit.units(from: segments), title: speechTitle
+                        speechText, units: SpokenUnit.units(from: segments), source: speechSource
                     )
                 }
             }

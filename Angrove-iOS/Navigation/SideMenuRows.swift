@@ -166,6 +166,28 @@ private struct ConversationActivityIndicator: View {
     }
 }
 
+/// A speaker beside the conversation whose response is being read aloud.
+struct ConversationSpeakingIndicator: View {
+    let conversationID: UUID
+
+    private var speech = ResponseSpeechPlayer.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(conversationID: UUID) {
+        self.conversationID = conversationID
+    }
+
+    var body: some View {
+        if speech.activeConversationID == conversationID, speech.phase != .idle {
+            Image(systemName: "speaker.wave.2.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(AngroveTheme.Colors.accentGreen)
+                .symbolEffect(.variableColor.iterative, isActive: speech.phase == .speaking && !speech.isPaused && !reduceMotion)
+                .accessibilityLabel("Reading aloud")
+        }
+    }
+}
+
 struct ConversationMenuRow: View {
     let conversation: InquiryConversation
     let modelActivity: ConversationModelActivity
@@ -215,6 +237,8 @@ struct ConversationMenuRow: View {
             if modelActivity != .idle {
                 ConversationActivityIndicator(activity: modelActivity)
             }
+
+            ConversationSpeakingIndicator(conversationID: conversation.id)
 
             if isActive {
                 Menu {
@@ -489,6 +513,7 @@ private struct TopicConversationRow: View {
                 if modelActivity != .idle {
                     ConversationActivityIndicator(activity: modelActivity)
                 }
+                ConversationSpeakingIndicator(conversationID: conversation.id)
             }
             .padding(.leading, 52)
             .padding(.trailing, 24)

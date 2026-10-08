@@ -32,7 +32,7 @@ private struct ResponseActionEntrance: ViewModifier {
 
 extension EnvironmentValues {
     /// The conversation's title, shown as the read-aloud's title on the Lock Screen.
-    @Entry var speechTitle: String = ""
+    @Entry var speechSource = SpeechSource()
 }
 
 // MARK: - Model Response Footer
@@ -48,7 +48,7 @@ struct ModelResponseFooter: View {
     var onRevealComplete: (() -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.speechTitle) private var speechTitle
+    @Environment(\.speechSource) private var speechSource
     @State private var showsCopiedConfirmation = false
     @State private var visibleActionCount = 0
     @State private var visibleDisclaimerWords = 0
@@ -79,7 +79,16 @@ struct ModelResponseFooter: View {
                     )
                 }
                 speakButton
+                if speech.phase(for: copyText) != .idle {
+                    Text("Tap and drag on a conversation block to fast forward and rewind")
+                        .font(.custom("Figtree-SemiBold", size: 10))
+                        .foregroundStyle(AngroveTheme.Colors.placeholderText)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .transition(.opacity.combined(with: .blurReplace))
+                }
             }
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: speech.phase(for: copyText) != .idle)
 
             FlowLayout(spacing: 2, alignment: responseTextAlignment.textAlignment) {
                 ForEach(Array(disclaimerWords.enumerated()), id: \.offset) { index, word in
@@ -117,7 +126,7 @@ struct ModelResponseFooter: View {
     /// Reads the response aloud; tapping again while it is preparing or speaking stops it.
     private var speakButton: some View {
         let phase = speech.phase(for: copyText)
-        return Button { speech.toggle(copyText, units: spokenUnits, title: speechTitle) } label: {
+        return Button { speech.toggle(copyText, units: spokenUnits, source: speechSource) } label: {
             actionIcon("speaker.wave.2")
                 .symbolEffect(.variableColor.iterative, isActive: phase != .idle && !reduceMotion)
                 .foregroundStyle(phase == .idle ? AngroveTheme.Colors.responseButton : AngroveTheme.Colors.accent)

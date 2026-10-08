@@ -19,7 +19,7 @@ struct CompletedResponseSegments: View {
     let onInlineInsightFork: ((ConceptDefinition) -> Void)?
     let onInlineInsightToggleSaved: ((ConceptDefinition) -> Void)?
     @Environment(\.openURL) private var openURL
-    @Environment(\.speechTitle) private var speechTitle
+    @Environment(\.speechSource) private var speechSource
 
     // MARK: - Segment renderer
 
@@ -263,9 +263,9 @@ struct CompletedResponseSegments: View {
     /// Starts the read-aloud at this word and continues to the end of the response.
     private func readFromHere(_ globalWordIndex: Int) -> (() -> Void)? {
         guard !speechText.isEmpty else { return nil }
-        return { [segments, speechText, speechTitle] in
+        return { [segments, speechText, speechSource] in
             ResponseSpeechPlayer.shared.read(
-                speechText, units: SpokenUnit.units(from: segments), fromWord: globalWordIndex, title: speechTitle
+                speechText, units: SpokenUnit.units(from: segments), fromWord: globalWordIndex, source: speechSource
             )
         }
     }
