@@ -12,6 +12,8 @@ nonisolated final class SerializedPersonalStore: @unchecked Sendable {
     private var revisions: [String: UUID] = [:]
     private var pending: [String: UUID] = [:]
     private var preferenceValues: [String: String] = [:]
+    /// Writes refused while the phone was locked. The cache keeps their values; unlocking retries.
+    private var deferredWrites: [String: () -> Void] = [:]
 
     private func cacheKey(_ key: String, store: InsightTreeLocalStateFileStore) -> String {
         "\(store.rootDirectory.path):\(ObjectIdentifier(store.defaults)):\(key)"
@@ -50,6 +52,9 @@ nonisolated final class SerializedPersonalStore: @unchecked Sendable {
             do {
                 try PerformanceTrace.measure("Tree State Save") { try store.save(value, key: key) }
                 _ = lock.withLock { warmedFiles.removeValue(forKey: store.url(for: key).path) }
+            } catch where !PersonalDataProtection.isIntegrityFailure(error) {
+                deferWrite(id: id, marker: marker) { [self] in save(value, key: key, store: store) }
+                PersonalDataProtection.report(error, duringWrite: true)
             } catch {
                 lock.withLock {
                     if revisions[id] == marker { values.removeValue(forKey: id) }
@@ -59,6 +64,21 @@ nonisolated final class SerializedPersonalStore: @unchecked Sendable {
             }
             lock.withLock { if pending[id] == marker { pending.removeValue(forKey: id) } }
         }
+    }
+
+    /// Keeps the newest unsaved value readable and queues it for `retryDeferredWrites()`.
+    private func deferWrite(id: String, marker: UUID, retry: @escaping () -> Void) {
+        lock.withLock { if revisions[id] == marker { deferredWrites[id] = retry } }
+    }
+
+    /// Called when protected data becomes available again.
+    func retryDeferredWrites() {
+        let retries = lock.withLock {
+            let retries = Array(deferredWrites.values)
+            deferredWrites.removeAll()
+            return retries
+        }
+        retries.forEach { $0() }
     }
 
     func loadSeeds(store: LocalInsightTreeSeedFileStore) -> [String: [LocalInsightTreeSeed]] {
@@ -83,7 +103,10 @@ nonisolated final class SerializedPersonalStore: @unchecked Sendable {
         queue.async { [self] in
             guard lock.withLock({ pending[id] == marker }) else { return }
             do { try PerformanceTrace.measure("Conversation Seed Save") { try store.save(seeds) } }
-            catch {
+            catch where !PersonalDataProtection.isIntegrityFailure(error) {
+                deferWrite(id: id, marker: marker) { [self] in saveSeeds(seeds, store: store) }
+                PersonalDataProtection.report(error, duringWrite: true)
+            } catch {
                 lock.withLock { if revisions[id] == marker { values.removeValue(forKey: id) } }
                 PersonalDataProtection.report(error, duringWrite: true)
             }
@@ -121,17 +144,25 @@ nonisolated final class SerializedPersonalStore: @unchecked Sendable {
     func setString(_ value: String, for key: String) {
         let id = "preference:\(key)"
         let marker = UUID()
-        lock.withLock { preferenceValues[key] = value; pending[id] = marker }
+        lock.withLock { preferenceValues[key] = value; pending[id] = marker; revisions[id] = marker }
         queue.async { [self] in
             guard lock.withLock({ pending[id] == marker }) else { return }
-            PrivatePreferences.standard.set(value, forKey: key)
+            if !PersonalDataProtection.isBlocked {
+                do { try PrivatePreferences.standard.write(value, key: key) }
+                catch {
+                    if !PersonalDataProtection.isIntegrityFailure(error) {
+                        deferWrite(id: id, marker: marker) { [self] in setString(value, for: key) }
+                    }
+                    PersonalDataProtection.report(error, duringWrite: true)
+                }
+            }
             lock.withLock { if pending[id] == marker { pending.removeValue(forKey: id) } }
         }
     }
 
     /// A barrier used before reset/recovery so previous writes cannot recreate removed stores.
     func invalidate() {
-        queue.sync { lock.withLock { epoch &+= 1; values.removeAll(); warmedFiles.removeAll(); preferenceValues.removeAll(); pending.removeAll(); revisions.removeAll() } }
+        queue.sync { lock.withLock { epoch &+= 1; values.removeAll(); warmedFiles.removeAll(); preferenceValues.removeAll(); pending.removeAll(); revisions.removeAll(); deferredWrites.removeAll() } }
     }
 
     func flush() async {

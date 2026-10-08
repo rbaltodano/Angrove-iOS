@@ -335,12 +335,13 @@ struct CurrentConversationView: View {
         quoteCandidates: [(conversationID: UUID, message: String)]
     ) {
         guard !pending.isEmpty || !titles.isEmpty || !quoteCandidates.isEmpty else { return }
-        ConversationTreeAnalysisScheduling.enqueue(on: modelTasks, conversationID: conversationID) {
-            // Matches `InsightTreeViewModel.localMembershipThreshold`: below this similarity to
-            // every existing Node, a subject counts as genuinely new rather than a continuation
-            // of one already on the tree.
-            let newSubjectThreshold = InsightTreeSemanticPolicy.newSubjectSimilarity
-            for turn in pending {
+        var steps: [ConversationTreeAnalysisScheduling.Step] = []
+        // Matches `InsightTreeViewModel.localMembershipThreshold`: below this similarity to
+        // every existing Node, a subject counts as genuinely new rather than a continuation
+        // of one already on the tree.
+        let newSubjectThreshold = InsightTreeSemanticPolicy.newSubjectSimilarity
+        for turn in pending {
+            steps.append {
                 guard !Task.isCancelled else { return }
                 var existingSeeds = LocalInsightTreeSeedStore.seeds(for: turn.conversationID)
                 var didRefreshSeedEmbeddings = false
@@ -370,7 +371,7 @@ struct CurrentConversationView: View {
                     question: turn.question,
                     response: turn.response
                 ) else {
-                    continue
+                    return
                 }
 
                 let embedding = await embeddingProvider.embed(
@@ -385,7 +386,7 @@ struct CurrentConversationView: View {
                     print("Angrove seed new-subject check: '\(candidate.label)' vs existing \(similarities)")
 #endif
                     let isAlreadyCovered = similarities.contains { $0.1 >= newSubjectThreshold }
-                    guard !isAlreadyCovered else { continue }
+                    guard !isAlreadyCovered else { return }
                 }
 
                 let newSeedID = UUID()
@@ -409,10 +410,12 @@ struct CurrentConversationView: View {
                 )
                 self.finishInsightTreeMutation(for: turn.conversationID)
             }
+        }
 
-            // Tree mutations above are persisted before this separate naming call begins.
-            // Even exchanges excluded from the tree can receive a useful conversation title.
-            for request in titles {
+        // Tree mutations above are persisted before this separate naming call begins.
+        // Even exchanges excluded from the tree can receive a useful conversation title.
+        for request in titles {
+            steps.append {
                 guard !Task.isCancelled else { return }
                 guard conversationTitlePolicy == .automatic,
                       session.needsAutomaticTitle(
@@ -420,7 +423,7 @@ struct CurrentConversationView: View {
                           branchID: request.branchID, question: request.question
                       ),
                       let title = try? await angroveModel.conversationTitle(for: request.question)
-                else { continue }
+                else { return }
                 guard !Task.isCancelled, conversationTitlePolicy == .automatic else { return }
                 if session.applyAutomaticTitle(
                     title, conversationID: request.conversationID,
@@ -441,14 +444,16 @@ struct CurrentConversationView: View {
                     }
                 }
             }
+        }
 
-            for candidate in quoteCandidates {
+        for candidate in quoteCandidates {
+            steps.append {
                 guard !Task.isCancelled else { return }
                 // Fail-quiet: a failed check just means this message isn't resurfaced.
                 guard let notability = try? await self.angroveModel.assessQuoteNotability(
                     candidate.message
                 ), notability.isNotable else {
-                    continue
+                    return
                 }
                 FlaggedQuoteStore.flag(
                     candidate.message,
@@ -457,6 +462,9 @@ struct CurrentConversationView: View {
                 )
             }
         }
+        ConversationTreeAnalysisScheduling.enqueue(
+            on: modelTasks, conversationID: conversationID, steps: steps
+        )
     }
 
     private func precedingQuestion(in branch: ChatBranch, before responseIndex: Int) -> String? {

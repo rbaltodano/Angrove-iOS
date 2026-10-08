@@ -16,4 +16,10 @@ import UIKit
             if identifier != .invalid { UIApplication.shared.endBackgroundTask(identifier); identifier = .invalid }
         }
     }
+
+    /// Writes refused while the phone was locked are retried once protected data returns.
+    static func retryDeferredWrites() {
+        SerializedPersonalStore.shared.retryDeferredWrites()
+        InquiryPersistenceStore.retryDeferredSave()
+    }
 }

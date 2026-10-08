@@ -319,6 +319,8 @@ nonisolated enum InquiryPersistenceStore {
 
     static func flushAsync() async { await shared.flushAsync() }
 
+    static func retryDeferredSave() { shared.retryDeferredSave() }
+
     static func save(_ snapshot: InquiryPersistenceSnapshot) {
         shared.save(snapshot)
     }
@@ -460,9 +462,33 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
             do {
                 try requireStore().savePreservingCompletedResponses(latest)
             } catch {
-                PersonalDataProtection.report(error)
+                handleWriteFailure(error)
             }
         }
+    }
+
+    /// A locked phone makes the key unavailable. The cache already holds the newest snapshot,
+    /// so keep it and write it once protected data returns instead of closing storage.
+    private var needsDeferredSave = false
+
+    private func handleWriteFailure(_ error: Error) {
+        guard !PersonalDataProtection.isIntegrityFailure(error),
+              !(error is InquiryPersistenceError) else {
+            PersonalDataProtection.report(error)
+            return
+        }
+        cacheLock.withLock { needsDeferredSave = true }
+        PersonalDataProtection.report(error, duringWrite: true)
+    }
+
+    func retryDeferredSave() {
+        let snapshot: InquiryPersistenceSnapshot? = cacheLock.withLock {
+            guard needsDeferredSave else { return nil }
+            needsDeferredSave = false
+            return cached
+        }
+        guard let snapshot else { return }
+        save(snapshot)
     }
 
     private func closePendingSave() {
@@ -525,7 +551,7 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
 
     func invalidate() {
         closePendingSave()
-        queue.sync { cacheLock.withLock { cached = nil; didLoad = false; cacheRevision += 1 } }
+        queue.sync { cacheLock.withLock { cached = nil; didLoad = false; cacheRevision += 1; needsDeferredSave = false } }
     }
 
     private func enqueue(
@@ -537,7 +563,7 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
             do {
                 try operation(requireStore())
             } catch {
-                PersonalDataProtection.report(error)
+                handleWriteFailure(error)
             }
         }
     }

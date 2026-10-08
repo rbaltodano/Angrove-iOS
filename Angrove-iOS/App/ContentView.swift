@@ -322,8 +322,8 @@ struct ContentView: View {
                       case .text(let response) = branch.activeChatBlocks[responseIndex] else {
                     return nil
                 }
-                let trimmed = response.trimmingCharacters(in: .whitespacesAndNewlines)
-                return trimmed.isEmpty ? nil : trimmed
+                let preview = AngroveSystemNotifications.responsePreview(from: response)
+                return preview.isEmpty ? nil : preview
             }
         let fallbackTitle = conversation?.title.trimmingCharacters(
             in: .whitespacesAndNewlines
@@ -1513,6 +1513,8 @@ struct ContentView: View {
         modelTasks.setApplicationActive(phase == .active)
         if phase == .background {
             BackgroundPersistenceFlush.begin()
+        } else if phase == .active {
+            BackgroundPersistenceFlush.retryDeferredWrites()
         }
         scheduleDailyQuestionRefreshIfNeeded()
     }

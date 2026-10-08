@@ -114,14 +114,33 @@ struct MidpointSource: Equatable, Codable {
     let isNode: Bool
 }
 
-/// A bookmarked Insight remains a visible chip even when a cached Node has the same title.
-/// Explicit Branch/Make Node promotions remove their source through topology, not label equality.
+/// A Node already represents an Insight whose normalized title exactly matches the Node label.
+/// Keep that Insight in the model for its definition, persistence, and docked-card access, but do
+/// not draw a second same-named chip beside the Node. Placed Midpoints are exempt because their
+/// Node circle is intentionally hidden and the chip is their only visible representation.
 nonisolated func canvasInsightMembers(
     nodeLabel: String,
     insights: [InsightModel],
     preservesMatchingTitle: Bool
 ) -> [InsightModel] {
-    insights
+    guard !preservesMatchingTitle else { return insights }
+    let nodeKey = canonicalInsightTreeTitle(nodeLabel)
+    guard !nodeKey.isEmpty else { return insights }
+    return insights.filter {
+        canonicalInsightTreeTitle($0.title) != nodeKey
+    }
+}
+
+nonisolated private func canonicalInsightTreeTitle(_ title: String) -> String {
+    var words = title
+        .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        .split(whereSeparator: { $0.isWhitespace })
+        .map(String.init)
+    if let first = words.first, ["a", "an", "the"].contains(first) {
+        words.removeFirst()
+    }
+    return words.joined(separator: " ")
 }
 
 // MARK: - Layout Geometry

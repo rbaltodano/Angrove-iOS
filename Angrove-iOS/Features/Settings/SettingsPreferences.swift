@@ -411,6 +411,21 @@ enum DailyQuestionFocusOption: String, SettingsChoice {
 }
 
 enum AngroveSystemNotifications {
+    /// A short plain-text excerpt: no Insight or citation markup, Markdown markers, or full answer.
+    static func responsePreview(from response: String, limit: Int = 160) -> String {
+        var text = InlineInsightMarkup.plainText(from: response)
+        for marker in ["**", "__", "`"] { text = text.replacingOccurrences(of: marker, with: "") }
+        text = text.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "#>-* ")) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        text = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        guard text.count > limit else { return text }
+        let clipped = text.prefix(limit)
+        let end = clipped.lastIndex(of: " ") ?? clipped.endIndex
+        return clipped[..<end].trimmingCharacters(in: .punctuationCharacters.union(.whitespaces)) + "…"
+    }
+
     static let dailyQuestionIdentifier = "aquinas.question-of-the-day"
 
     @MainActor

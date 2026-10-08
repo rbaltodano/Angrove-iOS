@@ -12,12 +12,12 @@ struct ConversationTreeLifecycleTests {
         var completed: [UUID] = []
         var releaseFirst = false
         for id in conversations {
-            ConversationTreeAnalysisScheduling.enqueue(on: queue, conversationID: id) {
+            ConversationTreeAnalysisScheduling.enqueue(on: queue, conversationID: id, steps: [{
                 if id == conversations[0] {
                     while !releaseFirst { try? await Task.sleep(for: .milliseconds(5)) }
                 }
                 completed.append(id)
-            }
+            }])
         }
         #expect(queue.upcomingTasks.map(\.conversationID) == Array(conversations.dropFirst()).map(Optional.some))
         releaseFirst = true
@@ -39,7 +39,35 @@ struct ConversationTreeLifecycleTests {
         #expect(resolved == [saved])
     }
 
-    @Test("A separately bookmarked Insight remains visible after returning to a seeded conversation")
+    @Test("A preempted mapping job resumes without repeating finished model calls")
+    func preemptedMappingResumes() async throws {
+        let queue = ModelTaskQueue()
+        var runs: [String] = []
+        var releaseTitle = false
+        ConversationTreeAnalysisScheduling.enqueue(on: queue, conversationID: UUID(), steps: [
+            { runs.append("seed") },
+            {
+                runs.append("title")
+                while !releaseTitle, !Task.isCancelled { try? await Task.sleep(for: .milliseconds(5)) }
+            },
+            { runs.append("quote") }
+        ])
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while !runs.contains("title"), ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        // A foreground question preempts the background job mid-step.
+        queue.enqueue(kind: .userQuestion(branchID: UUID(), responseIndex: 1)) {
+            runs.append("question")
+        }
+        releaseTitle = true
+        while queue.isBusy, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(runs == ["seed", "title", "question", "title", "quote"])
+    }
+
+    @Test("A bookmarked Insight with its Node's title is not drawn as a second chip")
     func returningTreeKeepsSavedChip() async throws {
         let saved = ConceptDefinition(word: "Virtue", partOfSpeech: "", pronunciation: "", meaning: "A settled moral habit", example: "")
         let provider = TreeLifecycleEmbeddingProvider()
@@ -50,7 +78,7 @@ struct ConversationTreeLifecycleTests {
         await tree.prepareSemanticTree()
         let node = try #require(tree.nodes.first { $0.insights.contains { $0.id == saved.id } })
         #expect(node.insights.first?.definition == saved.semanticDefinition)
-        #expect(canvasInsightMembers(nodeLabel: seed.label, insights: node.insights, preservesMatchingTitle: false).map(\.id) == [saved.id])
+        #expect(canvasInsightMembers(nodeLabel: seed.label, insights: node.insights, preservesMatchingTitle: false).isEmpty)
         // Vectors now match; a second refresh must still wait for its asynchronous graph result.
         tree.updateInsights([saved])
         await tree.prepareSemanticTree()

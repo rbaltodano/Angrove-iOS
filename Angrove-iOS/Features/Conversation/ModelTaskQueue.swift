@@ -528,9 +528,8 @@ final class ModelTaskQueue {
         backgroundExecutionTask = UIApplication.shared.beginBackgroundTask(
             withName: "Angrove model response"
         ) { [weak self] in
-            Task { @MainActor in
-                self?.endBackgroundExecutionTask()
-            }
+            // iOS terminates apps that have not ended the task when this handler returns.
+            MainActor.assumeIsolated { self?.endBackgroundExecutionTask() }
         }
     }
 
