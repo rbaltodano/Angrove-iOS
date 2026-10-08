@@ -798,6 +798,12 @@ struct ContentView: View {
                     for: .angroveConversationStoreDidImport
                 )
             ) { _ in
+                // An empty export is a valid replacement; don't keep showing the old list.
+                if CurrentConversationsStore.load()?.conversations.isEmpty ?? true {
+                    sideMenuConversations = []
+                    sideMenuActiveConversationID = nil
+                    sideMenuCurrentTitle = "New Conversation"
+                }
                 loadShellConversationState()
             }
             .onReceive(

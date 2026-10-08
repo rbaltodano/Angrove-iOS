@@ -176,15 +176,22 @@ nonisolated struct InquirySnapshotFileStore {
         return try Self.encoder.encode(snapshot)
     }
 
-    @discardableResult
-    func importData(_ data: Data) throws -> InquiryPersistenceSnapshot {
-        guard let snapshot = try? Self.decoder.decode(
-            InquiryPersistenceSnapshot.self,
-            from: data
-        ) else {
+    static func decodeImport(_ data: Data) throws -> InquiryPersistenceSnapshot {
+        guard let snapshot = try? decoder.decode(InquiryPersistenceSnapshot.self, from: data) else {
             throw InquiryPersistenceError.invalidImport
         }
-        try write(snapshot, createsBackup: true)
+        return snapshot
+    }
+
+    /// Import replaces everything, so the current snapshot is always backed up first,
+    /// regardless of the routine backup interval. A failed backup cancels the import.
+    @discardableResult
+    func importData(_ data: Data) throws -> InquiryPersistenceSnapshot {
+        let snapshot = try Self.decodeImport(data)
+        try fileManager.createDirectory(at: rootDirectory, withIntermediateDirectories: true)
+        try createBackup(force: true)
+        let encoded = try Self.encoder.encode(snapshot)
+        try EncryptedPersonalFile.write(encoded, to: snapshotURL)
         return snapshot
     }
 
@@ -205,30 +212,40 @@ nonisolated struct InquirySnapshotFileStore {
             withIntermediateDirectories: true
         )
         if createsBackup {
-            try createBackupIfNeeded()
+            // A missing backup must never cost the person the edit being saved.
+            do { try createBackup(force: false) } catch {
+#if DEBUG
+                print("Angrove conversation backup skipped: \(error.localizedDescription)")
+#endif
+            }
         }
         let data = try Self.encoder.encode(snapshot)
         try EncryptedPersonalFile.write(data, to: snapshotURL)
     }
 
-    private func createBackupIfNeeded() throws {
+    private func createBackup(force: Bool) throws {
         guard fileManager.fileExists(atPath: snapshotURL.path) else { return }
         try fileManager.createDirectory(
             at: backupDirectoryURL,
             withIntermediateDirectories: true
         )
 
-        if let newest = backupURLsNewestFirst().first,
+        if !force,
+           let newest = backupURLsNewestFirst().first,
            let values = try? newest.resourceValues(forKeys: [.contentModificationDateKey]),
            let modificationDate = values.contentModificationDate,
            now().timeIntervalSince(modificationDate) < minimumBackupInterval {
             return
         }
 
+        // The suffix keeps two backups in the same second from colliding.
         let backupURL = backupDirectoryURL.appending(
-            path: "conversations-\(Self.backupTimestamp.string(from: now())).json"
+            path: "conversations-\(Self.backupTimestamp.string(from: now()))-\(UUID().uuidString.prefix(8)).json"
         )
         try fileManager.copyItem(at: snapshotURL, to: backupURL)
+        // A copy keeps the live file's old date. Stamp the backup's creation time instead, or
+        // after a long idle period every save would look due for a new backup and evict older ones.
+        try fileManager.setAttributes([.modificationDate: now()], ofItemAtPath: backupURL.path)
         try pruneBackups()
     }
 

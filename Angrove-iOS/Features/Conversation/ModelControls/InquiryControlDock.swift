@@ -531,7 +531,7 @@ struct InquiryControlDock: View {
 
     @ViewBuilder
     private var attachmentButton: some View {
-        if onAttachRecentPhoto != nil {
+        if AttachmentAvailability.isEnabled, onAttachRecentPhoto != nil {
             PhotoAttachmentControl(
                 isPressed: $isControlButtonPressed,
                 isRecentPhotosOpen: isRecentPhotosOpen,
@@ -547,25 +547,27 @@ struct InquiryControlDock: View {
             )
         } else {
         Menu {
-            Button {
-                isRecentPhotosOpen = false
-                showCamera = true
-            } label: {
-                Label("Camera", systemImage: "camera")
-            }
+            if AttachmentAvailability.isEnabled {
+                Button {
+                    isRecentPhotosOpen = false
+                    showCamera = true
+                } label: {
+                    Label("Camera", systemImage: "camera")
+                }
 
-            Button {
-                isRecentPhotosOpen = false
-                showPhotoPicker = true
-            } label: {
-                Label("Photo", systemImage: "photo")
-            }
+                Button {
+                    isRecentPhotosOpen = false
+                    showPhotoPicker = true
+                } label: {
+                    Label("Photo", systemImage: "photo")
+                }
 
-            Button {
-                isRecentPhotosOpen = false
-                showFilePicker = true
-            } label: {
-                Label("File", systemImage: "doc")
+                Button {
+                    isRecentPhotosOpen = false
+                    showFilePicker = true
+                } label: {
+                    Label("File", systemImage: "doc")
+                }
             }
 
             Button {
@@ -593,7 +595,7 @@ struct InquiryControlDock: View {
     }
 
     private func toggleRecentPhotos() {
-        guard onAttachRecentPhoto != nil, !contextCard.isCompacting else { return }
+        guard AttachmentAvailability.isEnabled, onAttachRecentPhoto != nil, !contextCard.isCompacting else { return }
         UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.65)
         withAnimation(.springStandard) {
             contextCard.isOpen = false
@@ -814,4 +816,10 @@ private struct CanvasSearchTextField: View {
             DispatchQueue.main.async { isFocused = true }
         }
     }
+}
+
+/// Photo, camera, and file attachments ship after launch: the model runs text-only and document
+/// contents are not yet read. The Plus menu keeps Insights and Passages.
+enum AttachmentAvailability {
+    static let isEnabled = false
 }
