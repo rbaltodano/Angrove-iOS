@@ -178,3 +178,19 @@ is also pending. Signing into App Store Connect from a phone does not authentica
 sessions, but the owner can use the phone browser to inspect processing and configure an
 internal group for their own account. Full AI testing still requires the hosted model pack.
 No internal invitations, App Review submission or public release have been performed.
+
+## Build 3 release candidate — October 8, 2026
+
+Branch `claude/audit-fixes` (main `002bfd5` plus RC hardening). Changes since build 2: locked-phone
+saves are retried instead of dropped; conversation backups no longer churn after idle periods or
+collide within one second; import asks for confirmation and always backs up what it replaces;
+conversations saved without newer fields still decode; photo/camera/file attachments are hidden
+until after launch (`AttachmentAvailability.isEnabled`); the app is iPhone-only; archives include
+a generated `CLiteRTLM.framework.dSYM` (function names only; the vendor ships no debug info).
+
+Full serial suite: 424 tests in 70 suites passed. Stable Xcode 27A266a archive and App Store
+export succeeded, version 1.0 build 3, `UIDeviceFamily` [1], no model in the bundle, LiteRT dSYM
+UUID matches the shipped binary. Packaging audit of the exported app: zero blockers.
+IPA (gitignored): `../build-output/rc-audit-release/export/Angrove-iOS.ipa`, SHA-256 `c8340a8362d71b9d4e2c25d9b83efc71fc2a8d29e6324192a8d34a3b34c51a51`.
+Nothing was uploaded. Still required: upload the app and the essential model pack, verify
+processing, then a fresh TestFlight install with model download on a supported iPhone.

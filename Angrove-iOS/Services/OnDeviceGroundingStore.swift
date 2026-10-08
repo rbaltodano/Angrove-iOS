@@ -319,11 +319,14 @@ nonisolated final class OnDeviceGroundingStore: Sendable {
                 queryEmbedding.withUnsafeBufferPointer { query in
                     guard let queryBase = query.baseAddress else { return }
                     func consider(_ index: Int) {
-                        let record = passages[index]
-                        guard requiredTerms.allSatisfy({ record.text.localizedCaseInsensitiveContains($0) }) else { return }
                         var dot: Float = 0
                         vDSP_dotpr(queryBase, 1, base + index * embeddingDimension, 1, &dot, vDSP_Length(embeddingDimension))
                         let distance = 1 - dot
+                        // Text scans dominate ranking cost. Outside a named source, a passage
+                        // beyond the semantic floor can never qualify, so skip its scans.
+                        guard distance <= threshold || permitsNamedSourceLookup else { return }
+                        let record = passages[index]
+                        guard requiredTerms.allSatisfy({ record.text.localizedCaseInsensitiveContains($0) }) else { return }
                         let matched = prioritizingTerms.reduce(0) { $0 + (record.text.localizedCaseInsensitiveContains($1) ? 1 : 0) }
                         guard distance <= threshold || (permitsNamedSourceLookup && (prioritizingTerms.isEmpty || matched > 0)) else { return }
                         let entry = Ranked(index: index, distance: distance, matchedTerms: matched)

@@ -27,6 +27,7 @@ struct EncryptedStorageGate<Content: View>: View {
         // A locked phone makes the key temporarily unavailable. Retry once it unlocks rather than
         // waiting for a tap; integrity failures still need the person's decision.
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.protectedDataDidBecomeAvailableNotification)) { _ in
+            BackgroundPersistenceFlush.retryDeferredWrites()
             if let failure, !PersonalDataProtection.isIntegrityFailure(failure) {
                 Task { await prepare() }
             }

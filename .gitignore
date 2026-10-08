@@ -23,7 +23,10 @@ Angrove-iOS/LocalModels/
 LocalGrounding/
 Angrove-iOS/LocalGrounding/
 Angrove-iOS/LibraryDocuments/
-output/library-source-cache/
+
+# Local scratch from builds, tests, and agent runs
+output/
+build-output/
 
 # Swift Package Manager
 .swiftpm/

@@ -176,15 +176,22 @@ nonisolated struct InquirySnapshotFileStore {
         return try Self.encoder.encode(snapshot)
     }
 
-    @discardableResult
-    func importData(_ data: Data) throws -> InquiryPersistenceSnapshot {
-        guard let snapshot = try? Self.decoder.decode(
-            InquiryPersistenceSnapshot.self,
-            from: data
-        ) else {
+    static func decodeImport(_ data: Data) throws -> InquiryPersistenceSnapshot {
+        guard let snapshot = try? decoder.decode(InquiryPersistenceSnapshot.self, from: data) else {
             throw InquiryPersistenceError.invalidImport
         }
-        try write(snapshot, createsBackup: true)
+        return snapshot
+    }
+
+    /// Import replaces everything, so the current snapshot is always backed up first,
+    /// regardless of the routine backup interval. A failed backup cancels the import.
+    @discardableResult
+    func importData(_ data: Data) throws -> InquiryPersistenceSnapshot {
+        let snapshot = try Self.decodeImport(data)
+        try fileManager.createDirectory(at: rootDirectory, withIntermediateDirectories: true)
+        try createBackup(force: true)
+        let encoded = try Self.encoder.encode(snapshot)
+        try EncryptedPersonalFile.write(encoded, to: snapshotURL)
         return snapshot
     }
 
@@ -205,30 +212,40 @@ nonisolated struct InquirySnapshotFileStore {
             withIntermediateDirectories: true
         )
         if createsBackup {
-            try createBackupIfNeeded()
+            // A missing backup must never cost the person the edit being saved.
+            do { try createBackup(force: false) } catch {
+#if DEBUG
+                print("Angrove conversation backup skipped: \(error.localizedDescription)")
+#endif
+            }
         }
         let data = try Self.encoder.encode(snapshot)
         try EncryptedPersonalFile.write(data, to: snapshotURL)
     }
 
-    private func createBackupIfNeeded() throws {
+    private func createBackup(force: Bool) throws {
         guard fileManager.fileExists(atPath: snapshotURL.path) else { return }
         try fileManager.createDirectory(
             at: backupDirectoryURL,
             withIntermediateDirectories: true
         )
 
-        if let newest = backupURLsNewestFirst().first,
+        if !force,
+           let newest = backupURLsNewestFirst().first,
            let values = try? newest.resourceValues(forKeys: [.contentModificationDateKey]),
            let modificationDate = values.contentModificationDate,
            now().timeIntervalSince(modificationDate) < minimumBackupInterval {
             return
         }
 
+        // The suffix keeps two backups in the same second from colliding.
         let backupURL = backupDirectoryURL.appending(
-            path: "conversations-\(Self.backupTimestamp.string(from: now())).json"
+            path: "conversations-\(Self.backupTimestamp.string(from: now()))-\(UUID().uuidString.prefix(8)).json"
         )
         try fileManager.copyItem(at: snapshotURL, to: backupURL)
+        // A copy keeps the live file's old date. Stamp the backup's creation time instead, or
+        // after a long idle period every save would look due for a new backup and evict older ones.
+        try fileManager.setAttributes([.modificationDate: now()], ofItemAtPath: backupURL.path)
         try pruneBackups()
     }
 
@@ -318,6 +335,8 @@ nonisolated enum InquiryPersistenceStore {
     static func invalidate() { shared.invalidate() }
 
     static func flushAsync() async { await shared.flushAsync() }
+
+    static func retryDeferredSave() { shared.retryDeferredSave() }
 
     static func save(_ snapshot: InquiryPersistenceSnapshot) {
         shared.save(snapshot)
@@ -460,9 +479,33 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
             do {
                 try requireStore().savePreservingCompletedResponses(latest)
             } catch {
-                PersonalDataProtection.report(error)
+                handleWriteFailure(error)
             }
         }
+    }
+
+    /// A locked phone makes the key unavailable. The cache already holds the newest snapshot,
+    /// so keep it and write it once protected data returns instead of closing storage.
+    private var needsDeferredSave = false
+
+    private func handleWriteFailure(_ error: Error) {
+        guard !PersonalDataProtection.isIntegrityFailure(error),
+              !(error is InquiryPersistenceError) else {
+            PersonalDataProtection.report(error)
+            return
+        }
+        cacheLock.withLock { needsDeferredSave = true }
+        PersonalDataProtection.report(error, duringWrite: true)
+    }
+
+    func retryDeferredSave() {
+        let snapshot: InquiryPersistenceSnapshot? = cacheLock.withLock {
+            guard needsDeferredSave else { return nil }
+            needsDeferredSave = false
+            return cached
+        }
+        guard let snapshot else { return }
+        save(snapshot)
     }
 
     private func closePendingSave() {
@@ -525,7 +568,7 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
 
     func invalidate() {
         closePendingSave()
-        queue.sync { cacheLock.withLock { cached = nil; didLoad = false; cacheRevision += 1 } }
+        queue.sync { cacheLock.withLock { cached = nil; didLoad = false; cacheRevision += 1; needsDeferredSave = false } }
     }
 
     private func enqueue(
@@ -537,7 +580,7 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
             do {
                 try operation(requireStore())
             } catch {
-                PersonalDataProtection.report(error)
+                handleWriteFailure(error)
             }
         }
     }

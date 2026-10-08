@@ -20,6 +20,25 @@ nonisolated final class SemanticAssetService: @unchecked Sendable {
 
     private struct Query: Hashable { let text: String; let limit: Int }
 
+    /// Live question retrieval runs ahead of queued tree embeddings. A large tree refresh
+    /// enqueues one block per text, and FIFO order would make the next question wait behind it.
+    private let workLock = NSLock()
+    private var urgentWork: [() -> Void] = []
+    private var routineWork: [() -> Void] = []
+
+    private func submit(urgent: Bool, _ work: @escaping () -> Void) {
+        workLock.withLock {
+            if urgent { urgentWork.append(work) } else { routineWork.append(work) }
+        }
+        // One drain per submission keeps counts balanced; each drain runs the most urgent item.
+        queue.async { [self] in
+            let next = workLock.withLock {
+                urgentWork.isEmpty ? routineWork.removeFirst() : urgentWork.removeFirst()
+            }
+            next()
+        }
+    }
+
     var version: String { versionLock.withLock { resolvedVersion } }
 
     init(bundle: Bundle = .main) {
@@ -46,7 +65,7 @@ nonisolated final class SemanticAssetService: @unchecked Sendable {
         let request = SemanticWorkerRequest()
         return await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
-            queue.async { [self] in
+            submit(urgent: false) { [self] in
                 guard !request.isCancelled else { continuation.resume(returning: nil); return }
                 if let cached = embeddings[text] { continuation.resume(returning: cached); return }
                 let result = PerformanceTrace.measure("Semantic Embedding") {
@@ -68,7 +87,7 @@ nonisolated final class SemanticAssetService: @unchecked Sendable {
         let request = SemanticWorkerRequest()
         return await withTaskCancellationHandler {
               await withCheckedContinuation { continuation in
-                queue.async { [self] in
+                submit(urgent: true) { [self] in
                     guard !request.isCancelled else { continuation.resume(returning: []); return }
                     let result = cachedReferences(for: question, limit: limit)
                     continuation.resume(returning: request.isCancelled ? [] : result)

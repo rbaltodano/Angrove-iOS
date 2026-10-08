@@ -209,6 +209,7 @@ struct PrivacyAndDataSettingsView: View {
     @State private var exportDocument: AngroveConversationDocument?
     @State private var isExportingConversations = false
     @State private var isImportingConversations = false
+    @State private var pendingImport: PendingConversationImport?
     @State private var dataTransferError: String?
     @State private var showsClearInsightTreeConfirmation = false
     var onClearInsightTree: () -> Void = {}
@@ -282,6 +283,20 @@ struct PrivacyAndDataSettingsView: View {
             }
             exportDocument = nil
         }
+        .confirmationDialog(
+            "Replace Your Conversations?",
+            isPresented: Binding(
+                get: { pendingImport != nil },
+                set: { if !$0 { pendingImport = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: pendingImport
+        ) { pending in
+            Button("Replace Conversations", role: .destructive) { commitImport(pending) }
+            Button("Cancel", role: .cancel) { pendingImport = nil }
+        } message: { pending in
+            Text(pending.message)
+        }
         .fileImporter(
             isPresented: $isImportingConversations,
             allowedContentTypes: [.json],
@@ -318,10 +333,38 @@ struct PrivacyAndDataSettingsView: View {
                 let didAccess = url.startAccessingSecurityScopedResource()
                 defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
                 let data = try await Task.detached(priority: .utility) { try Data(contentsOf: url) }.value
-                let snapshot = try await InquiryPersistenceStore.importDataAsync(data)
+                let incoming = try await Task.detached(priority: .utility) {
+                    try InquirySnapshotFileStore.decodeImport(data).conversations.count
+                }.value
+                pendingImport = PendingConversationImport(
+                    data: data,
+                    incomingCount: incoming,
+                    currentCount: InquiryPersistenceStore.load()?.conversations.count ?? 0
+                )
+            } catch { dataTransferError = error.localizedDescription }
+        }
+    }
+
+    private func commitImport(_ pending: PendingConversationImport) {
+        pendingImport = nil
+        Task {
+            do {
+                let snapshot = try await InquiryPersistenceStore.importDataAsync(pending.data)
                 NotificationCenter.default.post(name: .angroveConversationStoreDidImport, object: snapshot)
             } catch { dataTransferError = error.localizedDescription }
         }
+    }
+}
+
+/// A decoded export awaiting the person's confirmation before it replaces their conversations.
+private struct PendingConversationImport {
+    let data: Data
+    let incomingCount: Int
+    let currentCount: Int
+
+    var message: String {
+        func count(_ n: Int) -> String { n == 1 ? "1 conversation" : "\(n) conversations" }
+        return "Your \(count(currentCount)) will be replaced by the \(count(incomingCount)) in this file. A backup of your current conversations is kept on this iPhone."
     }
 }
 
