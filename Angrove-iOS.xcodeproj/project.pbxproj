@@ -37,6 +37,8 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
 
 /* Begin PBXBuildFile section */
 		A20000000000000000000001 /* LiteRTLM in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000003 /* LiteRTLM */; };
+		A20000000000000000000004 /* MisakiSwift in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000006 /* MisakiSwift */; };
+		A20000000000000000000007 /* onnxruntime in Frameworks */ = {isa = PBXBuildFile; productRef = A20000000000000000000009 /* onnxruntime */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -94,6 +96,8 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
 			buildActionMask = 2147483647;
 			files = (
 				A20000000000000000000001 /* LiteRTLM in Frameworks */,
+				A20000000000000000000004 /* MisakiSwift in Frameworks */,
+				A20000000000000000000007 /* onnxruntime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -173,6 +177,8 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
 			name = "Angrove-iOS";
 			packageProductDependencies = (
 				A20000000000000000000003 /* LiteRTLM */,
+				A20000000000000000000006 /* MisakiSwift */,
+				A20000000000000000000009 /* onnxruntime */,
 			);
 			productName = "Angrove-iOS";
 			productReference = D61EFA752F8AAB5B0081D843 /* Angrove-iOS.app */;
@@ -208,6 +214,8 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				A20000000000000000000002 /* XCLocalSwiftPackageReference "Vendor/LiteRTLM" */,
+				A20000000000000000000005 /* XCLocalSwiftPackageReference "Vendor/MisakiSwift" */,
+				A20000000000000000000008 /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D61EFA762F8AAB5B0081D843 /* Products */;
@@ -586,13 +594,38 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Vendor/LiteRTLM;
 		};
+		A20000000000000000000005 /* XCLocalSwiftPackageReference "Vendor/MisakiSwift" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Vendor/MisakiSwift;
+		};
 /* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A20000000000000000000008 /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/microsoft/onnxruntime-swift-package-manager";
+			requirement = {
+				kind = exactVersion;
+				version = 1.24.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		A20000000000000000000003 /* LiteRTLM */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = A20000000000000000000002 /* XCLocalSwiftPackageReference "Vendor/LiteRTLM" */;
 			productName = LiteRTLM;
+		};
+		A20000000000000000000006 /* MisakiSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A20000000000000000000005 /* XCLocalSwiftPackageReference "Vendor/MisakiSwift" */;
+			productName = MisakiSwift;
+		};
+		A20000000000000000000009 /* onnxruntime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A20000000000000000000008 /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */;
+			productName = onnxruntime;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

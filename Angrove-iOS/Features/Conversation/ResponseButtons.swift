@@ -46,6 +46,7 @@ struct ModelResponseFooter: View {
     @State private var showsCopiedConfirmation = false
     @State private var visibleActionCount = 0
     @State private var visibleDisclaimerWords = 0
+    private var speech = ResponseSpeechPlayer.shared
 
     private var disclaimerWords: [String] {
         String(localized: "AI can make mistakes, verify important details")
@@ -53,7 +54,7 @@ struct ModelResponseFooter: View {
     }
 
     private var actionCount: Int {
-        1 + (onRegenerate == nil ? 0 : 1) + (onBranch == nil ? 0 : 1)
+        2 + (onRegenerate == nil ? 0 : 1) + (onBranch == nil ? 0 : 1)
     }
 
     var body: some View {
@@ -65,15 +66,16 @@ struct ModelResponseFooter: View {
                     label: showsCopiedConfirmation ? String(localized: "Response copied") : String(localized: "Copy response"),
                     action: copyResponse
                 )
+                speakButton
                 if let onRegenerate {
                     actionButton(
-                        symbol: "arrow.trianglehead.2.clockwise", index: 1,
+                        symbol: "arrow.trianglehead.2.clockwise", index: 2,
                         label: String(localized: "Regenerate response"), action: onRegenerate
                     )
                 }
                 if let onBranch {
                     actionButton(
-                        symbol: "arrow.trianglehead.branch", index: onRegenerate == nil ? 1 : 2,
+                        symbol: "arrow.trianglehead.branch", index: onRegenerate == nil ? 2 : 3,
                         label: String(localized: "Branch conversation"), action: onBranch
                     )
                 }
@@ -110,6 +112,23 @@ struct ModelResponseFooter: View {
             animates: shouldAnimateOnAppear && !reduceMotion
         ))
         .frame(width: 14, height: 16)
+    }
+
+    /// Reads the response aloud; tapping again while it is preparing or speaking stops it.
+    private var speakButton: some View {
+        let phase = speech.phase(for: copyText)
+        return Button { speech.toggle(copyText) } label: {
+            actionIcon("speaker.wave.2")
+                .symbolEffect(.variableColor.iterative, isActive: phase != .idle && !reduceMotion)
+                .foregroundStyle(phase == .idle ? AngroveTheme.Colors.responseButton : AngroveTheme.Colors.accent)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(phase == .idle ? String(localized: "Read response aloud") : String(localized: "Stop reading"))
+        .modifier(ResponseActionEntrance(
+            isVisible: 1 < visibleActionCount,
+            animates: shouldAnimateOnAppear && !reduceMotion
+        ))
+        .frame(width: 18, height: 16)
     }
 
     private func actionIcon(_ symbol: String) -> some View {
