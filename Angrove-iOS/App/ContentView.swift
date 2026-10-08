@@ -897,7 +897,7 @@ struct ContentView: View {
                                     },
                                     onRefresh: refreshPersistedContent,
                                     onLoadHomeSections: {
-                                        Task { await refreshHomeSections() }
+                                        await refreshHomeSections()
                                     }
                                 )
                             case .conversation:

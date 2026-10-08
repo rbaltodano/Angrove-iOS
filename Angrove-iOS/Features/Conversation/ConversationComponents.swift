@@ -493,6 +493,8 @@ struct ChatThreadColumn: View {
         connectionConcepts: [ConceptDefinition]? = nil,
         restoreQueuedQuestion: @escaping () -> Void
     ) {
+        // "Thought for Xs" counts from the moment the user submits, including queue waiting.
+        let submittedAt = ContinuousClock.now
         let responseIndex = replacementIndex ?? branchData.activeChatBlocks.count
         let context = modelContextForResponse(
             endingBefore: replacementIndex,
@@ -515,11 +517,13 @@ struct ChatThreadColumn: View {
         // another conversation while this job runs, the binding points at that other conversation's
         // branch, so completion must verify identity before touching it.
         let originalBranchID = branchData.id
+        let liveKey = LiveResponseStore.Key(branchID: originalBranchID, responseIndex: responseIndex)
         let responseLifetime = responseViewLifetime
         let model = angroveModel
 
         composerReadyResponseIndices.remove(responseIndex)
         animatedResponseIndices.insert(responseIndex)
+        LiveResponseStore.shared.begin(liveKey, showsThinking: thinkingEnabled)
         pendingResponseIndices.insert(responseIndex)
         responseRevealGatesByIndex[responseIndex] = revealGate
         if isModelBusy || !pendingResponseIndices.subtracting([responseIndex]).isEmpty {
@@ -554,6 +558,7 @@ struct ChatThreadColumn: View {
                 }
             },
             onCancel: {
+                LiveResponseStore.shared.clear(liveKey)
                 guard responseLifetime.isVisible, branchData.id == originalBranchID else {
                     if let conversationID {
                         InquiryPersistenceStore.completeDetachedResponse(
@@ -588,9 +593,6 @@ struct ChatThreadColumn: View {
             var responseContext = context
             // Keep result metadata with the job; view-local State may be unmounted mid-generation.
             var generatedGroundingSources: [GroundingSourceSummary] = []
-            // Measure the whole active job: streamed drafts stay hidden until preparation,
-            // writing, and any response checks finish. Queue waiting is excluded.
-            let preparationStartedAt = ContinuousClock.now
             if AngroveContextBudget.shouldCompact(context),
                let split = AngroveContextBudget.historyAndLatestTurn(in: context) {
                 automaticallyCompactingResponseIndices.insert(responseIndex)
@@ -628,6 +630,24 @@ struct ChatThreadColumn: View {
                 if case .groundingSources(let sources) = update {
                     generatedGroundingSources = sources
                 }
+                // The store outlives the view, so a thread remounted mid-generation keeps
+                // receiving the thinking, sources, and stream state.
+                LiveResponseStore.shared.update(liveKey) { entry in
+                    switch update {
+                    case .generationStarted:
+                        break
+                    case .thinkingSummary(let summary):
+                        entry.thinkingSummary = summary
+                    case .thought(let thought):
+                        if let line = ModelThought.currentLine(in: thought) {
+                            entry.liveThought = line
+                        }
+                    case .groundingSources(let sources):
+                        entry.groundingSources = sources
+                    case .responseText(let streamedText):
+                        if !streamedText.isEmpty { entry.isReceivingStream = true }
+                    }
+                }
                 guard responseLifetime.isVisible,
                       branchData.id == originalBranchID,
                       branchData.activeChatBlocks.indices.contains(responseIndex) else {
@@ -657,7 +677,7 @@ struct ChatThreadColumn: View {
                     streamingResponseIndices.insert(responseIndex)
                 }
             }
-            let elapsed = preparationStartedAt.duration(to: ContinuousClock.now).components
+            let elapsed = submittedAt.duration(to: ContinuousClock.now).components
             let thinkingDurationSeconds = Double(elapsed.seconds)
                 + Double(elapsed.attoseconds) / 1e18
             let destination = ConversationResponseStatePolicy.completionDestination(
@@ -669,6 +689,7 @@ struct ChatThreadColumn: View {
                 displayedBlockCount: responseLifetime.isVisible ? branchData.activeChatBlocks.count : 0
             )
             guard destination != .discarded else {
+                LiveResponseStore.shared.clear(liveKey)
                 modelQueuedResponseIndices.remove(responseIndex)
                 pendingResponseIndices.remove(responseIndex)
                 streamingResponseIndices.remove(responseIndex)
@@ -701,6 +722,7 @@ struct ChatThreadColumn: View {
                     )
                     onDetachedResponseGenerated(conversationID, originalBranchID, responseIndex)
                 }
+                LiveResponseStore.shared.finishGeneration(liveKey)
                 return
             }
             modelQueuedResponseIndices.remove(responseIndex)
@@ -728,6 +750,7 @@ struct ChatThreadColumn: View {
                 // cancellation. The response reserves its final height while animating.
                 branchData.showBottomInput = true
             }
+            LiveResponseStore.shared.finishGeneration(liveKey)
             // Model completion is functional state and must not depend on this view remaining
             // mounted long enough to run the response card's reveal animation. Persist the title
             // and completed response now; `onFinish` below remains visual-only.
@@ -991,21 +1014,37 @@ struct ChatThreadColumn: View {
         """
     }
 
+    private func liveKey(_ index: Int) -> LiveResponseStore.Key {
+        LiveResponseStore.Key(branchID: branchData.id, responseIndex: index)
+    }
+
+    /// In-flight state that survives this view being remounted mid-generation.
+    private func liveEntry(at index: Int) -> LiveResponseStore.Entry? {
+        LiveResponseStore.shared.entries[liveKey(index)]
+    }
+
+    private func shouldAnimateResponse(at index: Int) -> Bool {
+        animatedResponseIndices.contains(index) || liveEntry(at: index)?.isAnimating == true
+    }
+
     private func responseShowsThinkingIntro(at index: Int, text: String) -> Bool {
         guard text != questionCanceledResponseText else { return false }
         return responseThinkingIntroByIndex[index]
+            ?? liveEntry(at: index)?.showsThinking
             ?? branchData.responsePresentation(at: index)?.showsThinking
             ?? true
     }
 
     private func responseGroundingSources(at index: Int) -> [GroundingSourceSummary] {
         responseGroundingSourcesByIndex[index]
+            ?? liveEntry(at: index)?.groundingSources
             ?? branchData.responsePresentation(at: index)?.groundingSources
             ?? []
     }
 
     private func responseThinkingSummary(at index: Int) -> [String] {
         responseThinkingSummaryByIndex[index]
+            ?? liveEntry(at: index)?.thinkingSummary
             ?? branchData.responsePresentation(at: index)?.thinkingSummary
             ?? []
     }
@@ -1479,16 +1518,19 @@ struct ChatThreadColumn: View {
                     TrackedResponseCard(
                                 textContent: textContent,
                                 responseIndex: index,
-                                shouldAnimateOnAppear: animatedResponseIndices.contains(index),
+                                shouldAnimateOnAppear: shouldAnimateResponse(at: index),
                                 showsThinkingIntro: responseShowsThinkingIntro(at: index, text: textContent),
                                 isAwaitingResponse: isResponsePending(at: index, text: textContent),
-                                isReceivingStream: streamingResponseIndices.contains(index),
+                                isReceivingStream: streamingResponseIndices.contains(index)
+                                    || liveEntry(at: index)?.isReceivingStream == true,
                                 isQueuedForModel: isResponseQueued(at: index),
                                 usesIncrementalStream: false,
                                 thinkingSummary: responseThinkingSummary(at: index),
-                                liveThought: responseLiveThoughtByIndex[index],
+                                liveThought: liveEntry(at: index)?.liveThought
+                                    ?? responseLiveThoughtByIndex[index],
                                 thinkingDurationSeconds: branchData.responsePresentation(at: index)?.thinkingDurationSeconds,
                                 groundingSources: responseGroundingSources(at: index),
+                                revealMemoryKey: liveKey(index),
                                 evidenceBasis: responseEvidenceBasis(at: index),
                                 funStatusText: funStatusText(for: index),
                                 targetSpawnY: $targetSpawnY,
@@ -1523,6 +1565,7 @@ struct ChatThreadColumn: View {
                                 onFinish: {
                                     withAnimation(ResponseRevealTiming.finishingAnimation) {
                                         animatedResponseIndices.remove(index)
+                                        LiveResponseStore.shared.clear(liveKey(index))
                                         branchData.showBottomInput = true
                                     }
                                     onResponseCompleted(index)
@@ -1989,6 +2032,7 @@ struct TrackedResponseCard: View {
     var liveThought: String? = nil
     var thinkingDurationSeconds: TimeInterval? = nil
     let groundingSources: [GroundingSourceSummary]
+    var revealMemoryKey: LiveResponseStore.Key? = nil
     let evidenceBasis: ResponseEvidenceBasis?
     let funStatusText: String?
     @Binding var targetSpawnY: CGFloat
@@ -2042,6 +2086,7 @@ struct TrackedResponseCard: View {
             liveThought: liveThought,
             thinkingDurationSeconds: thinkingDurationSeconds,
             groundingSources: groundingSources,
+            revealMemoryKey: revealMemoryKey,
             evidenceBasis: evidenceBasis,
             funStatusText: funStatusText,
             responseTextAlignment: responseTextAlignment,

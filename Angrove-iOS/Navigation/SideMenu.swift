@@ -241,7 +241,14 @@ struct AngroveSideMenu: View, Equatable {
                     Image(systemName: AppPage.settings.sidebarIconName)
                         .font(.system(size: 16, weight: .semibold))
                         .sfSymbolDrawOn()
+                        // A 56 pt target around the 16 pt icon, so a tap near it never
+                        // lands on the conversation row behind.
+                        .frame(width: 56, height: 56)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .padding(.leading, -20)
+                .padding(.vertical, -12)
                 .accessibilityLabel("Settings")
                 .foregroundColor(AngroveTheme.Colors.primaryReadable)
 

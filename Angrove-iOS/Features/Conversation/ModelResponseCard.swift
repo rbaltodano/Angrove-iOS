@@ -30,6 +30,8 @@ struct ModelResponseCard: View {
     /// Retrieved grounding passages for the turn currently generating, rendered as expandable
     /// Source rows in the loading state. Empty once the response is complete.
     let groundingSources: [GroundingSourceSummary]
+    /// Scopes "this source's entrance already played" to one response. `nil` replays freely.
+    var revealMemoryKey: LiveResponseStore.Key? = nil
     let evidenceBasis: ResponseEvidenceBasis?
     let funStatusText: String?
     let responseTextAlignment: ResponseTextAlignmentOption
@@ -106,6 +108,7 @@ struct ModelResponseCard: View {
         liveThought: String? = nil,
         thinkingDurationSeconds: TimeInterval? = nil,
         groundingSources: [GroundingSourceSummary] = [],
+        revealMemoryKey: LiveResponseStore.Key? = nil,
         evidenceBasis: ResponseEvidenceBasis? = nil,
         funStatusText: String? = nil,
         responseTextAlignment: ResponseTextAlignmentOption = .left,
@@ -136,6 +139,7 @@ struct ModelResponseCard: View {
         self.liveThought = liveThought
         self.thinkingDurationSeconds = thinkingDurationSeconds
         self.groundingSources = groundingSources
+        self.revealMemoryKey = revealMemoryKey
         self.evidenceBasis = evidenceBasis
         self.funStatusText = funStatusText
         self.responseTextAlignment = responseTextAlignment
@@ -161,7 +165,9 @@ struct ModelResponseCard: View {
         _liveSummarySnapshot = State(initialValue: isAwaitingResponse ? thinkingSummary : [])
         _showTitle = State(initialValue: !shouldAnimateOnAppear)
         _showResponseContent = State(initialValue: !shouldAnimateOnAppear)
-        _thinkingStartedAt = State(initialValue: Date())
+        _thinkingStartedAt = State(
+            initialValue: revealMemoryKey.flatMap { LiveResponseStore.shared.entries[$0]?.startedAt } ?? Date()
+        )
         // A restored response is already fully presented. Its StreamingMessageView starts with
         // every word visible and therefore does not run the reveal task or call `onFinish`.
         // Treat it as finished up front so a timer/token footer from the interrupted renderer
@@ -183,6 +189,7 @@ struct ModelResponseCard: View {
                             summaryLines: isAwaitingResponse ? thinkingSummary : (liveSummarySnapshot ?? []),
                             liveThought: liveThought,
                             groundingSources: groundingSources,
+                            revealMemoryKey: revealMemoryKey,
                             isWritingResponse: isShowingWritingStatus,
                             isQueuedForModel: isQueuedForModel,
                             funStatusText: funStatusText,
@@ -453,7 +460,7 @@ struct ModelResponseCard: View {
     }
 
     private func startThinking() {
-        thinkingStartedAt = Date()
+        thinkingStartedAt = revealMemoryKey.flatMap { LiveResponseStore.shared.entries[$0]?.startedAt } ?? Date()
         hasStartedFinishThinking = false
         isLiveThinkingVisible = true
         liveSummarySnapshot = isAwaitingResponse ? thinkingSummary : []
@@ -592,6 +599,7 @@ private struct LiveThinkingProgressView: View {
     let summaryLines: [String]
     let liveThought: String?
     let groundingSources: [GroundingSourceSummary]
+    let revealMemoryKey: LiveResponseStore.Key?
     let isWritingResponse: Bool
     let isQueuedForModel: Bool
     let funStatusText: String?
@@ -649,7 +657,8 @@ private struct LiveThinkingProgressView: View {
                             GroundingSourceRow(
                                 source: source,
                                 responseTextAlignment: responseTextAlignment,
-                                placement: index
+                                placement: index,
+                                revealMemoryKey: revealMemoryKey?.sourceKey(source.id)
                             )
                         }
 
@@ -741,6 +750,9 @@ private struct GroundingSourceRow: View {
     var isShown: Bool = true
     /// Finished thinking disclosures animate from their opening state, never viewport changes.
     var usesDisclosureEntrance: Bool = false
+    /// When set, the live entrance plays once per source and never again on later viewport
+    /// entries or remounts.
+    var revealMemoryKey: String? = nil
 
     private static let placementStagger: Duration = .milliseconds(180)
 
@@ -750,9 +762,14 @@ private struct GroundingSourceRow: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private var hasPlayedEntrance: Bool {
+        guard let revealMemoryKey else { return false }
+        return LiveResponseStore.shared.revealedSourceKeys.contains(revealMemoryKey)
+    }
+
     private var subject: LibrarySubject { LibrarySubject.of(workID: source.sourceID ?? "") }
     private var isEntranceRevealed: Bool {
-        reduceMotion || (usesDisclosureEntrance ? isShown : isTitleRevealed)
+        reduceMotion || (usesDisclosureEntrance ? isShown : (isTitleRevealed || hasPlayedEntrance))
     }
 
     /// The passage broken into the units it reveals in, matching how **Show Thinking** steps
@@ -797,8 +814,15 @@ private struct GroundingSourceRow: View {
                         subject: subject,
                         symbolSize: 13,
                         shelfIsVisible: isShown,
-                        entranceDelay: usesDisclosureEntrance ? nil : Self.placementStagger * placement,
-                        onRevealChange: { isTitleRevealed = $0 }
+                        entranceDelay: usesDisclosureEntrance || hasPlayedEntrance
+                            ? nil
+                            : Self.placementStagger * placement,
+                        onRevealChange: { revealed in
+                            isTitleRevealed = revealed
+                            if revealed, let revealMemoryKey {
+                                LiveResponseStore.shared.markSourceRevealed(revealMemoryKey)
+                            }
+                        }
                     )
                     .opacity(usesDisclosureEntrance && !isEntranceRevealed ? 0 : 1)
 

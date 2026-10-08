@@ -117,3 +117,10 @@ extension AnyTransition {
         )
     }
 }
+
+extension AnyTransition {
+    /// The blur-and-fade a deleted conversation card leaves with, and a new card arrives with.
+    static var blurFadeShrink: AnyTransition {
+        .blurFade.combined(with: .scale(scale: 0.96))
+    }
+}

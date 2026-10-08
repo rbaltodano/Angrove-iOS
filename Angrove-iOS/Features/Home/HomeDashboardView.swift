@@ -24,7 +24,7 @@ struct HomeDashboardView: View {
     var onFocusNode: (UUID) -> Void = { _ in }
     var onStartTodayInHistory: (TodayInHistoryCard) -> Void = { _ in }
     var onRefresh: () -> Void = {}
-    var onLoadHomeSections: () -> Void = {}
+    var onLoadHomeSections: () async -> Void = {}
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     /// Landscape has ample horizontal room but a much shorter reading lane. This lets the
@@ -39,6 +39,10 @@ struct HomeDashboardView: View {
     /// Embedding every saved Insight is far too slow for `body`, which re-runs on unrelated
     /// shell changes such as the side menu opening. It is computed off the main actor instead.
     @State private var bridgeSuggestion: HomeInsightBridgeSuggestion?
+    /// What the page currently shows of its changing sections; nil until the first appearance.
+    @State private var shownSections: HomeLiveSections?
+    /// True once Home has finished loading and the reveal pause has passed.
+    @State private var canRevealNewSections = false
 
     private var regularConversations: [InquiryConversation] {
         conversations.filter { !$0.isStudyTopic }
@@ -57,6 +61,48 @@ struct HomeDashboardView: View {
             .filter { $0.id != featuredConversation?.id }
     }
 
+    private var liveSections: HomeLiveSections {
+        HomeLiveSections(
+            question: questionOfTheDay,
+            today: todayInHistory,
+            loose: looseThread,
+            glossed: glossedTerm,
+            quote: yourQuote,
+            bridge: bridgeSuggestion
+        )
+    }
+
+    /// Content already present when Home appears shows immediately. Sections that arrive
+    /// afterwards wait until loading has finished plus a pause, then fade in with a blur so
+    /// the reader can see they are new. Removals apply at once.
+    private var sections: HomeLiveSections { shownSections ?? liveSections }
+
+    private func revealNewSections() {
+        guard let current = shownSections else { return }
+        let live = liveSections
+        func merged<Value>(_ shown: Value?, _ live: Value?) -> Value? {
+            live == nil || canRevealNewSections ? live : shown
+        }
+        let next = HomeLiveSections(
+            question: merged(current.question, live.question),
+            today: merged(current.today, live.today),
+            loose: merged(current.loose, live.loose),
+            glossed: merged(current.glossed, live.glossed),
+            quote: merged(current.quote, live.quote),
+            bridge: merged(current.bridge, live.bridge)
+        )
+        guard next != current else { return }
+        withAnimation(.easeInOut(duration: 0.5)) { shownSections = next }
+    }
+
+    private func loadHomeSections() {
+        Task {
+            await onLoadHomeSections()
+            try? await Task.sleep(for: .seconds(1))
+            canRevealNewSections = true
+        }
+    }
+
     private var displayUserName: String {
         let trimmedName = userName.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmedName.isEmpty ? "Ryan" : trimmedName
@@ -72,11 +118,12 @@ struct HomeDashboardView: View {
                     Color.clear.frame(height: usesLandscapeLayout ? 24 : 57)
 
                     VStack(alignment: .leading, spacing: 48) {
-                        if let todayInHistory {
+                        if let todayInHistory = sections.today {
                             HomeTodayInHistorySection(
                                 card: todayInHistory,
                                 onStartConversation: { onStartTodayInHistory(todayInHistory) }
                             )
+                            .transition(.blurFade)
                         }
 
                         HomeFigmaOpeningSection(
@@ -87,9 +134,9 @@ struct HomeDashboardView: View {
                             insightCount: savedInsights.count,
                             studyTopicCount: studyTopics.count,
                             unfinishedCount: unfinishedConversations.count,
-                            questionOfTheDay: questionOfTheDay,
+                            questionOfTheDay: sections.question,
                             usesLandscapeLayout: usesLandscapeLayout,
-                            hidesGreetingHeader: todayInHistory != nil,
+                            hidesGreetingHeader: sections.today != nil,
                             onStartQuestion: onStartQuestion
                         )
 
@@ -107,7 +154,8 @@ struct HomeDashboardView: View {
 
                         HomeFigmaDivider()
 
-                        if let bridgeSuggestion {
+                        if let bridgeSuggestion = sections.bridge {
+                            Group {
                             HomeInsightBridgeSection(
                                 suggestion: bridgeSuggestion,
                                 onOpenInsight: { activeInsight = $0 },
@@ -120,30 +168,41 @@ struct HomeDashboardView: View {
                             )
 
                             HomeFigmaDivider()
+                            }
+                            .transition(.blurFade)
                         }
 
-                        if let looseThread {
+                        if let looseThread = sections.loose {
+                            Group {
                             HomeLooseThreadSection(
                                 card: looseThread,
                                 onOpen: { onFocusNode(looseThread.nodeID) }
                             )
 
                             HomeFigmaDivider()
+                            }
+                            .transition(.blurFade)
                         }
 
-                        if let glossedTerm {
+                        if let glossedTerm = sections.glossed {
+                            Group {
                             HomeGlossedTermSection(
                                 card: glossedTerm,
                                 onOpen: { activeInsight = glossedTerm.concept }
                             )
 
                             HomeFigmaDivider()
+                            }
+                            .transition(.blurFade)
                         }
 
-                        if let yourQuote {
+                        if let yourQuote = sections.quote {
+                            Group {
                             HomeYourQuoteSection(card: yourQuote)
 
                             HomeFigmaDivider()
+                            }
+                            .transition(.blurFade)
                         }
 
                         if !readingWorks.isEmpty {
@@ -190,8 +249,11 @@ struct HomeDashboardView: View {
             usageMonth = MonthlyUsageStore.currentMonth()
             studyTopics = StudyTopicStore.load()
             readingWorks = RecommendedReading.works(for: regularConversations)
-            onLoadHomeSections()
+            if shownSections == nil { shownSections = liveSections }
+            loadHomeSections()
         }
+        .onChange(of: liveSections) { revealNewSections() }
+        .onChange(of: canRevealNewSections) { revealNewSections() }
         .task(id: savedInsights) {
             let insights = savedInsights
             let suggestion = await Task.detached(priority: .utility) {
@@ -216,7 +278,7 @@ struct HomeDashboardView: View {
         studyTopics = StudyTopicStore.load()
         readingWorks = RecommendedReading.works(for: regularConversations)
         onRefresh()
-        onLoadHomeSections()
+        loadHomeSections()
     }
 }
 
@@ -288,6 +350,7 @@ private struct HomeFigmaOpeningSection: View {
                     question: questionOfTheDay.question,
                     action: { onStartQuestion(questionOfTheDay) }
                 )
+                .transition(.blurFade)
             }
 
             if let questionOfTheDay, usesLandscapeLayout {
@@ -296,6 +359,7 @@ private struct HomeFigmaOpeningSection: View {
                     action: { onStartQuestion(questionOfTheDay) }
                 )
                 .frame(maxWidth: 520)
+                .transition(.blurFade)
             }
         }
     }
@@ -765,9 +829,19 @@ private func figmaUsageColor(for level: Int) -> Color {
     }
 }
 
+/// The Home sections that appear and disappear as content is generated.
+private struct HomeLiveSections: Equatable {
+    var question: HomeQuestionOfTheDay?
+    var today: TodayInHistoryCard?
+    var loose: LooseThreadCard?
+    var glossed: GlossedTermCard?
+    var quote: YourQuoteCard?
+    var bridge: HomeInsightBridgeSuggestion?
+}
+
 // MARK: - Dashboard Content
 
-private nonisolated struct HomeInsightBridgeSuggestion: Sendable {
+private nonisolated struct HomeInsightBridgeSuggestion: Sendable, Equatable {
     let first: ConceptDefinition
     let second: ConceptDefinition
     let distance: Double

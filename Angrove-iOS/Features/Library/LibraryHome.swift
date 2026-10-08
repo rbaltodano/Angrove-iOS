@@ -367,6 +367,7 @@ struct LibraryHomeView: View {
                     onRemove: onRemoveClippedPassage,
                     onAsk: onAskClippedPassage
                 )
+                .transition(.blurFadeShrink)
             }
 
             if let passage = catalog.featuredPassage {
@@ -388,6 +389,8 @@ struct LibraryHomeView: View {
             LibraryIndexCard(works: catalog.works, onOpenWork: onOpenWork)
                 .padding(.horizontal, 24)
         }
+        // Clipping or unclipping a passage animates it in or out of the stack.
+        .animation(.springQuick, value: clippedPassages.map(\.id))
     }
 }
 
@@ -417,6 +420,7 @@ private struct ClippedPassagesShelf: View {
                             onRemove: { onRemove(passage) },
                             onAsk: { onAsk(passage) }
                         )
+                        .transition(.blurFadeShrink)
                     }
                 }
                 .padding(.vertical, 1)
