@@ -181,16 +181,26 @@ No internal invitations, App Review submission or public release have been perfo
 
 ## Build 3 release candidate — October 8, 2026
 
-Branch `claude/audit-fixes` (main `002bfd5` plus RC hardening). Changes since build 2: locked-phone
+**`main` is the release candidate.** It combines the complete Library reader and pending polish
+(`39e1cd5`) with the RC hardening branch (merge `a807a0a`). Changes since build 2: locked-phone
 saves are retried instead of dropped; conversation backups no longer churn after idle periods or
 collide within one second; import asks for confirmation and always backs up what it replaces;
-conversations saved without newer fields still decode; photo/camera/file attachments are hidden
-until after launch (`AttachmentAvailability.isEnabled`); the app is iPhone-only; archives include
-a generated `CLiteRTLM.framework.dSYM` (function names only; the vendor ships no debug info).
+conversations saved without newer fields still decode; photo, camera, and file attachments are
+removed until after launch; the app is iPhone-only; archives include a generated
+`CLiteRTLM.framework.dSYM` (function names only; the vendor ships no debug info).
 
-Full serial suite: 424 tests in 70 suites passed. Stable Xcode 27A266a archive and App Store
-export succeeded, version 1.0 build 3, `UIDeviceFamily` [1], no model in the bundle, LiteRT dSYM
-UUID matches the shipped binary. Packaging audit of the exported app: zero blockers.
-IPA (gitignored): `../build-output/rc-audit-release/export/Angrove-iOS.ipa`, SHA-256 `c8340a8362d71b9d4e2c25d9b83efc71fc2a8d29e6324192a8d34a3b34c51a51`.
+Full serial suite on `main`: 433 tests in 72 suites passed. Stable Xcode 27A266a archive and App
+Store export succeeded: version 1.0 build 3, `UIDeviceFamily` [1], no model in the bundle, all 38
+Library reader documents bundled, LiteRT dSYM UUID matches the shipped binary. Packaging audit of
+the exported app: zero blockers.
+
+- Archive: `../build-output/main-rc-release/Angrove-RC.xcarchive`
+- IPA: `../build-output/main-rc-release/export/Angrove-iOS.ipa`, SHA-256
+  `f4ea6db762548f694f65b7550aaa1949c3161c4e53025d2b1279cab852eca3dd`
+
+The reader documents (`Angrove-iOS/LibraryDocuments/`) and grounding corpus are generated,
+gitignored inputs. A clean checkout must regenerate them before archiving
+([Complete Library reader](Complete-Library-Reader.md), [setup](Development-Setup.md)).
+
 Nothing was uploaded. Still required: upload the app and the essential model pack, verify
 processing, then a fresh TestFlight install with model download on a supported iPhone.
