@@ -67,6 +67,19 @@ Study Topics bring related conversations and their Insights together. Home offer
 the Day and ideas worth revisiting, while Model Tasks lets you stop, remove, or reorder work
 waiting for the on-device model.
 
+## Watch Angrove in use
+
+Three iPhone app recordings captured October 8, 2026. Select a preview to watch the clip
+with playback controls and audio on the website.
+
+| Ask a question and explore its tree · 1:49 | Explore saved ideas · 0:24 | Listen to an answer · 0:50 |
+| --- | --- | --- |
+| [![A Peloponnesian War conversation](https://angrove.app/assets/app/demos/user-question-and-insight-tree.jpg)](https://angrove.app/case-study.html#demo-conversation) | [![A saved polis Insight in the global tree](https://angrove.app/assets/app/demos/global-insight-tree.jpg)](https://angrove.app/case-study.html#demo-global-tree) | [![An answer playing in the Reading controls](https://angrove.app/assets/app/demos/on-device-reader.jpg)](https://angrove.app/case-study.html#demo-reader) |
+
+[All three demos](https://angrove.app/case-study.html#demos) ·
+[Conversation guide](https://angrove.app/guide.html#conversation) ·
+[Insight Tree guide](https://angrove.app/guide.html#tree)
+
 ## A look inside
 
 October 5, 2026 app captures: Home, a Peloponnesian War inquiry, a Homoousios conversation,
@@ -163,5 +176,5 @@ xcodebuild -project Angrove-iOS.xcodeproj -scheme Angrove-iOS \
 ```
 
 For deterministic checks and model-evaluation methodology, see [Evaluation](Documentation/Evaluation.md).
-A full walkthrough video is still to be recorded; the [recording outline](Documentation/Demo-Outline.md)
-is ready. Detailed contributor guidance starts at [`AGENTS.md`](AGENTS.md).
+Three feature demos are linked above. A narrated walkthrough is still to be recorded; the
+[recording outline](Documentation/Demo-Outline.md) is available. Detailed contributor guidance starts at [`AGENTS.md`](AGENTS.md).
