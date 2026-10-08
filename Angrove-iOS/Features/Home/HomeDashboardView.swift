@@ -23,6 +23,7 @@ struct HomeDashboardView: View {
     var onOpenInsightBridge: (UUID, UUID) -> Void
     var onFocusNode: (UUID) -> Void = { _ in }
     var onStartTodayInHistory: (TodayInHistoryCard) -> Void = { _ in }
+    var onOpenUserGuide: () -> Void = {}
     var onRefresh: () -> Void = {}
     var onLoadHomeSections: () async -> Void = {}
     @Environment(\.verticalSizeClass) private var verticalSizeClass
@@ -139,6 +140,10 @@ struct HomeDashboardView: View {
                             hidesGreetingHeader: sections.today != nil,
                             onStartQuestion: onStartQuestion
                         )
+
+                        HomeFigmaDivider()
+
+                        HomeStartHereSection(onOpen: onOpenUserGuide)
 
                         HomeFigmaDivider()
 
@@ -575,6 +580,35 @@ private struct HomeInsightBridgeLabel: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct HomeStartHereSection: View {
+    var onOpen: () -> Void
+
+    var body: some View {
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Start Here")
+                    .font(AngroveTheme.Typography.uiHeading)
+                    .foregroundColor(AngroveTheme.Colors.primaryReadable)
+
+                Text("New to Angrove? The User Guide shows how conversations, Insights, the Insight Tree, and the Library work together.")
+                    .paragraphFont()
+                    .foregroundColor(AngroveTheme.Colors.paragraphText)
+                    .lineSpacing(7)
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AngroveTheme.Colors.canvasSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(AngroveTheme.Colors.quietBorder, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens the User Guide")
     }
 }
 

@@ -116,6 +116,7 @@ struct ContentView: View {
     @State private var isGlobalInsightAskMode: Bool = false
     @State private var globalInsightExistingConversationTarget: ConceptDefinition? = nil
     @State private var libraryExistingConversationTarget: ConceptDefinition? = nil
+    @State private var opensSettingsUserGuide = false
     @State private var clippedPassages: [ConceptDefinition] = ClippedPassageStore.load()
     @State private var globalInsightIsMidpointMode: Bool = false
     @State private var globalInsightIsGenerating: Bool = false
@@ -895,6 +896,10 @@ struct ContentView: View {
                                         ))
                                         redirect(to: .conversation)
                                     },
+                                    onOpenUserGuide: {
+                                        opensSettingsUserGuide = true
+                                        redirect(to: .settings)
+                                    },
                                     onRefresh: refreshPersistedContent,
                                     onLoadHomeSections: {
                                         await refreshHomeSections()
@@ -954,7 +959,8 @@ struct ContentView: View {
                                     collectedDefinitions: $collectedDefinitions,
                                     onOpenMenu: presentGlobalSideMenu,
                                     onDetailVisibilityChange: { isSettingsDetailVisible = $0 },
-                                    onClearInsightTree: clearInsightTree
+                                    onClearInsightTree: clearInsightTree,
+                                    opensUserGuide: $opensSettingsUserGuide
                                 )
                             case .insights:
                                 insightTreePage

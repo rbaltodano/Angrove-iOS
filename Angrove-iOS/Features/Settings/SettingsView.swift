@@ -20,6 +20,8 @@ struct SettingsView: View {
     var onOpenMenu: () -> Void
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
     var onClearInsightTree: () -> Void = {}
+    /// Set by other pages (Home's Start Here card) to open the User Guide; cleared once handled.
+    var opensUserGuide: Binding<Bool> = .constant(false)
 
     @State private var path: [SettingsRoute] = []
     @State private var guideSavedTerms: [String] = []
@@ -56,6 +58,11 @@ struct SettingsView: View {
                 .toolbar(.hidden, for: .navigationBar)
             }
             .background(AngroveTheme.Colors.canvas)
+            .onChange(of: opensUserGuide.wrappedValue, initial: true) { _, opens in
+                guard opens else { return }
+                path = [.userGuide]
+                opensUserGuide.wrappedValue = false
+            }
 
             HStack(spacing: 8) {
                 AngroveNavButton(onMenuTap: onOpenMenu)
