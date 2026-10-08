@@ -53,7 +53,7 @@ private struct SpokenWordFill: ViewModifier {
     private var isRetained: Bool {
         guard retainsReadWords, !speechText.isEmpty, speech.activeText == speechText,
               let active = speech.activeWord else { return false }
-        return index < active && index >= (speech.firstWord ?? 0)
+        return index < active
     }
 
     func body(content: Content) -> some View {
@@ -217,9 +217,15 @@ private struct SpokenWordLift: ViewModifier {
 
     func body(content: Content) -> some View {
         let isLifted = !speechText.isEmpty && speech.activeText == speechText
-            && speech.activeWord.map { index <= $0 } == true && index >= (speech.firstWord ?? 0)
+            && speech.activeWord.map { index <= $0 } == true
         content
             .offset(y: isLifted ? -2 : 0)
             .animation(.timingCurve(0.55, 0, 0.17, 1, duration: 0.4), value: isLifted)
+            .background {
+                // A scroll view can be sent to the word being read through this marker.
+                if !speechText.isEmpty, speech.activeText == speechText, speech.activeWord == index {
+                    Color.clear.id(ReadingScroll.activeWordID)
+                }
+            }
     }
 }

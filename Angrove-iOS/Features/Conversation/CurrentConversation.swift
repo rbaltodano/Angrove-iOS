@@ -234,6 +234,8 @@ struct CurrentConversationView: View {
         return UUID(uuidString: uuidString) ?? UUID()
     }
 
+    private var speechScroll: ResponseSpeechPlayer { .shared }
+
     private var conversationInsights: [ConceptDefinition] {
         ChatBranch.resolvedConversationInsights(
             in: session.activeBranches,
@@ -1683,6 +1685,15 @@ struct CurrentConversationView: View {
                 },
                 including: isRecentPhotosOpen ? .all : .subviews
             )
+            // Arriving from the Reading card, bring the word being read into view.
+            .task(id: speechScroll.scrollRequest) {
+                guard speechScroll.isScrollRequestFresh else { return }
+                try? await Task.sleep(for: .milliseconds(600))
+                guard !Task.isCancelled, speechScroll.activeText != nil else { return }
+                withAnimation(.springStandard) {
+                    proxy.scrollTo(ReadingScroll.activeWordID, anchor: .center)
+                }
+            }
             .onChange(of: scrollToBottomRequest) { _, _ in
                 guard b.id == effectiveFocusedID else { return }
                 withAnimation(.springStandard) {

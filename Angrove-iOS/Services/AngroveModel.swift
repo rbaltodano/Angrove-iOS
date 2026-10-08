@@ -415,6 +415,8 @@ struct LibraryNavigationRequest: Equatable {
     var sourceID: String? = nil
     /// Opens the reader at this passage when set; otherwise at the work's start.
     var chunkIndex: Int? = nil
+    /// Opens the reader on the page holding this reader paragraph, without featuring it.
+    var readerChunkIndex: Int? = nil
     /// Distinguishes repeated taps on the same source, so each one still navigates.
     var id = UUID()
     /// Allows older saved sources without a chunk index to locate their original excerpt.

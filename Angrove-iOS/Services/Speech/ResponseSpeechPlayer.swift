@@ -13,6 +13,11 @@ import SwiftUI
 ///
 /// Synthesized audio is kept for the length of the reading so the listener can scrub: the
 /// player knows when each displayed word is spoken and can resume from any of them.
+/// Where the view of the word being read marks itself so a scroll view can bring it on screen.
+enum ReadingScroll {
+    static let activeWordID = "reading-active-word"
+}
+
 @Observable
 final class ResponseSpeechPlayer {
     static let shared = ResponseSpeechPlayer()
@@ -32,15 +37,34 @@ final class ResponseSpeechPlayer {
     private(set) var firstWord: Int?
     /// The conversation whose response is being read, for marking it in the sidebar.
     private(set) var activeConversationID: UUID?
+    /// The Library work being read, if the reading is a page of one.
+    private(set) var activeLibraryWorkID: String?
     /// The displayed words of this reading, in order, for the Reading card's line of text.
     private(set) var readingWords: [SpokenUnit.Word] = []
     /// The title of the reading's conversation.
     private(set) var nowPlayingTitle = ""
     /// Whether the Model Controls' Reading card is open; closed whenever the reading ends.
     var isReadingCardOpen = false
+
+    /// Bumped when the reader asks to be taken to the word being read, so a freshly shown page
+    /// can scroll to it once it has laid out its text.
+    private(set) var scrollRequest = 0
+    @ObservationIgnored private var scrollRequestedAt = Date.distantPast
+    var isScrollRequestFresh: Bool { Date().timeIntervalSince(scrollRequestedAt) < 6 }
+
+    func requestScrollToActiveWord() {
+        scrollRequestedAt = Date()
+        scrollRequest += 1
+    }
     /// Whether the Reading card is the collapsed strip rather than the full card. The reader's
     /// choice persists across readings and launches.
     private(set) var isReadingCardCollapsed = UserDefaults.standard.bool(forKey: "aquinas.settings.readingCardCollapsed")
+
+    /// Words with something to say; citation chips have no place in the Reading card's line.
+    private static func isDisplayedInReader(_ word: SpokenUnit.Word) -> Bool {
+        if let link = ParsedInsightLink(token: word.token), link.isCitation { return false }
+        return SpokenUnit.weight(of: word.token) > 0
+    }
 
     /// Whether the Model Controls should show the speaker button and Reading card right now.
     var showsReader: Bool { phase != .idle && AudioSettings.showsReaderInControls }
@@ -104,6 +128,7 @@ final class ResponseSpeechPlayer {
     @ObservationIgnored private var scrubFrame = 0
     @ObservationIgnored private var scrubOriginFrame = 0
     @ObservationIgnored private var pendingConversationID: UUID?
+    @ObservationIgnored private var pendingLibraryWorkID: String?
     @ObservationIgnored private var lastNowPlayingUpdate = Date.distantPast
 
     @ObservationIgnored private let audioEngine = AVAudioEngine()
@@ -146,6 +171,7 @@ final class ResponseSpeechPlayer {
         } else {
             nowPlayingTitle = source.title
             pendingConversationID = source.conversationID
+            pendingLibraryWorkID = source.libraryWorkID
             speak(text, units: units.isEmpty ? [SpokenUnit(unhighlightedText: text)] : units)
         }
     }
@@ -162,6 +188,7 @@ final class ResponseSpeechPlayer {
         guard !remaining.isEmpty else { return }
         nowPlayingTitle = source.title
         pendingConversationID = source.conversationID
+        pendingLibraryWorkID = source.libraryWorkID
         speak(text, units: remaining, firstWord: index)
     }
 
@@ -190,6 +217,7 @@ final class ResponseSpeechPlayer {
         activeWord = nil
         firstWord = nil
         activeConversationID = nil
+        activeLibraryWorkID = nil
         readingWords = []
         isReadingCardOpen = false
         isScrubbing = false
@@ -349,7 +377,8 @@ final class ResponseSpeechPlayer {
         let id = runID
         activeText = text
         activeConversationID = pendingConversationID
-        readingWords = units.flatMap(\.words)
+        activeLibraryWorkID = pendingLibraryWorkID
+        readingWords = units.flatMap(\.words).filter(Self.isDisplayedInReader)
         // In its collapsed form the card announces each reading rather than waiting to be opened.
         if isReadingCardCollapsed, AudioSettings.showsReaderInControls { isReadingCardOpen = true }
         self.firstWord = firstWord

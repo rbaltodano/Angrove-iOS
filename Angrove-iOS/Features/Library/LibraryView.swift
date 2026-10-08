@@ -724,6 +724,7 @@ struct LibraryView: View {
     @State private var searchText = ""
     @State private var selectedWorkID: String?
     @State private var targetChunkIndex: Int?
+    @State private var targetReaderChunkIndex: Int?
     @State private var targetScripture: LibraryTextFormatter.ScriptureTarget?
     @State private var pendingNavigationRequest: LibraryNavigationRequest?
     @State private var isAskMode = false
@@ -757,6 +758,7 @@ struct LibraryView: View {
                     work: selectedWork,
                     targetTitle: navigationRequest?.sourceTitle,
                     targetChunkIndex: targetChunkIndex,
+                    targetReaderChunkIndex: targetReaderChunkIndex,
                     targetScripture: targetScripture,
                     navigationRequestID: navigationRequest?.id,
                     modelTasks: modelTasks,
@@ -861,6 +863,7 @@ struct LibraryView: View {
                     || $0.title.caseInsensitiveCompare(request.sourceName) == .orderedSame
             }) else { return }
         targetScripture = nil
+        targetReaderChunkIndex = request.readerChunkIndex
         targetChunkIndex = request.chunkIndex ?? request.resolvedChunkIndex(
             in: BundledPassageCorpus.bundled()?.passages(forSource: work.id) ?? []
         )
@@ -878,6 +881,7 @@ struct LibraryView: View {
     private func openWork(id: String, atChunk chunkIndex: Int? = nil) {
         withAnimation(.springStandard) {
             targetScripture = nil
+            targetReaderChunkIndex = nil
             targetChunkIndex = chunkIndex
             selectedWorkID = id
         }
@@ -889,6 +893,7 @@ struct LibraryView: View {
         withAnimation(.springStandard) {
             selectedWorkID = nil
             targetChunkIndex = nil
+            targetReaderChunkIndex = nil
             targetScripture = nil
         }
     }
@@ -910,6 +915,7 @@ private struct LibraryDocumentDetail: View {
     private struct ReaderLocation: Equatable {
         let workID: String
         let chunkIndex: Int?
+        let readerChunkIndex: Int?
         let scripture: LibraryTextFormatter.ScriptureTarget?
         let requestID: UUID?
     }
@@ -917,6 +923,8 @@ private struct LibraryDocumentDetail: View {
     let work: LibraryWork
     let targetTitle: String?
     var targetChunkIndex: Int?
+    /// A reader paragraph whose page to open, without featuring the paragraph.
+    var targetReaderChunkIndex: Int?
     var targetScripture: LibraryTextFormatter.ScriptureTarget?
     let navigationRequestID: UUID?
     let modelTasks: ModelTaskQueue
@@ -936,6 +944,7 @@ private struct LibraryDocumentDetail: View {
     @State private var isContentsOpen = false
     @State private var isPageTextVisible = true
     @State private var pageTransitionTask: Task<Void, Never>?
+    private var speech = ResponseSpeechPlayer.shared
 
     private func libraryQuote(_ text: String, bibleBook: String) -> ConceptDefinition {
         ConceptDefinition(
@@ -968,7 +977,9 @@ private struct LibraryDocumentDetail: View {
                             LibraryReaderHeader(
                                 subject: LibrarySubject.of(workID: work.id).generalTitle,
                                 title: document.title,
-                                context: document.context
+                                context: document.context,
+                                isListening: speech.phase(for: speechKey(outline: selectedOutline)) != .idle,
+                                onListen: { listen(document: document, outline: selectedOutline) }
                             )
                             .id(Self.readerTopID)
                             LibraryTextSection(
@@ -977,6 +988,7 @@ private struct LibraryDocumentDetail: View {
                                     : "\(selectedSection.title): \(selectedOutline.title)",
                                 passages: document.passages.filter { visibleChunks.contains($0.chunkIndex) },
                                 sourceID: work.id,
+                                speechKey: speechKey(outline: selectedOutline),
                                 highlightedChunkIndex: readerTargetChunkIndex,
                                 isVisible: isPageTextVisible,
                                 onOpenScripture: onOpenScripture,
@@ -986,6 +998,12 @@ private struct LibraryDocumentDetail: View {
                                 },
                                 onClip: { selectedText in
                                     onClip(libraryQuote(selectedText, bibleBook: selectedSection.title))
+                                },
+                                onReadFromHere: { chunkIndex, word in
+                                    listen(
+                                        document: document, outline: selectedOutline,
+                                        fromWord: chunkIndex * LibrarySpeech.wordsPerChunk + word
+                                    )
                                 }
                             )
                             .id(selectedOutline.id)
@@ -996,8 +1014,15 @@ private struct LibraryDocumentDetail: View {
                     }
                     // Clears the floating menu and back buttons, including for scroll-to-passage.
                     .safeAreaPadding(.top, 88)
+                    .onChange(of: speech.scrollRequest) { _, _ in
+                        scrollToWordBeingRead(with: proxy)
+                    }
                     .onChange(of: isPageTextVisible) { _, visible in
                         guard visible else { return }
+                        if speech.isScrollRequestFresh, speech.activeLibraryWorkID == work.id {
+                            scrollToWordBeingRead(with: proxy)
+                            return
+                        }
                         if let targetChunkIndex = readerTargetChunkIndex, visibleChunks.contains(targetChunkIndex) {
                             withAnimation(.springStandard) {
                                 proxy.scrollTo(targetChunkIndex, anchor: .top)
@@ -1066,6 +1091,7 @@ private struct LibraryDocumentDetail: View {
         .task(id: ReaderLocation(
             workID: work.id,
             chunkIndex: targetChunkIndex,
+            readerChunkIndex: targetReaderChunkIndex,
             scripture: targetScripture,
             requestID: navigationRequestID
         )) {
@@ -1095,6 +1121,12 @@ private struct LibraryDocumentDetail: View {
                 selectedOutlineID = book.children.first(where: { $0.title == "Chapter \(targetScripture.chapter)" })?.id
                     ?? book.firstReadableDescendant.id
             }
+            if let readerChunk = targetReaderChunkIndex,
+               let path = document?.sections.path(containingChunk: readerChunk),
+               let section = path.first, let outline = path.last {
+                selectedSectionID = section.id
+                selectedOutlineID = outline.id
+            }
             if let targetChunkIndex = readerTargetChunkIndex,
                let path = document?.sections.path(containingChunk: targetChunkIndex),
                let section = path.first, let outline = path.last {
@@ -1106,6 +1138,34 @@ private struct LibraryDocumentDetail: View {
             withAnimation(.easeIn(duration: 0.25)) {
                 isPageTextVisible = true
             }
+        }
+    }
+
+    /// Brings the word being read into view once its paragraph has laid out and marked itself.
+    private func scrollToWordBeingRead(with proxy: ScrollViewProxy) {
+        guard speech.isScrollRequestFresh, speech.activeLibraryWorkID == work.id else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard speech.activeText != nil else { return }
+            withAnimation(.springStandard) {
+                proxy.scrollTo(ReadingScroll.activeWordID, anchor: .center)
+            }
+        }
+    }
+
+    private func speechKey(outline: LibrarySection) -> String {
+        LibrarySpeech.key(workID: work.id, outlineID: outline.id)
+    }
+
+    /// Reads the page on screen aloud from its first paragraph, or stops it if it is being read.
+    private func listen(document: LibraryDocument, outline: LibrarySection, fromWord word: Int? = nil) {
+        let passages = document.passages.filter { outline.chunks.contains($0.chunkIndex) }
+        let units = LibrarySpeech.units(for: passages, sourceID: work.id)
+        let source = SpeechSource(title: work.title, libraryWorkID: work.id)
+        if let word {
+            speech.read(speechKey(outline: outline), units: units, fromWord: word, source: source)
+        } else {
+            speech.toggle(speechKey(outline: outline), units: units, source: source)
         }
     }
 
@@ -1135,6 +1195,8 @@ private struct LibraryReaderHeader: View {
     let subject: String
     let title: String
     let context: String
+    let isListening: Bool
+    let onListen: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -1150,6 +1212,22 @@ private struct LibraryReaderHeader: View {
                 .font(.custom("LibreBaskerville-Italic", size: 16))
                 .foregroundStyle(AngroveTheme.Colors.paragraphText)
                 .lineSpacing(6)
+            Button(action: onListen) {
+                HStack(spacing: 8) {
+                    Image(systemName: isListening ? "stop.fill" : "speaker.wave.2.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(isListening ? "Stop" : "Listen")
+                        .font(.custom("Figtree-Bold", size: 14))
+                }
+                .foregroundStyle(AngroveTheme.Colors.accentGreen)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 10)
+                .background(AngroveTheme.Colors.canvasSecondary, in: Capsule())
+                .overlay(Capsule().stroke(AngroveTheme.Colors.controlBorder, lineWidth: 1))
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isListening ? "Stop listening" : "Listen to this page")
             OrnamentRule()
                 .padding(.top, 8)
         }
@@ -1160,11 +1238,13 @@ private struct LibraryTextSection: View {
     let title: String
     let passages: [LibraryPassage]
     let sourceID: String
+    var speechKey = ""
     var highlightedChunkIndex: Int?
     let isVisible: Bool
     let onOpenScripture: (LibraryTextFormatter.ScriptureTarget) -> Void
     let onAsk: (String) -> Void
     let onClip: (String) -> Void
+    var onReadFromHere: (Int, Int) -> Void = { _, _ in }
     @AppStorage("aquinas.settings.conversationFontSize")
     private var conversationFontSize: ConversationFontSizeOption = .medium
     @AppStorage("aquinas.settings.responseFont")
@@ -1206,8 +1286,12 @@ private struct LibraryTextSection: View {
                         fontName: responseFont == .sans ? "Figtree-Regular" : "LibreBaskerville-Regular",
                         fontSize: conversationFontSize.pointSize,
                         isHighlighted: passage.chunkIndex == highlightedChunkIndex,
+                        speechKey: speechKey,
+                        chunkIndex: passage.chunkIndex,
+                        sourceID: sourceID,
                         onAsk: onAsk,
                         onClip: onClip,
+                        onReadFromHere: { onReadFromHere(passage.chunkIndex, $0) },
                         onOpenURL: { url in
                             guard let target = LibraryTextFormatter.ScriptureTarget(url: url) else { return false }
                             onOpenScripture(target)
@@ -1240,9 +1324,44 @@ private struct LibraryParagraph: View {
     let fontName: String
     let fontSize: CGFloat
     let isHighlighted: Bool
+    var speechKey = ""
+    var chunkIndex = 0
+    var sourceID = ""
     let onAsk: (String) -> Void
     let onClip: (String) -> Void
+    let onReadFromHere: (Int) -> Void
     let onOpenURL: (URL) -> Bool
+    private var speech = ResponseSpeechPlayer.shared
+    @State private var activeWordRect: CGRect?
+
+    init(
+        text: AttributedString, fontName: String, fontSize: CGFloat, isHighlighted: Bool,
+        speechKey: String, chunkIndex: Int, sourceID: String,
+        onAsk: @escaping (String) -> Void, onClip: @escaping (String) -> Void,
+        onReadFromHere: @escaping (Int) -> Void,
+        onOpenURL: @escaping (URL) -> Bool
+    ) {
+        self.onReadFromHere = onReadFromHere
+        self.text = text
+        self.fontName = fontName
+        self.fontSize = fontSize
+        self.isHighlighted = isHighlighted
+        self.speechKey = speechKey
+        self.chunkIndex = chunkIndex
+        self.sourceID = sourceID
+        self.onAsk = onAsk
+        self.onClip = onClip
+        self.onOpenURL = onOpenURL
+    }
+
+    /// Where the reading is in this paragraph: none, wholly read, or at a word within it.
+    private var speechState: AskingTextView.SpeechState {
+        guard !speechKey.isEmpty, speech.activeText == speechKey, let active = speech.activeWord else { return .none }
+        let base = chunkIndex * LibrarySpeech.wordsPerChunk
+        if active < base { return .none }
+        if active >= base + LibrarySpeech.wordsPerChunk { return .init(readBefore: Int.max, active: nil) }
+        return .init(readBefore: active - base, active: active - base)
+    }
 
     var body: some View {
         LibrarySelectionText(
@@ -1252,8 +1371,24 @@ private struct LibraryParagraph: View {
             onOpenURL: onOpenURL,
             textColor: isHighlighted ? AngroveTheme.Colors.primaryReadable : AngroveTheme.Colors.paragraphText,
             fontName: fontName,
-            fontSize: fontSize
+            fontSize: fontSize,
+            speechState: speechState,
+            speechChunkIndex: chunkIndex,
+            sourceID: sourceID,
+            onReadFromHere: onReadFromHere,
+            onActiveWordRect: { rect in
+                if activeWordRect != rect { activeWordRect = rect }
+            }
         )
+        .overlay(alignment: .topLeading) {
+            // Marks where the word being read sits, so the page can scroll to it.
+            if speechState.active != nil, let rect = activeWordRect {
+                Color.clear
+                    .frame(width: 1, height: max(rect.height, 1))
+                    .offset(y: rect.minY)
+                    .id(ReadingScroll.activeWordID)
+            }
+        }
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(isHighlighted ? 24 : 0)

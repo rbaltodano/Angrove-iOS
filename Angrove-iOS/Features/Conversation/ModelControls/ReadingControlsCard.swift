@@ -22,13 +22,7 @@ struct ReadingControlsCard: View {
         speech.nowPlayingTitle.isEmpty ? "Angrove" : speech.nowPlayingTitle
     }
 
-    /// Words with something to say; citation chips have no place in a line of text.
-    private var words: [SpokenUnit.Word] {
-        speech.readingWords.filter { word in
-            if let link = ParsedInsightLink(token: word.token), link.isCitation { return false }
-            return SpokenUnit.weight(of: word.token) > 0
-        }
-    }
+    private var words: [SpokenUnit.Word] { speech.readingWords }
 
     var body: some View {
         Group {
@@ -47,9 +41,20 @@ struct ReadingControlsCard: View {
                         .foregroundStyle(AngroveTheme.Colors.accentGreen)
 
                     Button {
-                        guard let id = speech.activeConversationID else { return }
                         UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.65)
-                        openReadingConversation(id)
+                        speech.requestScrollToActiveWord()
+                        if let id = speech.activeConversationID {
+                            openReadingConversation(id)
+                        } else if let workID = speech.activeLibraryWorkID {
+                            speech.isReadingCardOpen = false
+                            NotificationCenter.default.post(
+                                name: .openGroundingSourceInLibrary,
+                                object: LibraryNavigationRequest(
+                                    sourceTitle: title, sourceName: title, sourceID: workID,
+                                    readerChunkIndex: speech.activeWord.map { $0 / LibrarySpeech.wordsPerChunk }
+                                )
+                            )
+                        }
                     } label: {
                         Text(title)
                             .font(.custom("LibreBaskerville-Regular", size: 20))
@@ -60,7 +65,7 @@ struct ReadingControlsCard: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityHint("Opens this conversation")
+                    .accessibilityHint(speech.activeLibraryWorkID == nil ? "Opens this conversation" : "Opens this work")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
