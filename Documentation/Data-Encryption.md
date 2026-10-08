@@ -1,8 +1,8 @@
 # Personal data encryption
 
-**Development status (October 5, 2026):** implemented and tested in the local development
-working tree; encryption source integration and physical-device lock/backup-restore checks
-remain pending. This document records the intended storage boundary, not a public release.
+**Status (October 8, 2026):** integrated into the app's storage and covered by tests in the
+repository. Physical-device lock and backup-restore checks remain pending, and the app is not
+publicly released yet. This document records the storage boundary.
 
 Angrove's saved personal data is **Fully Encrypted on your device** using authenticated
 AES-256-GCM through Apple CryptoKit. Generation and retrieval run locally; there is no model

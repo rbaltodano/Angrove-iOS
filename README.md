@@ -100,12 +100,12 @@ Generation, source retrieval, and Insight Tree work run on-device. Conversations
 Insights stay in the app's local storage; answering questions and building the tree make no
 network requests. Once the model is installed, Angrove works offline. No account is required.
 
-**Fully Encrypted saved personal data — in development.** The local encryption implementation
-uses AES-256-GCM,
-including conversations, attachments, Insights, Study Topics, personal settings, and local
-backups. Keys are protected by Apple Keychain. User-created conversation exports are readable
-JSON. Source integration and physical-device lock/backup-restore validation are pending; this
-is not a publicly released feature yet. See [encryption coverage and recovery](Documentation/Data-Encryption.md).
+**Fully Encrypted saved personal data.** Angrove encrypts saved personal data on the device with
+AES-256-GCM, including conversations, attachments, Insights, Study Topics, personal settings, and
+local backups. Keys are protected by Apple Keychain. User-created conversation exports are
+readable JSON. The encryption is integrated into the app's storage and covered by tests;
+physical-device lock and backup-restore validation is still pending, and the app is not publicly
+released yet. See [encryption coverage and recovery](Documentation/Data-Encryption.md).
 
 The current model is **Gemma 4 E4B, instruction-tuned, from the LiteRT Community package**,
 running through Google's LiteRT-LM runtime. It is not an Angrove fine-tune. Angrove’s default
