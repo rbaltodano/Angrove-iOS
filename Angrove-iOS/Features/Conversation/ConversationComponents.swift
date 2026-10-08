@@ -9,7 +9,7 @@ import Foundation
 import SwiftUI
 import UIKit
 
-private let questionCanceledResponseText = "Question canceled"
+let questionCanceledResponseText = "Question canceled"
 
 enum ConversationResponseStatePolicy {
     enum CompletionDestination: Equatable {
@@ -133,7 +133,6 @@ struct ChatThreadColumn: View {
     /// Live conversation title, shown as the root branch's heading (updates on rename).
     var conversationTitle: String = ""
     var onSpawnYChange: (Int, CGFloat) -> Void
-    var onDuplicateResponse: (String, Int) -> Void
     var onDeleteBranch: () -> Void
     var onConversationTitleChange: (String) -> Void
     var onTopInputFocused: () -> Void = {}
@@ -1505,9 +1504,6 @@ struct ChatThreadColumn: View {
                                 onRegenerate: {
                                     regenerateResponse(at: index)
                                 },
-                                onDuplicateBranch: {
-                                    onDuplicateResponse(textContent, index)
-                                },
                                 onInsightTap: onInsightTap,
                                 onInlineInsightQuote: onInlineInsightQuote,
                                 onInlineInsightFork: { insight in
@@ -2006,7 +2002,6 @@ struct TrackedResponseCard: View {
     let savedInsightIDs: Set<UUID>
     var onCenterChange: (Int, CGFloat) -> Void = { _, _ in }
     var onRegenerate: () -> Void = {}
-    var onDuplicateBranch: () -> Void = {}
     var onInsightTap: (String, String) -> Void = { _, _ in }
     var onInlineInsightQuote: (ConceptDefinition) -> Void = { _ in }
     var onInlineInsightFork: (ConceptDefinition) -> Void = { _ in }
@@ -2056,7 +2051,6 @@ struct TrackedResponseCard: View {
             queuedInsightKeys: queuedInsightKeys,
             savedInsightIDs: savedInsightIDs,
             onRegenerate: onRegenerate,
-            onDuplicateBranch: onDuplicateBranch,
             onInsightTap: onInsightTap,
             onInlineInsightQuote: onInlineInsightQuote,
             onInlineInsightFork: { insight in

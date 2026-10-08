@@ -520,6 +520,39 @@ struct TextAndDisplaySettingsView: View {
     }
 }
 
+struct AudioSettingsView: View {
+    @AppStorage(SettingsStorageKey.autoReadResponses)
+    private var readsAutomatically = false
+    @AppStorage(SettingsStorageKey.readAnswersElsewhere)
+    private var readsAnswersElsewhere = true
+    @AppStorage(SettingsStorageKey.playAudioInBackground)
+    private var playsInBackground = false
+
+    var body: some View {
+        SettingsDetailScaffold(title: "Audio") {
+            SettingsControlCard {
+                SettingsToggleRow(
+                    title: "Read Responses Automatically",
+                    detail: "Read each answer aloud as soon as it finishes.",
+                    isOn: $readsAutomatically
+                )
+
+                SettingsToggleRow(
+                    title: "Read Answers Finished Elsewhere",
+                    detail: "When a question is answered while you're on another page, read the answer aloud.",
+                    isOn: $readsAnswersElsewhere
+                )
+
+                SettingsToggleRow(
+                    title: "Play When Leaving App or Locking Screen",
+                    detail: "Keep reading aloud in the background, with playback controls on the Lock Screen.",
+                    isOn: $playsInBackground
+                )
+            }
+        }
+    }
+}
+
 struct ConversationDefaultsSettingsView: View {
     @AppStorage(SettingsStorageKey.conversationTitles)
     private var conversationTitles: ConversationTitleOption = .automatic

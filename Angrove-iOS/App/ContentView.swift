@@ -331,6 +331,15 @@ struct ContentView: View {
         let conversationTitle = fallbackTitle.flatMap { $0.isEmpty ? nil : $0 }
             ?? "Angrove"
 
+        readCompletedResponseAloudIfNeeded(
+            conversation?.branches.first(where: { $0.id == branchID }).flatMap { branch -> String? in
+                guard branch.activeChatBlocks.indices.contains(responseIndex),
+                      case .text(let response) = branch.activeChatBlocks[responseIndex] else { return nil }
+                return response
+            },
+            title: conversationTitle
+        )
+
         modelCompletionNotifications.post(
             title: notificationTitle,
             systemNotificationTitle: conversationTitle,
@@ -339,6 +348,20 @@ struct ContentView: View {
             requestedConversationID = conversationID
             redirect(to: .conversation)
         }
+    }
+
+    /// Reads an answer that finished while the reader was elsewhere, unless something is already
+    /// being read or the app cannot play audio from where it is.
+    private func readCompletedResponseAloudIfNeeded(_ response: String?, title: String) {
+        guard AudioSettings.readsAnswersElsewhere,
+              let response, !response.isEmpty, response != questionCanceledResponseText,
+              scenePhase == .active || AudioSettings.playsInBackground,
+              ResponseSpeechPlayer.shared.phase == .idle else { return }
+        ResponseSpeechPlayer.shared.toggleStarting(
+            InlineInsightMarkup.plainText(from: response),
+            units: SpokenUnit.units(from: ResponseParser.parseSegments(from: response)),
+            title: title
+        )
     }
 
     // MARK: - Page Views
@@ -1523,6 +1546,7 @@ struct ContentView: View {
         )
         modelTasks.setApplicationActive(phase == .active)
         if phase == .background {
+            if !AudioSettings.playsInBackground { ResponseSpeechPlayer.shared.stop() }
             BackgroundPersistenceFlush.begin()
         } else if phase == .active {
             BackgroundPersistenceFlush.retryDeferredWrites()

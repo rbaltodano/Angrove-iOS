@@ -55,10 +55,10 @@ actor ParadeeSpeechEngine {
         })
     }
 
-    /// Phoneme strings for `text`, each short enough for one model call.
-    func phonemeChunks(for text: String) -> [String] {
-        SpeechTextNormalizer.sentences(in: text).flatMap { sentence in
-            Self.split(g2p.phonemize(text: sentence).0)
+    /// The spoken sentences of `text`, each as phoneme strings short enough for one model call.
+    func sentences(for text: String) -> [SpeechSentence] {
+        SpeechTextNormalizer.sentences(in: text).map { sentence in
+            SpeechSentence(text: sentence, chunks: Self.split(g2p.phonemize(text: sentence).0))
         }
     }
 
@@ -115,4 +115,10 @@ nonisolated private final class UnknownWordLog: @unchecked Sendable {
         if isNew { print("[Speech] G2P fallback: \(word) -> \(phonemes ?? "(skipped)")") }
         #endif
     }
+}
+
+/// One normalized sentence and the phoneme chunks it is synthesized from.
+nonisolated struct SpeechSentence: Sendable {
+    let text: String
+    let chunks: [String]
 }

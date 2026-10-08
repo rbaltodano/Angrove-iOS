@@ -131,6 +131,7 @@ private enum SettingsRoute: Hashable {
     case modelDownload
     case textAndDisplay
     case conversationDefaults
+    case audio
     case userGuide
     case userGuideTopic(UserGuideTopic.ID)
     case reportBug
@@ -188,6 +189,16 @@ private struct SettingsHubView: View {
                 SettingsHubItem(title: "Notifications", detail: "Daily question and finished responses", iconName: "bell", route: .notifications),
                 SettingsHubItem(title: "Privacy & Data", detail: "App lock, export, and import", iconName: "lock.shield", route: .privacyAndData)
             ]),
+            ("Conversations", [
+                SettingsHubItem(title: "Audio", detail: "Read-aloud playback", iconName: "speaker.wave.2", route: .audio),
+                SettingsHubItem(
+                    title: "Text & Display",
+                    detail: "\(responseFont.rawValue) · \(conversationFontSize.rawValue)",
+                    iconName: "textformat.size",
+                    route: .textAndDisplay
+                ),
+                SettingsHubItem(title: "Conversation Defaults", detail: "Titles and daily study", iconName: "bubble.left.and.bubble.right", route: .conversationDefaults)
+            ]),
             ("Model", [
                 SettingsHubItem(title: "On-device Model", detail: "Download, readiness, and recovery", iconName: "arrow.down.circle", route: .modelDownload),
                 SettingsHubItem(
@@ -197,15 +208,6 @@ private struct SettingsHubView: View {
                     route: .modelBehavior
                 ),
                 SettingsHubItem(title: "Model Activity", detail: "How on-device work is shown", iconName: "waveform.circle", route: .modelActivity)
-            ]),
-            ("Conversations", [
-                SettingsHubItem(
-                    title: "Text & Display",
-                    detail: "\(responseFont.rawValue) · \(conversationFontSize.rawValue)",
-                    iconName: "textformat.size",
-                    route: .textAndDisplay
-                ),
-                SettingsHubItem(title: "Conversation Defaults", detail: "Titles and daily study", iconName: "bubble.left.and.bubble.right", route: .conversationDefaults)
             ]),
             ("Support", [
                 SettingsHubItem(title: "User Guide", detail: "How each part of Angrove works", iconName: "book", route: .userGuide),
@@ -386,6 +388,8 @@ private struct SettingsDestinationView: View {
             )
         case .conversationDefaults:
             ConversationDefaultsSettingsView()
+        case .audio:
+            AudioSettingsView()
         case .userGuide:
             UserGuideSettingsView(onSelectTopic: onSelectUserGuideTopic, savedTerms: $guideSavedTerms)
         case .userGuideTopic(let id):

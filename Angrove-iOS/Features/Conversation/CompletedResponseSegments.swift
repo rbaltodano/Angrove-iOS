@@ -4,6 +4,8 @@ struct CompletedResponseSegments: View {
     let segments: [ResponseSegment]
     let displayedCount: Int
     let fullText: String
+    /// Identifies this response to the speech player; empty where it is not read aloud.
+    var speechText: String = ""
     let responseTextAlignment: ResponseTextAlignmentOption
     let responseFont: ConversationFontOption
     let conversationFontSize: ConversationFontSizeOption
@@ -17,6 +19,7 @@ struct CompletedResponseSegments: View {
     let onInlineInsightFork: ((ConceptDefinition) -> Void)?
     let onInlineInsightToggleSaved: ((ConceptDefinition) -> Void)?
     @Environment(\.openURL) private var openURL
+    @Environment(\.speechTitle) private var speechTitle
 
     // MARK: - Segment renderer
 
@@ -105,11 +108,14 @@ struct CompletedResponseSegments: View {
     ) -> some View {
         FlowLayout(spacing: 5, alignment: responseTextAlignment.textAlignment) {
             ForEach(Array(words.enumerated()), id: \.offset) { idx, word in
-                styledText(for: word, baseFont: headingFont(for: level), allowsInlineMarkdown: false)
+                let headingText = styledText(for: word, baseFont: headingFont(for: level), allowsInlineMarkdown: false)
+                headingText
                     .foregroundColor(AngroveTheme.Colors.headingText)
-                    .responseWordMenu(token: word) {
+                    .responseWordMenu(token: word, onReadFromHere: readFromHere(globalWordStart + idx)) {
                         displayedTokenLocation(forWordAt: globalWordStart + idx)
                     }
+                    .spokenWordFill(index: globalWordStart + idx, speechText: speechText, fill: headingText)
+                    .spokenWordLift(index: globalWordStart + idx, speechText: speechText)
                     .opacity(idx < visibleCount ? 1 : 0)
                     .offset(y: idx < visibleCount ? 0 : 10)
                     .blur(radius: idx < visibleCount ? 0 : 3)
@@ -188,6 +194,7 @@ struct CompletedResponseSegments: View {
                     isVisible: idx < visibleCount && showsInsightUnderlines,
                     underlineDelay: underlineDelay
                 )
+                .spokenWordLift(index: globalWordIndex, speechText: speechText)
                 // All words are laid out up front, so positions are final; reveal
                 // each word with a slow fade + upward drift. The offset is purely
                 // visual (doesn't affect layout), so positions never shift.
@@ -239,15 +246,27 @@ struct CompletedResponseSegments: View {
             .buttonStyle(.plain)
             .disabled(isLoading || isQueued)
         } else {
-            styledText(
+            let bodyText = styledText(
                 for: word,
                 baseFont: responseFont.textFont(size: conversationFontSize),
                 allowsInlineMarkdown: true
             )
-            .foregroundColor(AngroveTheme.Colors.bodyText)
-            .responseWordMenu(token: word) {
-                displayedTokenLocation(forWordAt: globalWordIndex)
-            }
+            bodyText
+                .foregroundColor(AngroveTheme.Colors.bodyText)
+                .responseWordMenu(token: word, onReadFromHere: readFromHere(globalWordIndex)) {
+                    displayedTokenLocation(forWordAt: globalWordIndex)
+                }
+                .spokenWordFill(index: globalWordIndex, speechText: speechText, fill: bodyText)
+        }
+    }
+
+    /// Starts the read-aloud at this word and continues to the end of the response.
+    private func readFromHere(_ globalWordIndex: Int) -> (() -> Void)? {
+        guard !speechText.isEmpty else { return nil }
+        return { [segments, speechText, speechTitle] in
+            ResponseSpeechPlayer.shared.read(
+                speechText, units: SpokenUnit.units(from: segments), fromWord: globalWordIndex, title: speechTitle
+            )
         }
     }
 

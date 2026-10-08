@@ -10,6 +10,8 @@ final class CanvasSwipeView: UIView {
     var onTriggered: (() -> Void)?
     var excludedScrollBounds: [CGRect] = []
     fileprivate var windowPan: UIPanGestureRecognizer?
+    /// A drag that scrubs read-aloud playback is not a swipe, even if it ends after the scrub does.
+    private var isSuppressed = false
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? { nil }
 
@@ -28,7 +30,11 @@ final class CanvasSwipeView: UIView {
     deinit { windowPan?.view?.removeGestureRecognizer(windowPan!) }
 
     @objc private func handlePan(_ pan: UIPanGestureRecognizer) {
-        guard pan.state == .ended else { return }
+        if ResponseSpeechPlayer.shared.isScrubbing { isSuppressed = true }
+        guard pan.state == .ended || pan.state == .cancelled || pan.state == .failed else { return }
+        let wasSuppressed = isSuppressed
+        isSuppressed = false
+        guard pan.state == .ended, !wasSuppressed else { return }
         let t = pan.translation(in: pan.view)
         let v = pan.velocity(in: pan.view)
         guard (t.x < -80 && abs(t.x) > abs(t.y) * 1.5) ||

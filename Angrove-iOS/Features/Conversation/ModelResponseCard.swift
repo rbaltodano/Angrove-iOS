@@ -39,7 +39,6 @@ struct ModelResponseCard: View {
     let queuedInsightKeys: Set<String>
     let savedInsightIDs: Set<UUID>
     var onRegenerate: (() -> Void)? = nil
-    var onDuplicateBranch: (() -> Void)? = nil
     var onInsightTap: ((String, String) -> Void)? = nil
     var onInlineInsightQuote: ((ConceptDefinition) -> Void)? = nil
     var onInlineInsightFork: ((ConceptDefinition) -> Void)? = nil
@@ -116,7 +115,6 @@ struct ModelResponseCard: View {
         queuedInsightKeys: Set<String> = [],
         savedInsightIDs: Set<UUID> = [],
         onRegenerate: (() -> Void)? = nil,
-        onDuplicateBranch: (() -> Void)? = nil,
         onInsightTap: ((String, String) -> Void)? = nil,
         onInlineInsightQuote: ((ConceptDefinition) -> Void)? = nil,
         onInlineInsightFork: ((ConceptDefinition) -> Void)? = nil,
@@ -147,7 +145,6 @@ struct ModelResponseCard: View {
         self.queuedInsightKeys = queuedInsightKeys
         self.savedInsightIDs = savedInsightIDs
         self.onRegenerate = onRegenerate
-        self.onDuplicateBranch = onDuplicateBranch
         self.onInsightTap = onInsightTap
         self.onInlineInsightQuote = onInlineInsightQuote
         self.onInlineInsightFork = onInlineInsightFork
@@ -366,7 +363,6 @@ struct ModelResponseCard: View {
                         showsResponseActions: showsResponseActions,
                         evidenceBasis: evidenceBasis,
                         onRegenerate: onRegenerate,
-                        onBranch: onDuplicateBranch,
                         onInsightTap: onInsightTap,
                         onInlineInsightQuote: onInlineInsightQuote,
                         onInlineInsightFork: onInlineInsightFork,
@@ -386,6 +382,7 @@ struct ModelResponseCard: View {
                 maxWidth: isThinkingDocked ? .infinity : nil,
                 alignment: .center
             )
+            .speechScrubbable(speechText: InlineInsightMarkup.plainText(from: fullText))
             .transition(.asymmetric(
                 insertion: .opacity.combined(with: .scale(scale: 0.5)),
                 removal: .modifier(

@@ -19,14 +19,16 @@ extension View {
     /// menu, which cannot take extra actions.
     func responseWordMenu(
         token: String,
+        onReadFromHere: (() -> Void)? = nil,
         location: @escaping () -> DefinedTermMarkup.Location
     ) -> some View {
-        modifier(ResponseWordMenuModifier(token: token, location: location))
+        modifier(ResponseWordMenuModifier(token: token, onReadFromHere: onReadFromHere, location: location))
     }
 }
 
 private struct ResponseWordMenuModifier: ViewModifier {
     let token: String
+    let onReadFromHere: (() -> Void)?
     let location: () -> DefinedTermMarkup.Location
 
     @Environment(\.defineResponseWord) private var defineResponseWord
@@ -45,6 +47,7 @@ private struct ResponseWordMenuModifier: ViewModifier {
                             WordEditMenuPresenter(
                                 copyText: token.filter { $0 != "*" },
                                 onDefine: defineAction,
+                                onReadFromHere: onReadFromHere,
                                 onDismiss: { isMenuPresented = false }
                             )
                         )
@@ -69,6 +72,7 @@ private struct ResponseWordMenuModifier: ViewModifier {
 private struct WordEditMenuPresenter: UIViewRepresentable {
     let copyText: String
     let onDefine: (() -> Void)?
+    let onReadFromHere: (() -> Void)?
     let onDismiss: () -> Void
 
     func makeUIView(context: Context) -> WordEditMenuView {
@@ -80,6 +84,7 @@ private struct WordEditMenuPresenter: UIViewRepresentable {
     func updateUIView(_ view: WordEditMenuView, context: Context) {
         view.copyText = copyText
         view.onDefine = onDefine
+        view.onReadFromHere = onReadFromHere
         view.onDismiss = onDismiss
     }
 }
@@ -87,6 +92,7 @@ private struct WordEditMenuPresenter: UIViewRepresentable {
 private final class WordEditMenuView: UIView, UIEditMenuInteractionDelegate {
     var copyText = ""
     var onDefine: (() -> Void)?
+    var onReadFromHere: (() -> Void)?
     var onDismiss: () -> Void = {}
 
     private lazy var menuInteraction = UIEditMenuInteraction(delegate: self)
@@ -122,6 +128,9 @@ private final class WordEditMenuView: UIView, UIEditMenuInteractionDelegate {
         ]
         if let onDefine {
             actions.append(UIAction(title: String(localized: "Define")) { _ in onDefine() })
+        }
+        if let onReadFromHere {
+            actions.append(UIAction(title: String(localized: "Read from here")) { _ in onReadFromHere() })
         }
         return UIMenu(children: actions)
     }

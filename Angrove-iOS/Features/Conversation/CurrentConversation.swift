@@ -1200,6 +1200,7 @@ struct CurrentConversationView: View {
 
                 // Horizontal branch pager
                 branchPager(in: geo)
+                    .environment(\.speechTitle, activeTitle)
 
                 // Photo backgrounds carry their own scrim, so the canvas-colored fades are skipped.
                 if !(canvasMode.isTopicCanvasVisible ? insightTreeBackground : conversationBackground).isPhoto {
@@ -1518,18 +1519,6 @@ struct CurrentConversationView: View {
                     showsThinkingIntro: true,
                     conversationTitle: activeTitle,
                     onSpawnYChange: { _, _ in },
-                    onDuplicateResponse: { text, index in
-                        let newBranch = ChatBranch(
-                            startingConcept: nil,
-                            parentBranchID: b.id,
-                            parentResponseIndex: index,
-                            duplicatedResponse: InlineInsightMarkup.plainText(from: text),
-                            yOffset: targetSpawnY
-                        )
-                        withAnimation(.springRelaxed) {
-                            insertBranch(newBranch, after: b.id)
-                        }
-                    },
                     onDeleteBranch: { deleteBranch(b) },
                     onConversationTitleChange: { newTitle in
                         if let idx = session.conversations.firstIndex(where: { $0.id == session.activeConversationID }) {

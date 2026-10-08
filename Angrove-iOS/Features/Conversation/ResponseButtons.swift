@@ -30,19 +30,25 @@ private struct ResponseActionEntrance: ViewModifier {
     }
 }
 
+extension EnvironmentValues {
+    /// The conversation's title, shown as the read-aloud's title on the Lock Screen.
+    @Entry var speechTitle: String = ""
+}
+
 // MARK: - Model Response Footer
 
 /// Reveals staggered response actions alongside the word-by-word disclaimer.
 struct ModelResponseFooter: View {
     let copyText: String
+    var spokenUnits: [SpokenUnit] = []
     var evidenceBasis: ResponseEvidenceBasis? = nil
     var responseTextAlignment: ResponseTextAlignmentOption = .left
     var onRegenerate: (() -> Void)? = nil
-    var onBranch: (() -> Void)? = nil
     var shouldAnimateOnAppear = false
     var onRevealComplete: (() -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.speechTitle) private var speechTitle
     @State private var showsCopiedConfirmation = false
     @State private var visibleActionCount = 0
     @State private var visibleDisclaimerWords = 0
@@ -54,7 +60,7 @@ struct ModelResponseFooter: View {
     }
 
     private var actionCount: Int {
-        2 + (onRegenerate == nil ? 0 : 1) + (onBranch == nil ? 0 : 1)
+        2 + (onRegenerate == nil ? 0 : 1)
     }
 
     var body: some View {
@@ -66,19 +72,13 @@ struct ModelResponseFooter: View {
                     label: showsCopiedConfirmation ? String(localized: "Response copied") : String(localized: "Copy response"),
                     action: copyResponse
                 )
-                speakButton
                 if let onRegenerate {
                     actionButton(
-                        symbol: "arrow.trianglehead.2.clockwise", index: 2,
+                        symbol: "arrow.trianglehead.2.clockwise", index: 1,
                         label: String(localized: "Regenerate response"), action: onRegenerate
                     )
                 }
-                if let onBranch {
-                    actionButton(
-                        symbol: "arrow.trianglehead.branch", index: onRegenerate == nil ? 2 : 3,
-                        label: String(localized: "Branch conversation"), action: onBranch
-                    )
-                }
+                speakButton
             }
 
             FlowLayout(spacing: 2, alignment: responseTextAlignment.textAlignment) {
@@ -117,7 +117,7 @@ struct ModelResponseFooter: View {
     /// Reads the response aloud; tapping again while it is preparing or speaking stops it.
     private var speakButton: some View {
         let phase = speech.phase(for: copyText)
-        return Button { speech.toggle(copyText) } label: {
+        return Button { speech.toggle(copyText, units: spokenUnits, title: speechTitle) } label: {
             actionIcon("speaker.wave.2")
                 .symbolEffect(.variableColor.iterative, isActive: phase != .idle && !reduceMotion)
                 .foregroundStyle(phase == .idle ? AngroveTheme.Colors.responseButton : AngroveTheme.Colors.accent)
@@ -125,7 +125,7 @@ struct ModelResponseFooter: View {
         .buttonStyle(.plain)
         .accessibilityLabel(phase == .idle ? String(localized: "Read response aloud") : String(localized: "Stop reading"))
         .modifier(ResponseActionEntrance(
-            isVisible: 1 < visibleActionCount,
+            isVisible: (onRegenerate == nil ? 1 : 2) < visibleActionCount,
             animates: shouldAnimateOnAppear && !reduceMotion
         ))
         .frame(width: 18, height: 16)

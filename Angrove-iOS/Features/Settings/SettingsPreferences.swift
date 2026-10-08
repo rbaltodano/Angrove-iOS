@@ -39,6 +39,9 @@ enum SettingsStorageKey {
     static let insightMapping = "aquinas.settings.insightMapping"
     static let definitionHighlights = "aquinas.settings.definitionHighlights"
     static let dailyQuestionFocus = "aquinas.settings.dailyQuestionFocus"
+    static let autoReadResponses = "aquinas.settings.autoReadResponses"
+    static let playAudioInBackground = "aquinas.settings.playAudioInBackground"
+    static let readAnswersElsewhere = "aquinas.settings.readAnswersElsewhere"
     /// Retains the original question-alignment key so existing preferences migrate seamlessly
     /// when question and response alignment become one conversation-wide setting.
     static let conversationTextAlignment = "aquinas.settings.inputTextAlignment"
@@ -69,6 +72,9 @@ enum SettingsStorageKey {
         insightMapping,
         definitionHighlights,
         dailyQuestionFocus,
+        autoReadResponses,
+        playAudioInBackground,
+        readAnswersElsewhere,
         "aquinas.settings.userName",
         "aquinas.settings.conversationFontSize",
         conversationTextAlignment,
@@ -77,6 +83,26 @@ enum SettingsStorageKey {
         "aquinas.settings.responseFont",
         "aquinas.settings.conversationPersonality"
     ]
+}
+
+/// Read-aloud preferences, read from outside the Settings views.
+enum AudioSettings {
+    /// On by default: an answer that finishes while the reader is on another page is read aloud.
+    static var readsAnswersElsewhere: Bool {
+        let defaults = PrivatePreferences.standard
+        guard defaults.object(forKey: SettingsStorageKey.readAnswersElsewhere) != nil else { return true }
+        return defaults.bool(forKey: SettingsStorageKey.readAnswersElsewhere)
+    }
+
+    /// Off by default: reading stops when the app is left or the screen is locked.
+    static var playsInBackground: Bool {
+        PrivatePreferences.standard.bool(forKey: SettingsStorageKey.playAudioInBackground)
+    }
+
+    /// Off by default: a finished response is not read aloud until asked.
+    static var readsResponsesAutomatically: Bool {
+        PrivatePreferences.standard.bool(forKey: SettingsStorageKey.autoReadResponses)
+    }
 }
 
 enum DefaultStartScreenOption: String, SettingsChoice {

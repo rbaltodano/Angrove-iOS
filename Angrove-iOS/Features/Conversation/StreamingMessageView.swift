@@ -27,7 +27,6 @@ struct StreamingMessageView: View {
     let evidenceBasis: ResponseEvidenceBasis?
     var onQuote: ((String) -> Void)? = nil
     var onRegenerate: (() -> Void)? = nil
-    var onBranch: (() -> Void)? = nil
     var onInsightTap: ((String, String) -> Void)? = nil
     var onInlineInsightQuote: ((ConceptDefinition) -> Void)? = nil
     var onInlineInsightFork: ((ConceptDefinition) -> Void)? = nil
@@ -56,6 +55,7 @@ struct StreamingMessageView: View {
 
     @State private var displayedWords: [String] = []
     @State private var isFinished: Bool = false
+    @Environment(\.speechTitle) private var speechTitle
     @State private var hasReportedFinish = false
     @State private var hasReportedRevealStart = false
     @State private var showsInsightUnderlines: Bool
@@ -81,7 +81,6 @@ struct StreamingMessageView: View {
         evidenceBasis: ResponseEvidenceBasis? = nil,
         onQuote: ((String) -> Void)? = nil,
         onRegenerate: (() -> Void)? = nil,
-        onBranch: (() -> Void)? = nil,
         onInsightTap: ((String, String) -> Void)? = nil,
         onInlineInsightQuote: ((ConceptDefinition) -> Void)? = nil,
         onInlineInsightFork: ((ConceptDefinition) -> Void)? = nil,
@@ -105,7 +104,6 @@ struct StreamingMessageView: View {
         self.evidenceBasis = evidenceBasis
         self.onQuote = onQuote
         self.onRegenerate = onRegenerate
-        self.onBranch = onBranch
         self.onInsightTap = onInsightTap
         self.onInlineInsightQuote = onInlineInsightQuote
         self.onInlineInsightFork = onInlineInsightFork
@@ -231,16 +229,25 @@ struct StreamingMessageView: View {
         }
     }
 
+    private var speechText: String { InlineInsightMarkup.plainText(from: fullText) }
+
     private var responseFooter: some View {
         ModelResponseFooter(
-            copyText: InlineInsightMarkup.plainText(from: fullText),
+            copyText: speechText,
+            spokenUnits: SpokenUnit.units(from: segments),
             evidenceBasis: evidenceBasis,
             responseTextAlignment: responseTextAlignment,
             onRegenerate: onRegenerate,
-            onBranch: onBranch,
             shouldAnimateOnAppear: shouldStream || usesIncrementalStream,
             onRevealComplete: {
-                if shouldStream || usesIncrementalStream { reportFinishIfNeeded() }
+                guard shouldStream || usesIncrementalStream else { return }
+                let isFirstFinish = !hasReportedFinish
+                reportFinishIfNeeded()
+                if isFirstFinish, AudioSettings.readsResponsesAutomatically {
+                    ResponseSpeechPlayer.shared.toggleStarting(
+                        speechText, units: SpokenUnit.units(from: segments), title: speechTitle
+                    )
+                }
             }
         )
     }
@@ -261,6 +268,7 @@ struct StreamingMessageView: View {
     private func segmentsView(displayedCount: Int) -> some View {
         CompletedResponseSegments(
             segments: segments, displayedCount: displayedCount, fullText: fullText,
+            speechText: speechText,
             responseTextAlignment: responseTextAlignment, responseFont: responseFont,
             conversationFontSize: conversationFontSize, loadingInsightKey: loadingInsightKey,
             queuedInsightKeys: queuedInsightKeys, savedInsightIDs: savedInsightIDs,

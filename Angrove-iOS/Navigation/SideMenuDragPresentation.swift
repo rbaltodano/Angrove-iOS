@@ -48,6 +48,7 @@ private struct SideMenuDragPresentation: ViewModifier {
         DragGesture(minimumDistance: 10, coordinateSpace: .global)
             .onChanged { value in
                 guard !AttachmentScrollBoundsKey.contains(value.startLocation, in: attachmentScrollBounds),
+                      !ResponseSpeechPlayer.shared.isScrubbing,
                       !isPresented, !isBlocked,
                       !(activePage == .studyTopics && isStudyTopicDetailVisible),
                       !(activePage == .settings && isSettingsDetailVisible),
