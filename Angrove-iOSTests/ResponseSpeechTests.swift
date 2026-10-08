@@ -35,7 +35,7 @@ struct ResponseSpeechTests {
     @Test("Paradee synthesizes audio from a response sentence")
     func synthesizesAudio() async throws {
         let engine = try ParadeeSpeechEngine()
-        let chunks = await engine.phonemeChunks(for: "Aquinas teaches that justice renders to each one his due.")
+        let chunks = await engine.sentences(for: "Aquinas teaches that justice renders to each one his due.").flatMap(\.chunks)
         #expect(chunks.count == 1)
         let samples = try await engine.synthesize(phonemes: chunks[0])
         let seconds = Double(samples.count) / ParadeeSpeechEngine.sampleRate

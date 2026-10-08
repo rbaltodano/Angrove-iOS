@@ -1990,6 +1990,7 @@ struct InsightTreeView: View {
         guard loadGeneration == persistedTreeLoadGeneration else { return }
         applyLocalSeedTreeIfAvailable(conversationID: conversationID)
         await viewModel.prepareSemanticTree()
+        await viewModel.waitForSettledTree()
         guard loadGeneration == persistedTreeLoadGeneration else { return }
         persistedTreePresentationRevision += 1
         if animateChanges {

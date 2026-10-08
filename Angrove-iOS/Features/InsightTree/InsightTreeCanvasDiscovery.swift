@@ -129,6 +129,41 @@ extension InsightTreeCanvasView {
         }
     }
 
+    /// Shows every current node, Insight, and connector without animation.
+    func revealAllCurrentContent(in currentNodes: [NodeModel]? = nil) {
+        let nodes = currentNodes ?? nodes
+        let insightIDs = visibleInsightIDs(in: nodes)
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            revealState.revealedInsightIDs.formUnion(insightIDs)
+            revealState.revealedInsightConnectorIDs.formUnion(insightIDs)
+            revealState.revealedNodeIDs.formUnion(nodes.map(\.id))
+            revealState.revealedGraphEdgeIDs.formUnion(displayGraphEdges().map(\.id))
+        }
+    }
+
+    /// If no node lands on screen under the current camera, frame the whole tree.
+    func keepTreeInView(in size: CGSize) {
+        let positions = nodes.map { simPosition(of: $0.id) ?? $0.position }
+            .filter { $0.x.isFinite && $0.y.isFinite }
+        guard !positions.isEmpty, size.width > 0, size.height > 0 else { return }
+        let visibleRect = CGRect(origin: .zero, size: size).insetBy(dx: 24, dy: 24)
+        let scale = cameraState.scale
+        let anyVisible = positions.contains { point in
+            visibleRect.contains(CGPoint(
+                x: size.width / 2 + point.x * scale + cameraState.offset.width,
+                y: size.height / 2 - point.y * scale + cameraState.offset.height
+            ))
+        }
+        guard !anyVisible else { return }
+        if positions.count == 1 {
+            focusInsight(at: positions[0], in: size)
+        } else {
+            zoomToFit(worldPositions: positions, in: size)
+        }
+    }
+
     /// Camera/reveal sequence for one fully loaded persisted mutation. Node Concepts participate
     /// even when analysis correctly adds no automatic Insights.
     func runPersistedUpdateSequence(
@@ -144,6 +179,18 @@ extension InsightTreeCanvasView {
         let insightIDs = Set(newInsights.map(\.id))
         let allInsightIDs = visibleInsightIDs(in: nodes)
         let allNodeIDs = Set(nodes.map(\.id))
+        // The tour hides what it will reveal. If it is cancelled or ends early (leaving the
+        // tree, a newer refresh), those items must not stay hidden, and the camera must not be
+        // left looking at empty space.
+        let sequenceToken = UUID()
+        revealState.activeSequence = sequenceToken
+        defer {
+            if revealState.activeSequence == sequenceToken {
+                revealState.activeSequence = nil
+                revealAllCurrentContent()
+                keepTreeInView(in: size)
+            }
+        }
         revealState.revealedInsightIDs = allInsightIDs.subtracting(insightIDs)
         revealState.revealedInsightConnectorIDs = allInsightIDs.subtracting(insightIDs)
         let newGraphEdgeIDs = Set(displayGraphEdges().filter {

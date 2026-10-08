@@ -312,6 +312,19 @@ final class InsightTreeViewModel: ObservableObject {
         embeddingRefreshTask = Task { @MainActor [weak self] in await self?.prepareSemanticTree() }
     }
 
+    /// Waits until no embedding refresh or graph build is in flight. A caller's own
+    /// `prepareSemanticTree` can return early when a concurrent refresh already owns the
+    /// update, before that refresh's graph is applied; presenting then would use a stale tree.
+    func waitForSettledTree() async {
+        while true {
+            let refresh = embeddingRefreshTask
+            let build = graphBuildTask
+            await refresh?.value
+            await build?.value
+            if refresh == embeddingRefreshTask && build == graphBuildTask { return }
+        }
+    }
+
     /// Publish a snapshot only after Insights and seeds share the configured vector space.
     /// Reject an older asynchronous result if a bookmark or seed changed while it was embedding.
     func prepareSemanticTree() async {

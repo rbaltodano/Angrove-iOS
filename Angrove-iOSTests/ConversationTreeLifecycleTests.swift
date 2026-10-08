@@ -84,6 +84,29 @@ struct ConversationTreeLifecycleTests {
         await tree.prepareSemanticTree()
         #expect(tree.nodes.flatMap(\.insights).map(\.id) == [saved.id])
     }
+
+    @Test("A settled tree includes Insights whose refresh was still embedding")
+    func settledTreeWaitsForInFlightRefresh() async throws {
+        let saved = ConceptDefinition(word: "Summa Theologiae", partOfSpeech: "", pronunciation: "", meaning: "Aquinas's systematic work", example: "")
+        let provider = SlowTreeLifecycleEmbeddingProvider()
+        let seed = LocalInsightTreeSeed(id: UUID(), label: "Scholasticism", summary: "Medieval method", embedding: [1, 0], embeddingVersion: provider.version, createdAt: Date())
+        let tree = InsightTreeViewModel(insights: [], modelTasks: ModelTaskQueue(), embeddingProvider: provider, localSeedAnchors: [seed], midpointStoreScope: UUID())
+        tree.startModelWork()
+        await tree.waitForSettledTree()
+        // The reopened tree presents only after this returns. If the refresh started by the
+        // save is still embedding, presenting would use a tree without the saved Insight.
+        tree.updateInsights([saved])
+        await tree.waitForSettledTree()
+        #expect(tree.nodes.flatMap(\.insights).map(\.id) == [saved.id])
+    }
+}
+
+private struct SlowTreeLifecycleEmbeddingProvider: EmbeddingProvider {
+    var version: String { "test.tree-lifecycle-slow.v1" }
+    func embed(_ text: String) async -> [Double]? {
+        try? await Task.sleep(for: .milliseconds(30))
+        return [1, 0]
+    }
 }
 
 private struct TreeLifecycleEmbeddingProvider: EmbeddingProvider {

@@ -19,6 +19,8 @@ final class InsightTreeRevealState {
     var observedLiveInsightIDs: Set<UUID> = []
     var observedLiveNodeIDs: Set<UUID> = []
     @ObservationIgnored var entranceTask: Task<Void, Never>? = nil
+    /// Identifies the reveal tour that currently owns the hidden/revealed sets.
+    @ObservationIgnored var activeSequence: UUID?
     @ObservationIgnored var midpointRevealTask: Task<Void, Never>? = nil
     var midpointLoadingStartedAt: [UUID: TimeInterval] = [:]
     @ObservationIgnored var makeNodeRevealTask: Task<Void, Never>? = nil

@@ -90,6 +90,21 @@ extension InsightTreeCanvasView {
                 // they start as a flashing icon at the node center, splay out to their orbit
                 // staggered by 0.15s each, then once "loaded" the title blurs up.
                 guard hasAppeared else { return }
+                if defersEntranceUntilPersistedTree {
+                    // The persisted-tree presentation can run against an earlier snapshot of the
+                    // tree (before its Insights were attached), so Insights that arrive in a later
+                    // snapshot are never marked revealed and stay invisible. Unless a reveal tour
+                    // is running, anything still hidden shortly after the tree changes is shown.
+                    let reveal = revealState
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(500))
+                        guard reveal.activeSequence == nil else { return }
+                        let insightIDs = visibleInsightIDs(in: newNodes)
+                        let hasHidden = !insightIDs.isSubset(of: reveal.revealedInsightIDs)
+                            || !Set(newNodes.map(\.id)).isSubset(of: reveal.revealedNodeIDs)
+                        if hasHidden { revealAllCurrentContent(in: newNodes) }
+                    }
+                }
                 let currentInsightIDs = visibleInsightIDs(in: newNodes)
                 let currentNodeIDs = Set(newNodes.map(\.id))
                 let addedLiveInsightIDs = InsightDiscoveryStore.newInsightIDs(
@@ -261,6 +276,7 @@ extension InsightTreeCanvasView {
             }
             .onDisappear {
                 revealState.cancelPendingAnimations()
+                revealAllCurrentContent()
                 if !revealState.pendingMakeNodeChildren.isEmpty {
                     onGeneratingChange(false)
                 }

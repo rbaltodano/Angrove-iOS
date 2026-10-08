@@ -26,7 +26,7 @@ struct ResponseFooterSequenceTests {
         let completion = Completion()
         let window = host(StreamingMessageView(
             fullText: "A completed answer.", shouldStream: true,
-            onRegenerate: {}, onBranch: {},
+            onRegenerate: {},
             onBodyRevealComplete: { completion.body = .now },
             onFinish: { completion.footer = .now; completion.count += 1 }
         ))
@@ -43,7 +43,7 @@ struct ResponseFooterSequenceTests {
     func restoredFooter() async throws {
         let completion = Completion()
         let window = host(ModelResponseFooter(
-            copyText: "Saved answer", onRegenerate: {}, onBranch: {},
+            copyText: "Saved answer", onRegenerate: {},
             shouldAnimateOnAppear: false,
             onRevealComplete: { completion.count += 1 }
         ))
@@ -56,7 +56,7 @@ struct ResponseFooterSequenceTests {
     func removalCancelsSequence() async throws {
         let completion = Completion()
         let window = host(ModelResponseFooter(
-            copyText: "An answer", onRegenerate: {}, onBranch: {},
+            copyText: "An answer", onRegenerate: {},
             shouldAnimateOnAppear: true,
             onRevealComplete: { completion.count += 1 }
         ))
