@@ -164,6 +164,11 @@ struct InquiryControlDock: View {
             && !isCanvasMode
     }
 
+    /// A speaker joins the pill while a response is read aloud, ahead of the context button.
+    private var showsSpeakerControl: Bool {
+        ResponseSpeechPlayer.shared.showsReader && !showsStudyControls && !isCanvasMode
+    }
+
     private var controlCount: Int {
         if showsStudyControls { return 2 }
         if isCanvasMode && isCanvasAskMode {
@@ -171,6 +176,7 @@ struct InquiryControlDock: View {
         }
         if isLoadingCollapsed {
             return (showsModelStatusControl ? 1 : 0) + (showsContextControl ? 1 : 0)
+                + (showsSpeakerControl ? 1 : 0)
         }
         if isCanvasMode && isMidpointMode {
             return (showsModelStatusControl ? 1 : 0) + 2
@@ -200,6 +206,7 @@ struct InquiryControlDock: View {
         let selectionCancelCount = isCanvasMode && hasSelectedCanvasItems && !isStudyMode ? 1 : 0
         return attachmentCount + searchCount + modelStatusCount + canvasActionCount
             + selectionCancelCount + (showsContextControl ? 1 : 0)
+            + (showsSpeakerControl ? 1 : 0)
             + (showsSendButton ? 1 : 0)
     }
 
@@ -208,7 +215,7 @@ struct InquiryControlDock: View {
     /// "Tap another Insight" hint) — so the capsule resizes with the same spring + scale bump.
     private var controlLayoutKey: String {
         let statusKey = modelStatusOverride ?? "idle"
-        return "\(controlCount)|\(modelTaskCounterKey)|\(statusKey)|\(showsStudyControls ? 1 : 0)|\(studyBranchCount)|\(isMidpointMode ? 1 : 0)|\(isCanvasInsightLoading ? 1 : 0)|\(hasCanvasHover ? 1 : 0)|\(hasCanvasInsightHover ? 1 : 0)|\(selectedCanvasItemCount)|\(showsSendButton ? 1 : 0)|\(canvasSearchIsActive ? 1 : 0)|\(isCanvasAskMode ? 1 : 0)|\(isStudyMode ? 1 : 0)|\(isStudyToolsActive ? 1 : 0)"
+        return "\(controlCount)|\(modelTaskCounterKey)|\(statusKey)|\(showsStudyControls ? 1 : 0)|\(studyBranchCount)|\(isMidpointMode ? 1 : 0)|\(isCanvasInsightLoading ? 1 : 0)|\(hasCanvasHover ? 1 : 0)|\(hasCanvasInsightHover ? 1 : 0)|\(selectedCanvasItemCount)|\(showsSendButton ? 1 : 0)|\(canvasSearchIsActive ? 1 : 0)|\(isCanvasAskMode ? 1 : 0)|\(isStudyMode ? 1 : 0)|\(isStudyToolsActive ? 1 : 0)|\(showsSpeakerControl ? 1 : 0)"
     }
 
     /// Explicitly keys the pill's resize and 5% pulse to the fraction shown by Model Status.
@@ -278,6 +285,7 @@ struct InquiryControlDock: View {
             onConfirm: onConfirm,
             onDecline: onDecline,
             controlsUpdateKey: controlLayoutKey,
+            includesSpeakerControl: showsSpeakerControl,
             buttons: controlCount > 0 ? AnyView(buttons) : nil,
             pillHorizontalPadding: showsStudyControls ? 0 : (isCanvasAskMode ? 16 : 32),
             pillVerticalPadding: showsStudyControls ? 0 : 24,
@@ -417,6 +425,11 @@ struct InquiryControlDock: View {
                 .transition(.scale(scale: 0.4).combined(with: .opacity))
         }
 
+        if showsSpeakerControl {
+            speakerButton
+                .transition(.scale(scale: 0.4).combined(with: .opacity))
+        }
+
         if showsContextControl {
             contextButton
                 .transition(.scale(scale: 0.4).combined(with: .opacity))
@@ -550,6 +563,39 @@ struct InquiryControlDock: View {
         }
     }
 
+    private var speakerButton: some View {
+        let speech = ResponseSpeechPlayer.shared
+        return Button {
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred(intensity: 0.7)
+            if speech.isReadingCardOpen {
+                withAnimation(.springStandard) { speech.isReadingCardOpen = false }
+                return
+            }
+            // The collapsed strip sits beside any other card; the expanded card needs the slot.
+            let otherWasOpen = !speech.isReadingCardCollapsed
+                && (contextCard.isOpen || modelTasksPopupState?.isOpen == true)
+            switchPopups(
+                otherIsOpen: otherWasOpen,
+                closeOther: {
+                    contextCard.reset()
+                    modelTasksPopupState?.isOpen = false
+                },
+                openThis: { speech.isReadingCardOpen = true }
+            )
+        } label: {
+            Image(systemName: "speaker.wave.2.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(AngroveTheme.Colors.accentGreen)
+                .symbolEffect(
+                    .variableColor.iterative,
+                    isActive: speech.phase == .speaking && !speech.isPaused
+                )
+                .frame(height: 16, alignment: .center)
+        }
+        .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
+        .accessibilityLabel("Reading controls")
+    }
+
     private var contextButton: some View {
         Button {
             guard !contextCard.isCompacting else { return }
@@ -563,10 +609,14 @@ struct InquiryControlDock: View {
                 return
             }
             let otherWasOpen = modelTasksPopupState?.isOpen == true
+                || ResponseSpeechPlayer.shared.occupiesCardSlot
             onContextWillOpen()
             switchPopups(
                 otherIsOpen: otherWasOpen,
-                closeOther: { modelTasksPopupState?.isOpen = false },
+                closeOther: {
+                    modelTasksPopupState?.isOpen = false
+                    if ResponseSpeechPlayer.shared.occupiesCardSlot { ResponseSpeechPlayer.shared.isReadingCardOpen = false }
+                },
                 openThis: { contextCard.isOpen = true }
             )
         } label: {
@@ -590,14 +640,17 @@ struct InquiryControlDock: View {
             }
             return
         }
-        let otherWasOpen = contextCard.isOpen
+        let otherWasOpen = contextCard.isOpen || ResponseSpeechPlayer.shared.occupiesCardSlot
         let generator = UIImpactFeedbackGenerator(style: .light)
         generator.prepare()
         generator.impactOccurred(intensity: 0.65)
         onModelStatusTap()
         switchPopups(
             otherIsOpen: otherWasOpen,
-            closeOther: { contextCard.reset() },
+            closeOther: {
+                contextCard.reset()
+                if ResponseSpeechPlayer.shared.occupiesCardSlot { ResponseSpeechPlayer.shared.isReadingCardOpen = false }
+            },
             openThis: { modelTasksPopupState.isOpen = true }
         )
     }

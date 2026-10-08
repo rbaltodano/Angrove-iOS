@@ -42,6 +42,7 @@ enum SettingsStorageKey {
     static let autoReadResponses = "aquinas.settings.autoReadResponses"
     static let playAudioInBackground = "aquinas.settings.playAudioInBackground"
     static let readAnswersElsewhere = "aquinas.settings.readAnswersElsewhere"
+    static let showReaderInControls = "aquinas.settings.showReaderInControls"
     /// Retains the original question-alignment key so existing preferences migrate seamlessly
     /// when question and response alignment become one conversation-wide setting.
     static let conversationTextAlignment = "aquinas.settings.inputTextAlignment"
@@ -75,6 +76,7 @@ enum SettingsStorageKey {
         autoReadResponses,
         playAudioInBackground,
         readAnswersElsewhere,
+        showReaderInControls,
         "aquinas.settings.userName",
         "aquinas.settings.conversationFontSize",
         conversationTextAlignment,
@@ -92,6 +94,13 @@ enum AudioSettings {
         let defaults = PrivatePreferences.standard
         guard defaults.object(forKey: SettingsStorageKey.readAnswersElsewhere) != nil else { return true }
         return defaults.bool(forKey: SettingsStorageKey.readAnswersElsewhere)
+    }
+
+    /// On by default: a reading shows its speaker button and Reading card in the Model Controls.
+    static var showsReaderInControls: Bool {
+        let defaults = PrivatePreferences.standard
+        guard defaults.object(forKey: SettingsStorageKey.showReaderInControls) != nil else { return true }
+        return defaults.bool(forKey: SettingsStorageKey.showReaderInControls)
     }
 
     /// Off by default: reading stops when the app is left or the screen is locked.

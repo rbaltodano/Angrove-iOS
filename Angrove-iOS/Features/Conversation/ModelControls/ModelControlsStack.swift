@@ -27,6 +27,7 @@ struct ModelControlsStack<Controls: View>: View {
     let controlsUpdateKey: String
     let controls: Controls
     @Environment(\.modelCompletionNotifications) private var completionNotifications
+    private var speech = ResponseSpeechPlayer.shared
     @State private var controlsWidth: CGFloat = 315
     @State private var controlsScale: CGFloat = 1
     @State private var hasMeasuredControls = false
@@ -127,8 +128,17 @@ struct ModelControlsStack<Controls: View>: View {
                       let modelTasks {
                 ModelTasksCard(modelTasks: modelTasks, popupState: modelTasksPopupState)
                     .transition(.bottomDockCard)
+            } else if speech.occupiesCardSlot, speech.showsReader {
+                ReadingControlsCard()
+                    .transition(.bottomDockCard)
             } else if let dockedCard {
                 dockedCard.view
+                    .transition(.bottomDockCard)
+            }
+
+            // The collapsed strip shares the stack with any other card, always just above the pill.
+            if speech.isReadingCardOpen, speech.isReadingCardCollapsed, speech.showsReader {
+                ReadingControlsCard()
                     .transition(.bottomDockCard)
             }
 
@@ -167,6 +177,23 @@ struct ModelControlsStack<Controls: View>: View {
         .onChange(of: controlsUpdateKey) { _, _ in
             pulseControls()
         }
+        // Another card opening takes the stack from the Reading card.
+        .onChange(of: modelTasksPopupState?.isOpen == true) { _, isOpen in
+            if isOpen, speech.occupiesCardSlot { speech.isReadingCardOpen = false }
+        }
+        .onChange(of: contextCard?.isOpen == true) { _, isOpen in
+            if isOpen, speech.occupiesCardSlot { speech.isReadingCardOpen = false }
+        }
+        // A docked Insight card takes the slot the expanded Reading card holds.
+        .onChange(of: dockedCard?.key) { _, key in
+            if key != nil, speech.occupiesCardSlot { speech.isReadingCardOpen = false }
+        }
+        // Expanding the card claims the slot from whatever was open beside the strip.
+        .onChange(of: speech.isReadingCardCollapsed) { _, isCollapsed in
+            guard !isCollapsed, speech.isReadingCardOpen else { return }
+            contextCard?.reset()
+            modelTasksPopupState?.isOpen = false
+        }
         .onDisappear {
             controlsPulseTask?.cancel()
         }
@@ -185,6 +212,14 @@ struct ModelControlsStack<Controls: View>: View {
         .animation(
             .springStandard,
             value: supplementalPopupIsOpen
+        )
+        .animation(
+            .springStandard,
+            value: speech.isReadingCardOpen
+        )
+        .animation(
+            .springStandard,
+            value: speech.isReadingCardCollapsed
         )
         .animation(
             .springStandard,

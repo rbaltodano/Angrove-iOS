@@ -251,6 +251,14 @@ struct ContentView: View {
         action?()
     }
 
+    private func openReadingConversation(_ conversationID: UUID) {
+        modelTasksPopupState.reset()
+        ResponseSpeechPlayer.shared.isReadingCardOpen = false
+        requestedConversationID = conversationID
+        guard activePage != .conversation else { return }
+        redirect(to: .conversation)
+    }
+
     private func openModelTaskPage(_ task: ModelTaskSnapshot) {
         let page: AppPage
         switch task.originPage {
@@ -1177,6 +1185,7 @@ struct ContentView: View {
             modelCompletionNotifications
         )
         .environment(\.openModelTaskPage, openModelTaskPage)
+        .environment(\.openReadingConversation, openReadingConversation)
         .preferredColorScheme(colorSchemeOverride)
         .eraseToAnyView()
         .dailyQuestionGenerationAlert(

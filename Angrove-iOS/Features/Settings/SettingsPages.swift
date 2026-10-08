@@ -527,6 +527,8 @@ struct AudioSettingsView: View {
     private var readsAnswersElsewhere = true
     @AppStorage(SettingsStorageKey.playAudioInBackground)
     private var playsInBackground = false
+    @AppStorage(SettingsStorageKey.showReaderInControls)
+    private var showsReaderInControls = true
 
     var body: some View {
         SettingsDetailScaffold(title: "Audio") {
@@ -547,6 +549,12 @@ struct AudioSettingsView: View {
                     title: "Play When Leaving App or Locking Screen",
                     detail: "Keep reading aloud in the background, with playback controls on the Lock Screen.",
                     isOn: $playsInBackground
+                )
+
+                SettingsToggleRow(
+                    title: "Show Reader in Model Controls",
+                    detail: "Show a speaker button and the Reading card in the Model Controls while a response is read aloud.",
+                    isOn: $showsReaderInControls
                 )
             }
         }

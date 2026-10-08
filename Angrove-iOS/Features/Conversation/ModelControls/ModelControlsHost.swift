@@ -41,6 +41,9 @@ struct ModelControlsConfiguration {
     /// Marks a contribution that carries only `dockedCard`, not a surface's controls.
     var isDockedCardOnly = false
 
+    /// The surface's own buttons already include the Reading speaker; the host adds none.
+    var includesSpeakerControl = false
+
     // The pill. `buttons == nil` tucks the pill away.
     var buttons: AnyView? = nil
     var pillHorizontalPadding: CGFloat = 32
@@ -124,6 +127,7 @@ struct ModelControlsHost: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.modelCompletionNotifications) private var completionNotifications
     @State private var measuredHeight: CGFloat?
+    private var speech = ResponseSpeechPlayer.shared
 
     private static let empty = ModelControlsConfiguration(id: "none")
 
@@ -209,6 +213,26 @@ struct ModelControlsHost: View {
             || c.modelTasksPopupState?.isOpen == true || c.confirmationTitle != nil
             || completionNotifications?.notifications.isEmpty == false
             || c.dockedCard != nil
+            || speech.showsReader
+    }
+
+    /// While something is read aloud every page carries the Reading speaker, even one with no other
+    /// controls, unless the page's own buttons already include it.
+    private func injectsSpeaker(_ c: ModelControlsConfiguration) -> Bool {
+        speech.showsReader && !c.includesSpeakerControl && c.showsPillChrome && c.pillReplacement == nil
+    }
+
+    private func pillButtons(_ c: ModelControlsConfiguration) -> AnyView? {
+        guard injectsSpeaker(c) else { return c.buttons }
+        return AnyView(
+            HStack(alignment: .center, spacing: 24) {
+                ReadingSpeakerButton {
+                    c.contextCard?.reset()
+                    c.modelTasksPopupState?.isOpen = false
+                }
+                if let buttons = c.buttons { buttons }
+            }
+        )
     }
 
     private func controlsStack(_ c: ModelControlsConfiguration) -> some View {
@@ -229,10 +253,10 @@ struct ModelControlsHost: View {
             onConfirm: c.onConfirm,
             onDecline: c.onDecline,
             dockedCard: c.dockedCard,
-            controlsUpdateKey: "\(c.id)|\(c.controlsUpdateKey)"
+            controlsUpdateKey: "\(c.id)|\(c.controlsUpdateKey)|\(injectsSpeaker(c) ? 1 : 0)"
         ) {
             ZStack(alignment: .top) {
-                if let buttons = c.buttons {
+                if let buttons = pillButtons(c) {
                     ZStack {
                         buttons
                             .id(c.id)

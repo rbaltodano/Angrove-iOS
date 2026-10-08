@@ -6,6 +6,7 @@
 import AVFoundation
 import Observation
 import os
+import SwiftUI
 
 /// Reads one model response aloud at a time. Each sentence is scheduled as soon as it is
 /// synthesized, so playback starts after the first sentence rather than the whole answer.
@@ -31,11 +32,34 @@ final class ResponseSpeechPlayer {
     private(set) var firstWord: Int?
     /// The conversation whose response is being read, for marking it in the sidebar.
     private(set) var activeConversationID: UUID?
+    /// The displayed words of this reading, in order, for the Reading card's line of text.
+    private(set) var readingWords: [SpokenUnit.Word] = []
+    /// The title of the reading's conversation.
+    private(set) var nowPlayingTitle = ""
+    /// Whether the Model Controls' Reading card is open; closed whenever the reading ends.
+    var isReadingCardOpen = false
+    /// Whether the Reading card is the collapsed strip rather than the full card. The reader's
+    /// choice persists across readings and launches.
+    private(set) var isReadingCardCollapsed = UserDefaults.standard.bool(forKey: "aquinas.settings.readingCardCollapsed")
+
+    /// Whether the Model Controls should show the speaker button and Reading card right now.
+    var showsReader: Bool { phase != .idle && AudioSettings.showsReaderInControls }
+
+    /// The expanded card takes the stack's one card slot; the collapsed strip does not.
+    var occupiesCardSlot: Bool { isReadingCardOpen && !isReadingCardCollapsed }
+
+    func setReadingCardCollapsed(_ isCollapsed: Bool) {
+        isReadingCardCollapsed = isCollapsed
+        UserDefaults.standard.set(isCollapsed, forKey: "aquinas.settings.readingCardCollapsed")
+    }
     private(set) var isScrubbing = false
     private(set) var isPaused = false
 
     /// Seconds of audio a point of horizontal drag moves while scrubbing.
     static let scrubSecondsPerPoint = 0.04
+
+    /// How long a reading may stay paused before it is dismissed.
+    static let pauseTimeoutSeconds = 30.0
 
     private struct Part {
         let unit: Int
@@ -61,6 +85,7 @@ final class ResponseSpeechPlayer {
     @ObservationIgnored private var engine: ParadeeSpeechEngine?
     @ObservationIgnored private var playback: Task<Void, Never>?
     @ObservationIgnored private var ticker: Task<Void, Never>?
+    @ObservationIgnored private var pauseTimeout: Task<Void, Never>?
     @ObservationIgnored private var runID = UUID()
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var pendingBuffers = 0
@@ -78,7 +103,6 @@ final class ResponseSpeechPlayer {
     @ObservationIgnored private var lastFrame = 0
     @ObservationIgnored private var scrubFrame = 0
     @ObservationIgnored private var scrubOriginFrame = 0
-    @ObservationIgnored private var nowPlayingTitle = ""
     @ObservationIgnored private var pendingConversationID: UUID?
     @ObservationIgnored private var lastNowPlayingUpdate = Date.distantPast
 
@@ -148,6 +172,8 @@ final class ResponseSpeechPlayer {
         playback = nil
         ticker?.cancel()
         ticker = nil
+        pauseTimeout?.cancel()
+        pauseTimeout = nil
         playerNode.stop()
         audioEngine.stop()
         parts = []
@@ -164,6 +190,8 @@ final class ResponseSpeechPlayer {
         activeWord = nil
         firstWord = nil
         activeConversationID = nil
+        readingWords = []
+        isReadingCardOpen = false
         isScrubbing = false
         isPaused = false
         phase = .idle
@@ -224,11 +252,20 @@ final class ResponseSpeechPlayer {
         isPaused = true
         if !isScrubbing { playerNode.pause() }
         refreshNowPlaying()
+        // A reading left paused is dismissed, taking its speaker button with it.
+        pauseTimeout?.cancel()
+        pauseTimeout = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.pauseTimeoutSeconds))
+            guard !Task.isCancelled, let self, self.isPaused else { return }
+            withAnimation(.springStandard) { self.stop() }
+        }
     }
 
     func resume() {
         guard isPaused else { return }
         isPaused = false
+        pauseTimeout?.cancel()
+        pauseTimeout = nil
         if !isScrubbing { playerNode.play() }
         refreshNowPlaying()
     }
@@ -236,6 +273,14 @@ final class ResponseSpeechPlayer {
     func skip(by seconds: Double) {
         guard phase == .speaking, !isScrubbing else { return }
         seek(toTime: currentTime + seconds)
+    }
+
+    /// Jumps the reading to the start of displayed word `index` and plays from there.
+    func seek(toWord index: Int) {
+        guard phase == .speaking, !isScrubbing, let span = spans[index] else { return }
+        seek(to: Int(span.start * sampleRate))
+        refreshActiveWord()
+        if isPaused { resume() } else { refreshNowPlaying() }
     }
 
     func seek(toTime seconds: Double) {
@@ -304,6 +349,9 @@ final class ResponseSpeechPlayer {
         let id = runID
         activeText = text
         activeConversationID = pendingConversationID
+        readingWords = units.flatMap(\.words)
+        // In its collapsed form the card announces each reading rather than waiting to be opened.
+        if isReadingCardCollapsed, AudioSettings.showsReaderInControls { isReadingCardOpen = true }
         self.firstWord = firstWord
         phase = .preparing
         pendingBuffers = 0
