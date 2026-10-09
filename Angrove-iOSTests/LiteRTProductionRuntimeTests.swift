@@ -864,10 +864,9 @@ struct LiteRTProductionRuntimeTests {
 
         #expect(ids.contains("nicaea-325"))
         #expect(ids.contains("constantinople-381"))
-        #expect(
-            references.first { $0.id == "constantinople-381" }?.facts
-                .contains("not called the Council of Adhesion") == true
-        )
+        let constantinople = references.first { $0.id == "constantinople-381" }?.facts
+        #expect(constantinople?.contains("second ecumenical council") == true)
+        #expect(constantinople?.contains("Adhesion") == false)
     }
 
     @Test("Local grounding corrects Didache authorship")
