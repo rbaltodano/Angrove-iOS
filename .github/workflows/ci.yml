@@ -15,13 +15,13 @@ jobs:
     name: Build and test
     # The bundled LiteRT framework is arm64-only, so this needs an Apple silicon runner and a
     # concrete simulator destination rather than the generic one.
-    runs-on: macos-26
+    # GitHub's Xcode 27 image (macOS 27, arm64). Still a public preview as of October 2026.
+    runs-on: xcode-27
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
-      # Angrove builds with Xcode 27 (iOS 27 SDK). The image default can be older, and older
-      # compilers reject code Xcode 27 accepts.
+      # Angrove builds with Xcode 27 (iOS 27 SDK); older compilers reject code Xcode 27 accepts.
       - name: Select Xcode 27
         run: |
           XCODE=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
