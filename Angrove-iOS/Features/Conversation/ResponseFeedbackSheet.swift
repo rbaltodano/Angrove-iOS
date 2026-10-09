@@ -5,9 +5,39 @@
 
 import SwiftUI
 
-/// Asks what was wrong with a response after a thumbs down and sends it to the bug report inbox.
-/// Only what the person types and basic app details are sent, never the response or conversation.
+extension EnvironmentValues {
+    /// Builds the chat log attached to thumbs-down feedback. Empty where no chat is available.
+    @Entry var responseFeedbackTranscript: () -> String = { "" }
+}
+
+extension ChatBranch {
+    /// The branch as plain text, with the flagged response marked. Attachments appear by name only.
+    func feedbackTranscript(flaggedResponseIndex: Int, characterLimit: Int = 60_000) -> String {
+        var lines: [String] = []
+        if !topQuestionText.isEmpty { lines.append("User: \(topQuestionText)") }
+        for (index, block) in activeChatBlocks.enumerated() {
+            switch block {
+            case .text(let text):
+                let marker = index == flaggedResponseIndex ? " [THUMBS DOWN]" : ""
+                lines.append("Angrove\(marker): \(text)")
+            case .user(let text, let concept, let files):
+                var line = "User: \(text)"
+                if let concept { line += " (quoting: \(concept.word))" }
+                if !files.isEmpty { line += " (attached: \(files.map(\.name).joined(separator: ", ")))" }
+                lines.append(line)
+            }
+        }
+        let log = lines.joined(separator: "\n\n")
+        // Keep the most recent exchange if a very long chat has to be trimmed.
+        return log.count > characterLimit ? "…" + String(log.suffix(characterLimit)) : log
+    }
+}
+
+/// Asks what was wrong with a response after a thumbs down and sends it, with the chat log,
+/// to the bug report inbox.
 struct ResponseFeedbackSheet: View {
+    /// The chat log to attach; empty when none is available.
+    var transcript: String = ""
     /// Called once the report is sent, so the thumbs down can stay selected.
     var onSent: () -> Void = {}
 
@@ -24,7 +54,7 @@ struct ResponseFeedbackSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
-                Text("What went wrong with this response? Your note and basic app details go to the Angrove team. The response itself isn’t sent, so please leave out anything private.")
+                Text("What went wrong with this response? Your note, basic app details\(transcript.isEmpty ? "" : ", and this conversation’s chat log") go to the Angrove team. Please leave out anything private.")
                     .settingsText(.paragraph)
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -88,7 +118,7 @@ struct ResponseFeedbackSheet: View {
 
     private func send() {
         let info = Bundle.main.infoDictionary
-        let fields = [
+        var fields = [
             "_subject": "Angrove response feedback (thumbs down)",
             "description": feedback.trimmingCharacters(in: .whitespacesAndNewlines),
             "steps": "Thumbs down on a model response",
@@ -96,6 +126,7 @@ struct ResponseFeedbackSheet: View {
             "app_build": info?["CFBundleVersion"] as? String ?? "Unknown",
             "operating_system": ProcessInfo.processInfo.operatingSystemVersionString
         ]
+        if !transcript.isEmpty { fields["chat_log"] = transcript }
         isSending = true
         hasFailed = false
         Task { @MainActor in

@@ -49,6 +49,7 @@ struct ModelResponseFooter: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.speechSource) private var speechSource
+    @Environment(\.responseFeedbackTranscript) private var feedbackTranscript
     @State private var showsCopiedConfirmation = false
     @State private var visibleActionCount = 0
     @State private var visibleDisclaimerWords = 0
@@ -152,7 +153,7 @@ struct ModelResponseFooter: View {
             // Cancelling the sheet means no feedback was given, so the thumbs down un-selects.
             if !feedbackSent, rating == .down { rating = nil }
         }) {
-            ResponseFeedbackSheet(onSent: { feedbackSent = true })
+            ResponseFeedbackSheet(transcript: feedbackTranscript(), onSent: { feedbackSent = true })
         }
     }
 

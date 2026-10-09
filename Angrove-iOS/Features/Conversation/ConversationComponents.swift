@@ -1577,6 +1577,10 @@ struct ChatThreadColumn: View {
                             ? nil
                             : { request in defineResponseWord(request, inResponseAt: index) }
                     )
+                    .environment(
+                        \.responseFeedbackTranscript,
+                        { branchData.feedbackTranscript(flaggedResponseIndex: index) }
+                    )
                     .id(
                         "\(branchData.id)-response-\(index)-\(responseIdentitySuffix(at: index, text: textContent))"
                     )
