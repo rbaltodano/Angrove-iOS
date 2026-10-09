@@ -117,7 +117,7 @@ struct HomeDashboardView: View {
 
     private var displayUserName: String {
         let trimmedName = userName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedName.isEmpty ? "Ryan" : trimmedName
+        return trimmedName.isEmpty ? "friend" : trimmedName
     }
 
     var body: some View {
@@ -413,8 +413,16 @@ private struct HomeFigmaUsageAndStats: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 24) {
-            HomeFigmaUsageGrid(month: month)
-                .anchorPreference(key: HomeCalendarBoundsKey.self, value: .bounds) { $0 }
+            VStack(alignment: .leading, spacing: 8) {
+                HomeFigmaUsageGrid(month: month)
+                    .anchorPreference(key: HomeCalendarBoundsKey.self, value: .bounds) { $0 }
+
+                Text("\(month.title) activity")
+                    .font(AngroveTheme.Typography.uiLabel)
+                    .foregroundColor(AngroveTheme.Colors.lightGreen)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
 
             HomeFigmaStatsGrid(
                 conversationCount: conversationCount,
@@ -818,9 +826,9 @@ private struct HomeFigmaStatsGrid: View {
             columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)],
             spacing: 8
         ) {
-            HomeFigmaStat(value: conversationCount, label: "Conversations")
-            HomeFigmaStat(value: insightCount, label: "Insights")
-            HomeFigmaStat(value: studyTopicCount, label: "Topics")
+            HomeFigmaStat(value: conversationCount, label: conversationCount == 1 ? "Conversation" : "Conversations")
+            HomeFigmaStat(value: insightCount, label: insightCount == 1 ? "Insight" : "Insights")
+            HomeFigmaStat(value: studyTopicCount, label: studyTopicCount == 1 ? "Topic" : "Topics")
             HomeFigmaStat(value: unfinishedCount, label: "Open")
         }
     }
