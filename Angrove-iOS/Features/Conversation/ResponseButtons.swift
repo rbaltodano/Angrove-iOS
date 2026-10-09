@@ -52,6 +52,9 @@ struct ModelResponseFooter: View {
     @State private var showsCopiedConfirmation = false
     @State private var visibleActionCount = 0
     @State private var visibleDisclaimerWords = 0
+    @State private var rating: Rating?
+    @State private var showsFeedbackSheet = false
+    @State private var feedbackSent = false
     private var speech: ResponseSpeechPlayer { .shared }
 
     private var disclaimerWords: [String] {
@@ -60,7 +63,42 @@ struct ModelResponseFooter: View {
     }
 
     private var actionCount: Int {
-        2 + (onRegenerate == nil ? 0 : 1)
+        4 + (onRegenerate == nil ? 0 : 1)
+    }
+
+    /// Index of the first rating button; copy and the optional regenerate come before it.
+    private var ratingStartIndex: Int { onRegenerate == nil ? 1 : 2 }
+
+    private enum Rating { case up, down }
+
+    private func ratingButton(_ rating: Rating) -> some View {
+        let isSelected = self.rating == rating
+        let isUp = rating == .up
+        return Button { tapRating(rating) } label: {
+            actionIcon(isUp ? (isSelected ? "hand.thumbsup.fill" : "hand.thumbsup")
+                            : (isSelected ? "hand.thumbsdown.fill" : "hand.thumbsdown"))
+                .foregroundStyle(isSelected ? AngroveTheme.Colors.accentGreen : AngroveTheme.Colors.responseButton)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isUp ? String(localized: "Good response") : String(localized: "Bad response"))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .modifier(ResponseActionEntrance(
+            isVisible: ratingStartIndex + (isUp ? 0 : 1) < visibleActionCount,
+            animates: shouldAnimateOnAppear && !reduceMotion
+        ))
+        .frame(width: 16, height: 16)
+    }
+
+    private func tapRating(_ tapped: Rating) {
+        if rating == tapped {
+            rating = nil
+            feedbackSent = false
+        } else {
+            rating = tapped
+            feedbackSent = false
+            // Thumbs up needs no follow-up; thumbs down asks what went wrong.
+            showsFeedbackSheet = tapped == .down
+        }
     }
 
     var body: some View {
@@ -78,6 +116,8 @@ struct ModelResponseFooter: View {
                         label: String(localized: "Regenerate response"), action: onRegenerate
                     )
                 }
+                ratingButton(.up)
+                ratingButton(.down)
                 speakButton
                 if speech.phase(for: copyText) != .idle {
                     Text("Tap and drag on a conversation block to fast forward and rewind")
@@ -108,6 +148,12 @@ struct ModelResponseFooter: View {
         .task(id: shouldAnimateOnAppear) {
             await revealFooter()
         }
+        .sheet(isPresented: $showsFeedbackSheet, onDismiss: {
+            // Cancelling the sheet means no feedback was given, so the thumbs down un-selects.
+            if !feedbackSent, rating == .down { rating = nil }
+        }) {
+            ResponseFeedbackSheet(onSent: { feedbackSent = true })
+        }
     }
 
     private func actionButton(symbol: String, index: Int, label: String, action: @escaping () -> Void) -> some View {
@@ -134,7 +180,7 @@ struct ModelResponseFooter: View {
         .buttonStyle(.plain)
         .accessibilityLabel(phase == .idle ? String(localized: "Read response aloud") : String(localized: "Stop reading"))
         .modifier(ResponseActionEntrance(
-            isVisible: (onRegenerate == nil ? 1 : 2) < visibleActionCount,
+            isVisible: ratingStartIndex + 2 < visibleActionCount,
             animates: shouldAnimateOnAppear && !reduceMotion
         ))
         .frame(width: 18, height: 16)

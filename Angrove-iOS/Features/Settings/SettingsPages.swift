@@ -852,7 +852,9 @@ struct BugReportSettingsView: View {
     }
 }
 
-private enum BugReportSubmission {
+/// Posts to the Angrove bug report inbox (bugreport@angrove.app). Shared by the Settings
+/// bug report form and the response thumbs-down feedback sheet.
+enum BugReportSubmission {
     private static let endpoint = URL(string: "https://formspree.io/f/xnpjppgj")!
 
     static func send(fields: [String: String]) async throws {
