@@ -15,6 +15,10 @@ nonisolated struct IncrementalGenerationGuard {
     private var currentSentence = ""
     private var pendingSentenceCharacter = ""
 
+    /// Explicit because Swift 6.2 (Xcode 26) makes the synthesized one private: every stored
+    /// property is private.
+    init() {}
+
     mutating func append(_ delta: String) -> (corrupt: Bool, repetitionPrefix: String?) {
         for scalar in delta.unicodeScalars where CharacterSet.letters.contains(scalar) {
             letterCount += 1
