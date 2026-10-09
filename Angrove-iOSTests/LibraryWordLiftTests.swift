@@ -19,8 +19,14 @@ struct LibraryWordLiftTests {
         }
         if !UIAccessibility.isReduceMotionEnabled {
             #expect(lift(0) < 0.1)
-            try await Task.sleep(for: .milliseconds(120))
-            #expect(lift(0) > 0 && lift(0) < AskingTextView.liftHeight)
+            // Sample frequently rather than at one instant, so frame timing on slower machines
+            // cannot skip the in-between positions that show the word eases rather than jumps.
+            var sawIntermediateLift = false
+            for _ in 0..<40 where !sawIntermediateLift {
+                try await Task.sleep(for: .milliseconds(10))
+                sawIntermediateLift = lift(0) > 0 && lift(0) < AskingTextView.liftHeight
+            }
+            #expect(sawIntermediateLift)
         }
         try await Task.sleep(for: .milliseconds(450))
         #expect(abs(lift(0) - AskingTextView.liftHeight) < 0.01)
