@@ -3,6 +3,12 @@ import Foundation
 /// Compact provenance labels for Library quote cards. Approximate dates use a leading tilde;
 /// biblical dates describe composition/final-form estimates rather than the events narrated.
 enum LibraryWorkAttribution {
+    /// Reuse the canonical provenance without the date or quote punctuation on artwork cards.
+    static func author(workID: String) -> String? {
+        guard let attribution = workAttributions[workID] else { return nil }
+        return String(attribution.dropFirst(2).split(separator: ",", maxSplits: 1)[0])
+    }
+
     static func line(workID: String, bibleBook: String? = nil) -> String {
         if workID == "web-bible", let bibleBook {
             return bibleAttributions[bibleBook] ?? "— Unknown"

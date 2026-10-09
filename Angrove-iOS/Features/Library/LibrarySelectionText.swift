@@ -106,6 +106,21 @@ struct LibrarySelectionText: UIViewRepresentable {
     }
 }
 
+/// Matches the conversation word's 0.4-second transform transition.
+struct LibraryWordLiftAnimation {
+    let from: CGFloat
+    let to: CGFloat
+    let startedAt: CFTimeInterval
+    static let duration: CFTimeInterval = 0.4
+    private static let curve = UnitCurve.bezier(
+        startControlPoint: UnitPoint(x: 0.55, y: 0), endControlPoint: UnitPoint(x: 0.17, y: 1))
+
+    func value(at time: CFTimeInterval) -> CGFloat {
+        let fraction = min(1, max(0, (time - startedAt) / Self.duration))
+        return from + (to - from) * CGFloat(Self.curve.value(at: fraction))
+    }
+}
+
 final class AskingTextView: UITextView {
     /// How far a reading aloud has reached into this paragraph: words before `readBefore` are read
     /// and `active`, if any, is being said.
@@ -130,6 +145,7 @@ final class AskingTextView: UITextView {
     private var chunkBase = 0
     private var appliedState = SpeechState.none
     private var speechLink: CADisplayLink?
+    private var liftAnimations: [Int: LibraryWordLiftAnimation] = [:]
 
     private final class SpeechTarget: NSObject {
         weak var view: AskingTextView?
@@ -143,6 +159,7 @@ final class AskingTextView: UITextView {
         tokens = LibrarySpeech.tokens(in: baseText.string, sourceID: sourceID)
         chunkBase = chunkIndex * LibrarySpeech.wordsPerChunk
         appliedState = .none
+        liftAnimations = [:]
     }
 
     // MARK: Reading styling
@@ -151,6 +168,19 @@ final class AskingTextView: UITextView {
     /// word being said, as the conversation reader does.
     func applySpeech(_ state: SpeechState, force: Bool) {
         guard force || state != appliedState else { return }
+        let now = CACurrentMediaTime()
+        let previous = appliedState
+        for token in tokens {
+            let wasLifted = token.local < previous.readBefore || token.local == previous.active
+            let isLifted = token.local < state.readBefore || token.local == state.active
+            let from = liftAnimations[token.local]?.value(at: now) ?? (wasLifted ? Self.liftHeight : 0)
+            let to: CGFloat = isLifted ? Self.liftHeight : 0
+            if UIAccessibility.isReduceMotionEnabled {
+                liftAnimations[token.local] = nil
+            } else if wasLifted != isLifted {
+                liftAnimations[token.local] = LibraryWordLiftAnimation(from: from, to: to, startedAt: now)
+            }
+        }
         let hadStyling = appliedState != .none || force
         appliedState = state
         if hadStyling {
@@ -159,26 +189,26 @@ final class AskingTextView: UITextView {
             if let lastTextColor { textColor = lastTextColor }
             if NSMaxRange(selection) <= textStorage.length { selectedRange = selection }
         }
-        guard state != .none else {
-            stopSpeechLink()
-            reportActiveWordRect(nil)
-            return
-        }
         textStorage.beginEditing()
         for token in tokens where token.local < state.readBefore || token.local == state.active {
             textStorage.addAttributes(Self.readAttributes(color: greenColor), range: token.range)
         }
+        for token in tokens {
+            if let animation = liftAnimations[token.local] {
+                textStorage.addAttribute(.baselineOffset, value: animation.value(at: now), range: token.range)
+            }
+        }
         textStorage.endEditing()
+        if state.active != nil || !liftAnimations.isEmpty { startSpeechLink() }
+        refreshActiveFill()
         if let active = state.active {
-            startSpeechLink()
-            refreshActiveFill()
             if let token = tokens.first(where: { $0.local == active }) {
                 layoutManager.ensureLayout(for: textContainer)
                 let glyphs = layoutManager.glyphRange(forCharacterRange: token.range, actualCharacterRange: nil)
                 reportActiveWordRect(layoutManager.boundingRect(forGlyphRange: glyphs, in: textContainer))
             }
         } else {
-            stopSpeechLink()
+            if liftAnimations.isEmpty { stopSpeechLink() }
             reportActiveWordRect(nil)
         }
     }
@@ -213,6 +243,19 @@ final class AskingTextView: UITextView {
 
     /// Redraws the word being said with the green front at its current place.
     private func refreshActiveFill() {
+        let now = CACurrentMediaTime()
+        if !liftAnimations.isEmpty {
+            textStorage.beginEditing()
+            for token in tokens {
+                guard let animation = liftAnimations[token.local], NSMaxRange(token.range) <= textStorage.length else { continue }
+                textStorage.addAttribute(.baselineOffset, value: animation.value(at: now), range: token.range)
+                if now - animation.startedAt >= LibraryWordLiftAnimation.duration {
+                    liftAnimations[token.local] = nil
+                }
+            }
+            textStorage.endEditing()
+        }
+        if appliedState.active == nil, liftAnimations.isEmpty { stopSpeechLink() }
         guard let active = appliedState.active,
               let token = tokens.first(where: { $0.local == active }),
               NSMaxRange(token.range) <= textStorage.length else { return }

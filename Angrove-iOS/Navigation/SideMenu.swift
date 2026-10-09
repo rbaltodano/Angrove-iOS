@@ -96,6 +96,7 @@ struct AngroveSideMenu: View, Equatable {
                                 icon: AppPage.library.sidebarIconName,
                                 title: "Library",
                                 isActive: activePage == .library,
+                                showsLibraryPlayback: true,
                                 isPresented: isPresented,
                                 delay: 0.225,
                                 action: onOpenLibrary

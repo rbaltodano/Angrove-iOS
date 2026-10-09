@@ -3,6 +3,14 @@
 This document describes iOS-owned composition and state. Cross-repository model and persistence
 contracts remain in [`MODEL-INTEGRATION.md`](../../Aquinas-Foundations/MODEL-INTEGRATION.md).
 
+`LibraryListeningStore` owns encrypted per-work listening bookmarks and the most recent work ID
+under `aquinas.library.listening.v1` in `PrivatePreferences`. `ResponseSpeechPlayer` checkpoints
+the complete-reader word index on pause/stop and every five seconds during playback. Finishing
+a page advances the bookmark to the next paragraph, or the end of the edition. A cached
+`LibraryListeningIndex`, built alongside the document off the main actor, translates sparse
+paragraph/word IDs into progress across the whole edition. Library navigation carries the saved
+word and an explicit start-listening intent; opening a bookmark alone never starts audio.
+
 ## Composition and ownership
 
 `BootPresentation` keeps the shell mounted beneath a launch mask while startup stores and the

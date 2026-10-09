@@ -129,6 +129,10 @@ final class ResponseSpeechPlayer {
     @ObservationIgnored private var scrubOriginFrame = 0
     @ObservationIgnored private var pendingConversationID: UUID?
     @ObservationIgnored private var pendingLibraryWorkID: String?
+    @ObservationIgnored private var pendingLibraryIndex: LibraryListeningIndex?
+    @ObservationIgnored private var libraryIndex: LibraryListeningIndex?
+    @ObservationIgnored private var activeLibraryTitle = ""
+    @ObservationIgnored private var lastListeningCheckpoint = Date.distantPast
     @ObservationIgnored private var lastNowPlayingUpdate = Date.distantPast
 
     @ObservationIgnored private let audioEngine = AVAudioEngine()
@@ -172,6 +176,7 @@ final class ResponseSpeechPlayer {
             nowPlayingTitle = source.title
             pendingConversationID = source.conversationID
             pendingLibraryWorkID = source.libraryWorkID
+            pendingLibraryIndex = source.libraryIndex
             speak(text, units: units.isEmpty ? [SpokenUnit(unhighlightedText: text)] : units)
         }
     }
@@ -189,10 +194,12 @@ final class ResponseSpeechPlayer {
         nowPlayingTitle = source.title
         pendingConversationID = source.conversationID
         pendingLibraryWorkID = source.libraryWorkID
+        pendingLibraryIndex = source.libraryIndex
         speak(text, units: remaining, firstWord: index)
     }
 
-    func stop() {
+    func stop(completed: Bool = false) {
+        saveListeningPosition(completed: completed)
         runID = UUID()
         generation += 1
         playback?.cancel()
@@ -218,6 +225,8 @@ final class ResponseSpeechPlayer {
         firstWord = nil
         activeConversationID = nil
         activeLibraryWorkID = nil
+        libraryIndex = nil
+        activeLibraryTitle = ""
         readingWords = []
         isReadingCardOpen = false
         isScrubbing = false
@@ -231,6 +240,21 @@ final class ResponseSpeechPlayer {
 
     /// Seconds into the reading, following the finger while scrubbing.
     var currentTime: Double { Double(currentFrame) / sampleRate }
+
+    var libraryListeningProgress: Double {
+        guard let workID = activeLibraryWorkID else { return 0 }
+        if let word = activeWord ?? firstWord, let libraryIndex { return libraryIndex.progress(at: word) }
+        return LibraryListeningStore.shared.bookmark(for: workID)?.progress ?? 0
+    }
+
+    private func saveListeningPosition(completed: Bool = false) {
+        guard let workID = activeLibraryWorkID else { return }
+        let position = activeWord ?? firstWord ?? readingWords.first?.index ?? 0
+        let word = completed ? libraryIndex?.wordAfterParagraph(containing: readingWords.last?.index ?? position) ?? position : position
+        LibraryListeningStore.shared.record(workID: workID, title: activeLibraryTitle,
+            wordIndex: word, progress: libraryIndex?.progress(at: word) ?? libraryListeningProgress)
+        lastListeningCheckpoint = Date()
+    }
 
     /// How far through `index` the reading is, 0...1, or nil if the word has no timing yet.
     func progress(ofWord index: Int) -> Double? {
@@ -279,6 +303,8 @@ final class ResponseSpeechPlayer {
         guard phase == .speaking, !isPaused else { return }
         isPaused = true
         if !isScrubbing { playerNode.pause() }
+        refreshActiveWord()
+        saveListeningPosition()
         refreshNowPlaying()
         // A reading left paused is dismissed, taking its speaker button with it.
         pauseTimeout?.cancel()
@@ -329,7 +355,8 @@ final class ResponseSpeechPlayer {
             title: nowPlayingTitle.isEmpty ? "Angrove" : nowPlayingTitle,
             elapsed: currentTime,
             duration: Double(synthesizedFrames) / sampleRate,
-            isPlaying: !isPaused && !isScrubbing
+            isPlaying: !isPaused && !isScrubbing,
+            libraryWorkID: activeLibraryWorkID
         )
     }
 
@@ -378,10 +405,13 @@ final class ResponseSpeechPlayer {
         activeText = text
         activeConversationID = pendingConversationID
         activeLibraryWorkID = pendingLibraryWorkID
+        libraryIndex = pendingLibraryIndex
+        activeLibraryTitle = nowPlayingTitle
         readingWords = units.flatMap(\.words).filter(Self.isDisplayedInReader)
         // In its collapsed form the card announces each reading rather than waiting to be opened.
         if isReadingCardCollapsed, AudioSettings.showsReaderInControls { isReadingCardOpen = true }
         self.firstWord = firstWord
+        saveListeningPosition()
         phase = .preparing
         pendingBuffers = 0
         isDoneScheduling = false
@@ -500,7 +530,10 @@ final class ResponseSpeechPlayer {
         ticker = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self, self.runID == id else { return }
-                if self.phase == .speaking { self.refreshActiveWord() }
+                if self.phase == .speaking {
+                    self.refreshActiveWord()
+                    if Date().timeIntervalSince(self.lastListeningCheckpoint) >= 5 { self.saveListeningPosition() }
+                }
                 try? await Task.sleep(for: .milliseconds(30))
             }
         }
@@ -521,7 +554,7 @@ final class ResponseSpeechPlayer {
     }
 
     private func finishIfDone() {
-        if isDoneScheduling, pendingBuffers <= 0, !isScrubbing, !isPaused, activeText != nil { stop() }
+        if isDoneScheduling, pendingBuffers <= 0, !isScrubbing, !isPaused, activeText != nil { stop(completed: true) }
     }
 
     private func loadedEngine() async throws -> ParadeeSpeechEngine {

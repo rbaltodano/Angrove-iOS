@@ -11,6 +11,7 @@ struct SpeechSource {
     var conversationID: UUID?
     /// Set when the reading is a Library page, so the Reading card can lead back to the work.
     var libraryWorkID: String?
+    var libraryIndex: LibraryListeningIndex?
 }
 
 /// A stretch of a response read as one block (a paragraph, heading, or list item), keeping the

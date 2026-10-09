@@ -359,7 +359,7 @@ struct UserGuideTopic: Identifiable, Hashable {
             id: "library", title: "Using the Library", icon: "books.vertical",
             intro: "The Library holds the original texts Angrove draws on when it answers, like Scripture and the writings of the Church Fathers. Open {books.vertical|Library} from the menu to read them yourself. It’s separate from your Insights, which are the definitions you saved.",
             overview: "The Library lets you read the sources behind Angrove’s answers in their own words.",
-            instructions: "Open {books.vertical|Library} from the menu. Browse the works or search by title or subject, then open a work to read it. The Passage of the Day is an easy place to start.",
+            instructions: "Open {books.vertical|Library} from the menu. Browse the works or search by title or subject, then open a work to read it. Your most recently played work stays at the top so you can continue listening.",
             example: "Read a source passage alongside a discussion to check the author’s own wording and context.",
             technical: [
                 .init(title: "Finding the right passage", body: "The Library holds 51,836 passages from 37 works, averaging about 970 characters each. Every passage was embedded ahead of time with the same MiniLM model, and the vectors ship with the app as a 79.6 MB file of 384-number rows that is memory-mapped rather than loaded. When you ask a question, Angrove embeds it and takes its dot product with every row, using Apple’s Accelerate library. Because the vectors are normalized, that dot product is the cosine similarity. Scanning all of them takes less time than writing the answer, so no approximate index is needed."),

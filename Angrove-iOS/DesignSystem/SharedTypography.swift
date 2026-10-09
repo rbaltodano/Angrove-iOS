@@ -36,6 +36,7 @@ enum AngroveTheme {
         static let darkGreen = Color(light: 0x6F6844, dark: 0xB7AE78)
         static let primaryBrown = Color(light: 0x4A321C, dark: 0xFFFAF0)
         static let headingText = Color(light: 0x614C40, dark: 0xFFFAF0)
+        static let illustratedCardTitle = Color(light: 0x2A2520, dark: 0xFFFAF0)
         // Light Brown: floating scroll control fill.
         static let lightBrown = Color(light: 0x614C40, dark: 0x2B2521)
         static let paragraphText = Color(
@@ -173,6 +174,7 @@ enum AngroveTheme {
         static let unit: CGFloat = 8
         static let screenPadding: CGFloat = 16
         static let cardPadding: CGFloat = 24
+        static let illustratedCardPadding: CGFloat = 28
         static let cardRadius: CGFloat = 28
         static let smallCardRadius: CGFloat = 16
         static let controlHeight: CGFloat = 44

@@ -32,6 +32,17 @@ struct HomeDashboardView: View {
     /// dashboard use the extra width while releasing vertical pressure on a phone.
     private var usesLandscapeLayout: Bool { verticalSizeClass == .compact }
 
+    private var listeningWork: LibraryWork? {
+        let speech = ResponseSpeechPlayer.shared
+        guard speech.phase != .idle, let workID = speech.activeLibraryWorkID else { return nil }
+        return LibraryWork(id: workID, title: speech.nowPlayingTitle, passageCount: 0)
+    }
+
+    private func openListeningWork(_ work: LibraryWork) {
+        NotificationCenter.default.post(name: .openGroundingSourceInLibrary,
+            object: LibraryListeningActions.request(for: work))
+    }
+
     @State private var vineParallax = HomeVineParallax()
     @State private var studyTopics: [StudyTopic] = []
     @State private var usageMonth = MonthlyUsageStore.currentMonth()
@@ -138,7 +149,9 @@ struct HomeDashboardView: View {
                             questionOfTheDay: sections.question,
                             usesLandscapeLayout: usesLandscapeLayout,
                             hidesGreetingHeader: sections.today != nil,
-                            onStartQuestion: onStartQuestion
+                            onStartQuestion: onStartQuestion,
+                            listeningWork: listeningWork,
+                            onOpenListeningWork: openListeningWork
                         )
 
                         HomeFigmaDivider()
@@ -302,7 +315,7 @@ private struct HomeVine: View {
     }
 }
 
-private struct HomeFigmaOpeningSection: View {
+struct HomeFigmaOpeningSection: View {
     let greeting: String
     let userName: String
     let month: MonthlyUsageMonth
@@ -314,6 +327,8 @@ private struct HomeFigmaOpeningSection: View {
     let usesLandscapeLayout: Bool
     var hidesGreetingHeader: Bool = false
     var onStartQuestion: (HomeQuestionOfTheDay) -> Void
+    var listeningWork: LibraryWork? = nil
+    var onOpenListeningWork: (LibraryWork) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .center, spacing: usesLandscapeLayout ? 36 : 84) {
@@ -348,6 +363,16 @@ private struct HomeFigmaOpeningSection: View {
                     studyTopicCount: studyTopicCount,
                     unfinishedCount: unfinishedCount
                 )
+
+                if let listeningWork {
+                    LibraryListeningCard(work: listeningWork, onListen: {
+                        LibraryListeningActions.toggle(listeningWork) { request in
+                            NotificationCenter.default.post(name: .openGroundingSourceInLibrary, object: request)
+                        }
+                    }) { onOpenListeningWork(listeningWork) }
+                        .id(listeningWork.id)
+                        .transition(.blurFade)
+                }
             }
 
             if let questionOfTheDay, !usesLandscapeLayout {
@@ -1039,13 +1064,13 @@ nonisolated private extension Array where Element == ConceptDefinition {
 
 // MARK: - Monthly Usage
 
-private struct MonthlyUsageMonth: Equatable {
+struct MonthlyUsageMonth: Equatable {
     let title: String
     let totalVisits: Int
     let days: [MonthlyUsageDay]
 }
 
-private struct MonthlyUsageDay: Identifiable, Equatable {
+struct MonthlyUsageDay: Identifiable, Equatable {
     let id: String
     let dayNumber: Int?
     let count: Int

@@ -10,6 +10,7 @@ struct SideMenuRow: View {
     let title: String
     var badge: Int = 0
     var isActive: Bool = false
+    var showsLibraryPlayback: Bool = false
     let isPresented: Bool
     let delay: TimeInterval
     var action: () -> Void
@@ -51,6 +52,12 @@ struct SideMenuRow: View {
                         .clipShape(Circle())
                         .opacity(showsText ? 1 : 0)
                         .transition(.scale(scale: 0.75).combined(with: .opacity))
+                }
+
+                if showsLibraryPlayback {
+                    Spacer(minLength: 0)
+                    LibrarySpeakingIndicator()
+                        .opacity(showsText ? 1 : 0)
                 }
             }
             .padding(.horizontal, 24)

@@ -17,6 +17,9 @@ the user's name and custom instructions; and every rotating conversation backup.
 Question of the Day widget text is encrypted with a separate key. Opt-in debug generation
 recordings are also encrypted, and existing recordings migrate at startup.
 
+Library audio bookmarks (work ID/title, paragraph and word position, completion percentage, and
+the most recent work ID) are encrypted through `PrivatePreferences` as listening history.
+
 Appearance preferences, bundled books and public grounding data, and model weights are not
 personal content and do not receive this additional encryption layer. iOS Data Protection still
 applies to app storage.

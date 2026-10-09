@@ -417,6 +417,9 @@ struct LibraryNavigationRequest: Equatable {
     var chunkIndex: Int? = nil
     /// Opens the reader on the page holding this reader paragraph, without featuring it.
     var readerChunkIndex: Int? = nil
+    /// A saved displayed word, used for the listening bookmark and direct resumption.
+    var listeningWordIndex: Int? = nil
+    var startsListening = false
     /// Distinguishes repeated taps on the same source, so each one still navigates.
     var id = UUID()
     /// Allows older saved sources without a chunk index to locate their original excerpt.

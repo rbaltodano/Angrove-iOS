@@ -10,7 +10,6 @@ import SwiftUI
 /// Subject shelves on the Library homepage, in display order.
 nonisolated enum LibrarySubject: String, CaseIterable, Identifiable, Sendable {
     case scripture
-    case thomisticTheology
     case earlyChristianity
     case councilsAndCreeds
     case catechismsAndConfessions
@@ -23,12 +22,11 @@ nonisolated enum LibrarySubject: String, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .scripture: "Sacred Scripture"
-        case .thomisticTheology: "Thomistic Theology"
         case .earlyChristianity: "Early & Medieval Christianity"
         case .councilsAndCreeds: "Councils & Creeds"
         case .catechismsAndConfessions: "Catechisms & Confessions"
         case .philosophy: "Philosophy"
-        case .history: "History"
+        case .history: "World History"
         case .politicalThought: "Political & Economic Thought"
         }
     }
@@ -37,9 +35,9 @@ nonisolated enum LibrarySubject: String, CaseIterable, Identifiable, Sendable {
     var generalTitle: String {
         switch self {
         case .scripture: "Scripture"
-        case .thomisticTheology, .earlyChristianity, .councilsAndCreeds, .catechismsAndConfessions: "Theology"
+        case .earlyChristianity, .councilsAndCreeds, .catechismsAndConfessions: "Theology"
         case .philosophy: "Philosophy"
-        case .history: "History"
+        case .history: "World History"
         case .politicalThought: "Political Thought"
         }
     }
@@ -47,7 +45,6 @@ nonisolated enum LibrarySubject: String, CaseIterable, Identifiable, Sendable {
     var systemImage: String {
         switch self {
         case .scripture: "book.closed"
-        case .thomisticTheology: "text.book.closed"
         case .earlyChristianity: "building.columns"
         case .councilsAndCreeds: "person.3.sequence"
         case .catechismsAndConfessions: "list.bullet.rectangle"
@@ -62,7 +59,7 @@ nonisolated enum LibrarySubject: String, CaseIterable, Identifiable, Sendable {
         case "web-bible":
             .scripture
         case "summa-theologica":
-            .thomisticTheology
+            .earlyChristianity
         case "council-of-trent", "ecumenical-creeds-schaff", "seven-ecumenical-councils":
             .councilsAndCreeds
         case "baltimore-catechism-3", "roman-catechism-donovan", "augsburg-confession",
@@ -308,9 +305,11 @@ struct LibraryHomeView: View {
     let onOpenPassage: (LibraryFeaturedPassage) -> Void
     /// Opens the work being read aloud at the page being read.
     var onOpenReading: (LibraryWork) -> Void = { _ in }
+    var onListen: (LibraryWork) -> Void = { _ in }
     var clippedPassages: [ConceptDefinition] = []
     var onRemoveClippedPassage: (ConceptDefinition) -> Void = { _ in }
     var onAskClippedPassage: (ConceptDefinition) -> Void = { _ in }
+    var isPageVisible = true
 
     private var speech = ResponseSpeechPlayer.shared
 
@@ -321,9 +320,11 @@ struct LibraryHomeView: View {
         onOpenWork: @escaping (LibraryWork) -> Void,
         onOpenPassage: @escaping (LibraryFeaturedPassage) -> Void,
         onOpenReading: @escaping (LibraryWork) -> Void = { _ in },
+        onListen: @escaping (LibraryWork) -> Void = { _ in },
         clippedPassages: [ConceptDefinition] = [],
         onRemoveClippedPassage: @escaping (ConceptDefinition) -> Void = { _ in },
-        onAskClippedPassage: @escaping (ConceptDefinition) -> Void = { _ in }
+        onAskClippedPassage: @escaping (ConceptDefinition) -> Void = { _ in },
+        isPageVisible: Bool = true
     ) {
         self.catalog = catalog
         self.recentWorkIDs = recentWorkIDs
@@ -331,9 +332,11 @@ struct LibraryHomeView: View {
         self.onOpenWork = onOpenWork
         self.onOpenPassage = onOpenPassage
         self.onOpenReading = onOpenReading
+        self.onListen = onListen
         self.clippedPassages = clippedPassages
         self.onRemoveClippedPassage = onRemoveClippedPassage
         self.onAskClippedPassage = onAskClippedPassage
+        self.isPageVisible = isPageVisible
     }
 
     private var isSearching: Bool {
@@ -388,10 +391,10 @@ struct LibraryHomeView: View {
         let recentWorks = recentWorkIDs.compactMap { id in catalog.works.first { $0.id == id } }
         return VStack(alignment: .leading, spacing: 48) {
             // The work being read aloud comes first, so it is one tap from the page being read.
-            if speech.phase != .idle,
-               let workID = speech.activeLibraryWorkID,
+            if let workID = speech.activeLibraryWorkID ?? LibraryListeningStore.shared.mostRecentWorkID,
                let work = catalog.works.first(where: { $0.id == workID }) {
-                LibraryListeningCard(work: work) { onOpenReading(work) }
+                LibraryListeningCard(work: work, isPageVisible: isPageVisible,
+                    onListen: { onListen(work) }) { onOpenReading(work) }
                     .padding(.horizontal, 24)
                     .transition(.blurFadeShrink)
             }
@@ -403,11 +406,6 @@ struct LibraryHomeView: View {
                     onAsk: onAskClippedPassage
                 )
                 .transition(.blurFadeShrink)
-            }
-
-            if let passage = catalog.featuredPassage {
-                LibraryPassageOfTheDayCard(passage: passage) { onOpenPassage(passage) }
-                    .padding(.horizontal, 24)
             }
 
             if !recentWorks.isEmpty {
@@ -430,18 +428,19 @@ struct LibraryHomeView: View {
     }
 }
 
-/// A speaker beside a work whose page is being read aloud.
+/// A speaker beside the Library, or a specific work, while a page is being read aloud.
 struct LibrarySpeakingIndicator: View {
-    let workID: String
+    let workID: String?
     private var speech = ResponseSpeechPlayer.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(workID: String) {
+    init(workID: String? = nil) {
         self.workID = workID
     }
 
     var body: some View {
-        if speech.activeLibraryWorkID == workID, speech.phase != .idle {
+        if let activeWorkID = speech.activeLibraryWorkID,
+           workID == nil || activeWorkID == workID, speech.phase != .idle {
             Image(systemName: "speaker.wave.2.fill")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(AngroveTheme.Colors.accentGreen)
@@ -452,55 +451,124 @@ struct LibrarySpeakingIndicator: View {
 }
 
 /// The work being read aloud, at the top of the Library.
-private struct LibraryListeningCard: View {
-    let work: LibraryWork
-    let action: () -> Void
-    private var speech = ResponseSpeechPlayer.shared
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+nonisolated struct LibraryListeningCardPlayback {
+    var isListening: Bool
+    var progress: Double
+}
 
-    init(work: LibraryWork, action: @escaping () -> Void) {
+struct LibraryListeningCard: View {
+    let work: LibraryWork
+    var isPageVisible = true
+    let action: () -> Void
+    let onListen: () -> Void
+    var playback: LibraryListeningCardPlayback?
+    private var speech = ResponseSpeechPlayer.shared
+
+    init(work: LibraryWork, isPageVisible: Bool = true, onListen: (() -> Void)? = nil,
+         playback: LibraryListeningCardPlayback? = nil,
+         action: @escaping () -> Void) {
         self.work = work
+        self.isPageVisible = isPageVisible
         self.action = action
+        self.onListen = onListen ?? action
+        self.playback = playback
+    }
+
+    private var isListening: Bool {
+        playback?.isListening ?? (speech.activeLibraryWorkID == work.id && speech.phase == .speaking && !speech.isPaused)
+    }
+
+    private var progress: Double {
+        if let playback { return playback.progress }
+        if speech.activeLibraryWorkID == work.id { return speech.libraryListeningProgress }
+        return LibraryListeningStore.shared.bookmark(for: work.id)?.progress ?? 0
     }
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 14) {
-                Image(systemName: "speaker.wave.2.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(AngroveTheme.Colors.accentGreen)
-                    .symbolEffect(.variableColor.iterative, isActive: speech.phase == .speaking && !speech.isPaused && !reduceMotion)
-                    .frame(width: 22)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("LISTENING")
-                        .font(.custom("Figtree-Bold", size: 10))
-                        .tracking(1.2)
-                        .foregroundStyle(AngroveTheme.Colors.accentGreen)
-                    Text(work.title)
-                        .font(.custom("LibreBaskerville-Regular", size: 18))
-                        .foregroundStyle(AngroveTheme.Colors.headingText)
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(2)
+            HStack(alignment: .top, spacing: 0) {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(work.title)
+                            .font(.custom("LibreBaskerville-Italic", size: 18))
+                            .foregroundStyle(AngroveTheme.Colors.illustratedCardTitle)
+                            .lineSpacing(4)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if let author = LibraryWorkAttribution.author(workID: work.id) {
+                            Text(author)
+                                .font(AngroveTheme.Typography.body)
+                                .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                                .lineSpacing(10)
+                                .padding(.vertical, 5)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .allowsHitTesting(false)
+                    Button(action: onListen) {
+                    HStack(spacing: 8) {
+                        if isListening {
+                            LibraryListeningProgressRing(progress: CGFloat(progress))
+                                .frame(width: 12, height: 12)
+                        } else {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                                .frame(width: 12, height: 12)
+                        }
+                        Text(isListening ? "Listening" : "Listen")
+                            .font(AngroveTheme.Typography.uiSubheading)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .frame(minHeight: 28)
+                    }
+                    .foregroundStyle(AngroveTheme.Colors.lightGreen)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 10)
+                    .background(AngroveTheme.Colors.canvas, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isListening ? "Pause \(work.title)" : "Listen to \(work.title)")
+                    .accessibilityValue("\(Int(progress * 100)) percent through work")
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(AngroveTheme.Colors.placeholderText)
+                .frame(maxWidth: 160, alignment: .leading)
+                // Reserve the illustrated side; the text column can shrink on small phones.
+                Spacer(minLength: 88)
             }
-            .padding(20)
+            .multilineTextAlignment(.leading)
+            .padding(AngroveTheme.Spacing.illustratedCardPadding)
+            .frame(maxWidth: .infinity, minHeight: 250, alignment: .topLeading)
+            .background {
+                Button(action: action) { Color.clear.contentShape(Rectangle()) }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open \(work.title)")
+                    .accessibilityHint("Opens your listening position")
+            }
+            .background(alignment: .bottomTrailing) {
+                LibraryPaintedArtwork(artwork: .forWork(work.id), isPageVisible: isPageVisible)
+            }
             .background(AngroveTheme.Colors.canvasSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(AngroveTheme.Colors.controlBorder, lineWidth: 1)
+                RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous)
+                    .stroke(AngroveTheme.Colors.quietBorder, lineWidth: 1)
             )
-            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Listening to \(work.title)")
-        .accessibilityHint("Opens the page being read")
+            .contentShape(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous))
+    }
+}
+
+struct LibraryListeningProgressRing: View {
+    let progress: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var displayedProgress: CGFloat = 0
+
+    var body: some View {
+        ContextUsageIcon(progress: displayedProgress, color: AngroveTheme.Colors.lightGreen)
+            .task {
+                // Let the empty track render before filling a newly mounted listening ring.
+                if !reduceMotion { try? await Task.sleep(for: .milliseconds(20)) }
+                guard !Task.isCancelled else { return }
+                displayedProgress = progress
+            }
+            .onChange(of: progress) { _, value in displayedProgress = value }
+            .transaction { if reduceMotion { $0.disablesAnimations = true } }
     }
 }
 

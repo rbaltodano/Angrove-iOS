@@ -70,6 +70,7 @@ private nonisolated struct LibraryDocument: Sendable {
     let passages: [LibraryPassage]
     let sections: [LibrarySection]
     var retrievalLocations: [String: Int]? = nil
+    var listeningIndex: LibraryListeningIndex? = nil
 
     func readerIndex(forRetrievalChunk index: Int) -> Int? {
         if let retrievalLocations { return retrievalLocations[String(index)] }
@@ -90,7 +91,8 @@ private nonisolated struct LibraryDocument: Sendable {
         return LibraryDocument(title: work.title, context: edition.context,
                                navigationUnit: navigationUnit(for: work.id), passages: passages,
                                sections: readerSections(edition.sections),
-                               retrievalLocations: edition.retrievalLocations)
+                               retrievalLocations: edition.retrievalLocations,
+                               listeningIndex: LibraryListeningIndex.forWork(work.id, passages: passages))
     }
 
     static func load(_ work: LibraryWork) -> LibraryDocument? {
@@ -725,6 +727,9 @@ struct LibraryView: View {
     @State private var selectedWorkID: String?
     @State private var targetChunkIndex: Int?
     @State private var targetReaderChunkIndex: Int?
+    @State private var targetListeningWordIndex: Int?
+    @State private var startsListening = false
+    @State private var readerRequestID: UUID?
     @State private var targetScripture: LibraryTextFormatter.ScriptureTarget?
     @State private var pendingNavigationRequest: LibraryNavigationRequest?
     @State private var isAskMode = false
@@ -749,9 +754,11 @@ struct LibraryView: View {
                 onOpenWork: { openWork(id: $0.id) },
                 onOpenPassage: { openWork(id: $0.workID, atChunk: $0.chunkIndex) },
                 onOpenReading: openReading,
+                onListen: resumeListening,
                 clippedPassages: clippedPassages,
                 onRemoveClippedPassage: onRemoveClippedPassage,
-                onAskClippedPassage: askAboutClippedPassage
+                onAskClippedPassage: askAboutClippedPassage,
+                isPageVisible: selectedWorkID == nil
             )
 
             if let selectedWork {
@@ -760,8 +767,11 @@ struct LibraryView: View {
                     targetTitle: navigationRequest?.sourceTitle,
                     targetChunkIndex: targetChunkIndex,
                     targetReaderChunkIndex: targetReaderChunkIndex,
+                    targetListeningWordIndex: targetListeningWordIndex,
+                    startsListening: startsListening,
+                    onListeningStarted: { startsListening = false },
                     targetScripture: targetScripture,
-                    navigationRequestID: navigationRequest?.id,
+                    navigationRequestID: readerRequestID,
                     modelTasks: modelTasks,
                     modelTasksPopupState: modelTasksPopupState,
                     isAskMode: $isAskMode,
@@ -865,6 +875,9 @@ struct LibraryView: View {
             }) else { return }
         targetScripture = nil
         targetReaderChunkIndex = request.readerChunkIndex
+        targetListeningWordIndex = request.listeningWordIndex
+        startsListening = request.startsListening
+        readerRequestID = request.id
         targetChunkIndex = request.chunkIndex ?? request.resolvedChunkIndex(
             in: BundledPassageCorpus.bundled()?.passages(forSource: work.id) ?? []
         )
@@ -873,19 +886,23 @@ struct LibraryView: View {
 
     /// Opens the work being read aloud on the page being read, and scrolls to the word.
     private func openReading(_ work: LibraryWork) {
-        let speech = ResponseSpeechPlayer.shared
-        speech.requestScrollToActiveWord()
         withAnimation(.springStandard) {
-            applyNavigationRequest(LibraryNavigationRequest(
-                sourceTitle: work.title, sourceName: work.title, sourceID: work.id,
-                readerChunkIndex: speech.activeWord.map { $0 / LibrarySpeech.wordsPerChunk }
-            ))
+            applyNavigationRequest(LibraryListeningActions.request(for: work))
+        }
+    }
+
+    private func resumeListening(_ work: LibraryWork) {
+        LibraryListeningActions.toggle(work) { request in
+            withAnimation(.springStandard) { applyNavigationRequest(request) }
         }
     }
 
     private func openScripture(_ target: LibraryTextFormatter.ScriptureTarget) {
         withAnimation(.springStandard) {
             targetChunkIndex = nil
+            targetReaderChunkIndex = nil
+            targetListeningWordIndex = nil
+            startsListening = false
             targetScripture = target
             selectedWorkID = "web-bible"
         }
@@ -894,7 +911,9 @@ struct LibraryView: View {
     private func openWork(id: String, atChunk chunkIndex: Int? = nil) {
         withAnimation(.springStandard) {
             targetScripture = nil
-            targetReaderChunkIndex = nil
+            targetListeningWordIndex = chunkIndex == nil ? LibraryListeningStore.shared.bookmark(for: id)?.wordIndex : nil
+            targetReaderChunkIndex = targetListeningWordIndex.map { $0 / LibrarySpeech.wordsPerChunk }
+            startsListening = false
             targetChunkIndex = chunkIndex
             selectedWorkID = id
         }
@@ -907,6 +926,8 @@ struct LibraryView: View {
             selectedWorkID = nil
             targetChunkIndex = nil
             targetReaderChunkIndex = nil
+            targetListeningWordIndex = nil
+            startsListening = false
             targetScripture = nil
         }
     }
@@ -929,6 +950,7 @@ private struct LibraryDocumentDetail: View {
         let workID: String
         let chunkIndex: Int?
         let readerChunkIndex: Int?
+        let listeningWordIndex: Int?
         let scripture: LibraryTextFormatter.ScriptureTarget?
         let requestID: UUID?
     }
@@ -938,6 +960,9 @@ private struct LibraryDocumentDetail: View {
     var targetChunkIndex: Int?
     /// A reader paragraph whose page to open, without featuring the paragraph.
     var targetReaderChunkIndex: Int?
+    var targetListeningWordIndex: Int?
+    var startsListening = false
+    var onListeningStarted: () -> Void = {}
     var targetScripture: LibraryTextFormatter.ScriptureTarget?
     let navigationRequestID: UUID?
     let modelTasks: ModelTaskQueue
@@ -991,7 +1016,7 @@ private struct LibraryDocumentDetail: View {
                                 subject: LibrarySubject.of(workID: work.id).generalTitle,
                                 title: document.title,
                                 context: document.context,
-                                isListening: speech.phase(for: speechKey(outline: selectedOutline)) != .idle,
+                                isListening: speech.phase(for: speechKey(outline: selectedOutline)) == .speaking && !speech.isPaused,
                                 onListen: { listen(document: document, outline: selectedOutline) }
                             )
                             .id(Self.readerTopID)
@@ -1032,7 +1057,8 @@ private struct LibraryDocumentDetail: View {
                     }
                     .onChange(of: isPageTextVisible) { _, visible in
                         guard visible else { return }
-                        if speech.isScrollRequestFresh, speech.activeLibraryWorkID == work.id {
+                        if targetListeningWordIndex.map({ visibleChunks.contains($0 / LibrarySpeech.wordsPerChunk) }) == true ||
+                            (speech.isScrollRequestFresh && speech.activeLibraryWorkID == work.id) {
                             scrollToWordBeingRead(with: proxy)
                             return
                         }
@@ -1105,6 +1131,7 @@ private struct LibraryDocumentDetail: View {
             workID: work.id,
             chunkIndex: targetChunkIndex,
             readerChunkIndex: targetReaderChunkIndex,
+            listeningWordIndex: targetListeningWordIndex,
             scripture: targetScripture,
             requestID: navigationRequestID
         )) {
@@ -1146,6 +1173,11 @@ private struct LibraryDocumentDetail: View {
                 selectedSectionID = section.id
                 selectedOutlineID = outline.id
             }
+            if startsListening, let document,
+               let outline = document.sections.node(withID: selectedOutlineID) {
+                listen(document: document, outline: outline, fromWord: targetListeningWordIndex)
+                onListeningStarted()
+            }
             await Task.yield()
             guard !Task.isCancelled else { return }
             withAnimation(.easeIn(duration: 0.25)) {
@@ -1156,10 +1188,13 @@ private struct LibraryDocumentDetail: View {
 
     /// Brings the word being read into view once its paragraph has laid out and marked itself.
     private func scrollToWordBeingRead(with proxy: ScrollViewProxy) {
-        guard speech.isScrollRequestFresh, speech.activeLibraryWorkID == work.id else { return }
+        guard targetListeningWordIndex != nil || (speech.isScrollRequestFresh && speech.activeLibraryWorkID == work.id) else { return }
+        if let word = targetListeningWordIndex ?? speech.activeWord ?? speech.firstWord {
+            proxy.scrollTo(word / LibrarySpeech.wordsPerChunk, anchor: .center)
+        }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(500))
-            guard speech.activeText != nil else { return }
+            guard isPageTextVisible else { return }
             withAnimation(.springStandard) {
                 proxy.scrollTo(ReadingScroll.activeWordID, anchor: .center)
             }
@@ -1174,11 +1209,16 @@ private struct LibraryDocumentDetail: View {
     private func listen(document: LibraryDocument, outline: LibrarySection, fromWord word: Int? = nil) {
         let passages = document.passages.filter { outline.chunks.contains($0.chunkIndex) }
         let units = LibrarySpeech.units(for: passages, sourceID: work.id)
-        let source = SpeechSource(title: work.title, libraryWorkID: work.id)
+        let source = SpeechSource(title: work.title, libraryWorkID: work.id, libraryIndex: document.listeningIndex)
         if let word {
             speech.read(speechKey(outline: outline), units: units, fromWord: word, source: source)
+        } else if speech.activeText == speechKey(outline: outline), speech.phase != .idle {
+            if speech.isPaused { speech.resume() } else { speech.pause() }
+        } else if let bookmark = LibraryListeningStore.shared.bookmark(for: work.id),
+                  bookmark.progress < 1, outline.chunks.contains(bookmark.readerChunkIndex) {
+            speech.read(speechKey(outline: outline), units: units, fromWord: bookmark.wordIndex, source: source)
         } else {
-            speech.toggle(speechKey(outline: outline), units: units, source: source)
+            speech.toggleStarting(speechKey(outline: outline), units: units, source: source)
         }
     }
 
@@ -1227,9 +1267,9 @@ private struct LibraryReaderHeader: View {
                 .lineSpacing(6)
             Button(action: onListen) {
                 HStack(spacing: 8) {
-                    Image(systemName: isListening ? "stop.fill" : "speaker.wave.2.fill")
+                    Image(systemName: isListening ? "pause.fill" : "speaker.wave.2.fill")
                         .font(.system(size: 12, weight: .semibold))
-                    Text(isListening ? "Stop" : "Listen")
+                    Text(isListening ? "Pause" : "Listen")
                         .font(.custom("Figtree-Bold", size: 14))
                 }
                 .foregroundStyle(AngroveTheme.Colors.accentGreen)
@@ -1240,7 +1280,7 @@ private struct LibraryReaderHeader: View {
                 .contentShape(Capsule())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(isListening ? "Stop listening" : "Listen to this page")
+            .accessibilityLabel(isListening ? "Pause listening" : "Listen to this page")
             OrnamentRule()
                 .padding(.top, 8)
         }
@@ -1288,6 +1328,14 @@ private struct LibraryTextSection: View {
 
             LazyVStack(alignment: .leading, spacing: 20) {
                 ForEach(passages) { passage in
+                    VStack(alignment: .leading, spacing: 8) {
+                    if let bookmark = LibraryListeningStore.shared.bookmark(for: sourceID),
+                       bookmark.progress < 1, bookmark.readerChunkIndex == passage.chunkIndex,
+                       ResponseSpeechPlayer.shared.activeLibraryWorkID != sourceID || ResponseSpeechPlayer.shared.isPaused {
+                        Label("Last listened here", systemImage: "bookmark.fill")
+                            .font(AngroveTheme.Typography.uiLabel)
+                            .foregroundStyle(AngroveTheme.Colors.lightGreen)
+                    }
                     LibraryParagraph(
                         text: LibraryTextFormatter.attributed(
                             passage.text,
@@ -1311,6 +1359,7 @@ private struct LibraryTextSection: View {
                             return true
                         }
                     )
+                    }
                     .id(passage.chunkIndex)
                 }
             }
@@ -1369,7 +1418,14 @@ private struct LibraryParagraph: View {
 
     /// Where the reading is in this paragraph: none, wholly read, or at a word within it.
     private var speechState: AskingTextView.SpeechState {
-        guard !speechKey.isEmpty, speech.activeText == speechKey, let active = speech.activeWord else { return .none }
+        let position: Int?
+        if speech.activeLibraryWorkID == sourceID, speech.phase != .idle {
+            position = speech.activeWord ?? speech.firstWord
+        } else {
+            let bookmark = LibraryListeningStore.shared.bookmark(for: sourceID)
+            position = bookmark?.progress == 1 ? nil : bookmark?.wordIndex
+        }
+        guard let active = position else { return .none }
         let base = chunkIndex * LibrarySpeech.wordsPerChunk
         if active < base { return .none }
         if active >= base + LibrarySpeech.wordsPerChunk { return .init(readBefore: Int.max, active: nil) }

@@ -6,6 +6,22 @@
 import MediaPlayer
 import UIKit
 
+@MainActor
+enum LibraryAlbumArtwork {
+    static func assetName(forLibraryWorkID workID: String?) -> String {
+        guard let workID else { return AppIconImage.assetName }
+        switch LibrarySubject.of(workID: workID) {
+        case .scripture: return "LibraryAlbumScripture"
+        case .earlyChristianity: return "LibraryAlbumChurchHistory"
+        case .councilsAndCreeds: return "LibraryAlbumCouncilsCreeds"
+        case .catechismsAndConfessions: return "LibraryAlbumConfessions"
+        case .philosophy: return "LibraryAlbumPhilosophy"
+        case .history: return "LibraryAlbumWorldHistory"
+        case .politicalThought: return "LibraryAlbumPoliticalThought"
+        }
+    }
+}
+
 /// Shows the response being read on the Lock Screen and in Control Center, with play/pause,
 /// skip, and a scrubber wired back to `ResponseSpeechPlayer`.
 @MainActor
@@ -16,11 +32,18 @@ final class SpeechNowPlaying {
 
     private var isActive = false
     private var areCommandsRegistered = false
-    private lazy var artwork: MPMediaItemArtwork? = UIImage(named: AppIconImage.assetName).map { image in
-        MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+    private var artworkCache: [String: MPMediaItemArtwork] = [:]
+
+    func artwork(forLibraryWorkID workID: String?) -> MPMediaItemArtwork? {
+        let name = LibraryAlbumArtwork.assetName(forLibraryWorkID: workID)
+        if let cached = artworkCache[name] { return cached }
+        guard let image = UIImage(named: name) ?? UIImage(named: AppIconImage.assetName) else { return nil }
+        let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+        artworkCache[name] = artwork
+        return artwork
     }
 
-    func update(title: String, elapsed: Double, duration: Double, isPlaying: Bool) {
+    func update(title: String, elapsed: Double, duration: Double, isPlaying: Bool, libraryWorkID: String? = nil) {
         registerCommandsIfNeeded()
         UIApplication.shared.beginReceivingRemoteControlEvents()
         isActive = true
@@ -34,7 +57,7 @@ final class SpeechNowPlaying {
             MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0,
             MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue,
         ]
-        if let artwork { info[MPMediaItemPropertyArtwork] = artwork }
+        if let artwork = artwork(forLibraryWorkID: libraryWorkID) { info[MPMediaItemPropertyArtwork] = artwork }
         let center = MPNowPlayingInfoCenter.default()
         center.nowPlayingInfo = info
         center.playbackState = isPlaying ? .playing : .paused
