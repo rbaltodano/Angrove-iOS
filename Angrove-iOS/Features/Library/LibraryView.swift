@@ -982,7 +982,7 @@ private struct LibraryDocumentDetail: View {
     @State private var isContentsOpen = false
     @State private var isPageTextVisible = true
     @State private var pageTransitionTask: Task<Void, Never>?
-    private var speech = ResponseSpeechPlayer.shared
+    private var speech: ResponseSpeechPlayer { .shared }
 
     private func libraryQuote(_ text: String, bibleBook: String) -> ConceptDefinition {
         ConceptDefinition(
@@ -1393,7 +1393,7 @@ private struct LibraryParagraph: View {
     let onClip: (String) -> Void
     let onReadFromHere: (Int) -> Void
     let onOpenURL: (URL) -> Bool
-    private var speech = ResponseSpeechPlayer.shared
+    private var speech: ResponseSpeechPlayer { .shared }
     @State private var activeWordRect: CGRect?
 
     init(

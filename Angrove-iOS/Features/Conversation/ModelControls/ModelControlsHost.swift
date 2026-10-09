@@ -127,7 +127,7 @@ struct ModelControlsHost: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.modelCompletionNotifications) private var completionNotifications
     @State private var measuredHeight: CGFloat?
-    private var speech = ResponseSpeechPlayer.shared
+    private var speech: ResponseSpeechPlayer { .shared }
 
     private static let empty = ModelControlsConfiguration(id: "none")
 

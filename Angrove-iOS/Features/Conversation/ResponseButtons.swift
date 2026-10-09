@@ -52,7 +52,7 @@ struct ModelResponseFooter: View {
     @State private var showsCopiedConfirmation = false
     @State private var visibleActionCount = 0
     @State private var visibleDisclaimerWords = 0
-    private var speech = ResponseSpeechPlayer.shared
+    private var speech: ResponseSpeechPlayer { .shared }
 
     private var disclaimerWords: [String] {
         String(localized: "AI can make mistakes, verify important details")

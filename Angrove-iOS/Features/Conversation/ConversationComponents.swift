@@ -1578,8 +1578,7 @@ struct ChatThreadColumn: View {
                             : { request in defineResponseWord(request, inResponseAt: index) }
                     )
                     .id(
-                        "\(branchData.id)-response-\(index)-"
-                            + responseIdentitySuffix(at: index, text: textContent)
+                        "\(branchData.id)-response-\(index)-\(responseIdentitySuffix(at: index, text: textContent))"
                     )
                     .transition(
                         animatedResponseIndices.contains(index)
