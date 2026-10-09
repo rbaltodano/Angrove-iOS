@@ -56,8 +56,13 @@ struct UserGuideBundledPageTests {
                 for width in [320, 393, 768] {
                     webView.frame.size.width = CGFloat(width)
                     webView.layoutIfNeeded()
-                    try await Task.sleep(for: .milliseconds(50))
-                    #expect(try await webView.evaluateJavaScript("document.documentElement.scrollWidth <= window.innerWidth") as? Bool == true)
+                    // Slower machines relayout later; allow up to a second before judging overflow.
+                    var fits = false
+                    for _ in 0..<20 where !fits {
+                        try await Task.sleep(for: .milliseconds(50))
+                        fits = try await webView.evaluateJavaScript("document.documentElement.scrollWidth <= window.innerWidth") as? Bool == true
+                    }
+                    #expect(fits, "Topic \(id) overflows at \(width) points")
                 }
                 // Live appearance changes must preserve the open topic and its state.
                 let other: ColorScheme = scheme == .dark ? .light : .dark

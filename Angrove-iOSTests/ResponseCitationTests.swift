@@ -125,7 +125,10 @@ struct ResponseCitationTests {
         #expect(target.chunkIndex == 3762)
     }
 
-    @Test("Locators use the Library outline")
+    @Test(
+        "Locators use the Library outline",
+        .enabled(if: BundledGroundingAssets.areAvailable, "LocalGrounding assets are not bundled")
+    )
     func locatorLabels() {
         #expect(LibraryPassageLocator.label(sourceID: "web-bible", chunkIndex: 3762) == "John 14")
         #expect(LibraryPassageLocator.label(sourceID: "aristotle-nicomachean-ethics", chunkIndex: 170)

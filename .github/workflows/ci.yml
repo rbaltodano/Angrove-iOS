@@ -39,6 +39,8 @@ jobs:
 
       - name: Build and run tests
         # Local model and grounding assets are gitignored; suites that need them skip themselves.
+        # Sign ad hoc ("Sign to Run Locally"), as local simulator builds do: an unsigned app has no
+        # Keychain entitlement, so encrypted storage fails with errSecMissingEntitlement (-34018).
         run: |
           set -o pipefail
           xcodebuild \
@@ -47,7 +49,9 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
             -resultBundlePath TestResults.xcresult \
             -parallel-testing-enabled NO \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM= \
             test
 
       - name: Upload test results
