@@ -402,10 +402,17 @@ struct InsightTreeCanvasView: View {
                             .frame(width: size.width, height: size.height)
                             .opacity(studyProgress)
                     }
-                    graphEdges(camera: camera, size: size)
-                    midpointConnectors(layout: layout, camera: camera, size: size)
-                        .opacity(restFade)
-                    insightConnectors(layout: layout, camera: camera, size: size)
+                    // Each connector is a gradient-stroked, full-canvas shape. Rendering them as
+                    // one flattened layer keeps a large global tree from compositing hundreds of
+                    // separate layers on every pan and zoom frame.
+                    ZStack {
+                        graphEdges(camera: camera, size: size)
+                        midpointConnectors(layout: layout, camera: camera, size: size)
+                            .opacity(restFade)
+                        insightConnectors(layout: layout, camera: camera, size: size)
+                    }
+                    .frame(width: size.width, height: size.height)
+                    .drawingGroup()
                     // Hover pulses stay in Study: they only ever run along the hovered item's
                     // connectors, which in Study belong to the studied cluster.
                     connectorPulseOverlay(layout: layout, camera: camera, size: size)
@@ -480,6 +487,7 @@ struct InsightTreeCanvasView: View {
                     midpointOverlay(layout: layout, camera: camera, size: size, labelOpacity: labelOpacity)
                 }
             }
+            .environment(\.insightTreeClearsLabelChrome, insightTreeBackground == .clouds)
             .contentShape(Rectangle())
             .coordinateSpace(name: Self.canvasSpace)
             .simultaneousGesture(panGesture(camera: camera, size: size), including: isInStudy ? .none : .all)

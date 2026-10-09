@@ -4,6 +4,7 @@ import SwiftUI
 struct InsightTreeCanvasGraphEdge: View {
     let start: CGPoint
     let end: CGPoint
+    let canvasSize: CGSize
     let color: Color
     let isAnimated: Bool
     let isSuggested: Bool
@@ -14,11 +15,12 @@ struct InsightTreeCanvasGraphEdge: View {
                 InsightConnectorLine(
                     start: start,
                     end: end,
+                    canvasSize: canvasSize,
                     color: color
                 )
             } else {
                 FadedCanvasLine(
-                    start: start, end: end, color: color,
+                    start: start, end: end, canvasSize: canvasSize, color: color,
                     style: StrokeStyle(lineWidth: 1, lineCap: .round, dash: isSuggested ? [6, 4] : [])
                 )
             }

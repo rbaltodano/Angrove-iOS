@@ -34,9 +34,13 @@ struct AnimatableLine: Shape {
 }
 
 /// Keeps connectors quiet around labels while retaining their strength in the middle.
+///
+/// Callers always frame the line to the full canvas, so they pass that size in rather than each
+/// line measuring itself with a GeometryReader (one layout pass per connector, every frame).
 struct FadedCanvasLine: View, Animatable {
     var start: CGPoint
     var end: CGPoint
+    var canvasSize: CGSize
     var color: Color
     var drawn: CGFloat = 1
     var style = StrokeStyle(lineWidth: 1, lineCap: .round)
@@ -54,23 +58,23 @@ struct FadedCanvasLine: View, Animatable {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            AnimatableLine(start: start, end: end)
-                .trim(from: 0, to: drawn)
-                .stroke(
-                    LinearGradient(
-                        stops: [
-                            .init(color: color.opacity(0), location: 0),
-                            .init(color: color, location: 0.2),
-                            .init(color: color, location: 0.8),
-                            .init(color: color.opacity(0), location: 1)
-                        ],
-                        startPoint: UnitPoint(x: start.x / max(geometry.size.width, 1), y: start.y / max(geometry.size.height, 1)),
-                        endPoint: UnitPoint(x: end.x / max(geometry.size.width, 1), y: end.y / max(geometry.size.height, 1))
-                    ),
-                    style: style
-                )
-        }
+        let width = max(canvasSize.width, 1)
+        let height = max(canvasSize.height, 1)
+        AnimatableLine(start: start, end: end)
+            .trim(from: 0, to: drawn)
+            .stroke(
+                LinearGradient(
+                    stops: [
+                        .init(color: color.opacity(0), location: 0),
+                        .init(color: color, location: 0.2),
+                        .init(color: color, location: 0.8),
+                        .init(color: color.opacity(0), location: 1)
+                    ],
+                    startPoint: UnitPoint(x: start.x / width, y: start.y / height),
+                    endPoint: UnitPoint(x: end.x / width, y: end.y / height)
+                ),
+                style: style
+            )
     }
 }
 
@@ -79,13 +83,15 @@ struct FadedCanvasLine: View, Animatable {
 struct InsightConnectorLine: View {
     var start: CGPoint
     var end: CGPoint
+    var canvasSize: CGSize
     var color: Color
     /// A new Insight's connector draws itself out from the Node Concept to the chip.
     @State private var drawn: CGFloat
 
-    init(start: CGPoint, end: CGPoint, color: Color, grows: Bool = false) {
+    init(start: CGPoint, end: CGPoint, canvasSize: CGSize, color: Color, grows: Bool = false) {
         self.start = start
         self.end = end
+        self.canvasSize = canvasSize
         self.color = color
         _drawn = State(initialValue: grows ? 0 : 1)
     }
@@ -94,7 +100,7 @@ struct InsightConnectorLine: View {
     static let growAnimation = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.55)
 
     var body: some View {
-        FadedCanvasLine(start: start, end: end, color: color, drawn: drawn)
+        FadedCanvasLine(start: start, end: end, canvasSize: canvasSize, color: color, drawn: drawn)
             .onAppear {
                 guard drawn < 1 else { return }
                 withAnimation(Self.growAnimation) { drawn = 1 }
@@ -207,12 +213,18 @@ struct RevealedInsightLabel: View {
     }
 }
 
+extension EnvironmentValues {
+    /// Set once by the canvas from the Insight Tree background setting, so each chip and Node
+    /// Concept reads a plain value instead of holding its own UserDefaults observer.
+    @Entry var insightTreeClearsLabelChrome = false
+}
+
 /// Shared chrome for ordinary tree Insights and Branch results.
 struct InsightTreeChipChrome: ViewModifier {
-    @AppStorage(SettingsStorageKey.insightTreeBackground) private var background: CanvasBackgroundOption = .system
+    @Environment(\.insightTreeClearsLabelChrome) private var clearsChrome
     var labelOpacity: Double = 1
 
-    private var chromeOpacity: Double { background == .clouds ? 0 : labelOpacity }
+    private var chromeOpacity: Double { clearsChrome ? 0 : labelOpacity }
 
     func body(content: Content) -> some View {
         content

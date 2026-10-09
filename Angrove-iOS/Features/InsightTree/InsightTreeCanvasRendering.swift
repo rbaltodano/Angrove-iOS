@@ -22,7 +22,7 @@ extension InsightTreeCanvasView {
                     ? AngroveTheme.Colors.primaryReadable.opacity(0.3)
                     : AngroveTheme.Colors.divider.opacity(edge.isSuggested ? 0.55 : 0.9)
                 InsightTreeCanvasGraphEdge(
-                    start: start, end: end, color: lineColor,
+                    start: start, end: end, canvasSize: size, color: lineColor,
                     isAnimated: revealState.animatedGraphEdgeIDs.contains(edge.id),
                     isSuggested: edge.isSuggested
                 )
@@ -73,7 +73,7 @@ extension InsightTreeCanvasView {
                 let end = camera.worldToScreen(placedWorld, in: size)
                 ForEach(Array(sources.enumerated()), id: \.offset) { _, source in
                     if let start = midpointSourceScreenPosition(source, layout: layout, camera: camera, size: size) {
-                        FadedCanvasLine(start: start, end: end, color: AngroveTheme.Colors.divider.opacity(0.9))
+                        FadedCanvasLine(start: start, end: end, canvasSize: size, color: AngroveTheme.Colors.divider.opacity(0.9))
                             .frame(width: size.width, height: size.height)
                             .allowsHitTesting(false)
                             .opacity(hasSelection ? 0.5 : 1.0)
@@ -105,6 +105,7 @@ extension InsightTreeCanvasView {
                     InsightConnectorLine(
                         start: start,
                         end: end,
+                        canvasSize: size,
                         color: lineColor.opacity((hasSelection ? 0.5 : 1.0)
                             * studyOpacity(forInsightID: insight.id, nodeID: node.id)),
                         grows: revealState.growingConnectorIDs.contains(insight.id)
