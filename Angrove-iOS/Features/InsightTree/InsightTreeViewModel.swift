@@ -885,12 +885,14 @@ final class InsightTreeViewModel: ObservableObject {
                       let placed = placedMidpoints.first(where: { $0.concept.id == insightID }) else { continue }
                 let source = InsightModel(concept: placed.concept)
                 let nodeID = promotedNodeID(for: insightID)
+                // Split out because Xcode 26 could not type-check it as one closure.
+                func owns(_ node: NodeModel, _ source: MidpointSource) -> Bool {
+                    if source.isNode { return node.id == source.insightID }
+                    return node.insights.contains { $0.id == source.insightID }
+                        || node.id == self.promotedNodeID(for: source.insightID)
+                }
                 let parentIDs = Set(placed.sources.compactMap { source -> UUID? in
-                    nodes.first { node in
-                        source.isNode ? node.id == source.insightID
-                            : node.insights.contains { $0.id == source.insightID }
-                                || node.id == promotedNodeID(for: source.insightID)
-                    }?.id
+                    nodes.first(where: { owns($0, source) })?.id
                 })
                 nodes.append(NodeModel(id: nodeID, conceptLabel: source.title, definition: source.definition,
                     insights: promotionChildren(for: source), embedding: source.embedding ?? [],
