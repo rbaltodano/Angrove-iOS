@@ -657,7 +657,7 @@ struct BugReportSettingsView: View {
                         .foregroundStyle(AngroveTheme.Colors.accentGreen)
                         .frame(width: 24, height: 24)
                         .accessibilityHidden(true)
-                    Text("Tell us what went wrong. Your report and basic app details go to the Angrove bug report inbox. Please leave out passwords or private conversations.")
+                    Text("Tell us what went wrong. This app runs on your device. Sending this report is the one exception: it shares what you write below plus your app version, build number, and iOS version. Nothing is sent unless you tap Send Report. Please leave out passwords or private conversations.")
                         .settingsText(.paragraph)
                         .foregroundStyle(AngroveTheme.Colors.paragraphText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -842,7 +842,7 @@ struct BugReportSettingsView: View {
                 description = ""
                 steps = ""
                 replyEmail = ""
-                statusMessage = "Thanks. Your report was sent to the Angrove team."
+                statusMessage = "Thanks. Your report was sent."
             } catch {
                 hasFailed = true
                 statusMessage = "We couldn’t send your report. Check your connection and try again, or email bugreport@angrove.app directly."

@@ -54,7 +54,7 @@ struct ResponseFeedbackSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
-                Text("What went wrong with this response? Angrove runs on your device. Sending this report is the one exception: it shares your note and basic app details\(report == nil ? "" : ", this response, and the question before it") with Angrove. Nothing is sent unless you tap Send Report. Please leave out anything private.")
+                Text("What went wrong with this response? This app runs on your device. Sending this report is the one exception: it shares your note\(report == nil ? "" : ", this response, the question before it,") and your app version, build number, and iOS version. Nothing is sent unless you tap Send Report. Please leave out anything private.")
                     .settingsText(.paragraph)
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
                     .fixedSize(horizontal: false, vertical: true)
