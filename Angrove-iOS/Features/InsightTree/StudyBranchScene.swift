@@ -43,6 +43,7 @@ struct StudyBranchScene: View {
                     FadedCanvasLine(
                         start: CGPoint(x: center.x + recoil.width, y: center.y + recoil.height),
                         end: released ? destination : center,
+                        canvasSize: proxy.size,
                         color: AngroveTheme.Colors.primaryReadable.opacity(0.28),
                         style: StrokeStyle(lineWidth: 1 / max(fitScale, 0.01))
                     )
