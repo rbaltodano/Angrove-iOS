@@ -590,7 +590,7 @@ private struct HomeStartHereSection: View {
         Button(action: onOpen) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Start Here")
-                    .font(AngroveTheme.Typography.uiHeading)
+                    .font(.custom("LibreBaskerville-Regular", size: 18))
                     .foregroundColor(AngroveTheme.Colors.primaryReadable)
 
                 Text("New to Angrove? The User Guide shows how conversations, Insights, the Insight Tree, and the Library work together.")
