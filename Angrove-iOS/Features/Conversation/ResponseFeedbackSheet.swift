@@ -5,13 +5,11 @@
 
 import SwiftUI
 
-/// What a thumbs down sends along with the person's note.
+/// What a thumbs down sends along with the person's note: just the flagged response and the
+/// question that prompted it, never the rest of the chat.
 struct ResponseFeedbackReport {
-    /// The question that produced the flagged response.
     var question: String
     var response: String
-    /// The whole branch as plain text, with the flagged response marked.
-    var chatLog: String
 }
 
 extension EnvironmentValues {
@@ -20,38 +18,25 @@ extension EnvironmentValues {
 }
 
 extension ChatBranch {
-    /// The flagged response, the question that prompted it, and the branch as plain text.
-    /// Attachments appear by name only.
-    func feedbackReport(flaggedResponseIndex: Int, characterLimit: Int = 60_000) -> ResponseFeedbackReport {
-        var lines: [String] = []
-        if !topQuestionText.isEmpty { lines.append("User: \(topQuestionText)") }
+    /// The flagged response and the user question immediately before it.
+    func feedbackReport(flaggedResponseIndex: Int) -> ResponseFeedbackReport {
         var question = topQuestionText
-        var response = ""
-        for (index, block) in activeChatBlocks.enumerated() {
-            switch block {
-            case .text(let text):
-                let flagged = index == flaggedResponseIndex
-                if flagged { response = text }
-                lines.append("Angrove\(flagged ? " [THUMBS DOWN]" : ""): \(text)")
-            case .user(let text, let concept, let files):
-                if index < flaggedResponseIndex { question = text }
-                var line = "User: \(text)"
-                if let concept { line += " (quoting: \(concept.word))" }
-                if !files.isEmpty { line += " (attached: \(files.map(\.name).joined(separator: ", ")))" }
-                lines.append(line)
-            }
+        for block in activeChatBlocks.prefix(flaggedResponseIndex).reversed() {
+            if case .user(let text, _, _) = block { question = text; break }
         }
-        let log = lines.joined(separator: "\n\n")
-        // Keep the most recent exchange if a very long chat has to be trimmed.
-        let trimmed = log.count > characterLimit ? "…" + String(log.suffix(characterLimit)) : log
-        return ResponseFeedbackReport(question: question, response: response, chatLog: trimmed)
+        var response = ""
+        if activeChatBlocks.indices.contains(flaggedResponseIndex),
+           case .text(let text) = activeChatBlocks[flaggedResponseIndex] {
+            response = text
+        }
+        return ResponseFeedbackReport(question: question, response: response)
     }
 }
 
-/// Asks what was wrong with a response after a thumbs down and sends it, with the chat log,
+/// Asks what was wrong with a response after a thumbs down and sends it, with the response and its question,
 /// to the bug report inbox.
 struct ResponseFeedbackSheet: View {
-    /// The question, response, and chat log to attach; `nil` sends only the note.
+    /// The flagged response and its question to attach; `nil` sends only the note.
     var report: ResponseFeedbackReport? = nil
     /// Called once the report is sent, so the thumbs down can stay selected.
     var onSent: () -> Void = {}
@@ -69,7 +54,7 @@ struct ResponseFeedbackSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
-                Text("What went wrong with this response? Your note, basic app details\(report == nil ? "" : ", this response, your question, and the chat log") go to the Angrove team. Please leave out anything private.")
+                Text("What went wrong with this response? Your note, basic app details\(report == nil ? "" : ", this response, and the question before it") go to the Angrove team. Please leave out anything private.")
                     .settingsText(.paragraph)
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -144,7 +129,6 @@ struct ResponseFeedbackSheet: View {
         if let report {
             fields["flagged_question"] = report.question
             fields["flagged_response"] = report.response
-            fields["chat_log"] = report.chatLog
         }
         isSending = true
         hasFailed = false
