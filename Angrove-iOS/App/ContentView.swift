@@ -293,7 +293,9 @@ struct ContentView: View {
             return
         }
 
-        let isViewingCompletedConversation = activePage == .conversation
+        // Leaving the app from this conversation means the person is no longer looking at it.
+        let isViewingCompletedConversation = UIApplication.shared.applicationState == .active
+            && activePage == .conversation
             && sideMenuActiveConversationID == conversationID
         guard !isViewingCompletedConversation else { return }
 
@@ -1244,7 +1246,9 @@ struct ContentView: View {
         .onChange(of: globalInsightHasInsightHover) { _, isHoveringInsight in
             handleGlobalInsightHoverChange(isHoveringInsight)
         }
-        .onChange(of: modelTasks.latestCompletedTask) { _, task in handleCompletedModelTask(task) }
+        // A direct callback, not onChange: SwiftUI may not deliver changes while the app is in
+        // the background, which is exactly when a completion notification is needed.
+        .onAppear { modelTasks.onTaskCompleted = { handleCompletedModelTask($0) } }
         .onChange(of: conversationPersonality) { _, personality in
             modelTasks.setPersonality(personality)
         }
@@ -1612,8 +1616,7 @@ struct ContentView: View {
         scheduleDailyQuestionRefreshIfNeeded()
     }
 
-    private func handleCompletedModelTask(_ task: ModelTaskSnapshot?) {
-        guard let task else { return }
+    private func handleCompletedModelTask(_ task: ModelTaskSnapshot) {
         postConversationCompletionNotificationIfNeeded(for: task)
         guard task.originPage != .insights else { return }
         suppressGlobalTreePromptUntilExternalModelCompletion = false

@@ -209,6 +209,8 @@ final class ModelTaskQueue {
     /// The most recent successful completion, retained after the transient completed-task list
     /// clears so page-level refresh policies can react exactly once to completed model work.
     private(set) var latestCompletedTask: ModelTaskSnapshot?
+    /// Runs synchronously when a task completes, including while the app is in the background.
+    @ObservationIgnored var onTaskCompleted: ((ModelTaskSnapshot) -> Void)?
     private(set) var currentTask: ModelTaskSnapshot?
     private(set) var upcomingTasks: [ModelTaskSnapshot] = []
     private(set) var isRuntimeLoading = false
@@ -527,6 +529,7 @@ final class ModelTaskQueue {
         let completedTask = snapshot(for: job, phase: .completed)
         completedTasks.append(completedTask)
         latestCompletedTask = completedTask
+        onTaskCompleted?(completedTask)
         if let branchID = job.kind.userQuestionBranchID {
             completedUserQuestionBranchIDs.insert(branchID)
         }
