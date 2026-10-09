@@ -45,30 +45,50 @@ nonisolated final class SerializedPersonalStore: @unchecked Sendable {
 
     func save<Value: Codable>(_ value: Value, key: String, store: InsightTreeLocalStateFileStore) {
         let id = cacheKey(key, store: store)
+        let path = store.url(for: key).path
+        enqueueWrite(
+            id: id,
+            publish: { [self] in values[id] = value },
+            write: { [self] in
+                try PerformanceTrace.measure("Tree State Save") { try store.save(value, key: key) }
+                _ = lock.withLock { warmedFiles.removeValue(forKey: path) }
+            },
+            discardUnreadable: { [self] isNewest in
+                if isNewest { values.removeValue(forKey: id) }
+                warmedFiles.removeValue(forKey: path)
+            },
+            retry: { [self] in save(value, key: key, store: store) }
+        )
+    }
+
+    /// Publishes a value to readers immediately, then writes it on `queue` unless a newer write
+    /// for `id` supersedes it first. `publish` and `discardUnreadable` run under `lock`;
+    /// `discardUnreadable` receives whether this was still the newest value.
+    ///
+    /// A write the locked phone refused stays readable and is retried by
+    /// `retryDeferredWrites()`. An integrity failure closes storage.
+    private func enqueueWrite(
+        id: String,
+        publish: @escaping () -> Void,
+        write: @escaping () throws -> Void,
+        discardUnreadable: @escaping (_ isNewest: Bool) -> Void,
+        retry: @escaping () -> Void
+    ) {
         let marker = UUID()
-        lock.withLock { values[id] = value; pending[id] = marker; revisions[id] = marker }
+        lock.withLock { publish(); pending[id] = marker; revisions[id] = marker }
         queue.async { [self] in
             guard lock.withLock({ pending[id] == marker }) else { return }
             do {
-                try PerformanceTrace.measure("Tree State Save") { try store.save(value, key: key) }
-                _ = lock.withLock { warmedFiles.removeValue(forKey: store.url(for: key).path) }
+                try write()
             } catch where !PersonalDataProtection.isIntegrityFailure(error) {
-                deferWrite(id: id, marker: marker) { [self] in save(value, key: key, store: store) }
+                lock.withLock { if revisions[id] == marker { deferredWrites[id] = retry } }
                 PersonalDataProtection.report(error, duringWrite: true)
             } catch {
-                lock.withLock {
-                    if revisions[id] == marker { values.removeValue(forKey: id) }
-                    warmedFiles.removeValue(forKey: store.url(for: key).path)
-                }
+                lock.withLock { discardUnreadable(revisions[id] == marker) }
                 PersonalDataProtection.report(error, duringWrite: true)
             }
             lock.withLock { if pending[id] == marker { pending.removeValue(forKey: id) } }
         }
-    }
-
-    /// Keeps the newest unsaved value readable and queues it for `retryDeferredWrites()`.
-    private func deferWrite(id: String, marker: UUID, retry: @escaping () -> Void) {
-        lock.withLock { if revisions[id] == marker { deferredWrites[id] = retry } }
     }
 
     /// Called when protected data becomes available again.
@@ -83,7 +103,7 @@ nonisolated final class SerializedPersonalStore: @unchecked Sendable {
 
     func loadSeeds(store: LocalInsightTreeSeedFileStore) -> [String: [LocalInsightTreeSeed]] {
         guard !PersonalDataProtection.isBlocked else { return [:] }
-        let id = "seeds:\(store.fileURL.path):\(ObjectIdentifier(store.defaults))"
+        let id = seedsCacheKey(store)
         if let cached = lock.withLock({ values[id] as? [String: [LocalInsightTreeSeed]] }) { return cached }
         let generation = lock.withLock { (epoch, revisions[id]) }
         let loaded = queue.sync { store.load() }
@@ -97,21 +117,18 @@ nonisolated final class SerializedPersonalStore: @unchecked Sendable {
     }
 
     func saveSeeds(_ seeds: [String: [LocalInsightTreeSeed]], store: LocalInsightTreeSeedFileStore) {
-        let id = "seeds:\(store.fileURL.path):\(ObjectIdentifier(store.defaults))"
-        let marker = UUID()
-        lock.withLock { values[id] = seeds; pending[id] = marker; revisions[id] = marker }
-        queue.async { [self] in
-            guard lock.withLock({ pending[id] == marker }) else { return }
-            do { try PerformanceTrace.measure("Conversation Seed Save") { try store.save(seeds) } }
-            catch where !PersonalDataProtection.isIntegrityFailure(error) {
-                deferWrite(id: id, marker: marker) { [self] in saveSeeds(seeds, store: store) }
-                PersonalDataProtection.report(error, duringWrite: true)
-            } catch {
-                lock.withLock { if revisions[id] == marker { values.removeValue(forKey: id) } }
-                PersonalDataProtection.report(error, duringWrite: true)
-            }
-            lock.withLock { if pending[id] == marker { pending.removeValue(forKey: id) } }
-        }
+        let id = seedsCacheKey(store)
+        enqueueWrite(
+            id: id,
+            publish: { [self] in values[id] = seeds },
+            write: { try PerformanceTrace.measure("Conversation Seed Save") { try store.save(seeds) } },
+            discardUnreadable: { [self] isNewest in if isNewest { values.removeValue(forKey: id) } },
+            retry: { [self] in saveSeeds(seeds, store: store) }
+        )
+    }
+
+    private func seedsCacheKey(_ store: LocalInsightTreeSeedFileStore) -> String {
+        "seeds:\(store.fileURL.path):\(ObjectIdentifier(store.defaults))"
     }
 
     func preload(root: URL) {
@@ -142,22 +159,16 @@ nonisolated final class SerializedPersonalStore: @unchecked Sendable {
     }
 
     func setString(_ value: String, for key: String) {
-        let id = "preference:\(key)"
-        let marker = UUID()
-        lock.withLock { preferenceValues[key] = value; pending[id] = marker; revisions[id] = marker }
-        queue.async { [self] in
-            guard lock.withLock({ pending[id] == marker }) else { return }
-            if !PersonalDataProtection.isBlocked {
-                do { try PrivatePreferences.standard.write(value, key: key) }
-                catch {
-                    if !PersonalDataProtection.isIntegrityFailure(error) {
-                        deferWrite(id: id, marker: marker) { [self] in setString(value, for: key) }
-                    }
-                    PersonalDataProtection.report(error, duringWrite: true)
-                }
-            }
-            lock.withLock { if pending[id] == marker { pending.removeValue(forKey: id) } }
-        }
+        enqueueWrite(
+            id: "preference:\(key)",
+            publish: { [self] in preferenceValues[key] = value },
+            write: {
+                guard !PersonalDataProtection.isBlocked else { return }
+                try PrivatePreferences.standard.write(value, key: key)
+            },
+            discardUnreadable: { _ in },
+            retry: { [self] in setString(value, for: key) }
+        )
     }
 
     /// A barrier used before reset/recovery so previous writes cannot recreate removed stores.

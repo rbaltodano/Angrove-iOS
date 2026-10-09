@@ -61,20 +61,15 @@ enum InsightDiscoveryStore {
         nodeIDs: Set<UUID> = [],
         preferences: PrivatePreferences = .standard
     ) {
-        let seen = loadIDs(forKey: seenInsightIDsKey, preferences: preferences)
-        saveIDs(seen.union(insightIDs), forKey: seenInsightIDsKey, preferences: preferences)
-        let seenNodes = loadIDs(forKey: seenNodeIDsKey, preferences: preferences)
-        saveIDs(seenNodes.union(nodeIDs), forKey: seenNodeIDsKey, preferences: preferences)
-        let pendingInsights = loadIDs(forKey: pendingInsightPresentationIDsKey, preferences: preferences)
-        let pendingNodes = loadIDs(forKey: pendingNodePresentationIDsKey, preferences: preferences)
-        saveIDs(pendingInsights.subtracting(insightIDs), forKey: pendingInsightPresentationIDsKey, preferences: preferences)
-        saveIDs(pendingNodes.subtracting(nodeIDs), forKey: pendingNodePresentationIDsKey, preferences: preferences)
+        updateIDs(forKey: seenInsightIDsKey, preferences: preferences) { $0.formUnion(insightIDs) }
+        updateIDs(forKey: seenNodeIDsKey, preferences: preferences) { $0.formUnion(nodeIDs) }
+        updateIDs(forKey: pendingInsightPresentationIDsKey, preferences: preferences) { $0.subtract(insightIDs) }
+        updateIDs(forKey: pendingNodePresentationIDsKey, preferences: preferences) { $0.subtract(nodeIDs) }
     }
 
     static func markDiscovered(_ id: UUID, preferences: PrivatePreferences = .standard) {
         markPresented(insightIDs: [id], preferences: preferences)
-        let undiscovered = loadIDs(forKey: undiscoveredIDsKey, preferences: preferences)
-        saveIDs(undiscovered.subtracting([id]), forKey: undiscoveredIDsKey, preferences: preferences)
+        updateIDs(forKey: undiscoveredIDsKey, preferences: preferences) { $0.remove(id) }
     }
 
     static func loadUndiscoveredInsightIDs() -> Set<UUID> {
@@ -138,12 +133,8 @@ enum InsightDiscoveryStore {
         insightIDs: [UUID],
         nodeIDs: [UUID]
     ) {
-        var pendingInsights = pendingInsightPresentationIDs()
-        var pendingNodes = pendingNodePresentationIDs()
-        pendingInsights.formUnion(insightIDs)
-        pendingNodes.formUnion(nodeIDs)
-        saveIDs(pendingInsights, forKey: pendingInsightPresentationIDsKey)
-        saveIDs(pendingNodes, forKey: pendingNodePresentationIDsKey)
+        updateIDs(forKey: pendingInsightPresentationIDsKey) { $0.formUnion(insightIDs) }
+        updateIDs(forKey: pendingNodePresentationIDsKey) { $0.formUnion(nodeIDs) }
     }
 
     static func pendingInsightPresentationIDs() -> Set<UUID> {
@@ -158,12 +149,8 @@ enum InsightDiscoveryStore {
         insightIDs: Set<UUID>,
         nodeIDs: Set<UUID>
     ) {
-        var pendingInsights = pendingInsightPresentationIDs()
-        var pendingNodes = pendingNodePresentationIDs()
-        pendingInsights.subtract(insightIDs)
-        pendingNodes.subtract(nodeIDs)
-        saveIDs(pendingInsights, forKey: pendingInsightPresentationIDsKey)
-        saveIDs(pendingNodes, forKey: pendingNodePresentationIDsKey)
+        updateIDs(forKey: pendingInsightPresentationIDsKey) { $0.subtract(insightIDs) }
+        updateIDs(forKey: pendingNodePresentationIDsKey) { $0.subtract(nodeIDs) }
     }
 
     private static func loadIDs(forKey key: String, preferences: PrivatePreferences = .standard) -> Set<UUID> {
@@ -171,6 +158,20 @@ enum InsightDiscoveryStore {
             return []
         }
         return Set(strings.compactMap { UUID(uuidString: $0) })
+    }
+
+    /// Writes only a set that changed. Sets serialize in no fixed order, so rewriting an
+    /// unchanged one would still replace the stored file.
+    private static func updateIDs(
+        forKey key: String,
+        preferences: PrivatePreferences = .standard,
+        _ change: (inout Set<UUID>) -> Void
+    ) {
+        let original = loadIDs(forKey: key, preferences: preferences)
+        var ids = original
+        change(&ids)
+        guard ids != original else { return }
+        saveIDs(ids, forKey: key, preferences: preferences)
     }
 
     private static func saveIDs(_ ids: Set<UUID>, forKey key: String, preferences: PrivatePreferences = .standard) {
