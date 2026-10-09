@@ -25,6 +25,7 @@ struct SettingsView: View {
 
     @State private var path: [SettingsRoute] = []
     @State private var guideSavedTerms: [String] = []
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -34,7 +35,11 @@ struct SettingsView: View {
                     conversationFontSize: conversationFontSize,
                     responseFont: responseFont
                 ) { route in
-                    path.append(route)
+                    if route == .privacyPolicy {
+                        openURL(AngroveLinks.privacyPolicy)
+                    } else {
+                        path.append(route)
+                    }
                 }
                 .navigationDestination(for: SettingsRoute.self) { route in
                     SettingsDestinationView(
@@ -50,7 +55,8 @@ struct SettingsView: View {
                         guideSavedTerms: $guideSavedTerms,
                         onReset: resetSettings,
                         onClearInsightTree: onClearInsightTree,
-                        onSelectUserGuideTopic: { path.append(.userGuideTopic($0)) }
+                        onSelectUserGuideTopic: { path.append(.userGuideTopic($0)) },
+                        onSelectLicense: { path.append(.licenseText($0)) }
                     )
                     .navigationBarBackButtonHidden(true)
                     .toolbar(.hidden, for: .navigationBar)
@@ -93,8 +99,11 @@ struct SettingsView: View {
 
     /// Back returns one level, so from a guide topic it leads to the User Guide, not Settings.
     private var backTitle: String {
-        if case .userGuideTopic = path.last { return "User Guide" }
-        return "Settings"
+        switch path.last {
+        case .userGuideTopic: "User Guide"
+        case .licenseText: "Licenses"
+        default: "Settings"
+        }
     }
 
     private var settingsBackGesture: some Gesture {
@@ -142,6 +151,14 @@ private enum SettingsRoute: Hashable {
     case userGuide
     case userGuideTopic(UserGuideTopic.ID)
     case reportBug
+    /// Opens the published policy in Safari rather than pushing a page.
+    case privacyPolicy
+    case licenses
+    case licenseText(BundledLicense)
+}
+
+enum AngroveLinks {
+    static let privacyPolicy = URL(string: "https://angrove.app/privacy.html")!
 }
 
 // MARK: - Hub
@@ -218,7 +235,9 @@ private struct SettingsHubView: View {
             ]),
             ("Support", [
                 SettingsHubItem(title: "User Guide", detail: "How each part of Angrove works", iconName: "book", route: .userGuide),
-                SettingsHubItem(title: "Report a Bug", detail: "Tell us what went wrong", iconName: "ladybug", route: .reportBug)
+                SettingsHubItem(title: "Report a Bug", detail: "Tell us what went wrong", iconName: "ladybug", route: .reportBug),
+                SettingsHubItem(title: "Privacy Policy", detail: "How Angrove handles your information", iconName: "hand.raised", route: .privacyPolicy),
+                SettingsHubItem(title: "Licenses", detail: "Models, software, and fonts", iconName: "doc.text", route: .licenses)
             ])
         ]
     }
@@ -243,6 +262,7 @@ private struct SettingsHubItem: Identifiable {
     let route: SettingsRoute
 
     var id: SettingsRoute { route }
+    var opensExternally: Bool { route == .privacyPolicy }
 }
 
 /// One part of the contents: an italic serif title over its entries on a flat bordered card.
@@ -310,7 +330,7 @@ private struct SettingsHubRow: View {
 
                 Spacer(minLength: 8)
 
-                Image(systemName: "chevron.right")
+                Image(systemName: item.opensExternally ? "arrow.up.right" : "chevron.right")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(AngroveTheme.Colors.placeholderText)
             }
@@ -320,7 +340,7 @@ private struct SettingsHubRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityHint("Opens this settings menu")
+        .accessibilityHint(item.opensExternally ? "Opens in Safari" : "Opens this settings menu")
     }
 }
 
@@ -369,6 +389,7 @@ private struct SettingsDestinationView: View {
     let onReset: () -> Void
     var onClearInsightTree: () -> Void = {}
     var onSelectUserGuideTopic: (UserGuideTopic.ID) -> Void = { _ in }
+    var onSelectLicense: (BundledLicense) -> Void = { _ in }
 
     var body: some View {
         switch route {
@@ -405,6 +426,12 @@ private struct SettingsDestinationView: View {
             }
         case .reportBug:
             BugReportSettingsView()
+        case .privacyPolicy:
+            EmptyView()
+        case .licenses:
+            LicensesSettingsView(onSelectLicense: onSelectLicense)
+        case .licenseText(let license):
+            LicenseTextView(license: license)
         }
     }
 }
