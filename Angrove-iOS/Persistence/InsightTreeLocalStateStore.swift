@@ -29,7 +29,7 @@ nonisolated struct InsightTreeLocalStateFileStore: @unchecked Sendable {
         if fileManager.fileExists(atPath: fileURL.path) {
             do {
                 let data = try EncryptedPersonalFile.read(fileURL)
-                return try JSONDecoder().decode(type, from: data)
+                return try Self.decoder.decode(type, from: data)
             } catch {
                 // A damaged current file must not fall through to an older value or be treated
                 // as an empty collection. Keep the bytes in place for recovery.
@@ -63,26 +63,34 @@ nonisolated struct InsightTreeLocalStateFileStore: @unchecked Sendable {
             PersonalDataProtection.report(LocalDataEncryptionError.invalidEnvelope, duringWrite: true)
             throw LocalDataEncryptionError.invalidEnvelope
         }
+        // Opened once: validates the envelope and key, the payload's schema, and whether the
+        // replacement would change anything.
+        var existing: Data?
         if fileManager.fileExists(atPath: fileURL.path) {
             // EncryptedPersonalFile validates the envelope, but the payload may still be
             // undecodable after a schema change or partial migration. Never replace it blindly.
-            let existing = try EncryptedPersonalFile.read(fileURL)
-            guard (try? JSONDecoder().decode(Value.self, from: existing)) != nil else {
+            let current = try EncryptedPersonalFile.read(fileURL)
+            guard (try? Self.decoder.decode(Value.self, from: current)) != nil else {
                 PersonalDataProtection.report(LocalDataEncryptionError.invalidEnvelope, duringWrite: true)
                 throw LocalDataEncryptionError.invalidEnvelope
             }
+            existing = current
         }
         try fileManager.createDirectory(
             at: rootDirectory,
             withIntermediateDirectories: true
         )
+        let data = try Self.encoder.encode(value)
+        guard data != existing else { return }
+        try EncryptedPersonalFile.write(data, to: fileURL, existingVerified: existing != nil)
+    }
+
+    private static let decoder = JSONDecoder()
+    private static let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        let data = try encoder.encode(value)
-        // Preserve existing-envelope/schema validation above; skip identical replacement bytes.
-        if let current = try? EncryptedPersonalFile.read(fileURL), current == data { return }
-        try EncryptedPersonalFile.write(data, to: fileURL)
-    }
+        return encoder
+    }()
 
     func url(for key: String) -> URL {
         let digest = SHA256.hash(data: Data(key.utf8))

@@ -119,6 +119,32 @@ struct InquiryPersistenceStoreTests {
         #expect(fixture.store.load() == snapshot)
     }
 
+    @Test("Completions and exports after an import apply to the imported snapshot")
+    func operationsAfterImportUseImportedSnapshot() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        let serialized = SerializedInquiryStore(makeStore: { fixture.store })
+        serialized.save(InquiryPersistenceSnapshot(
+            conversations: [InquiryConversation(title: "Before import")], activeConversationID: nil
+        ))
+        var branch = ChatBranch(startingConcept: nil)
+        branch.activeChatBlocks = [.user("Imported question", nil, []), .text("")]
+        let imported = InquiryConversation(title: "Imported", branches: [branch])
+        let data = try JSONEncoder().encode(InquiryPersistenceSnapshot(
+            conversations: [imported], activeConversationID: imported.id
+        ))
+        _ = try serialized.importData(data)
+        serialized.completeDetachedResponse(
+            branchID: branch.id, conversationID: imported.id,
+            responseIndex: 1, annotatedText: "Imported answer",
+            presentation: ResponsePresentationMetadata(responseIndex: 1, showsThinking: false, thinkingSummary: [])
+        )
+        let exported = try JSONDecoder().decode(InquiryPersistenceSnapshot.self, from: serialized.exportData())
+        #expect(exported.conversations.map(\.title) == ["Imported"])
+        #expect(exported.conversations[0].branches[0].activeChatBlocks[1] == .text("Imported answer"))
+        #expect(fixture.store.load() == exported)
+    }
+
     @Test("A file-backed snapshot round-trips with stable identifiers")
     func snapshotRoundTrip() throws {
         let fixture = try Fixture()

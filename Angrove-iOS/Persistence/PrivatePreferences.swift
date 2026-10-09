@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import UIKit
 
 /// Keeps existing property-list types at the call sites while storing authenticated ciphertext.
 /// Ordinary UI preferences remain compatible with AppStorage. All personal keys are encrypted.
@@ -69,6 +70,17 @@ nonisolated struct PrivatePreferences {
         guard !PersonalDataProtection.isBlocked else { return }
         defaults.removeObject(forKey: key)
     }
+
+    /// A JSON-encoded value, or `nil` when it is missing or no longer decodes as `Value`.
+    func decoded<Value: Decodable>(_ type: Value.Type, forKey key: String) -> Value? {
+        data(forKey: key).flatMap { try? JSONDecoder().decode(type, from: $0) }
+    }
+
+    /// Stores `value` JSON-encoded. A value that fails to encode leaves the stored one in place.
+    func setEncoded<Value: Encodable>(_ value: Value, forKey key: String) {
+        guard let data = try? JSONEncoder().encode(value) else { return }
+        set(data, forKey: key)
+    }
 }
 
 nonisolated enum PersonalDataProtection {
@@ -121,6 +133,7 @@ nonisolated enum PersonalDataProtection {
         migrateWidget: () throws -> Void = { try DailyQuestionWidgetStore.migrate() },
         discardWidget: () -> Void = { DailyQuestionWidgetStore.discard() }
     ) throws {
+        if rootDirectory == nil { _ = keyPurgeObserver }
         // Check ALL existing ciphertext before creating any key or migrating any plaintext.
         let keys = preferences.defaults.dictionaryRepresentation().keys.filter(PrivatePreferences.protects)
         // Set once any stored ciphertext opens, proving the current key is the one that wrote it.
@@ -193,6 +206,13 @@ nonisolated enum PersonalDataProtection {
             InquiryPersistenceStore.preload()
         }
     }
+
+    /// The personal key is cached in memory only while protected data is available.
+    nonisolated(unsafe) private static let keyPurgeObserver: NSObjectProtocol = NotificationCenter.default.addObserver(
+        forName: UIApplication.protectedDataWillBecomeUnavailableNotification,
+        object: nil,
+        queue: nil
+    ) { _ in LocalDataKeychain.purgeCachedKeys() }
 
     private static func quarantineStamp() -> String {
         let formatter = DateFormatter()
@@ -272,14 +292,16 @@ nonisolated enum EncryptedPersonalFile {
         return (try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])) != nil
     }
 
-    static func write(_ data: Data, to url: URL) throws {
-        do { try replace(data, at: url) }
+    /// `existingVerified` means the caller has just opened the current file with `read(_:)` on
+    /// the same serial queue, so the check that it was written with the current key is done.
+    static func write(_ data: Data, to url: URL, existingVerified: Bool = false) throws {
+        do { try replace(data, at: url, existingVerified: existingVerified) }
         catch { PersonalDataProtection.report(error, duringWrite: true); throw error }
     }
 
-    private static func replace(_ data: Data, at url: URL) throws {
+    private static func replace(_ data: Data, at url: URL, existingVerified: Bool) throws {
         guard !PersonalDataProtection.isBlocked else { throw LocalDataEncryptionError.storageClosed }
-        if let existing = try? Data(contentsOf: url), LocalDataCipher.isEncrypted(existing) {
+        if !existingVerified, let existing = try? Data(contentsOf: url), LocalDataCipher.isEncrypted(existing) {
             _ = try LocalDataCipher.personal.open(existing, context: context(for: url))
         }
         let encrypted = try LocalDataCipher.personal.seal(data, context: context(for: url))

@@ -80,7 +80,8 @@ nonisolated struct LocalInsightTreeSeedFileStore: @unchecked Sendable {
            (try? JSONDecoder().decode([String: [LocalInsightTreeSeed]].self, from: legacy)) == nil {
             throw LocalDataEncryptionError.invalidEnvelope
         }
-        if fileManager.fileExists(atPath: fileURL.path) {
+        let fileExists = fileManager.fileExists(atPath: fileURL.path)
+        if fileExists {
             let current = try EncryptedPersonalFile.read(fileURL)
             guard (try? JSONDecoder().decode([String: [LocalInsightTreeSeed]].self, from: current)) != nil else {
                 throw LocalDataEncryptionError.invalidEnvelope
@@ -91,7 +92,7 @@ nonisolated struct LocalInsightTreeSeedFileStore: @unchecked Sendable {
             withIntermediateDirectories: true
         )
         let data = try JSONEncoder().encode(seeds)
-        try EncryptedPersonalFile.write(data, to: fileURL)
+        try EncryptedPersonalFile.write(data, to: fileURL, existingVerified: fileExists)
     }
 }
 
