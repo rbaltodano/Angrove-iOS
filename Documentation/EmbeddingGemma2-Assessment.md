@@ -5,7 +5,7 @@ asset inspection. No model download, benchmark, runtime upgrade, or production b
 
 **Status: deferred until after launch by the owner on October 7, 2026.** Evaluation and
 implementation are post-launch work; retain MiniLM for the launch checkpoint. Tracked in
-[Post-Launch Features](../../Aquinas-Foundations/POST-LAUNCH-FEATURES.md#embeddinggemma-2-semantic-retrieval-upgrade).
+[Post-Launch Features](https://github.com/rbaltodano/Angrove-Foundations/blob/main/POST-LAUNCH-FEATURES.md#embeddinggemma-2-semantic-retrieval-upgrade).
 
 Post-launch recommendation: evaluate the **270M text-only model** as a replacement for MiniLM
 grounding retrieval. Ship only after an app-specific quality and device comparison. Decide Insight

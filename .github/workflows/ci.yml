@@ -15,10 +15,22 @@ jobs:
     name: Build and test
     # The bundled LiteRT framework is arm64-only, so this needs an Apple silicon runner and a
     # concrete simulator destination rather than the generic one.
-    runs-on: macos-26
+    # GitHub's Xcode 27 image (macOS 27, arm64). Still a public preview as of October 2026.
+    runs-on: xcode-27
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+
+      # Angrove builds with Xcode 27 (iOS 27 SDK); older compilers reject code Xcode 27 accepts.
+      - name: Select Xcode 27
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then
+            echo "::error::Xcode 27 is not installed on this runner image."
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          sudo xcode-select -s "$XCODE/Contents/Developer"
 
       - name: Show toolchain
         run: |
@@ -27,6 +39,8 @@ jobs:
 
       - name: Build and run tests
         # Local model and grounding assets are gitignored; suites that need them skip themselves.
+        # Sign ad hoc ("Sign to Run Locally"), as local simulator builds do: an unsigned app has no
+        # Keychain entitlement, so encrypted storage fails with errSecMissingEntitlement (-34018).
         run: |
           set -o pipefail
           xcodebuild \
@@ -34,7 +48,10 @@ jobs:
             -scheme Angrove-iOS \
             -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
             -resultBundlePath TestResults.xcresult \
-            CODE_SIGNING_ALLOWED=NO \
+            -parallel-testing-enabled NO \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM= \
             test
 
       - name: Upload test results

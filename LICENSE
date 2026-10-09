@@ -1,0 +1,13 @@
+Copyright (c) 2026 Ryan Baltodano (Sine Viridian). All rights reserved.
+
+This repository is publicly visible for reference and review only. No license is granted to use,
+copy, modify, merge, publish, distribute, sublicense, or sell any part of this software,
+documentation, artwork, or other content without prior written permission from the copyright
+holder.
+
+Third-party components keep their own licenses, which this notice does not change. These include
+the vendored LiteRT-LM and MisakiSwift packages under `Vendor/` and the Gemma 4, all-MiniLM-L6-v2,
+and Paradee-8M models (Apache License 2.0), ONNX Runtime (MIT License), and the Figtree and Libre
+Baskerville fonts (SIL Open Font License 1.1). Their license texts ship with the app in
+`Angrove-iOS/Resources/Licenses/` and are listed under Settings > Licenses. The bundled
+public-domain source texts remain in the public domain.

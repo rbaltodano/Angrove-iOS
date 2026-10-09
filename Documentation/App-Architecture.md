@@ -1,7 +1,7 @@
 # iOS application architecture
 
 This document describes iOS-owned composition and state. Cross-repository model and persistence
-contracts remain in [`MODEL-INTEGRATION.md`](../../Aquinas-Foundations/MODEL-INTEGRATION.md).
+contracts remain in [`MODEL-INTEGRATION.md`](https://github.com/rbaltodano/Angrove-Foundations/blob/main/MODEL-INTEGRATION.md).
 
 `LibraryListeningStore` owns encrypted per-work listening bookmarks and the most recent work ID
 under `aquinas.library.listening.v1` in `PrivatePreferences`. `ResponseSpeechPlayer` checkpoints
@@ -198,7 +198,7 @@ written encrypted files under `Application Support/Aquinas/InsightTree/CanvasSta
 `UserDefaults` payloads migrate on first successful read. A file or legacy payload that fails
 decoding is retained and reported; subsequent saves cannot replace an undecodable payload with an
 empty tree. See
-[`PERSISTENT_MEMORY_IMPLEMENTATION_PLAN.md`](../../Aquinas-Foundations/PERSISTENT_MEMORY_IMPLEMENTATION_PLAN.md)
+[`PERSISTENT_MEMORY_IMPLEMENTATION_PLAN.md`](https://github.com/rbaltodano/Angrove-Foundations/blob/main/PERSISTENT_MEMORY_IMPLEMENTATION_PLAN.md)
 for the planned SwiftData migration.
 
 There is no server-side persistence. Conversations, Insights, and tree state live only on the

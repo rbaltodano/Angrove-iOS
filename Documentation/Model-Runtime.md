@@ -1,6 +1,6 @@
 # iOS model runtime and recovery
 
-Read the cross-repository [`MODEL-INTEGRATION.md`](../../Aquinas-Foundations/MODEL-INTEGRATION.md)
+Read the cross-repository [`MODEL-INTEGRATION.md`](https://github.com/rbaltodano/Angrove-Foundations/blob/main/MODEL-INTEGRATION.md)
 first. This document records iOS-specific runtime boundaries and validation rules.
 
 ## Launch model

@@ -19,7 +19,7 @@ Included work:
 Three-way integration retains main's encrypted recents/preferences, definition deduplication,
 page-return notification exclusion, and asynchronous persistence. Clips use protected atomic file
 storage, with legacy migration, instead of the older worktree's direct UserDefaults writes.
-The cross-repository contract is [Library passages](../../Aquinas-Foundations/LIBRARY-PASSAGES.md).
+The cross-repository contract is [Library passages](https://github.com/rbaltodano/Angrove-Foundations/blob/main/LIBRARY-PASSAGES.md).
 
 The separate word-streaming experiment at `d9742c6` remains paused on its branch: its author
 reported that intermediate model updates still did not reach the UI. Main keeps the requested

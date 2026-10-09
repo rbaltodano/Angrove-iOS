@@ -32,10 +32,10 @@ Required reading before any code change:
 - [`AGENTS.md`](../AGENTS.md)
 - [`Model-Runtime.md`](Model-Runtime.md)
 - [`Development-Workflow.md`](Development-Workflow.md)
-- [`../../Aquinas-Foundations/MODEL-INTEGRATION.md`](../../Aquinas-Foundations/MODEL-INTEGRATION.md),
+- [`../../Aquinas-Foundations/MODEL-INTEGRATION.md`](https://github.com/rbaltodano/Angrove-Foundations/blob/main/MODEL-INTEGRATION.md),
   especially the LiteRT checkpoints and §8, the fine-tuning policy
 - For background only: the earlier
-  [`GEMMA-4-QAT-EVALUATION-PLAN.md`](../../Aquinas-Foundations/GEMMA-4-QAT-EVALUATION-PLAN.md),
+  [`GEMMA-4-QAT-EVALUATION-PLAN.md`](https://github.com/rbaltodano/Angrove-Foundations/blob/main/GEMMA-4-QAT-EVALUATION-PLAN.md),
   plus `research/gemma-4-qat/compatibility.md` and `LITERT-QAT-SUPPORT-CLARIFICATION.md`
 
 Where this plan and the older one conflict, this plan wins.

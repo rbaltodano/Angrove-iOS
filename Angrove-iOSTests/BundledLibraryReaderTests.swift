@@ -4,6 +4,12 @@ import SwiftUI
 import UIKit
 @testable import Angrove_iOS
 
+/// The corpus and reader editions live in gitignored `LocalGrounding/` and `LibraryDocuments/`,
+/// so a clean checkout (such as CI) builds without them.
+enum BundledLibraryAssets {
+    static var areAvailable: Bool { BundledPassageCorpus.bundledURL() != nil }
+}
+
 @Suite("Complete Library editions")
 struct BundledLibraryReaderTests {
     @MainActor
@@ -41,7 +47,10 @@ struct BundledLibraryReaderTests {
         }
     }
 
-    @Test("Every catalog work has a complete reader edition with no uncovered paragraphs")
+    @Test(
+        "Every catalog work has a complete reader edition with no uncovered paragraphs",
+        .enabled(if: BundledLibraryAssets.areAvailable, "Library assets are not bundled")
+    )
     func completeCatalog() throws {
         let corpus = try #require(BundledPassageCorpus.bundled())
         #expect(corpus.indicesBySource.count == 37)
@@ -53,7 +62,10 @@ struct BundledLibraryReaderTests {
         }
     }
 
-    @Test("Previously partial editions include their final books and chapters")
+    @Test(
+        "Previously partial editions include their final books and chapters",
+        .enabled(if: BundledLibraryAssets.areAvailable, "Library assets are not bundled")
+    )
     func restoredWorks() throws {
         let westminster = try #require(BundledLibraryReader.document(sourceID: "westminster-confession"))
         #expect(westminster.sections.contains { $0.title.hasPrefix("Chap. xxxiii.") })
@@ -70,7 +82,10 @@ struct BundledLibraryReaderTests {
         #expect(constitution.sections.contains { $0.title == "AMENDMENT XXVII" })
     }
 
-    @Test("Books are in reading order and Bible chapter links retain their location")
+    @Test(
+        "Books are in reading order and Bible chapter links retain their location",
+        .enabled(if: BundledLibraryAssets.areAvailable, "Library assets are not bundled")
+    )
     func readingOrderAndCitations() throws {
         let metaphysics = try #require(BundledLibraryReader.document(sourceID: "aristotle-metaphysics"))
         #expect(metaphysics.sections.map(\.title) == (1...14).map { "Book \($0)" })
