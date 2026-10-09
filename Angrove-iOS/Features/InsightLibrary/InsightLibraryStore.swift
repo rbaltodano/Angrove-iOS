@@ -123,18 +123,26 @@ enum GlobalInsightReconciliation {
         for insight in existing where resultIDs.insert(insight.id).inserted {
             result.append(insight)
         }
-        var embeddingsByID: [UUID: [Double]] = [:]
-        for insight in result {
-            embeddingsByID[insight.id] = embed("\(insight.word). \(insight.semanticDefinition)")
+        // Embedded on first comparison: only Insights whose terms overlap a candidate's are ever
+        // compared, and the embedding is the expensive step.
+        var embeddingsByID: [UUID: [Double]?] = [:]
+        func embedding(of insight: ConceptDefinition) -> [Double]? {
+            if let cached = embeddingsByID[insight.id] { return cached }
+            let vector = embed("\(insight.word). \(insight.semanticDefinition)")
+            embeddingsByID[insight.id] = vector
+            return vector
         }
 
         for candidate in incoming.uniquedByWord() {
-            let candidateEmbedding = embed("\(candidate.word). \(candidate.semanticDefinition)")
+            let overlapping = result.filter { termsOverlap($0.word, candidate.word) }
+            var candidateEmbedding: [Double]?
+            if !overlapping.isEmpty {
+                candidateEmbedding = embed("\(candidate.word). \(candidate.semanticDefinition)")
+            }
 
             let nearest = candidateEmbedding.flatMap { candidateEmbedding in
-                result.compactMap { saved -> (ConceptDefinition, Double)? in
-                    guard termsOverlap(saved.word, candidate.word),
-                          let savedEmbedding = embeddingsByID[saved.id] else { return nil }
+                overlapping.compactMap { saved -> (ConceptDefinition, Double)? in
+                    guard let savedEmbedding = embedding(of: saved) else { return nil }
                     return (saved, cosineSimilarity(candidateEmbedding, savedEmbedding))
                 }.max { $0.1 < $1.1 }
             }
@@ -142,7 +150,7 @@ enum GlobalInsightReconciliation {
             guard let (saved, similarity) = nearest, similarity >= similarityThreshold else {
                 if resultIDs.insert(candidate.id).inserted {
                     result.append(candidate)
-                    embeddingsByID[candidate.id] = candidateEmbedding
+                    if !overlapping.isEmpty { embeddingsByID[candidate.id] = candidateEmbedding }
                 }
                 continue
             }
@@ -164,7 +172,7 @@ enum GlobalInsightReconciliation {
             )
             if let index = result.firstIndex(where: { $0.id == saved.id }) {
                 result[index] = merged
-                embeddingsByID[saved.id] = embed("\(merged.word). \(merged.semanticDefinition)")
+                embeddingsByID[saved.id] = nil
             }
         }
         return result

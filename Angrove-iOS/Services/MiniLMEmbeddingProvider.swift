@@ -28,18 +28,10 @@ struct MiniLMEmbeddingProvider: EmbeddingProvider {
     /// Standalone construction for tests and diagnostics. The live asset service shares this
     /// provider's embedder with grounding instead of loading a second Core ML model.
     init(bundle: Bundle = .main, computeUnits: MLComputeUnits? = nil) throws {
-        guard let modelURL = bundle.url(
-            forResource: "MiniLM",
-            withExtension: "mlmodelc",
-            subdirectory: "LocalGrounding"
-        ) ?? bundle.url(forResource: "MiniLM", withExtension: "mlmodelc") else {
+        guard let modelURL = LocalGroundingResource.url("MiniLM", "mlmodelc", in: bundle) else {
             throw MiniLMEmbeddingProviderError.resourceMissing("MiniLM.mlmodelc")
         }
-        guard let vocabURL = bundle.url(
-            forResource: "vocab",
-            withExtension: "txt",
-            subdirectory: "LocalGrounding"
-        ) ?? bundle.url(forResource: "vocab", withExtension: "txt") else {
+        guard let vocabURL = LocalGroundingResource.url("vocab", "txt", in: bundle) else {
             throw MiniLMEmbeddingProviderError.resourceMissing("vocab.txt")
         }
         self.sharedEmbedder = try MiniLMEmbedder(

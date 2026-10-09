@@ -38,6 +38,24 @@ struct GlobalInsightReconciliationTests {
         #expect(result.first?.meaning == divineGrace.meaning)
     }
 
+    @Test("Only Insights sharing a term with a new Insight are embedded")
+    func embedsOnlyComparableInsights() {
+        let grace = concept("Grace", "A gift.")
+        let charity = concept("Charity", "Love of God and neighbor.")
+        let divineGrace = concept("Divine Grace", "The free and undeserved gift of God's favor.")
+        let photosynthesis = concept("Photosynthesis", "How plants turn sunlight into energy.")
+        var embedded: [String] = []
+
+        let result = GlobalInsightReconciliation.reconcile(
+            existing: [grace, charity],
+            incoming: [divineGrace, photosynthesis],
+            embed: { text in embedded.append(text); return [1, 0, 0] }
+        )
+
+        #expect(result.map(\.id) == [grace.id, charity.id, photosynthesis.id])
+        #expect(embedded == ["Divine Grace. \(divineGrace.meaning)", "Grace. \(grace.meaning)"])
+    }
+
     @Test("Term overlap ignores case, punctuation, and filler words")
     func termOverlap() {
         #expect(GlobalInsightReconciliation.termsOverlap("Grace", "divine grace"))
