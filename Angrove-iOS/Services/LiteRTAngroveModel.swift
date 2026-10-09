@@ -458,7 +458,7 @@ struct LiteRTAngroveModel: AngroveModel {
                     systemInstruction: systemInstruction + instruction,
                     initialMessages: history,
                     message: request.latest,
-                    sampling: .conversation.retryVariant
+                    sampling: .conversation
                 )
                 try Task.checkCancellation()
                 (responseText, keyTerms) = Self.annotatedConversationText(from: raw)
