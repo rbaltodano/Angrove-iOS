@@ -42,7 +42,12 @@ duplicate architecture specifications.
 - Treat API schemas and structured output as cross-repository contracts. Update iOS decoding and
   Foundation documentation in the same change.
 - The app has no network backend. Generation, retrieval, and Insight Tree work all run on-device;
-  do not add an HTTP model or data client. `Aquinas_Backend` is offline tooling only (corpus,
+  do not add an HTTP model or data client. The one outbound exception is the person-initiated
+  support report (`BugReportSubmission`, used by Settings and the thumbs-down sheet). It sends
+  only what the person types plus app and iOS version numbers, and an optional reply email. A
+  flagged response and its question are attached only if the person turns on the opt-in in the
+  thumbs-down sheet, which previews that text first. Never attach conversation content by default,
+  and update the published privacy policy before widening what a report sends. `Aquinas_Backend` is offline tooling only (corpus,
   model conversion, evaluation).
 
 ## Working conventions

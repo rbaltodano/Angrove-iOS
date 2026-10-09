@@ -141,6 +141,12 @@ hands-on lock and backup/restore checks cannot be inferred from simulator tests.
   accurate `PrivacyInfo.xcprivacy` files with applicable approved reasons based on actual use.
 - [ ] Audit the archive's network/data behavior and prepare matching App Privacy answers.
   Confirm any SDK telemetry before selecting a no-data-collected declaration.
+- [ ] Answer App Privacy for optional support reports (Settings bug report and the thumbs-down
+  sheet): typed text, an optional reply email, app/OS versions, and, only when the person opts in
+  and has seen the preview, one response with its question. They are sent to Formspree and
+  forwarded to the support inbox, and Formspree also receives the IP address. Decide the data-type
+  and linkage answers from Apple's definitions and mirror them in `PrivacyInfo.xcprivacy`
+  (`NSPrivacyCollectedDataTypes` is empty today).
 - [ ] Align app/site privacy policy with encrypted local storage, readable exports, Keychain
   recovery, model downloads and any actual collection. Link the policy inside the app.
 - [ ] Audit all linked crypto, answer export-compliance questions and set the applicable plist
