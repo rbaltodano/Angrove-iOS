@@ -128,20 +128,6 @@ enum DefaultStartScreenOption: String, SettingsChoice {
     }
 }
 
-enum ConversationMemoryOption: String, SettingsChoice {
-    case off
-    case personalDetails
-    case fullContext
-
-    var title: LocalizedStringResource {
-        switch self {
-        case .off: "Off"
-        case .personalDetails: "Personal Details Only"
-        case .fullContext: "Full Context"
-        }
-    }
-}
-
 enum AppLockGracePeriodOption: String, SettingsChoice {
     case immediately
     case oneMinute
@@ -163,76 +149,6 @@ enum AppLockGracePeriodOption: String, SettingsChoice {
         case .oneMinute: 60
         case .fiveMinutes: 5 * 60
         case .fifteenMinutes: 15 * 60
-        }
-    }
-}
-
-enum ConversationalInitiativeOption: String, SettingsChoice {
-    case reserved
-    case adaptive
-    case proactive
-
-    var title: LocalizedStringResource {
-        switch self {
-        case .reserved: "Reserved"
-        case .adaptive: "Adaptive"
-        case .proactive: "Proactive"
-        }
-    }
-}
-
-enum KnowledgeLevelOption: String, SettingsChoice {
-    case accessible
-    case adaptive
-    case advanced
-
-    var title: LocalizedStringResource {
-        switch self {
-        case .accessible: "Accessible"
-        case .adaptive: "Adaptive"
-        case .advanced: "Advanced"
-        }
-    }
-}
-
-enum IntellectualChallengeOption: String, SettingsChoice {
-    case supportive
-    case balanced
-    case rigorous
-
-    var title: LocalizedStringResource {
-        switch self {
-        case .supportive: "Supportive"
-        case .balanced: "Balanced"
-        case .rigorous: "Rigorous"
-        }
-    }
-}
-
-enum TheologicalFramingOption: String, SettingsChoice {
-    case onlyWhenRelevant
-    case integrated
-    case faithForward
-
-    var title: LocalizedStringResource {
-        switch self {
-        case .onlyWhenRelevant: "Only When Relevant"
-        case .integrated: "Integrated"
-        case .faithForward: "Faith-Forward"
-        }
-    }
-}
-
-enum ResponseFormatOption: String, SettingsChoice {
-    case naturalProse
-    case adaptive
-    case structured
-
-    var title: LocalizedStringResource {
-        switch self {
-        case .naturalProse: "Natural Prose"
-        case .adaptive: "Adaptive"
-        case .structured: "Structured"
         }
     }
 }

@@ -302,37 +302,35 @@ struct ContentView: View {
         let conversation = CurrentConversationsStore.load()?.conversations.first(where: {
             $0.id == conversationID
         }) ?? sideMenuConversations.first(where: { $0.id == conversationID })
-        let completedQuestion = conversation?
-            .branches
-            .first(where: { $0.id == branchID })
-            .flatMap { branch in
-                branch.activeChatBlocks
-                    .prefix(min(responseIndex, branch.activeChatBlocks.count))
-                    .reversed()
-                    .compactMap { block -> String? in
-                        guard case .user(let question, _, _) = block else { return nil }
-                        let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
-                        return trimmed.isEmpty ? nil : trimmed
-                    }
-                    .first
-                    ?? {
-                        let trimmed = branch.topQuestionText.trimmingCharacters(
-                            in: .whitespacesAndNewlines
-                        )
-                        return trimmed.isEmpty ? nil : trimmed
-                    }()
-            }
-        let completedResponse = conversation?
-            .branches
-            .first(where: { $0.id == branchID })
-            .flatMap { branch -> String? in
-                guard branch.activeChatBlocks.indices.contains(responseIndex),
-                      case .text(let response) = branch.activeChatBlocks[responseIndex] else {
-                    return nil
+        let branch = conversation?.branches.first(where: { $0.id == branchID })
+        let completedQuestion = branch.flatMap { branch in
+            branch.activeChatBlocks
+                .prefix(min(responseIndex, branch.activeChatBlocks.count))
+                .reversed()
+                .compactMap { block -> String? in
+                    guard case .user(let question, _, _) = block else { return nil }
+                    let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
+                    return trimmed.isEmpty ? nil : trimmed
                 }
-                let preview = AngroveSystemNotifications.responsePreview(from: response)
-                return preview.isEmpty ? nil : preview
+                .first
+                ?? {
+                    let trimmed = branch.topQuestionText.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                    )
+                    return trimmed.isEmpty ? nil : trimmed
+                }()
+        }
+        let response = branch.flatMap { branch -> String? in
+            guard branch.activeChatBlocks.indices.contains(responseIndex),
+                  case .text(let response) = branch.activeChatBlocks[responseIndex] else {
+                return nil
             }
+            return response
+        }
+        let completedResponse = response.flatMap { response -> String? in
+            let preview = AngroveSystemNotifications.responsePreview(from: response)
+            return preview.isEmpty ? nil : preview
+        }
         let fallbackTitle = conversation?.title.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
@@ -343,11 +341,7 @@ struct ContentView: View {
             ?? "Angrove"
 
         readCompletedResponseAloudIfNeeded(
-            conversation?.branches.first(where: { $0.id == branchID }).flatMap { branch -> String? in
-                guard branch.activeChatBlocks.indices.contains(responseIndex),
-                      case .text(let response) = branch.activeChatBlocks[responseIndex] else { return nil }
-                return response
-            },
+            response,
             source: SpeechSource(title: conversationTitle, conversationID: conversationID)
         )
 
@@ -1629,7 +1623,10 @@ struct ContentView: View {
     private func loadShellConversationState() {
         guard let snapshot = CurrentConversationsStore.load(),
               !snapshot.conversations.isEmpty else { return }
+        applySideMenuSnapshot(snapshot)
+    }
 
+    private func applySideMenuSnapshot(_ snapshot: InquiryPersistenceSnapshot) {
         sideMenuConversations = snapshot.conversations
         let activeID = snapshot.activeConversationID ?? snapshot.conversations.first?.id
         sideMenuActiveConversationID = activeID
@@ -1661,12 +1658,7 @@ struct ContentView: View {
 
     private func refreshPersistedContent() {
         if let snapshot = CurrentConversationsStore.load() {
-            sideMenuConversations = snapshot.conversations
-            let activeID = snapshot.activeConversationID ?? snapshot.conversations.first?.id
-            sideMenuActiveConversationID = activeID
-            sideMenuCurrentTitle = activeID.flatMap { id in
-                snapshot.conversations.first { $0.id == id }?.title
-            } ?? snapshot.conversations.first?.title ?? "New Conversation"
+            applySideMenuSnapshot(snapshot)
         }
 
         collectedDefinitions = InsightLibraryStore.load()
@@ -1833,52 +1825,22 @@ struct ContentView: View {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty else { return }
 
-        if let index = sideMenuConversations.firstIndex(where: { $0.id == conversation.id }) {
-            sideMenuConversations[index].title = trimmedTitle
-        }
-
         if sideMenuActiveConversationID == conversation.id {
             sideMenuCurrentTitle = trimmedTitle
         }
-
-        if var snapshot = InquiryPersistenceStore.load(),
-           let index = snapshot.conversations.firstIndex(where: { $0.id == conversation.id }) {
-            snapshot.conversations[index].title = trimmedTitle
-            InquiryPersistenceStore.save(snapshot)
-        }
+        updateConversation(conversation.id) { $0.title = trimmedTitle }
     }
 
     private func pinConversation(_ conversation: InquiryConversation) {
-        if let index = sideMenuConversations.firstIndex(where: { $0.id == conversation.id }) {
-            sideMenuConversations[index].isPinned = true
-        }
-        if var snapshot = CurrentConversationsStore.load(),
-           let index = snapshot.conversations.firstIndex(where: { $0.id == conversation.id }) {
-            snapshot.conversations[index].isPinned = true
-            CurrentConversationsStore.save(snapshot)
-        }
+        updateConversation(conversation.id) { $0.isPinned = true }
     }
 
     private func unpinConversation(_ conversation: InquiryConversation) {
-        if let index = sideMenuConversations.firstIndex(where: { $0.id == conversation.id }) {
-            sideMenuConversations[index].isPinned = false
-        }
-        if var snapshot = CurrentConversationsStore.load(),
-           let index = snapshot.conversations.firstIndex(where: { $0.id == conversation.id }) {
-            snapshot.conversations[index].isPinned = false
-            CurrentConversationsStore.save(snapshot)
-        }
+        updateConversation(conversation.id) { $0.isPinned = false }
     }
 
     private func detachConversationFromStudyTopic(_ conversation: InquiryConversation) {
-        if let index = sideMenuConversations.firstIndex(where: { $0.id == conversation.id }) {
-            sideMenuConversations[index].studyTopicID = nil
-        }
-        if var snapshot = CurrentConversationsStore.load(),
-           let index = snapshot.conversations.firstIndex(where: { $0.id == conversation.id }) {
-            snapshot.conversations[index].studyTopicID = nil
-            CurrentConversationsStore.save(snapshot)
-        }
+        updateConversation(conversation.id) { $0.studyTopicID = nil }
     }
 
     private func attachConversation(_ conversation: InquiryConversation, toStudyTopic topicID: UUID) {
@@ -1887,20 +1849,19 @@ struct ContentView: View {
         if !wasAlreadyAttached {
             StudyTopicTreeUpdateRequests.request(for: topicID)
         }
-        // Update in-memory — CurrentConversationView's onChange will pick this up
-        // and call persistConversations() if it is currently mounted.
-        if let index = sideMenuConversations.firstIndex(where: { $0.id == conversation.id }) {
-            sideMenuConversations[index].studyTopicID = topicID
-        }
+        // CurrentConversationView's onChange persists a mounted conversation; the direct store
+        // write keeps the attachment when it is not mounted (e.g. on the Study Topics page).
+        updateConversation(conversation.id) { $0.studyTopicID = topicID }
+    }
 
-        // Write directly to CurrentConversationsStore so the attachment survives the
-        // next app launch even when CurrentConversationView is not mounted (e.g. the
-        // user is on the Study Topics page). InquiryPersistenceStore uses a different
-        // UserDefaults key and is never read by CurrentConversationView, so writing
-        // only to that store was silently losing the attachment.
+    /// Applies `change` to the side menu's copy of a conversation and to its saved copy.
+    private func updateConversation(_ id: UUID, _ change: (inout InquiryConversation) -> Void) {
+        if let index = sideMenuConversations.firstIndex(where: { $0.id == id }) {
+            change(&sideMenuConversations[index])
+        }
         if var snapshot = CurrentConversationsStore.load(),
-           let index = snapshot.conversations.firstIndex(where: { $0.id == conversation.id }) {
-            snapshot.conversations[index].studyTopicID = topicID
+           let index = snapshot.conversations.firstIndex(where: { $0.id == id }) {
+            change(&snapshot.conversations[index])
             CurrentConversationsStore.save(snapshot)
         }
     }
