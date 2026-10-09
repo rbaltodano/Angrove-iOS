@@ -178,3 +178,15 @@ xcodebuild -project Angrove-iOS.xcodeproj -scheme Angrove-iOS \
 For deterministic checks and model-evaluation methodology, see [Evaluation](Documentation/Evaluation.md).
 Three feature demos are linked above. A narrated walkthrough is still to be recorded; the
 [recording outline](Documentation/Demo-Outline.md) is available. Detailed contributor guidance starts at [`AGENTS.md`](AGENTS.md).
+
+## Naming
+
+Angrove was originally named Aquinas. Bundle identifiers, stored-data keys, and some local paths
+keep that name so existing installs and tooling continue to work; references to Thomas Aquinas
+are to the theologian.
+
+## License
+
+Copyright © 2026 Ryan Baltodano (Sine Viridian). All rights reserved. The source is published
+for reference and review; see [`LICENSE`](LICENSE). Third-party components keep their own
+licenses.
