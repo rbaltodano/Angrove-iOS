@@ -49,11 +49,11 @@ struct ModelResponseFooter: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.speechSource) private var speechSource
-    @Environment(\.responseFeedbackTranscript) private var feedbackTranscript
+    @Environment(\.responseFeedbackReport) private var feedbackReport
     @State private var showsCopiedConfirmation = false
     @State private var visibleActionCount = 0
     @State private var visibleDisclaimerWords = 0
-    @State private var rating: Rating?
+    @State private var isThumbsDownSelected = false
     @State private var showsFeedbackSheet = false
     @State private var feedbackSent = false
     private var speech: ResponseSpeechPlayer { .shared }
@@ -64,42 +64,30 @@ struct ModelResponseFooter: View {
     }
 
     private var actionCount: Int {
-        4 + (onRegenerate == nil ? 0 : 1)
+        2 + (onRegenerate == nil ? 0 : 1) + (feedbackReport == nil ? 0 : 1)
     }
 
-    /// Index of the first rating button; copy and the optional regenerate come before it.
-    private var ratingStartIndex: Int { onRegenerate == nil ? 1 : 2 }
+    /// Index of the thumbs down; copy and the optional regenerate come before it.
+    private var feedbackIndex: Int { onRegenerate == nil ? 1 : 2 }
 
-    private enum Rating { case up, down }
-
-    private func ratingButton(_ rating: Rating) -> some View {
-        let isSelected = self.rating == rating
-        let isUp = rating == .up
-        return Button { tapRating(rating) } label: {
-            actionIcon(isUp ? (isSelected ? "hand.thumbsup.fill" : "hand.thumbsup")
-                            : (isSelected ? "hand.thumbsdown.fill" : "hand.thumbsdown"))
-                .foregroundStyle(isSelected ? AngroveTheme.Colors.accentGreen : AngroveTheme.Colors.responseButton)
+    /// Thumbs down appears only when the conversation offers feedback for this response.
+    private var thumbsDownButton: some View {
+        Button {
+            isThumbsDownSelected.toggle()
+            feedbackSent = false
+            showsFeedbackSheet = isThumbsDownSelected
+        } label: {
+            actionIcon(isThumbsDownSelected ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+                .foregroundStyle(isThumbsDownSelected ? AngroveTheme.Colors.accentGreen : AngroveTheme.Colors.responseButton)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(isUp ? String(localized: "Good response") : String(localized: "Bad response"))
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityLabel(String(localized: "Bad response"))
+        .accessibilityAddTraits(isThumbsDownSelected ? .isSelected : [])
         .modifier(ResponseActionEntrance(
-            isVisible: ratingStartIndex + (isUp ? 0 : 1) < visibleActionCount,
+            isVisible: feedbackIndex < visibleActionCount,
             animates: shouldAnimateOnAppear && !reduceMotion
         ))
         .frame(width: 16, height: 16)
-    }
-
-    private func tapRating(_ tapped: Rating) {
-        if rating == tapped {
-            rating = nil
-            feedbackSent = false
-        } else {
-            rating = tapped
-            feedbackSent = false
-            // Thumbs up needs no follow-up; thumbs down asks what went wrong.
-            showsFeedbackSheet = tapped == .down
-        }
     }
 
     var body: some View {
@@ -117,8 +105,7 @@ struct ModelResponseFooter: View {
                         label: String(localized: "Regenerate response"), action: onRegenerate
                     )
                 }
-                ratingButton(.up)
-                ratingButton(.down)
+                if feedbackReport != nil { thumbsDownButton }
                 speakButton
                 if speech.phase(for: copyText) != .idle {
                     Text("Tap and drag on a conversation block to fast forward and rewind")
@@ -151,9 +138,9 @@ struct ModelResponseFooter: View {
         }
         .sheet(isPresented: $showsFeedbackSheet, onDismiss: {
             // Cancelling the sheet means no feedback was given, so the thumbs down un-selects.
-            if !feedbackSent, rating == .down { rating = nil }
+            if !feedbackSent { isThumbsDownSelected = false }
         }) {
-            ResponseFeedbackSheet(transcript: feedbackTranscript(), onSent: { feedbackSent = true })
+            ResponseFeedbackSheet(report: feedbackReport?(), onSent: { feedbackSent = true })
         }
     }
 
@@ -181,7 +168,7 @@ struct ModelResponseFooter: View {
         .buttonStyle(.plain)
         .accessibilityLabel(phase == .idle ? String(localized: "Read response aloud") : String(localized: "Stop reading"))
         .modifier(ResponseActionEntrance(
-            isVisible: ratingStartIndex + 2 < visibleActionCount,
+            isVisible: (feedbackIndex + (feedbackReport == nil ? 0 : 1)) < visibleActionCount,
             animates: shouldAnimateOnAppear && !reduceMotion
         ))
         .frame(width: 18, height: 16)

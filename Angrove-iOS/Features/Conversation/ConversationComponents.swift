@@ -1578,8 +1578,10 @@ struct ChatThreadColumn: View {
                             : { request in defineResponseWord(request, inResponseAt: index) }
                     )
                     .environment(
-                        \.responseFeedbackTranscript,
-                        { branchData.feedbackTranscript(flaggedResponseIndex: index) }
+                        \.responseFeedbackReport,
+                        index == branchData.activeChatBlocks.count - 1
+                            ? { branchData.feedbackReport(flaggedResponseIndex: index) }
+                            : nil
                     )
                     .id(
                         "\(branchData.id)-response-\(index)-\(responseIdentitySuffix(at: index, text: textContent))"
