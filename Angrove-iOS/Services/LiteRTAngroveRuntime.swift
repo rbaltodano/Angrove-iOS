@@ -331,7 +331,7 @@ actor LiteRTAngroveRuntime: ModelRuntimeDriver {
             }
             try await drainNativeTeardown()
             do {
-                let result = try await attempt(sampling.retryVariant)
+                let result = try await attempt(sampling)
                 completedGenerations += 1
                 return result
             } catch {
@@ -520,9 +520,12 @@ actor LiteRTAngroveRuntime: ModelRuntimeDriver {
         // Download and integrity checks are not native engine stalls. A slow network must not
         // trigger the 60-second native watchdog or leave an abandoned engine load behind.
         let modelURL = try await modelStore.preparedModelURL()
-        try await Self.abandoningStall(timeout: Self.loadStallTimeout) {
+        try await Self.abandoningStall {
             try await self.initializeEngine(at: modelURL)
-        } onTimeout: {}
+        } stalled: {
+            try? await Task.sleep(for: Self.loadStallTimeout)
+            return !Task.isCancelled
+        }
     }
 
     private func generateOnce(
@@ -586,7 +589,7 @@ actor LiteRTAngroveRuntime: ModelRuntimeDriver {
                 LiteRTGenerationRecorder.shared.finish(recordIndex, output: result, error: nil)
             }
 #endif
-            await finishConversation()
+            finishConversation()
             return result
         } catch {
 #if DEBUG
@@ -595,7 +598,7 @@ actor LiteRTAngroveRuntime: ModelRuntimeDriver {
             }
 #endif
             abandonedConversation = conversation
-            await finishConversation()
+            finishConversation()
             throw error
         }
     }
@@ -653,10 +656,12 @@ actor LiteRTAngroveRuntime: ModelRuntimeDriver {
     /// watchdog "won" internally but the caller never found out. Firing `operation` as a truly
     /// unstructured `Task` detaches it from that guarantee: a wedged call is simply abandoned
     /// (left running harmlessly in the background) instead of blocking the caller forever.
+    ///
+    /// `stalled` is the watchdog: it returns `true` once the operation has stalled, or `false`
+    /// when it was cancelled because the operation finished.
     private static func abandoningStall<T: Sendable>(
-        timeout: Duration,
-        _ operation: @escaping @Sendable () async throws -> T,
-        onTimeout: @escaping @Sendable () -> Void
+        _ operation: @escaping @Sendable @concurrent () async throws -> T,
+        stalled: @escaping @Sendable () async -> Bool
     ) async throws -> T {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, Error>) in
             let box = StallRaceBox(continuation)
@@ -671,44 +676,9 @@ actor LiteRTAngroveRuntime: ModelRuntimeDriver {
                 watchdog?.cancel()
             }
             watchdog = Task {
-                try? await Task.sleep(for: timeout)
-                guard !Task.isCancelled else { return }
-                onTimeout()
+                guard await stalled() else { return }
                 box.resume(.failure(LiteRTAngroveRuntimeError.stalledGeneration))
                 work.cancel()
-            }
-        }
-    }
-
-    /// Polls `runtime.lastTokenAt` every 5s instead of using a flat deadline, so streaming
-    /// activity keeps resetting the clock and only a true no-progress stall fires the timeout.
-    private static func abandoningStall<T: Sendable>(
-        pollingAgainst runtime: LiteRTAngroveRuntime,
-        _ operation: @escaping @Sendable @concurrent () async throws -> T,
-        onTimeout: @escaping @Sendable () -> Void
-    ) async throws -> T {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, Error>) in
-            let box = StallRaceBox(continuation)
-            var watchdog: Task<Void, Never>?
-            let work = Task {
-                do {
-                    let value = try await operation()
-                    box.resume(.success(value))
-                } catch {
-                    box.resume(.failure(error))
-                }
-                watchdog?.cancel()
-            }
-            watchdog = Task {
-                while !Task.isCancelled {
-                    try? await Task.sleep(for: .seconds(5))
-                    guard !Task.isCancelled else { return }
-                    guard await runtime.hasStalled() else { continue }
-                    onTimeout()
-                    box.resume(.failure(LiteRTAngroveRuntimeError.stalledGeneration))
-                    work.cancel()
-                    return
-                }
             }
         }
     }
@@ -744,8 +714,9 @@ actor LiteRTAngroveRuntime: ModelRuntimeDriver {
         return stalled
     }
 
-    /// Convenience over `abandoningStall(pollingAgainst:)`: resets the stall clock and races
-    /// `operation`. Used to guard each native phase (conversation creation, main answer,
+    /// Resets the stall clock and races `operation` against a watchdog that polls `lastTokenAt`
+    /// every 5s instead of using a flat deadline, so streaming activity keeps resetting the clock
+    /// and only a true no-progress stall fires the timeout. Used to guard each native phase (conversation creation, main answer,
     /// follow-up) as its own independent stall window rather than one window spanning all of
     /// them — so a stall in a later phase can be caught and swallowed by its caller without
     /// discarding an already-produced result from an earlier phase.
@@ -761,7 +732,14 @@ actor LiteRTAngroveRuntime: ModelRuntimeDriver {
     ) async throws -> T {
         lastTokenAt = .now
         lastStallCheckAt = lastTokenAt
-        return try await Self.abandoningStall(pollingAgainst: self, operation, onTimeout: {})
+        return try await Self.abandoningStall(operation) { [self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                guard !Task.isCancelled else { return false }
+                if await hasStalled() { return true }
+            }
+            return false
+        }
     }
 
     private func makeConversation(
@@ -885,17 +863,6 @@ nonisolated struct LiteRTSampling: Sendable {
     /// degenerate-repetition/corruption guard — see its call site's doc comment for why that
     /// guard is conversation-only.
     let isStructured: Bool
-
-    var retryVariant: LiteRTSampling {
-        guard seed == Self.conversation.seed else { return self }
-        return LiteRTSampling(
-            topK: 1,
-            topP: 1,
-            temperature: 0,
-            seed: 0,
-            isStructured: isStructured
-        )
-    }
 }
 
 /// Rejects the exact phrase/sentence loops that greedy decoding can produce with quantized

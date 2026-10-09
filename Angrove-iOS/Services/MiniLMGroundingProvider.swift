@@ -19,34 +19,16 @@ nonisolated final class MiniLMGroundingProvider: AngroveGroundingProviding {
     }
 
     convenience init(bundle: Bundle = .main, embedder sharedEmbedder: MiniLMEmbedder? = nil) throws {
-        guard let modelURL = bundle.url(
-            forResource: "MiniLM",
-            withExtension: "mlmodelc",
-            subdirectory: "LocalGrounding"
-        ) ?? bundle.url(forResource: "MiniLM", withExtension: "mlmodelc") else {
-            throw MiniLMGroundingProviderError.resourceMissing("MiniLM.mlmodelc")
+        func resource(_ name: String, _ ext: String) throws -> URL {
+            guard let url = LocalGroundingResource.url(name, ext, in: bundle) else {
+                throw MiniLMGroundingProviderError.resourceMissing("\(name).\(ext)")
+            }
+            return url
         }
-        guard let vocabURL = bundle.url(
-            forResource: "vocab",
-            withExtension: "txt",
-            subdirectory: "LocalGrounding"
-        ) ?? bundle.url(forResource: "vocab", withExtension: "txt") else {
-            throw MiniLMGroundingProviderError.resourceMissing("vocab.txt")
-        }
-        guard let embeddingsURL = bundle.url(
-            forResource: "embeddings",
-            withExtension: "bin",
-            subdirectory: "LocalGrounding"
-        ) ?? bundle.url(forResource: "embeddings", withExtension: "bin") else {
-            throw MiniLMGroundingProviderError.resourceMissing("embeddings.bin")
-        }
-        guard let passagesURL = bundle.url(
-            forResource: "passages",
-            withExtension: "json",
-            subdirectory: "LocalGrounding"
-        ) ?? bundle.url(forResource: "passages", withExtension: "json") else {
-            throw MiniLMGroundingProviderError.resourceMissing("passages.json")
-        }
+        let modelURL = try resource("MiniLM", "mlmodelc")
+        let vocabURL = try resource("vocab", "txt")
+        let embeddingsURL = try resource("embeddings", "bin")
+        let passagesURL = try resource("passages", "json")
 
         let embedder = try sharedEmbedder ?? MiniLMEmbedder(modelURL: modelURL, vocabURL: vocabURL)
         let store = try OnDeviceGroundingStore(
@@ -309,10 +291,8 @@ nonisolated final class MiniLMGroundingProvider: AngroveGroundingProviding {
 /// being presented as evidence for a question this fixed, offline corpus cannot substantiate.
 private nonisolated enum CorpusScope {
     static func excludes(_ question: String) -> Bool {
-        let normalized = question.folding(
-            options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX")
-        ).lowercased()
-        let words = Set(normalized.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init))
+        let normalized = QuestionText.normalized(question)
+        let words = QuestionText.words(inNormalized: normalized)
         return (words.contains("current") && words.contains("pope"))
             || normalized.contains("vatican ii")
             || normalized.contains("vatican 2")
@@ -345,7 +325,7 @@ private nonisolated enum NamedCorpusSource {
     ]
 
     static func sourceIDs(in question: String) -> Set<String> {
-        let normalized = normalized(question)
+        let normalized = QuestionText.normalized(question)
         return aliases.reduce(into: []) { matched, entry in
             if normalized.contains(entry.name) { matched.formUnion(entry.sourceIDs) }
         }
@@ -356,7 +336,7 @@ private nonisolated enum NamedCorpusSource {
     /// pages, while the question's "justification" term identifies the actual decree. Source
     /// aliases are stripped because the caller has already used them to choose the source.
     static func searchTerms(in question: String) -> Set<String> {
-        let normalizedQuestion = normalized(question)
+        let normalizedQuestion = QuestionText.normalized(question)
         let matchingAliases = aliases.filter { normalizedQuestion.contains($0.name) }
         let aliasWords = Set(matchingAliases.flatMap { entry in
             entry.name.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
@@ -382,10 +362,23 @@ private nonisolated enum NamedCorpusSource {
         return terms.isEmpty ? question : terms.joined(separator: " ")
     }
 
-    private static func normalized(_ text: String) -> String {
+}
+
+/// Case- and diacritic-folded question text, and its letter/number words, as every routing
+/// table below matches it.
+private nonisolated enum QuestionText {
+    static func normalized(_ text: String) -> String {
         text.folding(
             options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX")
         ).lowercased()
+    }
+
+    static func words(inNormalized text: String) -> Set<String> {
+        Set(text.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init))
+    }
+
+    static func words(in text: String) -> Set<String> {
+        words(inNormalized: normalized(text))
     }
 }
 
@@ -437,9 +430,7 @@ private nonisolated enum SubjectSection {
     ]
 
     static func routes(in question: String) -> [(sourceIDs: Set<String>, sectionTerms: Set<String>)] {
-        let words = Set(question.folding(
-            options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX")
-        ).lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init))
+        let words = QuestionText.words(in: question)
         return table.compactMap { route in
             guard !route.questionTerms.isDisjoint(with: words),
                   route.alsoRequiring.isEmpty || !route.alsoRequiring.isDisjoint(with: words)
@@ -510,14 +501,7 @@ private nonisolated enum AuthoritySection {
     ]
 
     static func routes(in question: String) -> [(sourceIDs: Set<String>, sectionTerms: Set<String>)] {
-        let words = Set(
-            question.folding(
-                options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX")
-            )
-            .lowercased()
-            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
-            .map(String.init)
-        )
+        let words = QuestionText.words(in: question)
         return table.compactMap { route in
             guard route.authorityTerms.allSatisfy(words.contains),
                   !route.topicTerms.isDisjoint(with: words)

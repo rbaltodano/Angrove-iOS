@@ -26,8 +26,12 @@ nonisolated struct LocalDataCipher {
     static let family = Data("ANGROVE-ENC\u{0}".utf8)
     static let header = Data("ANGROVE-ENC\u{0}1\u{0}".utf8)
     static let personalService = "com.angrove.personal-data.v1"
+    /// Every personal read and write opens or seals with this key, so it is held in memory while
+    /// protected data is available rather than fetched from the Keychain each time. The app purges
+    /// it when the device locks (`LocalDataKeychain.purgeCachedKeys()`), so lookups then fail
+    /// exactly as an uncached `kSecAttrAccessibleWhenUnlocked` lookup would.
     static let personal = LocalDataCipher { create in
-        try LocalDataKeychain.key(service: personalService, create: create)
+        try LocalDataKeychain.cachedKey(service: personalService, create: create)
     }
     static let widget = LocalDataCipher { create in
         try LocalDataKeychain.key(
@@ -58,6 +62,24 @@ nonisolated struct LocalDataCipher {
 nonisolated enum LocalDataKeychain {
     // Serializes creation within a process; errSecDuplicateItem handles app/extension races.
     private static let lock = NSLock()
+    nonisolated(unsafe) private static var cachedKeys: [String: SymmetricKey] = [:]
+    /// Advanced by each purge, so a lookup that raced the purge is not cached after it.
+    nonisolated(unsafe) private static var cacheGeneration = 0
+
+    /// `key(service:create:)` for the default access group and accessibility, remembered after
+    /// the first successful lookup until `purgeCachedKeys()` or `remove(service:)`.
+    static func cachedKey(service: String, create: Bool) throws -> SymmetricKey {
+        let (cached, generation) = lock.withLock { (cachedKeys[service], cacheGeneration) }
+        if let cached { return cached }
+        let key = try key(service: service, create: create)
+        lock.withLock { if cacheGeneration == generation { cachedKeys[service] = key } }
+        return key
+    }
+
+    /// Forgets every cached key. Called when protected data is about to become unavailable.
+    static func purgeCachedKeys() {
+        lock.withLock { cachedKeys.removeAll(); cacheGeneration &+= 1 }
+    }
 
     static func key(
         service: String,
@@ -106,6 +128,8 @@ nonisolated enum LocalDataKeychain {
     /// person chooses to set their unreadable data aside.
     static func remove(service: String, accessGroup: String? = nil) throws {
         try lock.withLock {
+            cachedKeys.removeValue(forKey: service)
+            cacheGeneration &+= 1
             var query: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
                 kSecAttrService as String: service,

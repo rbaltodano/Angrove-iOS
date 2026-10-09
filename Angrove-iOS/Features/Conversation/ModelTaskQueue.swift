@@ -312,15 +312,9 @@ final class ModelTaskQueue {
             onCompletion: onCompletion,
             operation: operation
         )
-        if priority == .foreground,
-           let currentJob,
-           currentJob.priority == .background {
+        if priority == .foreground, currentJob?.priority == .background {
             LiteRTLifecycleTrace.shared.record("queue-preempt-foreground")
-            runningTask?.cancel()
-            runningTask = nil
-            self.currentJob = nil
-            currentTask = nil
-            waitingJobs.insert(currentJob, at: 0)
+            requeueCurrentJob()
         }
         // `runsNext` lets follow-up work for a just-finished answer (its Insight Tree mapping)
         // run before questions that were already waiting behind it.
@@ -350,14 +344,10 @@ final class ModelTaskQueue {
     }
 
     func stopCurrent() {
-        guard let job = currentJob else { return }
+        guard currentJob != nil else { return }
         LiteRTLifecycleTrace.shared.record("queue-stop")
         endBackgroundExecutionTask()
-        runningTask?.cancel()
-        runningTask = nil
-        currentJob = nil
-        currentTask = nil
-        job.onCancel()
+        detachCurrentJob(cancellingRun: true)?.onCancel()
         startNextIfNeeded()
     }
 
@@ -397,20 +387,15 @@ final class ModelTaskQueue {
 
     func cancelTasks(where predicate: (ModelTaskSnapshot) -> Bool) {
         if let currentTask, predicate(currentTask) {
-            let job = currentJob
             endBackgroundExecutionTask()
-            runningTask?.cancel()
-            runningTask = nil
-            currentJob = nil
-            self.currentTask = nil
-            job?.onCancel()
+            detachCurrentJob(cancellingRun: true)?.onCancel()
         }
 
-        let cancelledJobs = waitingJobs.filter {
-            predicate(snapshot(for: $0, phase: .upcoming))
-        }
-        waitingJobs.removeAll {
-            predicate(snapshot(for: $0, phase: .upcoming))
+        var cancelledJobs: [Job] = []
+        waitingJobs.removeAll { job in
+            guard predicate(snapshot(for: job, phase: .upcoming)) else { return false }
+            cancelledJobs.append(job)
+            return true
         }
         cancelledJobs.forEach { $0.onCancel() }
         publishUpcomingTasks()
@@ -512,13 +497,9 @@ final class ModelTaskQueue {
     }
 
     private func failCurrent(id: UUID) {
-        guard let job = currentJob, job.id == id else { return }
+        guard currentJob?.id == id else { return }
         endBackgroundExecutionTask()
-        isRuntimeLoading = false
-        currentJob = nil
-        currentTask = nil
-        runningTask = nil
-        job.onCancel()
+        detachCurrentJob(cancellingRun: false)?.onCancel()
         startNextIfNeeded()
     }
 
@@ -533,11 +514,28 @@ final class ModelTaskQueue {
         if let branchID = job.kind.userQuestionBranchID {
             completedUserQuestionBranchIDs.insert(branchID)
         }
-        currentJob = nil
-        currentTask = nil
-        runningTask = nil
+        detachCurrentJob(cancellingRun: false)
         job.onCompletion()
         startNextIfNeeded()
+    }
+
+    /// Clears the running job's state and returns it. Completion and failure run inside the job's
+    /// own task, so only stop/cancel/preemption cancel that task.
+    @discardableResult
+    private func detachCurrentJob(cancellingRun: Bool) -> Job? {
+        let job = currentJob
+        if cancellingRun { runningTask?.cancel() }
+        runningTask = nil
+        currentJob = nil
+        currentTask = nil
+        isRuntimeLoading = false
+        return job
+    }
+
+    /// Returns the running job to the front of the queue so it restarts later.
+    private func requeueCurrentJob() {
+        guard let job = detachCurrentJob(cancellingRun: true) else { return }
+        waitingJobs.insert(job, at: 0)
     }
 
     private func beginImmediateUnload(reason: ModelRuntimeUnloadReason) {
@@ -579,17 +577,9 @@ final class ModelTaskQueue {
     }
 
     private func preemptCurrentBackgroundPreservingJob() {
-        guard let currentJob,
-              currentJob.priority == .background else {
-            return
-        }
+        guard currentJob?.priority == .background else { return }
         LiteRTLifecycleTrace.shared.record("queue-preempt-background")
-        runningTask?.cancel()
-        runningTask = nil
-        self.currentJob = nil
-        currentTask = nil
-        isRuntimeLoading = false
-        waitingJobs.insert(currentJob, at: 0)
+        requeueCurrentJob()
         publishUpcomingTasks()
     }
 

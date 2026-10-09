@@ -61,38 +61,42 @@ nonisolated final class SemanticAssetService: @unchecked Sendable {
     }
 
     func embed(_ text: String) async -> [Double]? {
-        guard !Task.isCancelled else { return nil }
-        let request = SemanticWorkerRequest()
-        return await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-            submit(urgent: false) { [self] in
-                guard !request.isCancelled else { continuation.resume(returning: nil); return }
-                if let cached = embeddings[text] { continuation.resume(returning: cached); return }
-                let result = PerformanceTrace.measure("Semantic Embedding") {
-                    embedder.flatMap { try? $0.embed(text).map(Double.init) } ?? (embedder == nil ? computeEmbedding(for: text) : nil)
-                }
-                if let result {
-                    if embeddingOrder.count >= 256 { embeddings.removeValue(forKey: embeddingOrder.removeFirst()) }
-                    embeddings[text] = result
-                    embeddingOrder.append(text)
-                }
-                continuation.resume(returning: request.isCancelled ? nil : result)
+        await perform(urgent: false, cancelled: nil) { [self] in
+            if let cached = embeddings[text] { return cached }
+            let result = PerformanceTrace.measure("Semantic Embedding") {
+                embedder.flatMap { try? $0.embed(text).map(Double.init) } ?? (embedder == nil ? computeEmbedding(for: text) : nil)
             }
+            if let result {
+                if embeddingOrder.count >= 256 { embeddings.removeValue(forKey: embeddingOrder.removeFirst()) }
+                embeddings[text] = result
+                embeddingOrder.append(text)
             }
-        } onCancel: { request.cancel() }
+            return result
+        }
     }
 
     func references(for question: String, limit: Int) async -> [AngroveGroundingReference] {
-        guard !Task.isCancelled else { return [] }
+        await perform(urgent: true, cancelled: []) { [self] in
+            cachedReferences(for: question, limit: limit)
+        }
+    }
+
+    /// Runs `work` on the worker. A caller cancelled before or during the work gets `cancelled`.
+    private func perform<Result: Sendable>(
+        urgent: Bool,
+        cancelled: Result,
+        _ work: @escaping () -> Result
+    ) async -> Result {
+        guard !Task.isCancelled else { return cancelled }
         let request = SemanticWorkerRequest()
         return await withTaskCancellationHandler {
-              await withCheckedContinuation { continuation in
-                submit(urgent: true) { [self] in
-                    guard !request.isCancelled else { continuation.resume(returning: []); return }
-                    let result = cachedReferences(for: question, limit: limit)
-                    continuation.resume(returning: request.isCancelled ? [] : result)
+            await withCheckedContinuation { continuation in
+                submit(urgent: urgent) {
+                    guard !request.isCancelled else { continuation.resume(returning: cancelled); return }
+                    let result = work()
+                    continuation.resume(returning: request.isCancelled ? cancelled : result)
                 }
-              }
+            }
         } onCancel: { request.cancel() }
     }
 

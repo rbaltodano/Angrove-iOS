@@ -137,11 +137,7 @@ enum HomeQuestionOfTheDayStore {
     private static let key = "aquinas.home.questionOfTheDay.v1"
 
     static func load() -> HomeQuestionOfTheDay? {
-        guard let data = PrivatePreferences.standard.data(forKey: key),
-              let question = try? JSONDecoder().decode(
-                  HomeQuestionOfTheDay.self,
-                  from: data
-              ) else {
+        guard let question = PrivatePreferences.standard.decoded(HomeQuestionOfTheDay.self, forKey: key) else {
             return nil
         }
         publishToWidget(question)

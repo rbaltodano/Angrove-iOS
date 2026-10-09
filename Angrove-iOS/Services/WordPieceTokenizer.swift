@@ -17,7 +17,6 @@ nonisolated struct WordPieceTokenizer: Sendable {
     private let sepID: Int32
     private let padID: Int32
     private let unkID: Int32
-    private let unkToken = "[UNK]"
     private static let maxWordPieceChars = 200
 
     init(vocabURL: URL, maxLength: Int = 128) throws {
@@ -45,9 +44,8 @@ nonisolated struct WordPieceTokenizer: Sendable {
 
     /// Returns (inputIDs, attentionMask), each exactly `maxLength` long.
     func encode(_ text: String) -> (inputIDs: [Int32], attentionMask: [Int32]) {
-        let wordPieceIDs = tokenize(text)
         let available = max(maxLength - 2, 0)
-        let truncated = Array(wordPieceIDs.prefix(available))
+        let truncated = Array(tokenize(text, limit: available).prefix(available))
 
         var ids: [Int32] = [clsID] + truncated + [sepID]
         var mask = [Int32](repeating: 1, count: ids.count)
@@ -59,9 +57,11 @@ nonisolated struct WordPieceTokenizer: Sendable {
         return (ids, mask)
     }
 
-    private func tokenize(_ text: String) -> [Int32] {
+    /// Stops once `limit` pieces exist; everything after them would be truncated anyway.
+    private func tokenize(_ text: String, limit: Int) -> [Int32] {
         var ids: [Int32] = []
         for word in basicTokenize(text) {
+            guard ids.count < limit else { break }
             ids.append(contentsOf: wordPiece(word))
         }
         return ids

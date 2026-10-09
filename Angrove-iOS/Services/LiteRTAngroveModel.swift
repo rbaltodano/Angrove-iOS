@@ -329,6 +329,15 @@ struct LiteRTAngroveModel: AngroveModel {
             return ModelResponse(text: "")
         }
 
+        /// Publishes a finished response the way streaming would have, then returns it.
+        func deliver(_ response: ModelResponse) -> ModelResponse {
+            if thinkingEnabled, !response.thinkingSummary.isEmpty {
+                onUpdate(.thinkingSummary(response.thinkingSummary))
+            }
+            onUpdate(.responseText(response.text))
+            return response
+        }
+
         do {
             onUpdate(.generationStarted)
             let latestQuestion = Self.latestUserQuestion(in: context.transcript)
@@ -352,18 +361,13 @@ struct LiteRTAngroveModel: AngroveModel {
             let hasEvidence = !responseReferences.isEmpty
                 && Self.referencesNameSubject(of: latestQuestion, in: responseReferences)
             guard hasEvidence || !Self.requiresCorpusEvidence(latestQuestion) else {
-                let response = ModelResponse(
+                return deliver(ModelResponse(
                     text: Self.corpusScopeAbstentionText,
                     thinkingSummary: thinkingEnabled ? [
                         "No relevant passage was found in the texts loaded on this device."
                     ] : [],
                     evidenceBasis: .sourceRequired
-                )
-                if thinkingEnabled, !response.thinkingSummary.isEmpty {
-                    onUpdate(.thinkingSummary(response.thinkingSummary))
-                }
-                onUpdate(.responseText(response.text))
-                return response
+                ))
             }
             let authorityEvidenceFirst = Self.hasAuthoritySectionReference(responseReferences)
             // Retrieval finishes before generation even starts, so surface it
@@ -389,12 +393,7 @@ struct LiteRTAngroveModel: AngroveModel {
                 references: responseReferences,
                 thinkingEnabled: thinkingEnabled
             ) {
-                let response = verifiedResponse.withEvidenceBasis(.corpusGrounded)
-                if thinkingEnabled, !response.thinkingSummary.isEmpty {
-                    onUpdate(.thinkingSummary(response.thinkingSummary))
-                }
-                onUpdate(.responseText(response.text))
-                return response
+                return deliver(verifiedResponse.withEvidenceBasis(.corpusGrounded))
             }
             if let term = requestedDefinitionTerm {
                 let definition = try await generateDefinition(
@@ -403,18 +402,13 @@ struct LiteRTAngroveModel: AngroveModel {
                     references: responseReferences
                 )
                 try Task.checkCancellation()
-                let response = ModelResponse(
+                return deliver(ModelResponse(
                     text: definition.meaning,
                     thinkingSummary: fallbackThinkingSummary,
                     keyTerms: [],
                     insight: nil,
                     evidenceBasis: evidenceBasis
-                )
-                if thinkingEnabled, !response.thinkingSummary.isEmpty {
-                    onUpdate(.thinkingSummary(response.thinkingSummary))
-                }
-                onUpdate(.responseText(response.text))
-                return response
+                ))
             }
 
             let correction: AuthorshipCorrection?
@@ -457,29 +451,29 @@ struct LiteRTAngroveModel: AngroveModel {
             // separate list — there's no exact-recall step to fail, since the marker IS the
             // term as it appears in the text. `inlineAnnotatedResponse` strips the markers back
             // out and turns their positions into validated `KeyTerm`s.
-            var (responseText, keyTerms) = Self.inlineAnnotatedResponse(
-                from: Self.plainConversationText(from: raw)
-            )
+            var (responseText, keyTerms) = Self.annotatedConversationText(from: raw)
+            /// Replaces the draft with one retry that adds `instruction` to the system prompt.
+            func regenerate(adding instruction: String, history: [Message]) async throws {
+                raw = try await runtime.generate(
+                    systemInstruction: systemInstruction + instruction,
+                    initialMessages: history,
+                    message: request.latest,
+                    sampling: .conversation
+                )
+                try Task.checkCancellation()
+                (responseText, keyTerms) = Self.annotatedConversationText(from: raw)
+            }
             if Self.looksLikeAuditMetaCommentary(responseText) {
                 // The first draft itself turned into confused meta-commentary about the
                 // question (e.g. misreading a number and asking the user to clarify) rather
                 // than answering — recover once with an explicit anti-hedging instruction.
-                raw = try await runtime.generate(
-                    systemInstruction: systemInstruction + """
+                try await regenerate(adding: """
 
                     The previous draft expressed confusion about the question or asked the user
                     to clarify it instead of answering. Answer this question directly now. Do not
                     describe any uncertainty about what was asked — only state uncertainty, if
                     any, about a specific fact within the answer itself.
-                    """,
-                    initialMessages: request.history,
-                    message: request.latest,
-                    sampling: .conversation.retryVariant
-                )
-                try Task.checkCancellation()
-                (responseText, keyTerms) = Self.inlineAnnotatedResponse(
-                    from: Self.plainConversationText(from: raw)
-                )
+                    """, history: request.history)
             }
             if Self.duplicatesEarlierAnswer(
                 responseText,
@@ -488,43 +482,27 @@ struct LiteRTAngroveModel: AngroveModel {
                 // Recover once from a native session returning the previous turn verbatim.
                 await runtime.unloadModelWeights()
                 try await runtime.loadModelWeights()
-                raw = try await runtime.generate(
-                    systemInstruction: systemInstruction + """
+                try await regenerate(adding: """
 
                     This is a fresh question. Do not repeat or continue an earlier answer. Address
                     the latest user question directly and follow any change of subject.
-                    """,
-                    initialMessages: [],
-                    message: request.latest,
-                    sampling: .conversation.retryVariant
-                )
-                try Task.checkCancellation()
-                (responseText, keyTerms) = Self.inlineAnnotatedResponse(
-                    from: Self.plainConversationText(from: raw)
-                )
+                    """, history: [])
             }
             if let correction,
                Self.contradictsAuthorshipCorrection(
                     correction,
                     response: responseText
                ) {
-                raw = try await runtime.generate(
-                    systemInstruction: systemInstruction + """
+                try await regenerate(adding: """
 
                     The previous draft made internally conflicting authorship claims. Answer again.
                     Determine whether \(correction.author) is actually attributed “\(correction.subject)”.
                     Give one consistent conclusion, address the disputed authorship directly, and
                     state uncertainty rather than guessing.
-                    """,
-                    initialMessages: request.history,
-                    message: request.latest,
-                    sampling: .conversation.retryVariant
-                )
-                try Task.checkCancellation()
-                (responseText, keyTerms) = Self.inlineAnnotatedResponse(
-                    from: Self.plainConversationText(from: raw)
-                )
+                    """, history: request.history)
             }
+            // An exact primary-source section is already controlling evidence, so only semantic
+            // retrieval is audited.
             if !responseReferences.isEmpty,
                Self.factualAccuracyAuditNeeded(for: latestQuestion),
                !authorityEvidenceFirst {
@@ -532,16 +510,11 @@ struct LiteRTAngroveModel: AngroveModel {
                     let audited = try await accuracyAuditedResponse(
                         question: latestQuestion,
                         draft: Self.plainConversationText(from: raw),
-                        references: authorityEvidenceFirst
-                            ? responseReferences.filter { $0.id.hasPrefix("authority-section-") }
-                            : responseReferences,
-                        requiresPrimarySourceFaithfulness: authorityEvidenceFirst,
+                        references: responseReferences,
                         personality: context.personality
                     )
                     try Task.checkCancellation()
-                    let parsedAudit = Self.inlineAnnotatedResponse(
-                        from: Self.plainConversationText(from: audited)
-                    )
+                    let parsedAudit = Self.annotatedConversationText(from: audited)
                     if !parsedAudit.text.isEmpty,
                        !Self.looksLikeAuditMetaCommentary(parsedAudit.text) {
                         responseText = parsedAudit.text
@@ -622,29 +595,22 @@ struct LiteRTAngroveModel: AngroveModel {
         _ term: String,
         in context: ConversationContext
     ) async throws -> ConceptDefinition {
-        do {
-            return try await generateDefinition(
+        try await Self.reportingCancellation {
+            try await generateDefinition(
                 term,
                 context: context,
                 references: await definitionReferences(for: term, context: context)
             )
-        } catch {
-            if Task.isCancelled { throw CancellationError() }
-            throw error
         }
     }
 
-    func defineTerm(
-        _ term: String,
-        in context: ConversationContext,
-        conversationID: UUID?
-    ) async throws -> ConceptDefinition {
+    /// Any failure after cancellation surfaces as `CancellationError`, so callers discard it
+    /// rather than reporting a model failure.
+    private static func reportingCancellation<Value>(
+        _ operation: () async throws -> Value
+    ) async throws -> Value {
         do {
-            return try await generateDefinition(
-                term,
-                context: context,
-                references: await definitionReferences(for: term, context: context)
-            )
+            return try await operation()
         } catch {
             if Task.isCancelled { throw CancellationError() }
             throw error
@@ -785,7 +751,7 @@ struct LiteRTAngroveModel: AngroveModel {
         \(message)
         </TASK:QUOTE_NOTABILITY>
         """
-        do {
+        return try await Self.reportingCancellation {
             let raw = try await generateStructured(prompt)
             let payload: QuoteNotabilityPayload = try Self.decodeJSON(raw)
             let reason = payload.reason?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -793,9 +759,6 @@ struct LiteRTAngroveModel: AngroveModel {
                 isNotable: payload.isNotableInsight,
                 reason: payload.isNotableInsight && reason?.isEmpty == false ? reason : nil
             )
-        } catch {
-            if Task.isCancelled { throw CancellationError() }
-            throw error
         }
     }
 
@@ -847,7 +810,7 @@ struct LiteRTAngroveModel: AngroveModel {
         \(Self.jsonString(sources))
         </TASK:MIDPOINT_CANDIDATES>
         """
-        do {
+        return try await Self.reportingCancellation {
             let raw = try await generateStructured(prompt)
             let response: CandidatesPayload = try Self.decodeJSON(raw)
             guard response.candidates.count == 5 else {
@@ -856,9 +819,6 @@ struct LiteRTAngroveModel: AngroveModel {
             return try response.candidates.map {
                 try $0.validatedConcept(maxTitleWords: 4)
             }
-        } catch {
-            if Task.isCancelled { throw CancellationError() }
-            throw error
         }
     }
 
@@ -890,7 +850,7 @@ struct LiteRTAngroveModel: AngroveModel {
         )))
         </TASK:MAKE_NODE_CHILDREN>
         """
-        do {
+        return try await Self.reportingCancellation {
             let raw = try await generateStructured(prompt)
             let response: ChildrenPayload = try Self.decodeJSON(raw)
             guard response.children.count == count else {
@@ -903,9 +863,6 @@ struct LiteRTAngroveModel: AngroveModel {
                 throw AngroveModelActionError.invalidResponse
             }
             return children
-        } catch {
-            if Task.isCancelled { throw CancellationError() }
-            throw error
         }
     }
 
@@ -1080,6 +1037,11 @@ struct LiteRTAngroveModel: AngroveModel {
         conversationResponse(from: raw).text.trimmed
     }
 
+    /// Raw conversation output as visible prose plus its inline key terms.
+    private static func annotatedConversationText(from raw: String) -> (text: String, keyTerms: [KeyTerm]) {
+        inlineAnnotatedResponse(from: plainConversationText(from: raw))
+    }
+
     /// Strips model-authored `{{term}}` markers out of `text` and turns each into a `KeyTerm`.
     /// Because the marker is removed in place — the surrounding prose never moves — `displayText`
     /// is always an exact substring of the returned text by construction; there's no separate
@@ -1162,15 +1124,11 @@ struct LiteRTAngroveModel: AngroveModel {
         question: String,
         draft: String,
         references: [AngroveGroundingReference],
-        requiresPrimarySourceFaithfulness: Bool,
         personality: ConversationPersonality
     ) async throws -> String {
         let evidence = references.isEmpty
             ? "(no trusted reference passage was retrieved)"
             : references.map(\.promptText).joined(separator: "\n\n")
-        let evidenceLabel = requiresPrimarySourceFaithfulness
-            ? "Exact primary-source passages selected for the named authority and topic:"
-            : "Trusted reference passages retrieved by semantic similarity; some may be irrelevant:"
         let prompt = """
         <TASK:FACTUAL_ACCURACY_AUDIT>
         Act as a skeptical final editor. Return the complete answer only, never an audit report.
@@ -1181,16 +1139,10 @@ struct LiteRTAngroveModel: AngroveModel {
         Draft answer:
         \(draft)
 
-        \(evidenceLabel)
+        Trusted reference passages retrieved by semantic similarity; some may be irrelevant:
         \(evidence)
 
-        \(requiresPrimarySourceFaithfulness ? """
-        This is an exact primary-source section selected for the named authority and topic. Treat
-        it as controlling evidence. Every substantive statement about what that authority teaches
-        must be directly stated by, or be a plain modern-English restatement of, these passages.
-        Remove an assertion when the passages do not support it. Do not add a doctrine, sacrament,
-        historical claim, or implication merely because it sounds related.
-        """ : "")
+
 
         Check every concrete name, date, number, authorship claim, quotation, causal assertion,
         and statement that one work or person teaches something. Correct any contradiction with a
@@ -2480,10 +2432,6 @@ private struct LocalKeyTermPayload: Decodable {
 private extension String {
     nonisolated var trimmed: String {
         trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    var nilIfEmpty: String? {
-        isEmpty ? nil : self
     }
 }
 

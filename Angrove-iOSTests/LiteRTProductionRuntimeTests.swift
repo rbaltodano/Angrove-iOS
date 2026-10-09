@@ -739,16 +739,12 @@ struct LiteRTProductionRuntimeTests {
     @Test("Conversation decoding stays deterministic for the quantized checkpoint")
     func conversationSamplingStaysDeterministic() {
         let primary = LiteRTSampling.conversation
-        let retry = LiteRTSampling.conversation.retryVariant
 
         #expect(primary.topK == 1)
         #expect(primary.topP == 1)
         #expect(primary.temperature == 0)
-        #expect(retry.topK == 1)
-        #expect(retry.topP == 1)
-        #expect(retry.temperature == 0)
-        #expect(retry.seed == 0)
-        #expect(LiteRTSampling.structured.retryVariant.seed == 7)
+        #expect(primary.seed == 0)
+        #expect(LiteRTSampling.structured.seed == 7)
     }
 
     @MainActor

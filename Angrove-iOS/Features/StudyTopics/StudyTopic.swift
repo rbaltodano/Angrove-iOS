@@ -38,16 +38,14 @@ enum StudyTopicStore {
 
     static func load() -> [StudyTopic] {
         if let cachedTopics { return cachedTopics }
-        let topics = PrivatePreferences.standard.data(forKey: key)
-            .flatMap { try? JSONDecoder().decode([StudyTopic].self, from: $0) } ?? []
+        let topics = PrivatePreferences.standard.decoded([StudyTopic].self, forKey: key) ?? []
         cachedTopics = topics
         return topics
     }
 
     static func save(_ topics: [StudyTopic]) {
         cachedTopics = topics
-        guard let data = try? JSONEncoder().encode(topics) else { return }
-        PrivatePreferences.standard.set(data, forKey: key)
+        PrivatePreferences.standard.setEncoded(topics, forKey: key)
     }
 }
 

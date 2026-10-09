@@ -125,7 +125,18 @@ nonisolated struct InquirySnapshotFileStore {
     /// completed slots when that stale snapshot still contains the identical pending question.
     /// Imports use `write` directly; clear/delete change the branch or remove its blocks.
     func savePreservingCompletedResponses(_ snapshot: InquiryPersistenceSnapshot) throws {
-        try save(snapshot.preservingCompletedResponses(from: load()))
+        _ = try savePreservingCompletedResponses(snapshot, stored: load())
+    }
+
+    /// `stored` is the snapshot currently in the file, as last read or written by the caller.
+    /// Returns the snapshot written.
+    func savePreservingCompletedResponses(
+        _ snapshot: InquiryPersistenceSnapshot,
+        stored: InquiryPersistenceSnapshot?
+    ) throws -> InquiryPersistenceSnapshot {
+        let merged = snapshot.preservingCompletedResponses(from: stored)
+        try save(merged)
+        return merged
     }
 
     /// Replaces only the branch whose model response just completed. This narrow write is used by
@@ -135,17 +146,27 @@ nonisolated struct InquirySnapshotFileStore {
         _ completedBranch: ChatBranch,
         conversationID: UUID
     ) throws {
-        guard var snapshot = load(),
+        _ = try saveCompletedBranch(completedBranch, conversationID: conversationID, stored: load())
+    }
+
+    /// Returns the snapshot written, or `nil` when the branch no longer exists in `stored`.
+    func saveCompletedBranch(
+        _ completedBranch: ChatBranch,
+        conversationID: UUID,
+        stored: InquiryPersistenceSnapshot?
+    ) throws -> InquiryPersistenceSnapshot? {
+        guard var snapshot = stored,
               let conversationIndex = snapshot.conversations.firstIndex(where: {
                   $0.id == conversationID
               }),
               let branchIndex = snapshot.conversations[conversationIndex].branches.firstIndex(where: {
                   $0.id == completedBranch.id
               }) else {
-            return
+            return nil
         }
         snapshot.conversations[conversationIndex].branches[branchIndex] = completedBranch
         try write(snapshot, createsBackup: true)
+        return snapshot
     }
 
     /// Read and update one existing response slot. Navigation must not determine its destination,
@@ -157,18 +178,40 @@ nonisolated struct InquirySnapshotFileStore {
         annotatedText: String,
         presentation: ResponsePresentationMetadata
     ) throws {
-        guard let snapshot = load(),
-              var branch = snapshot.conversations.first(where: { $0.id == conversationID })?
+        _ = try completeDetachedResponse(
+            branchID: branchID,
+            conversationID: conversationID,
+            responseIndex: responseIndex,
+            annotatedText: annotatedText,
+            presentation: presentation,
+            stored: load()
+        )
+    }
+
+    /// Returns the snapshot written, or `nil` when the response slot no longer exists in `stored`.
+    func completeDetachedResponse(
+        branchID: UUID,
+        conversationID: UUID,
+        responseIndex: Int,
+        annotatedText: String,
+        presentation: ResponsePresentationMetadata,
+        stored: InquiryPersistenceSnapshot?
+    ) throws -> InquiryPersistenceSnapshot? {
+        guard var branch = stored?.conversations.first(where: { $0.id == conversationID })?
                 .branches.first(where: { $0.id == branchID }),
-              branch.activeChatBlocks.indices.contains(responseIndex) else { return }
+              branch.activeChatBlocks.indices.contains(responseIndex) else { return nil }
         branch.activeChatBlocks[responseIndex] = .text(annotatedText)
         branch.setResponsePresentation(presentation)
         branch.showBottomInput = true
-        try saveCompletedBranch(branch, conversationID: conversationID)
+        return try saveCompletedBranch(branch, conversationID: conversationID, stored: stored)
     }
 
     func exportData() throws -> Data {
-        guard let snapshot = load() else {
+        try exportData(stored: load())
+    }
+
+    func exportData(stored: InquiryPersistenceSnapshot?) throws -> Data {
+        guard let snapshot = stored else {
             return try Self.encoder.encode(
                 InquiryPersistenceSnapshot(conversations: [], activeConversationID: nil)
             )
@@ -415,15 +458,36 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
     private var didLoad = false
     private var cacheRevision = 0
     private let queue = DispatchQueue(label: "com.aquinas.inquiry-persistence", qos: .utility)
+    /// The snapshot in the file as this store last read or wrote it, confined to `queue`. Every
+    /// write goes through `queue`, so it saves each operation from reading, decrypting, and
+    /// decoding the whole file again. Any failure forgets it, falling back to a fresh read.
+    private var persisted: InquiryPersistenceSnapshot?
+    private var persistedIsKnown = false
 
     init(makeStore: @escaping () -> InquirySnapshotFileStore?) {
         self.makeStore = makeStore
     }
 
+    /// Runs on `queue`.
+    private func storedSnapshot(in store: InquirySnapshotFileStore) -> InquiryPersistenceSnapshot? {
+        if !persistedIsKnown {
+            persisted = store.load()
+            persistedIsKnown = true
+        }
+        return persisted
+    }
+
+    /// Runs on `queue`. A `nil` result leaves the file untouched.
+    private func recordWrite(_ written: InquiryPersistenceSnapshot?) {
+        if let written { persisted = written; persistedIsKnown = true }
+    }
+
     func load() -> InquiryPersistenceSnapshot? {
         let revision = cacheLock.withLock { cacheRevision }
         return queue.sync {
-            let value = makeStore()?.load()
+            let store = makeStore()
+            let value = store?.load()
+            if store != nil { persisted = value; persistedIsKnown = true }
             cacheLock.withLock {
                 if cacheRevision == revision { cached = value; didLoad = true; cacheRevision += 1 }
             }
@@ -448,7 +512,7 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
     }
 
     /// A whole-snapshot save that has been queued but not yet started. Views save after most
-    /// edits, and each write re-reads, re-encodes and rewrites the full file, so a burst of saves
+    /// edits, and each write re-encodes and rewrites the full file, so a burst of saves
     /// collapses into one write of the newest snapshot. Any other queued operation closes the
     /// slot, so coalescing never reorders a save around a branch completion.
     private final class PendingSave: @unchecked Sendable {
@@ -477,7 +541,8 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
                 return pending.snapshot
             }
             do {
-                try requireStore().savePreservingCompletedResponses(latest)
+                let store = try requireStore()
+                recordWrite(try store.savePreservingCompletedResponses(latest, stored: storedSnapshot(in: store)))
             } catch {
                 handleWriteFailure(error)
             }
@@ -488,7 +553,9 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
     /// so keep it and write it once protected data returns instead of closing storage.
     private var needsDeferredSave = false
 
+    /// Runs on `queue`.
     private func handleWriteFailure(_ error: Error) {
+        persistedIsKnown = false
         guard !PersonalDataProtection.isIntegrityFailure(error),
               !(error is InquiryPersistenceError) else {
             PersonalDataProtection.report(error)
@@ -518,8 +585,8 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
                   let j = snapshot.conversations[i].branches.firstIndex(where: { $0.id == completedBranch.id }) else { return }
             snapshot.conversations[i].branches[j] = completedBranch
         }
-        enqueue("Unable to save completed response") {
-            try $0.saveCompletedBranch(completedBranch, conversationID: conversationID)
+        enqueue { store, stored in
+            try store.saveCompletedBranch(completedBranch, conversationID: conversationID, stored: stored)
         }
     }
 
@@ -538,25 +605,31 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
             snapshot.conversations[i].branches[j].setResponsePresentation(presentation)
             snapshot.conversations[i].branches[j].showBottomInput = true
         }
-        enqueue("Unable to save detached response") {
-            try $0.completeDetachedResponse(
+        enqueue { store, stored in
+            try store.completeDetachedResponse(
                 branchID: branchID,
                 conversationID: conversationID,
                 responseIndex: responseIndex,
                 annotatedText: annotatedText,
-                presentation: presentation
+                presentation: presentation,
+                stored: stored
             )
         }
     }
 
     func exportData() throws -> Data {
-        try queue.sync { try requireStore().exportData() }
+        try queue.sync {
+            let store = try requireStore()
+            return try store.exportData(stored: storedSnapshot(in: store))
+        }
     }
 
     func importData(_ data: Data) throws -> InquiryPersistenceSnapshot {
         closePendingSave()
         return try queue.sync {
+            persistedIsKnown = false
             let value = try requireStore().importData(data)
+            recordWrite(value)
             cacheLock.withLock { cached = value; didLoad = true; cacheRevision += 1 }
             return value
         }
@@ -568,17 +641,23 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
 
     func invalidate() {
         closePendingSave()
-        queue.sync { cacheLock.withLock { cached = nil; didLoad = false; cacheRevision += 1; needsDeferredSave = false } }
+        queue.sync {
+            persisted = nil
+            persistedIsKnown = false
+            cacheLock.withLock { cached = nil; didLoad = false; cacheRevision += 1; needsDeferredSave = false }
+        }
     }
 
+    /// `operation` receives the store and its current snapshot, and returns the snapshot it
+    /// wrote, or `nil` when it left the file unchanged.
     private func enqueue(
-        _ failureMessage: String,
-        _ operation: @escaping (InquirySnapshotFileStore) throws -> Void
+        _ operation: @escaping (InquirySnapshotFileStore, InquiryPersistenceSnapshot?) throws -> InquiryPersistenceSnapshot?
     ) {
         closePendingSave()
         queue.async { [self] in
             do {
-                try operation(requireStore())
+                let store = try requireStore()
+                recordWrite(try operation(store, storedSnapshot(in: store)))
             } catch {
                 handleWriteFailure(error)
             }

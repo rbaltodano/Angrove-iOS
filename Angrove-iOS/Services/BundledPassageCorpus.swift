@@ -41,7 +41,15 @@ nonisolated final class BundledPassageCorpus: Sendable {
     }
 
     static func bundledURL(in bundle: Bundle = .main) -> URL? {
-        bundle.url(forResource: "passages", withExtension: "json", subdirectory: "LocalGrounding")
-            ?? bundle.url(forResource: "passages", withExtension: "json")
+        LocalGroundingResource.url("passages", "json", in: bundle)
+    }
+}
+
+/// The on-device grounding assets live under `LocalGrounding/`, or at the bundle root in
+/// builds that flatten resources.
+nonisolated enum LocalGroundingResource {
+    static func url(_ name: String, _ ext: String, in bundle: Bundle) -> URL? {
+        bundle.url(forResource: name, withExtension: ext, subdirectory: "LocalGrounding")
+            ?? bundle.url(forResource: name, withExtension: ext)
     }
 }

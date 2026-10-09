@@ -77,15 +77,11 @@ enum FlaggedQuoteStore {
     }
 
     private static func load(defaults: UserDefaults) -> [String: [FlaggedQuote]] {
-        guard let data = PrivatePreferences(defaults: defaults).data(forKey: storageKey),
-              let quotes = try? JSONDecoder().decode([String: [FlaggedQuote]].self, from: data) else {
-            return [:]
-        }
-        return quotes
+        PrivatePreferences(defaults: defaults)
+            .decoded([String: [FlaggedQuote]].self, forKey: storageKey) ?? [:]
     }
 
     private static func save(_ quotes: [String: [FlaggedQuote]], defaults: UserDefaults) {
-        guard let data = try? JSONEncoder().encode(quotes) else { return }
-        PrivatePreferences(defaults: defaults).set(data, forKey: storageKey)
+        PrivatePreferences(defaults: defaults).setEncoded(quotes, forKey: storageKey)
     }
 }

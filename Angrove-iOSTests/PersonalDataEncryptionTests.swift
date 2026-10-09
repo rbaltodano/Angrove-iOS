@@ -27,6 +27,22 @@ struct PersonalDataEncryptionTests {
         #expect(throws: (any Error).self) { try cipher.open(tampered, context: "conversations") }
     }
 
+    @Test("A cached key is forgotten when it is removed or protected data closes")
+    func cachedKeyLifecycle() throws {
+        let service = "com.angrove.tests.cached-key.\(UUID())"
+        defer { try? LocalDataKeychain.remove(service: service) }
+        let created = try LocalDataKeychain.cachedKey(service: service, create: true)
+        let cached = try LocalDataKeychain.cachedKey(service: service, create: false)
+        #expect(cached.withUnsafeBytes { Data($0) } == created.withUnsafeBytes { Data($0) })
+        LocalDataKeychain.purgeCachedKeys()
+        let reloaded = try LocalDataKeychain.cachedKey(service: service, create: false)
+        #expect(reloaded.withUnsafeBytes { Data($0) } == created.withUnsafeBytes { Data($0) })
+        try LocalDataKeychain.remove(service: service)
+        #expect(throws: LocalDataEncryptionError.self) {
+            try LocalDataKeychain.cachedKey(service: service, create: false)
+        }
+    }
+
     @Test("Migrates legacy property-list types without exposing content on disk")
     func preferencesMigration() throws {
         let suite = "AngroveEncryptionTests.\(UUID())"

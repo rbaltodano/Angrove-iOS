@@ -31,7 +31,6 @@ nonisolated enum ModelRuntimeUnloadReason: String, Sendable {
 
 nonisolated enum ModelRuntimeRetentionPolicy: Sendable, Equatable {
     case alwaysResident
-    case strictSixtySeconds
     case adaptive
 }
 
@@ -52,12 +51,6 @@ nonisolated struct ModelRuntimeLifecycleConfiguration: Sendable, Equatable {
     static let adaptiveOnDevice = ModelRuntimeLifecycleConfiguration(
         retentionPolicy: .adaptive,
         normalIdleTimeout: normalIdleTimeout,
-        seriousThermalIdleTimeout: seriousThermalIdleTimeout
-    )
-
-    static let strictSixtySecondsOnDevice = ModelRuntimeLifecycleConfiguration(
-        retentionPolicy: .strictSixtySeconds,
-        normalIdleTimeout: seriousThermalIdleTimeout,
         seriousThermalIdleTimeout: seriousThermalIdleTimeout
     )
 }
@@ -138,7 +131,7 @@ actor ModelRuntimeLifecycleManager {
         transition(to: .generating)
 
         let now = ContinuousClock.now
-        if let lastLeaseEndedAt {
+        if let lastLeaseEndedAt, signpostLog.signpostsEnabled {
             os_signpost(
                 .event,
                 log: signpostLog,
@@ -169,14 +162,16 @@ actor ModelRuntimeLifecycleManager {
     func updateThermalPressure(_ pressure: ModelRuntimeThermalPressure) {
         guard thermalPressure != pressure else { return }
         thermalPressure = pressure
-        os_signpost(
-            .event,
-            log: signpostLog,
-            name: "Thermal State Changed",
-            "thermal=%{public}s resident_bytes=%{public}llu",
-            pressure.rawValue,
-            Self.residentMemoryBytes()
-        )
+        if signpostLog.signpostsEnabled {
+            os_signpost(
+                .event,
+                log: signpostLog,
+                name: "Thermal State Changed",
+                "thermal=%{public}s resident_bytes=%{public}llu",
+                pressure.rawValue,
+                Self.residentMemoryBytes()
+            )
+        }
 
         guard activeLeaseIDs.isEmpty else { return }
         scheduleIdleUnload()
@@ -303,8 +298,6 @@ actor ModelRuntimeLifecycleManager {
         switch configuration.retentionPolicy {
         case .alwaysResident:
             return nil
-        case .strictSixtySeconds:
-            return configuration.seriousThermalIdleTimeout
         case .adaptive:
             return thermalPressure == .serious
                 ? configuration.seriousThermalIdleTimeout
@@ -387,16 +380,19 @@ actor ModelRuntimeLifecycleManager {
     private func transition(to newState: ModelRuntimeState) {
         guard state != newState else { return }
         state = newState
-        os_signpost(
-            .event,
-            log: signpostLog,
-            name: "Model Runtime State",
-            "state=%{public}s thermal=%{public}s active_leases=%{public}d resident_bytes=%{public}llu",
-            newState.rawValue,
-            thermalPressure.rawValue,
-            activeLeaseIDs.count,
-            Self.residentMemoryBytes()
-        )
+        // Sampling resident memory is a Mach call; skip it unless a signpost will record it.
+        if signpostLog.signpostsEnabled {
+            os_signpost(
+                .event,
+                log: signpostLog,
+                name: "Model Runtime State",
+                "state=%{public}s thermal=%{public}s active_leases=%{public}d resident_bytes=%{public}llu",
+                newState.rawValue,
+                thermalPressure.rawValue,
+                activeLeaseIDs.count,
+                Self.residentMemoryBytes()
+            )
+        }
         LiteRTLifecycleTrace.shared.record(
             "state",
             ["state": newState.rawValue, "activeLeases": activeLeaseIDs.count]

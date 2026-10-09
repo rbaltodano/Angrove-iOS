@@ -8,7 +8,6 @@
 //  Swipe left from anywhere to enter Canvas Mode (InsightTreeView).
 //
 
-import CryptoKit
 import PhotosUI
 import SwiftUI
 import UIKit
@@ -220,20 +219,6 @@ struct CurrentConversationView: View {
             && !branch.showBottomInput
     }
 
-    private func stableQuestionInsightID(for text: String) -> UUID {
-        let digest = SHA256.hash(data: Data(text.utf8))
-        let bytes = Array(digest.prefix(16))
-        let uuidString = String(
-            format: "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
-            bytes[0], bytes[1], bytes[2], bytes[3],
-            bytes[4], bytes[5],
-            bytes[6], bytes[7],
-            bytes[8], bytes[9],
-            bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
-        )
-        return UUID(uuidString: uuidString) ?? UUID()
-    }
-
     private var speechScroll: ResponseSpeechPlayer { .shared }
 
     private var conversationInsights: [ConceptDefinition] {
@@ -246,12 +231,6 @@ struct CurrentConversationView: View {
 
     private var hasSelectedCanvasItems: Bool {
         canvasMode.canvasSelectedItemCount > 0
-    }
-
-    private func refreshUndiscoveredInsightCountAfterResponse() {
-        let currentInsightIDs = conversationInsights.map(\.id)
-        _ = InsightDiscoveryStore.markNewInsightsUndiscovered(currentInsightIDs)
-        undiscoveredInsightCount = InsightDiscoveryStore.visibleUndiscoveredCount(for: currentInsightIDs)
     }
 
     /// A completed tree mutation refreshes a mounted Canvas before announcing "Updated".
@@ -290,41 +269,27 @@ struct CurrentConversationView: View {
             return
         }
 
-        var titles: [(conversationID: UUID, branchID: UUID, question: String)] = []
-        var quoteCandidates: [(conversationID: UUID, message: String)] = []
-        var pending: [(conversationID: UUID, question: String, response: String)] = []
-        if conversationTitlePolicy == .automatic,
-           branch.parentBranchID == nil,
-           responseIndex == 0,
-           session.needsAutomaticTitle(
-               conversationID: conversationID, branchID: branch.id, question: branch.topQuestionText
-           ) {
-            titles.append((conversationID, branch.id, branch.topQuestionText))
-        }
-
-        // "Your Quote" judges the user's own message, so it doesn't depend on the answer.
-        if HomeDiscovery.isQuoteCandidate(question) {
-            quoteCandidates.append((conversationID: conversationID, message: question))
-        }
+        let titleBranchID: UUID? = conversationTitlePolicy == .automatic
+            && branch.parentBranchID == nil
+            && responseIndex == 0
+            && session.needsAutomaticTitle(
+                conversationID: conversationID, branchID: branch.id, question: branch.topQuestionText
+            ) ? branch.id : nil
 
         // A corpus-scope abstention contains no claim to organize. In particular, do not let a
         // later "take a guess" follow-up turn turn missing evidence into a durable tree subject.
         // General-knowledge conversation is intentionally transient too: it should remain a
         // normal exchange, without turning a model-only answer into a durable subject.
-        let isTreeCandidate = !LiteRTAngroveModel.isCorpusScopeAbstention(
-            InlineInsightMarkup.plainText(from: responseText)
-        ) && branch.responsePresentation(at: responseIndex)?.evidenceBasis != .generalKnowledge
+        let plainResponse = InlineInsightMarkup.plainText(from: responseText)
+        let isTreeCandidate = !LiteRTAngroveModel.isCorpusScopeAbstention(plainResponse)
+            && branch.responsePresentation(at: responseIndex)?.evidenceBasis != .generalKnowledge
 
-        if isTreeCandidate {
-            pending.append((
-                conversationID: conversationID,
-                question: question,
-                response: InlineInsightMarkup.plainText(from: responseText)
-            ))
-        }
         enqueueLocalInsightTreeSeedingTask(
             conversationID: conversationID,
-            pending: pending, titles: titles, quoteCandidates: quoteCandidates
+            seedTurn: isTreeCandidate ? (question, plainResponse) : nil,
+            titleRequest: titleBranchID.map { ($0, branch.topQuestionText) },
+            // "Your Quote" judges the user's own message, so it doesn't depend on the answer.
+            quoteCandidate: HomeDiscovery.isQuoteCandidate(question) ? question : nil
         )
     }
 
@@ -332,20 +297,19 @@ struct CurrentConversationView: View {
     /// cannot accept work after SwiftUI unmounts the originating conversation.
     private func enqueueLocalInsightTreeSeedingTask(
         conversationID: UUID,
-        pending: [(conversationID: UUID, question: String, response: String)],
-        titles: [(conversationID: UUID, branchID: UUID, question: String)],
-        quoteCandidates: [(conversationID: UUID, message: String)]
+        seedTurn: (question: String, response: String)?,
+        titleRequest: (branchID: UUID, question: String)?,
+        quoteCandidate: String?
     ) {
-        guard !pending.isEmpty || !titles.isEmpty || !quoteCandidates.isEmpty else { return }
         var steps: [ConversationTreeAnalysisScheduling.Step] = []
         // Matches `InsightTreeViewModel.localMembershipThreshold`: below this similarity to
         // every existing Node, a subject counts as genuinely new rather than a continuation
         // of one already on the tree.
         let newSubjectThreshold = InsightTreeSemanticPolicy.newSubjectSimilarity
-        for turn in pending {
+        if let turn = seedTurn {
             steps.append {
                 guard !Task.isCancelled else { return }
-                var existingSeeds = LocalInsightTreeSeedStore.seeds(for: turn.conversationID)
+                var existingSeeds = LocalInsightTreeSeedStore.seeds(for: conversationID)
                 var didRefreshSeedEmbeddings = false
                 for index in existingSeeds.indices
                 where existingSeeds[index].embeddingVersion != embeddingProvider.version {
@@ -366,7 +330,7 @@ struct CurrentConversationView: View {
                 if didRefreshSeedEmbeddings {
                     LocalInsightTreeSeedStore.replaceSeeds(
                         existingSeeds,
-                        for: turn.conversationID
+                        for: conversationID
                     )
                 }
                 guard let candidate = try? await self.angroveModel.insightTreeSeedCandidate(
@@ -401,7 +365,7 @@ struct CurrentConversationView: View {
                         embeddingVersion: embeddingProvider.version,
                         createdAt: Date()
                     ),
-                    for: turn.conversationID
+                    for: conversationID
                 )
                 // Without marking this Node Concept pending, opening the tree fresh (which tours only pending IDs, not a raw
                 // diff — see `presentPersistedTree`) would silently skip its reveal animation.
@@ -410,30 +374,30 @@ struct CurrentConversationView: View {
                     insightIDs: [],
                     nodeIDs: [newSeedID]
                 )
-                self.finishInsightTreeMutation(for: turn.conversationID)
+                self.finishInsightTreeMutation(for: conversationID)
             }
         }
 
         // Tree mutations above are persisted before this separate naming call begins.
         // Even exchanges excluded from the tree can receive a useful conversation title.
-        for request in titles {
+        if let request = titleRequest {
             steps.append {
                 guard !Task.isCancelled else { return }
                 guard conversationTitlePolicy == .automatic,
                       session.needsAutomaticTitle(
-                          conversationID: request.conversationID,
+                          conversationID: conversationID,
                           branchID: request.branchID, question: request.question
                       ),
                       let title = try? await angroveModel.conversationTitle(for: request.question)
                 else { return }
                 guard !Task.isCancelled, conversationTitlePolicy == .automatic else { return }
                 if session.applyAutomaticTitle(
-                    title, conversationID: request.conversationID,
+                    title, conversationID: conversationID,
                     branchID: request.branchID, question: request.question
                 ) {
                     // This job can outlive its page. Touch only the named conversation in
                     // shell bindings, preserving the shell's current selection and newer list.
-                    if let index = sideMenuConversations.firstIndex(where: { $0.id == request.conversationID }) {
+                    if let index = sideMenuConversations.firstIndex(where: { $0.id == conversationID }) {
                         sideMenuConversations[index].title = title
                         if let branchIndex = sideMenuConversations[index].branches.firstIndex(where: {
                             $0.id == request.branchID
@@ -441,26 +405,26 @@ struct CurrentConversationView: View {
                             sideMenuConversations[index].branches[branchIndex].generatedBranchTitle = title
                         }
                     }
-                    if sideMenuActiveConversationID == request.conversationID {
+                    if sideMenuActiveConversationID == conversationID {
                         sideMenuCurrentTitle = title
                     }
                 }
             }
         }
 
-        for candidate in quoteCandidates {
+        if let message = quoteCandidate {
             steps.append {
                 guard !Task.isCancelled else { return }
                 // Fail-quiet: a failed check just means this message isn't resurfaced.
                 guard let notability = try? await self.angroveModel.assessQuoteNotability(
-                    candidate.message
+                    message
                 ), notability.isNotable else {
                     return
                 }
                 FlaggedQuoteStore.flag(
-                    candidate.message,
+                    message,
                     reason: notability.reason,
-                    in: candidate.conversationID
+                    in: conversationID
                 )
             }
         }
