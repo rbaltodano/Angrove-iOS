@@ -33,6 +33,47 @@ struct AnimatableLine: Shape {
     }
 }
 
+/// Keeps connectors quiet around labels while retaining their strength in the middle.
+struct FadedCanvasLine: View, Animatable {
+    var start: CGPoint
+    var end: CGPoint
+    var color: Color
+    var drawn: CGFloat = 1
+    var style = StrokeStyle(lineWidth: 1, lineCap: .round)
+
+    // Interpolate the gradient's endpoints with the line during camera animations.
+    var animatableData: AnimatablePair<AnimatableLine.AnimatableData, CGFloat> {
+        get { AnimatablePair(AnimatableLine(start: start, end: end).animatableData, drawn) }
+        set {
+            var line = AnimatableLine(start: start, end: end)
+            line.animatableData = newValue.first
+            start = line.start
+            end = line.end
+            drawn = newValue.second
+        }
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            AnimatableLine(start: start, end: end)
+                .trim(from: 0, to: drawn)
+                .stroke(
+                    LinearGradient(
+                        stops: [
+                            .init(color: color.opacity(0), location: 0),
+                            .init(color: color, location: 0.2),
+                            .init(color: color, location: 0.8),
+                            .init(color: color.opacity(0), location: 1)
+                        ],
+                        startPoint: UnitPoint(x: start.x / max(geometry.size.width, 1), y: start.y / max(geometry.size.height, 1)),
+                        endPoint: UnitPoint(x: end.x / max(geometry.size.width, 1), y: end.y / max(geometry.size.height, 1))
+                    ),
+                    style: style
+                )
+        }
+    }
+}
+
 /// A connector between a Node and one of its Insights. The parent controls when this view is
 /// inserted, so the line itself stays stateless while the camera is moving its endpoints.
 struct InsightConnectorLine: View {
@@ -53,9 +94,7 @@ struct InsightConnectorLine: View {
     static let growAnimation = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.55)
 
     var body: some View {
-        AnimatableLine(start: start, end: end)
-            .trim(from: 0, to: drawn)
-            .stroke(color, style: StrokeStyle(lineWidth: 1, lineCap: .round))
+        FadedCanvasLine(start: start, end: end, color: color, drawn: drawn)
             .onAppear {
                 guard drawn < 1 else { return }
                 withAnimation(Self.growAnimation) { drawn = 1 }
@@ -170,15 +209,18 @@ struct RevealedInsightLabel: View {
 
 /// Shared chrome for ordinary tree Insights and Branch results.
 struct InsightTreeChipChrome: ViewModifier {
+    @AppStorage(SettingsStorageKey.insightTreeBackground) private var background: CanvasBackgroundOption = .system
     var labelOpacity: Double = 1
+
+    private var chromeOpacity: Double { background == .clouds ? 0 : labelOpacity }
 
     func body(content: Content) -> some View {
         content
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
-            .background(AngroveTheme.Colors.canvas.opacity(labelOpacity))
+            .background(AngroveTheme.Colors.canvas.opacity(chromeOpacity))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .shadow(color: AngroveTheme.Colors.canvas.opacity(labelOpacity), radius: 24, x: 0, y: 0)
+            .shadow(color: AngroveTheme.Colors.canvas.opacity(chromeOpacity), radius: 24, x: 0, y: 0)
     }
 }
 

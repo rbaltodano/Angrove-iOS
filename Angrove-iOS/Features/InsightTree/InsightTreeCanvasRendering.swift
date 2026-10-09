@@ -73,11 +73,7 @@ extension InsightTreeCanvasView {
                 let end = camera.worldToScreen(placedWorld, in: size)
                 ForEach(Array(sources.enumerated()), id: \.offset) { _, source in
                     if let start = midpointSourceScreenPosition(source, layout: layout, camera: camera, size: size) {
-                        AnimatableLine(start: start, end: end)
-                            .stroke(
-                                AngroveTheme.Colors.divider.opacity(0.9),
-                                style: StrokeStyle(lineWidth: 1, lineCap: .round)
-                            )
+                        FadedCanvasLine(start: start, end: end, color: AngroveTheme.Colors.divider.opacity(0.9))
                             .frame(width: size.width, height: size.height)
                             .allowsHitTesting(false)
                             .opacity(hasSelection ? 0.5 : 1.0)

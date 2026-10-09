@@ -40,11 +40,12 @@ struct StudyBranchScene: View {
                     let offset = offsets[child.id] ?? .zero
                     let destination = CGPoint(x: center.x + offset.x, y: center.y + offset.y)
                     let released = releasedIDs.contains(child.id)
-                    AnimatableLine(
+                    FadedCanvasLine(
                         start: CGPoint(x: center.x + recoil.width, y: center.y + recoil.height),
-                        end: released ? destination : center
+                        end: released ? destination : center,
+                        color: AngroveTheme.Colors.primaryReadable.opacity(0.28),
+                        style: StrokeStyle(lineWidth: 1 / max(fitScale, 0.01))
                     )
-                    .stroke(AngroveTheme.Colors.primaryReadable.opacity(0.28), lineWidth: 1 / max(fitScale, 0.01))
                     .opacity(released ? 1 : 0)
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     .allowsHitTesting(false)

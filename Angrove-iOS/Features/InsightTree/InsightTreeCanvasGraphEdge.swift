@@ -17,11 +17,10 @@ struct InsightTreeCanvasGraphEdge: View {
                     color: color
                 )
             } else {
-                AnimatableLine(start: start, end: end)
-                    .stroke(
-                        color,
-                        style: StrokeStyle(lineWidth: 1, lineCap: .round, dash: isSuggested ? [6, 4] : [])
-                    )
+                FadedCanvasLine(
+                    start: start, end: end, color: color,
+                    style: StrokeStyle(lineWidth: 1, lineCap: .round, dash: isSuggested ? [6, 4] : [])
+                )
             }
         }
     }

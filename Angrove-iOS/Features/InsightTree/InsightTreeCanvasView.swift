@@ -23,6 +23,7 @@ struct InsightTreeCanvasView: View {
     let pulsingNodeID: UUID?
     let selectedCanvasTargets: [CanvasSelectionTarget]
     let selectionPulseRequest: Int
+    var showsBackground: Bool = true
     var makeNodeChildIDs: Set<UUID> = []
     var generatedMakeNodeChildIDs: Set<UUID> = []
     /// Nodes that are user-placed midpoints — rendered as a bare insight chip (no
@@ -372,7 +373,9 @@ struct InsightTreeCanvasView: View {
             let studyNodeTarget = studyReady ? studyNodeTapTarget(camera: camera, size: size) : nil
 
             let canvas = ZStack {
-                CanvasBackground(option: insightTreeBackground).ignoresSafeArea()
+                if showsBackground {
+                    CanvasBackground(option: insightTreeBackground).ignoresSafeArea()
+                }
                 AnimatedDotGridBackground(
                     settledOffset: cameraState.offset,
                     settledScale:  activeScale,

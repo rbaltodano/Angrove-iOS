@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Node Concept appearance and hit area; camera and discovery actions stay with the canvas.
 struct InsightTreeCanvasConceptNode: View {
+    @AppStorage(SettingsStorageKey.insightTreeBackground) private var background: CanvasBackgroundOption = .system
     let title: String
     let isSuggested: Bool
     var isNaming: Bool = false
@@ -43,9 +44,9 @@ struct InsightTreeCanvasConceptNode: View {
                     .animation(.springRelaxed.delay(0.1), value: hasAppeared)
             }
             .padding(8)
-            .background(backgroundColor)
+            .background(backgroundColor.opacity(background == .clouds ? 0 : 1))
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .shadow(color: backgroundColor, radius: 36, x: 0, y: 0)
+            .shadow(color: backgroundColor.opacity(background == .clouds ? 0 : 1), radius: 36, x: 0, y: 0)
             .frame(width: isSuggested ? 220 : 260)
             .overlay(alignment: .topLeading) {
                 if isUndiscovered {

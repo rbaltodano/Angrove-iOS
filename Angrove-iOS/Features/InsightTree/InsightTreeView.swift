@@ -8,7 +8,6 @@ import UIKit
 
 // MARK: - Insight Tree View
 
-private let insightTreeCanvasColor = AngroveTheme.Colors.canvas
 let insightTreeInsightColor = AngroveTheme.Colors.canvasSecondary
 
 struct InsightTreeView: View {
@@ -500,6 +499,7 @@ struct InsightTreeView: View {
                 pulsingNodeID: selectedNode?.id,
                 selectedCanvasTargets: selectedCanvasTargets,
                 selectionPulseRequest: selectionPulseRequest,
+                showsBackground: false,
                 makeNodeChildIDs: viewModel.makeNodeChildIDs,
                 generatedMakeNodeChildIDs: viewModel.generatedMakeNodeChildIDs,
                 placedMidpointNodeIDs: viewModel.placedMidpointNodeIDs,
@@ -592,7 +592,6 @@ struct InsightTreeView: View {
                 alignment: .leading
             )
             .frame(height: geometry.size.height, alignment: .top)
-            .background(insightTreeCanvasColor)
             .onGeometryChange(for: CGPoint.self) { proxy in
                 proxy.frame(in: .named(InsightTreeStackSpace.name)).origin
             } action: { origin in
@@ -741,6 +740,11 @@ struct InsightTreeView: View {
             .animation(.springQuick, value: undoInsight != nil)
             .animation(.springStandard, value: showsStudyToolCard)
             .animation(.springStandard, value: showsDockedCardAfterStudy)
+        }
+        .background {
+            // Keep the photo outside the canvas frame that shrinks for docked cards.
+            CanvasBackground(option: insightTreeBackground)
+                .ignoresSafeArea()
         }
     }
 
