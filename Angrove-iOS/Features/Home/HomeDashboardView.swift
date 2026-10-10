@@ -413,16 +413,8 @@ private struct HomeFigmaUsageAndStats: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 24) {
-            VStack(alignment: .leading, spacing: 8) {
-                HomeFigmaUsageGrid(month: month)
-                    .anchorPreference(key: HomeCalendarBoundsKey.self, value: .bounds) { $0 }
-
-                Text("\(month.title) activity")
-                    .font(AngroveTheme.Typography.uiLabel)
-                    .foregroundColor(AngroveTheme.Colors.lightGreen)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
+            HomeFigmaUsageGrid(month: month)
+                .anchorPreference(key: HomeCalendarBoundsKey.self, value: .bounds) { $0 }
 
             HomeFigmaStatsGrid(
                 conversationCount: conversationCount,
