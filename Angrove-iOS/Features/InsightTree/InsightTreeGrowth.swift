@@ -120,8 +120,11 @@ nonisolated enum InsightTreeGrowth {
             descendantCounts[current, default: 0] += 1
         }
         // A node with its own explicit parent cannot be the root while a free node exists.
-        let rootCandidates = ordered.filter { parentPreference($0) == nil }
-        let root = (rootCandidates.isEmpty ? ordered : rootCandidates).max { lhs, rhs in
+        // A concept still waiting for its vector cannot anchor the tree either.
+        let free = ordered.filter { parentPreference($0) == nil }
+        let embedded = free.filter { !$0.vector.isEmpty }
+        let rootCandidates = embedded.isEmpty ? (free.isEmpty ? ordered : free) : embedded
+        let root = rootCandidates.max { lhs, rhs in
             let left = descendantCounts[lhs.id] ?? 0, right = descendantCounts[rhs.id] ?? 0
             if left != right { return left < right }
             let lc = ordered.reduce(0) { $0 + ($1.id == lhs.id ? 0 : similarity(lhs, $1)) }
@@ -162,6 +165,17 @@ nonisolated enum InsightTreeGrowth {
             }
         }
 
+        // Lines beyond the tree (a Midpoint's other sources), known to both ends, so placement
+        // keeps them from crossing too.
+        var secondary: [UUID: Set<UUID>] = [:]
+        for node in nodes {
+            for parent in node.fixedParents where byID[parent] != nil && parent != node.id && result.parents[node.id] != parent
+                && result.parents[parent] != node.id {
+                secondary[node.id, default: []].insert(parent)
+                secondary[parent, default: []].insert(node.id)
+            }
+        }
+
         // Placement, parents before children.
         var children: [UUID: [UUID]] = [:]
         for id in attached { if let parent = result.parents[id] { children[parent, default: []].append(id) } }
@@ -179,10 +193,24 @@ nonisolated enum InsightTreeGrowth {
             }
             let length = mapDistanceToLength(1 - min(max(similarity(node, parent), 0), 1))
             result.positions[id] = placement(of: node, from: anchor, parentID: parentID, length: length,
-                                             byID: byID, result: result, children: children)
+                                             byID: byID, result: result, children: children, secondary: secondary)
             result.placed.insert(id)
         }
+        if relayout { recenter(&result, on: nodes.compactMap(\.restoredPosition)) }
         return result
+    }
+
+    /// A fresh layout keeps the old tree's center, so the camera still finds it.
+    private static func recenter(_ result: inout Result, on previous: [CGPoint]) {
+        guard !previous.isEmpty, !result.positions.isEmpty else { return }
+        func center(_ points: [CGPoint]) -> CGPoint {
+            CGPoint(x: points.map(\.x).reduce(0, +) / CGFloat(points.count),
+                    y: points.map(\.y).reduce(0, +) / CGFloat(points.count))
+        }
+        let target = center(previous), current = center(Array(result.positions.values))
+        let dx = target.x - current.x, dy = target.y - current.y
+        for (id, point) in result.positions { result.positions[id] = CGPoint(x: point.x + dx, y: point.y + dy) }
+        result.placed = Set(result.positions.keys)
     }
 
     /// Off its parent, in a direction clear of the parent's other connectors and of nearby
@@ -194,7 +222,8 @@ nonisolated enum InsightTreeGrowth {
         length: CGFloat,
         byID: [UUID: Node],
         result: Result,
-        children: [UUID: [UUID]]
+        children: [UUID: [UUID]],
+        secondary: [UUID: Set<UUID>]
     ) -> CGPoint {
         var neighbors = (children[parentID] ?? []).filter { $0 != node.id }
         if let grandparent = result.parents[parentID] { neighbors.append(grandparent) }
@@ -224,16 +253,25 @@ nonisolated enum InsightTreeGrowth {
                 return hypot(point.x - other.x, point.y - other.y) >= minimum
             }
         }
-        // Lines already drawn, so a new one can avoid crossing them.
-        let drawn = result.parents.compactMap { child, parent -> (CGPoint, CGPoint)? in
+        // Every line already drawn (tree and secondary), so the new node's own lines (to its
+        // parent and to any placed secondary partner) can avoid crossing them.
+        var drawn: [(CGPoint, CGPoint)] = result.parents.compactMap { child, parent in
             guard child != node.id, let a = result.positions[child], let b = result.positions[parent] else { return nil }
             return (a, b)
         }
+        for (id, partners) in secondary where id != node.id {
+            for partner in partners where partner != node.id && id.uuidString < partner.uuidString {
+                if let a = result.positions[id], let b = result.positions[partner] { drawn.append((a, b)) }
+            }
+        }
+        let partners = (secondary[node.id] ?? []).compactMap { result.positions[$0] }
         func crossings(_ point: CGPoint) -> Int {
-            drawn.filter { segment in
-                segment.0 != anchor && segment.1 != anchor
-                    && InsightTreeConnectorRouting.intersectionFraction(anchor, point, segment.0, segment.1) != nil
-            }.count
+            ([anchor] + partners).reduce(0) { total, end in
+                total + drawn.filter { segment in
+                    segment.0 != end && segment.1 != end
+                        && InsightTreeConnectorRouting.intersectionFraction(end, point, segment.0, segment.1) != nil
+                }.count
+            }
         }
         let candidates = stride(from: 0, to: 360, by: 10).map { CGFloat($0) * .pi / 180 }
         let scored = candidates.map { angle -> (angle: CGFloat, score: CGFloat) in

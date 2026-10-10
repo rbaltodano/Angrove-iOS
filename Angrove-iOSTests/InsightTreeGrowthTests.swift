@@ -96,4 +96,20 @@ struct InsightTreeGrowthTests {
         #expect(grown.parents.count == 1)
         #expect(grown.positions.count == 2)
     }
+
+    @Test("A Midpoint's line to its second source, in another branch, crosses nothing")
+    func midpointSecondaryLineClear() {
+        let root = UUID(), a = UUID(), b = UUID(), a1 = UUID(), a2 = UUID(), b1 = UUID(), b2 = UUID(), midpoint = UUID()
+        let nodes = [
+            node(root, vector(1, 0.1)), node(a, vector(2, 0.6)), node(b, vector(3, 0.6)),
+            node(a1, vector(2, 0.8)), node(a2, vector(2, 0.85)), node(b1, vector(3, 0.8)), node(b2, vector(3, 0.85)),
+            InsightTreeGrowth.Node(id: midpoint, vector: vector(4, 0.5), fixedParents: [a1, b1], restoredPosition: nil,
+                                   radius: 100, leansToward: [a1, b1]),
+        ]
+        let grown = InsightTreeGrowth.grow(nodes, relayout: true)
+        var bonds = grown.parents.map { InsightTreeEdgeUntangling.Bond.between($0.key, $0.value) }
+        let treeParent = grown.parents[midpoint]
+        for source in [a1, b1] where source != treeParent { bonds.append(.between(midpoint, source)) }
+        #expect(InsightTreeEdgeUntangling.crossingCount(bonds, grown.positions) == 0)
+    }
 }

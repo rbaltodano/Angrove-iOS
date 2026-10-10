@@ -17,6 +17,7 @@ extension InsightTreeCanvasView {
                     hasAppeared = true
                     revealState.previousBondLengths = insightBondLengths
                     reconcileBodies()   // seed live physics bodies + start the tick
+                    keepTreeInView(in: size)
                     undiscoveredInsightIDs = loadUndiscoveredInsightIDs()
                     undiscoveredNodeIDs = loadUndiscoveredNodeIDs()
                     revealState.revealedNodeIDs = Set(nodes.map(\.id))
@@ -99,6 +100,10 @@ extension InsightTreeCanvasView {
                 }
                 if moved.count == bodies.count, moved.contains(where: { bodies[$0.key]?.pos != $0.value.pos }) {
                     withAnimation(reduceMotion ? nil : .smooth(duration: 0.9)) { bodies = moved }
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(950))
+                        keepTreeInView(in: size)
+                    }
                 }
                 // New semantic targets (re-solve after a topology change): wake the sim so
                 // the anchor springs glide nodes to their new positions.
@@ -113,6 +118,8 @@ extension InsightTreeCanvasView {
                 if oldNodes.map(\.id) != newNodes.map(\.id) || oldNodes.map({ $0.insights.map(\.id) }) != newNodes.map({ $0.insights.map(\.id) }) {
                     reconcileBodies()
                     reportUndiscoveredInsightCount()
+                    // The tree loads asynchronously, after the canvas first appears.
+                    if revealState.activeSequence == nil { keepTreeInView(in: size) }
                 }
                 revealState.previousBondLengths = insightBondLengths
                 // Insights added after the initial entrance (Make Node children, placed midpoints):

@@ -809,39 +809,8 @@ final class InsightTreeViewModel: ObservableObject {
         }
         scene.render(nodes: nodes, edges: edges, animated: hasNew)
         requestClusterLabels(for: nextNodes)
-#if DEBUG
-        dumpTreeForTuning()
-#endif
     }
 
-#if DEBUG
-    /// TEMP: snapshot of the global tree for offline tuning of the growth rules.
-    private func dumpTreeForTuning() {
-        guard midpointStoreScope == nil, !nodes.isEmpty else { return }
-        struct DumpInsight: Encodable { let id: UUID; let title: String; let definition: String; let embedding: [Double]? }
-        struct DumpNode: Encodable {
-            let id: UUID; let label: String; let definition: String; let kind: String
-            let seed: [Double]?; let subject: [Double]?; let centroid: [Double]
-            let insightIDs: [UUID]; let x: Double; let y: Double
-        }
-        struct Dump: Encodable { let version: String; let nodes: [DumpNode]; let insights: [DumpInsight]; let edges: [[UUID]] }
-        let seeds = Dictionary(effectiveSeedAnchors.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        var allInsights: [UUID: InsightModel] = [:]
-        for node in nodes { for insight in node.insights { allInsights[insight.id] = insight } }
-        let dump = Dump(version: embeddingProvider.version, nodes: nodes.map { node in
-            let kind = placedMidpointNodeIDs.contains(node.id) ? "placedMidpoint" : node.isMidpointConcept ? "midpointConcept"
-                : promotedSourceInsightID(forNodeID: node.id) != nil ? "promoted" : seeds[node.id] != nil ? "seed" : "cluster"
-            return DumpNode(id: node.id, label: node.conceptLabel, definition: node.definition, kind: kind,
-                seed: seeds[node.id]?.embedding, subject: clusterSubjectEmbeddings[node.id]?.vector, centroid: node.embedding,
-                insightIDs: node.insights.map(\.id), x: node.position.x, y: node.position.y)
-        }, insights: allInsights.values.map { DumpInsight(id: $0.id, title: $0.title, definition: $0.definition, embedding: $0.embedding) },
-           edges: edges.map { [$0.fromNodeID, $0.toNodeID] })
-        guard let data = try? JSONEncoder().encode(dump),
-              let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("tree-dump.json") else { return }
-        try? data.write(to: url)
-        fputs("[TreeDump] wrote \(nodes.count) nodes, \(allInsights.count) insights, version \(embeddingProvider.version)\n", stderr)
-    }
-#endif
 
     /// Bond length per visible insight = relatedness (semantic distance) to its parent node's
     /// centroid embedding. Midpoint nodes (bare center chip) are skipped.
@@ -1649,7 +1618,7 @@ final class InsightTreeViewModel: ObservableObject {
     }
     /// Set once a scope's tree has been laid out by `InsightTreeGrowth` with real vectors.
     private var grownLayoutStoreKey: String {
-        "aquinas.insight-tree.grown-layout.v1:\(midpointStoreScope?.uuidString ?? "global")"
+        "aquinas.insight-tree.grown-layout.v2:\(midpointStoreScope?.uuidString ?? "global")"
     }
 
     /// Attaches every concept to one parent (saved, explicit, or chosen once by subject
