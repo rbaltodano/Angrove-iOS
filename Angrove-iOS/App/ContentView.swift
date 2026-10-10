@@ -1240,6 +1240,12 @@ struct ContentView: View {
                 isStartupReady = true
                 openPendingDailyQuestionLinkIfReady()
                 scheduleDailyQuestionRefreshIfNeeded()
+#if DEBUG
+                // TEMP: lets tree tuning open the global Insight Tree on a device without touch.
+                if ProcessInfo.processInfo.arguments.contains("--open-global-insights") {
+                    navigateWithoutReturn(to: .insights)
+                }
+#endif
             }
         }
         .onOpenURL { url in

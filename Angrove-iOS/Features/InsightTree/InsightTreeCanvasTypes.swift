@@ -6,6 +6,7 @@ struct RenderedGraphEdge: Identifiable {
     let fromNodeID: UUID
     let toNodeID: UUID
     let isSuggested: Bool
+    var isSecondary: Bool = false
 }
 
 /// A simulated node: live position + velocity, integrated each frame.

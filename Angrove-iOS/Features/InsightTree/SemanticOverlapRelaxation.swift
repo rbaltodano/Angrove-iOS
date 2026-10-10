@@ -4,6 +4,8 @@ import Foundation
 nonisolated struct SemanticOverlapRelaxation: Sendable {
     let placedMidpointNodeIDs: Set<UUID>
     let showsAllClusterInsights: Bool
+    func footprintRadius(of node: NodeModel) -> CGFloat { nodeFootprintRadius(node) }
+
     private func nodeFootprintRadius(_ node: NodeModel) -> CGFloat {
         if placedMidpointNodeIDs.contains(node.id) { return 70 }   // bare single-chip midpoint
         let visibleInsights = canvasInsights(for: node)
@@ -27,7 +29,9 @@ nonisolated struct SemanticOverlapRelaxation: Sendable {
     func solve(nodes: [NodeModel], edges: [EdgeModel]) -> (nodes: [NodeModel], untangledIDs: Set<UUID>) {
         var working = solve(nodes: nodes)
         let positions = Dictionary(working.map { ($0.id, $0.position) }, uniquingKeysWith: { _, latest in latest })
-        let pinned = placedMidpointNodeIDs.union(working.filter(\.isMidpointConcept).map(\.id))
+        // Completed Midpoints grow from a parent like any concept, so they may turn too; only
+        // legacy Insight-style Midpoints keep their placed spot.
+        let pinned = placedMidpointNodeIDs
         let radii = Dictionary(working.map { ($0.id, nodeFootprintRadius($0)) }, uniquingKeysWith: { _, latest in latest })
         // Semantic bond length per connector; a duplicate pair keeps its shortest.
         let lengths = edges.reduce(into: [InsightTreeEdgeUntangling.Bond: CGFloat]()) { result, edge in
@@ -36,11 +40,6 @@ nonisolated struct SemanticOverlapRelaxation: Sendable {
         }
         let untangled = InsightTreeEdgeUntangling.untangle(positions: positions,
             edges: edges.map { ($0.fromNodeID, $0.toNodeID) }, pinned: pinned, radii: radii, lengths: lengths)
-        #if DEBUG
-        InsightTreeEdgeUntangling.diagnose(positions: positions, result: untangled,
-            edges: edges.map { ($0.fromNodeID, $0.toNodeID) }, pinned: pinned, radii: radii,
-            labels: Dictionary(working.map { ($0.id, $0.conceptLabel) }, uniquingKeysWith: { a, _ in a }), lengths: lengths)
-        #endif
         var untangledIDs: Set<UUID> = []
         for index in working.indices {
             guard let point = untangled[working[index].id], point != working[index].position else { continue }

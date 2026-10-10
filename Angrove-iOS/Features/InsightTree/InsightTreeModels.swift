@@ -106,6 +106,9 @@ nonisolated struct EdgeModel: Sendable, Identifiable, Equatable {
     var distance: Double
     var isSuggested: Bool
     var showSuggestButton: Bool
+    /// A line beyond the concept's one parent (a Midpoint's other sources). Drawn fainter so
+    /// the tree itself reads first.
+    var isSecondary: Bool = false
 }
 
 /// A source a placed midpoint was spawned from — either a specific insight chip (`isNode == false`,

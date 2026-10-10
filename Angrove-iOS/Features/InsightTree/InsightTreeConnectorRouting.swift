@@ -30,7 +30,9 @@ nonisolated enum InsightTreeConnectorRouting {
             return CGPoint(x: u * u * a.x + 2 * u * t * c.x + t * t * b.x,
                            y: u * u * a.y + 2 * u * t * c.y + t * t * b.y)
         }
-        var samples: [CGPoint] { (0...32).map { point(at: CGFloat($0) / 32) } }
+        /// A straight connector is one segment; a curve is approximated by 16.
+        var segmentCount: Int { bend == 0 ? 1 : 16 }
+        var samples: [CGPoint] { (0...segmentCount).map { point(at: CGFloat($0) / CGFloat(segmentCount)) } }
     }
 
     static func routes(connectors: [Connector], obstacles: [Obstacle], viewport: CGRect? = nil) -> [Route] {
@@ -74,7 +76,7 @@ nonisolated enum InsightTreeConnectorRouting {
         var segments: [Segment] = []
         for i in result.indices {
             let points = result[i].samples
-            for index in 0..<32 {
+            for index in 0..<result[i].segmentCount {
                 let rect = bounds(of: [points[index], points[index + 1]]).insetBy(dx: -0.1, dy: -0.1)
                 if let viewport, !rect.intersects(viewport) { continue }
                 segments.append(Segment(route: i, index: index, a: points[index], b: points[index + 1], rect: rect))
@@ -95,8 +97,9 @@ nonisolated enum InsightTreeConnectorRouting {
                 $0.0 == b.fromNodeID || $0.0 == b.toNodeID
             }
             if shared.contains(where: { hypot($0.1.x - point.x, $0.1.y - point.y) < 12 }) { continue }
-            let t = (CGFloat(later.index) + fraction) / 32
-            let speed = max(hypot(later.b.x - later.a.x, later.b.y - later.a.y) * 32, 1)
+            let count = CGFloat(result[later.route].segmentCount)
+            let t = (CGFloat(later.index) + fraction) / count
+            let speed = max(hypot(later.b.x - later.a.x, later.b.y - later.a.y) * count, 1)
             let halfGap = min(0.08, 5 / speed)
             gaps[later.route, default: []].append(max(0, t - halfGap)...min(1, t + halfGap))
         }
@@ -108,7 +111,7 @@ nonisolated enum InsightTreeConnectorRouting {
         let points = route.samples
         let bounds = bounds(of: points)
         let contacts = obstacles.filter { obstacle in
-            bounds.intersects(obstacle.rect) && (0..<32).contains { segmentIntersectsRect(points[$0], points[$0 + 1], obstacle.rect) }
+            bounds.intersects(obstacle.rect) && (0..<route.segmentCount).contains { segmentIntersectsRect(points[$0], points[$0 + 1], obstacle.rect) }
         }.count
         return CGFloat(contacts) * 1_000_000 + abs(route.bend)
     }
@@ -157,5 +160,31 @@ nonisolated enum InsightTreeConnectorRouting {
             } else { result.append(range) }
         }
         return result
+    }
+}
+
+/// World-space bends depend only on the layout, so panning and zooming reuse the last choice
+/// instead of rescoring every connector against every label on each frame.
+final class InsightTreeConnectorBendCache {
+    private var key: Int?
+    private var bends: [String: CGFloat] = [:]
+
+    func bends(connectors: [InsightTreeConnectorRouting.Connector],
+               obstacles: [InsightTreeConnectorRouting.Obstacle]) -> [String: CGFloat] {
+        var hasher = Hasher()
+        func combine(_ point: CGPoint) { hasher.combine(Int((point.x * 2).rounded())); hasher.combine(Int((point.y * 2).rounded())) }
+        for connector in connectors {
+            hasher.combine(connector.id); combine(connector.start); combine(connector.end)
+        }
+        for obstacle in obstacles {
+            hasher.combine(obstacle.ownerID); combine(obstacle.rect.origin)
+            combine(CGPoint(x: obstacle.rect.width, y: obstacle.rect.height))
+        }
+        let next = hasher.finalize()
+        if next != key {
+            key = next
+            bends = InsightTreeConnectorRouting.bends(connectors: connectors, obstacles: obstacles)
+        }
+        return bends
     }
 }

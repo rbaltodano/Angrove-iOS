@@ -26,7 +26,7 @@ extension InsightTreeCanvasView {
             }
         }
         // The screen flips world y, which reverses which side a positive bend falls on.
-        let worldBends = InsightTreeConnectorRouting.bends(connectors: worldConnectors, obstacles: obstacles)
+        let worldBends = connectorBendCache.bends(connectors: worldConnectors, obstacles: obstacles)
         let screenBends = worldBends.mapValues { -$0 * camera.scale }
         let screenConnectors = worldConnectors.map {
             InsightTreeConnectorRouting.Connector(id: $0.id, start: camera.worldToScreen($0.start, in: size),
@@ -39,14 +39,15 @@ extension InsightTreeCanvasView {
     @ViewBuilder
     func graphEdges(routes: [InsightTreeConnectorRouting.Route], size: CGSize, screenPerWorld: CGFloat) -> some View {
         let hasSelection = !selectedCanvasTargets.isEmpty
+        let renderedEdges = Dictionary(displayGraphEdges().map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let promotionNodeIDs = Set(nodes.filter { $0.insights.contains { makeNodeChildIDs.contains($0.id) } }.map(\.id))
         ForEach(routes, id: \.connector.id) { route in
             let edge = route.connector
-            let suggested = displayGraphEdges().first { $0.id == edge.id }?.isSuggested ?? false
-            let isPromotionEdge = nodes.contains { node in
-                (node.id == edge.fromNodeID || node.id == edge.toNodeID) && node.insights.contains { makeNodeChildIDs.contains($0.id) }
-            }
+            let suggested = renderedEdges[edge.id]?.isSuggested ?? false
+            let secondary = renderedEdges[edge.id]?.isSecondary ?? false
+            let isPromotionEdge = promotionNodeIDs.contains(edge.fromNodeID) || promotionNodeIDs.contains(edge.toNodeID)
             let lineColor = isPromotionEdge ? AngroveTheme.Colors.primaryReadable.opacity(0.3)
-                : AngroveTheme.Colors.divider.opacity(suggested ? 0.55 : 0.9)
+                : AngroveTheme.Colors.divider.opacity(suggested || secondary ? 0.45 : 0.9)
             RoutedConceptConnector(route: route, canvasSize: size, color: lineColor,
                 isAnimated: revealState.animatedGraphEdgeIDs.contains(edge.id), isSuggested: suggested,
                 screenPerWorld: screenPerWorld)

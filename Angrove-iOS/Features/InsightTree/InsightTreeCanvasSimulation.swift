@@ -31,6 +31,9 @@ extension InsightTreeCanvasView {
         bodies[id]?.pos ?? nodes.first(where: { $0.id == id })?.position
     }
 
+    /// Beyond this a changed layout target is reached by a glide, not the anchor spring.
+    static let regrowGlideDistance: CGFloat = 240
+
     /// Node footprint for the overlap-separation force — its longest bond plus chip extent.
     private func simFootprintRadius(_ node: NodeModel) -> CGFloat {
         if placedMidpointNodeIDs.contains(node.id) { return 70 }

@@ -19,6 +19,8 @@ nonisolated struct SemanticTreeComputation: Equatable, Sendable {
     var positions: [UUID: CGPoint]
     var providerVersion: String
     var localMembershipThreshold: Double
+    /// Output: each concept budded this pass, keyed to the concept it grew from.
+    var budParents: [UUID: UUID] = [:]
 
     private func restoredPosition(for id: UUID) -> CGPoint? { positions[id] }
 
@@ -173,11 +175,46 @@ nonisolated struct SemanticTreeComputation: Equatable, Sendable {
             pairMargins = pairMargins.filter { !$0.key.contains(survivorID) && !$0.key.contains(absorbed.id) }
             clusters.remove(at: best.absorbed)
         }
+        // Budding: a cohesive group of an existing concept's loose members becomes a child
+        // concept. A group that fits another concept better moves there instead. Clusters are
+        // visited in order; a new bud is appended and checked in turn.
+        var budIndex = 0
+        while budIndex < clusters.count {
+            if Task.isCancelled { return ([], []) }
+            let cluster = clusters[budIndex]
+            budIndex += 1
+            let anchor = subjectVector(of: cluster) ?? cluster.embedding
+            let members = cluster.insights.compactMap { insight in
+                insight.embedding.map { InsightTreeGrowth.Member(id: insight.id, vector: $0) }
+            }
+            guard members.count > InsightTreeGrowth.budMinimumCount,
+                  let groupIDs = InsightTreeGrowth.budGroup(members: members, anchor: anchor) else { continue }
+            let moving = cluster.insights.filter { groupIDs.contains($0.id) }
+            let center = centroid(moving.compactMap(\.embedding))
+            let ownFit = cosineSimilarity(center, anchor)
+            let better = clusters.indices.filter { $0 != budIndex - 1 }.map { index -> (Int, Double) in
+                let other = subjectVector(of: clusters[index]) ?? clusters[index].embedding
+                return (index, other.count == center.count ? cosineSimilarity(center, other) : -1)
+            }.max { $0.1 < $1.1 }
+            clusters[budIndex - 1].insights.removeAll { groupIDs.contains($0.id) }
+            clusters[budIndex - 1].embedding = centroid(clusters[budIndex - 1].insights.compactMap(\.embedding)
+                + (localSeedAnchors.first { $0.id == cluster.id }?.embedding.map { [$0] } ?? []))
+            if let better, better.1 >= InsightTreeGrowth.tightSimilarity, better.1 > ownFit {
+                clusters[better.0].insights += moving
+                for insight in moving { insightClusterAssignments[insight.id] = clusters[better.0].id }
+            } else {
+                let budID = stableUUID(from: "bud:\(cluster.id):\(groupIDs.map(\.uuidString).joined(separator: ","))")
+                clusters.append(Cluster(id: budID, insights: moving, embedding: center))
+                for insight in moving { insightClusterAssignments[insight.id] = budID }
+                budParents[budID] = cluster.id
+            }
+        }
+
         let liveInsightIDs = Set(allInsights.map(\.id))
         insightClusterAssignments = insightClusterAssignments.filter { liveInsightIDs.contains($0.key) }
 
-        // Bare nodes first — position filled in below by the same pass that decides edges, so
-        // the two can never disagree (see the comment on that loop for why that matters).
+        // Bare nodes; `InsightTreeGrowth` chooses parents and places them after Make Node and
+        // Midpoint concepts join, so every kind of concept grows by the same rule.
         var builtNodes: [NodeModel] = clusters.map { cluster in
             let label = generatedClusterLabels[cluster.id] ?? cluster.seedLabel
             let repeatsMember = label.map {
@@ -199,137 +236,16 @@ nonisolated struct SemanticTreeComputation: Equatable, Sendable {
             )
         }
 
-        var builtEdges: [EdgeModel] = []
-        guard !builtNodes.isEmpty else { return (builtNodes, builtEdges) }
-
-        // Grow a nearest-neighbor spanning tree (Prim's) and position each node AS it attaches,
-        // directly off the edge that attaches it — one pass, not two. This used to be two
-        // independent nearest-neighbor searches: one decided where to *draw* a node (nearest
-        // among already-built nodes, in cluster-creation order) and a separate one decided what
-        // to *connect* it to (a proper MST over every node). Those don't necessarily agree, so a
-        // node could be drawn next to one node while its edge actually connected to a different,
-        // farther one — exactly what produces confusing, criss-crossing lines. A tree can always
-        // be drawn with zero crossings; computing both from the same edge is what makes that hold.
-        var connected: Set<Int> = [0]
-        var bestDistances = [Double](repeating: .infinity, count: builtNodes.count)
-        var parents = [Int](repeating: 0, count: builtNodes.count)
-        builtNodes[0].position = restoredPosition(for: builtNodes[0].id) ?? .zero
-        var latest = 0
-        while connected.count < builtNodes.count {
-            if Task.isCancelled { return ([], []) }
-            for target in builtNodes.indices where !connected.contains(target) {
-                let distance = semanticDistance(builtNodes[latest].embedding, builtNodes[target].embedding)
-                if distance < bestDistances[target] || (distance == bestDistances[target] && latest < parents[target]) {
-                    bestDistances[target] = distance
-                    parents[target] = latest
-                }
-            }
-            guard let childIndex = builtNodes.indices.filter({ !connected.contains($0) }).min(by: {
-                bestDistances[$0] == bestDistances[$1] ? $0 < $1 : bestDistances[$0] < bestDistances[$1]
-            }) else { break }
-            let parentIndex = parents[childIndex]
-            let distance = bestDistances[childIndex]
-            let parentNode = builtNodes[parentIndex]
-            let childID = builtNodes[childIndex].id
-            // maximizedGapAngle (inside chainExtensionPosition) also spreads this node away from
-            // any siblings already attached to the same parent, rather than a random angle.
-            builtNodes[childIndex].position = restoredPosition(for: childID) ?? chainExtensionPosition(
-                from: parentNode,
-                nodes: builtNodes,
-                edges: builtEdges,
-                bondLength: mapDistanceToLength(distance)
-            )
-            builtEdges.append(
-                EdgeModel(
-                    id: stableUUID(from: "global-cluster-edge:\(parentNode.id):\(childID)"),
-                    fromNodeID: parentNode.id,
-                    toNodeID: childID,
-                    distance: distance,
-                    isSuggested: false,
-                    // Suggest Connection (generates a suggested midpoint node between two Nodes)
-                    // is disabled for now.
-                    showSuggestButton: false
-                )
-            )
-            connected.insert(childIndex)
-            latest = childIndex
+        for index in builtNodes.indices {
+            builtNodes[index].position = restoredPosition(for: builtNodes[index].id) ?? .zero
         }
+        let builtEdges: [EdgeModel] = []
         return (builtNodes, builtEdges)
     }
 
     private func provisionalClusterLabel(for insights: [InsightModel]) -> String {
         guard let first = insights.first else { return "New Subject" }
         return insights.count > 1 ? "Related Insights" : "Exploring \(first.title)"
-    }
-
-    private func chainExtensionPosition(
-        from sourceNode: NodeModel,
-        nodes: [NodeModel],
-        edges: [EdgeModel],
-        bondLength: CGFloat = mapDistanceToLength(0.18)   // matches the promoted-node edge's target length
-    ) -> CGPoint {
-        let occupiedAngles: [CGFloat] = edges.compactMap { edge in
-            let neighborID: UUID
-            if edge.toNodeID == sourceNode.id { neighborID = edge.fromNodeID }
-            else if edge.fromNodeID == sourceNode.id { neighborID = edge.toNodeID }
-            else { return nil }
-            guard let neighbor = nodes.first(where: { $0.id == neighborID }) else { return nil }
-            return atan2(neighbor.position.y - sourceNode.position.y, neighbor.position.x - sourceNode.position.x)
-        }
-
-        let angle: CGFloat
-        if occupiedAngles.isEmpty {
-            angle = -.pi / 2
-        } else if occupiedAngles.count == 1 {
-            let bendDegrees: CGFloat = 32
-            angle = normalizedAngle(occupiedAngles[0] + .pi + chainBendDirection(for: sourceNode.id) * bendDegrees * .pi / 180)
-        } else {
-            angle = maximizedGapAngle(among: occupiedAngles)
-        }
-
-        return CGPoint(
-            x: sourceNode.position.x + cos(angle) * bondLength,
-            y: sourceNode.position.y + sin(angle) * bondLength
-        )
-    }
-
-    /// Deterministic left/right alternation for `chainExtensionPosition`'s single-bond bend,
-    /// keyed off the growing node's own id (stable across relaunches, unlike an index into
-    /// whatever order the current rebuild happens to process nodes in) so the same chain always
-    /// curves the same way instead of jittering between rebuilds.
-    private func chainBendDirection(for nodeID: UUID) -> CGFloat {
-        stableUUID(from: "chain-bend:\(nodeID)").uuid.0 % 2 == 0 ? 1 : -1
-    }
-
-    /// The angle that maximizes angular separation from every angle in `angles`: the bisector of
-    /// the largest gap between them going around the circle. With one existing angle this is
-    /// exactly its opposite (180°); with several, it's the widest open gap — the same "maximum
-    /// separation" rule VSEPR uses to spread bonds around an atom.
-    private func maximizedGapAngle(among angles: [CGFloat]) -> CGFloat {
-        let twoPi = CGFloat.pi * 2
-        let sorted = angles.map { normalizedAngle($0) }.sorted()
-        guard sorted.count > 1 else { return normalizedAngle(sorted[0] + .pi) }
-
-        var bestGapStart = sorted[0]
-        var bestGapSize: CGFloat = 0
-        for i in sorted.indices {
-            let start = sorted[i]
-            let end = (i + 1 < sorted.count ? sorted[i + 1] : sorted[0] + twoPi)
-            let gap = end - start
-            if gap > bestGapSize {
-                bestGapSize = gap
-                bestGapStart = start
-            }
-        }
-        return normalizedAngle(bestGapStart + bestGapSize / 2)
-    }
-
-    /// Wraps an angle to [0, 2π).
-    private func normalizedAngle(_ angle: CGFloat) -> CGFloat {
-        let twoPi = CGFloat.pi * 2
-        var a = angle.truncatingRemainder(dividingBy: twoPi)
-        if a < 0 { a += twoPi }
-        return a
     }
 
 }
@@ -339,6 +255,7 @@ nonisolated struct SemanticTreeResult: Sendable {
     let edges: [EdgeModel]
     let assignments: [UUID: UUID]
     let merges: [UUID: UUID]
+    var budParents: [UUID: UUID] = [:]
 }
 
 actor SemanticTreeWorker {
@@ -355,7 +272,8 @@ actor SemanticTreeWorker {
         var state = input
         let graph = PerformanceTrace.measure("Semantic Graph Build") { state.build(from: members) }
         let result = SemanticTreeResult(nodes: graph.nodes, edges: graph.edges,
-                                        assignments: state.insightClusterAssignments, merges: state.clusterMergeTargets)
+                                        assignments: state.insightClusterAssignments, merges: state.clusterMergeTargets,
+                                        budParents: state.budParents)
         if !Task.isCancelled { previousInput = input; previousMembers = members; previousResult = result }
         return result
     }

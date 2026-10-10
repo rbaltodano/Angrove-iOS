@@ -87,7 +87,19 @@ extension InsightTreeCanvasView {
                     reveal.revealedGraphEdgeIDs.formUnion(visible)
                 }
             }
-            .onChange(of: layoutTargets) { _, _ in
+            .onChange(of: layoutTargets) { _, targets in
+                // A regrown tree or a new bud moves concepts far; the weak anchor spring would
+                // only creep toward those, so they glide there directly.
+                var moved = bodies
+                for (id, target) in targets {
+                    guard var body = moved[id], hypot(body.pos.x - target.x, body.pos.y - target.y) > Self.regrowGlideDistance else { continue }
+                    body.pos = target
+                    body.vel = .zero
+                    moved[id] = body
+                }
+                if moved.count == bodies.count, moved.contains(where: { bodies[$0.key]?.pos != $0.value.pos }) {
+                    withAnimation(reduceMotion ? nil : .smooth(duration: 0.9)) { bodies = moved }
+                }
                 // New semantic targets (re-solve after a topology change): wake the sim so
                 // the anchor springs glide nodes to their new positions.
                 startSim(

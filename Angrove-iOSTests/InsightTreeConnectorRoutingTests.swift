@@ -26,7 +26,7 @@ struct InsightTreeConnectorRoutingTests {
         let route = try #require(InsightTreeConnectorRouting.routes(connectors: [connector], obstacles: [obstacle]).first)
         #expect(route.bend != 0)
         let samples = route.samples
-        #expect(!(0..<32).contains { InsightTreeConnectorRouting.segmentIntersectsRect(samples[$0], samples[$0 + 1], obstacle.rect) })
+        #expect(!(0..<route.segmentCount).contains { InsightTreeConnectorRouting.segmentIntersectsRect(samples[$0], samples[$0 + 1], obstacle.rect) })
         #expect(route.connector == connector)
     }
 

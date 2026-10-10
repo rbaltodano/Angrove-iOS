@@ -134,7 +134,7 @@ final class InsightTreeViewModel: ObservableObject {
     /// Minimum cosine similarity for an Insight to attach to an existing local Node. The bundled
     /// provider is MiniLM, matching the grounding corpus's embedding space. This value is centralized as a
     /// calibration constant so real-conversation evaluation can change it without touching layout.
-    private let localMembershipThreshold = InsightTreeSemanticPolicy.membershipSimilarity
+    private let localMembershipThreshold = InsightTreeGrowth.attachSimilarity
     /// On-device Node Concepts seeded from a conversation's questions (see
     /// `LocalInsightTreeSeedStore`). Fed into `makeClusteredTree` as pre-existing anchor clusters,
     /// so a saved Insight that's semantically related attaches under the seeded subject (see
@@ -261,6 +261,11 @@ final class InsightTreeViewModel: ObservableObject {
             storageKey: "\(Self.makeNodeChildrenStoreKeyPrefix):\(midpointStoreScope?.uuidString ?? "global")"
         )
         branchInsightCounts = InsightTreeLocalStateStore.load([UUID: Int].self, key: "aquinas.insight-tree.branch-counts.v1:\(midpointStoreScope?.uuidString ?? "global")") ?? [:]
+        treeParents = (InsightTreeLocalStateStore.load([String: String].self,
+            key: "aquinas.insight-tree.parents.v1:\(midpointStoreScope?.uuidString ?? "global")") ?? [:])
+            .reduce(into: [:]) { result, entry in
+                if let child = UUID(uuidString: entry.key), let parent = UUID(uuidString: entry.value) { result[child] = parent }
+            }
         generatedMakeNodeChildIDs = Set(generatedChildInsights.values.flatMap { $0.map(\.id) })
         scene = InsightTreeScene(size: CGSize(width: 390, height: 844))
         nodeBookmarks = InsightTreeLocalStateStore.load(NodeBookmarkState.self, key: nodeBookmarkStoreKey) ?? NodeBookmarkState()
@@ -392,7 +397,8 @@ final class InsightTreeViewModel: ObservableObject {
         }
         var correctedSeeds: [LocalInsightTreeSeed] = []
         for seed in originalSeeds + originalBookmarkAnchors {
-            if seed.embedding != nil,
+            // An empty vector (saved from a concept with no members yet) is not an embedding.
+            if seed.embedding?.isEmpty == false,
                (seed.embeddingVersion ?? NLEmbeddingProvider.version) == embeddingProvider.version {
                 correctedSeeds.append(seed)
             } else {
@@ -712,9 +718,11 @@ final class InsightTreeViewModel: ObservableObject {
         insightClusterAssignments = insightClusterAssignments.filter { !nodeBookmarks.removedNodeIDs.contains($0.value) }
         let placedMidpointIDs = Set(placedMidpoints.map { $0.concept.id })
         let attachedMakeNodeIDs = activeMakeNodeBookmarkIDs
+        // A concept still waiting for its first vector must not hold back every member's
+        // placement; it simply cannot attract Insights until the refresh embeds it.
         let seedsReady = effectiveSeedAnchors.allSatisfy {
-            $0.embedding != nil
-                && ($0.embeddingVersion ?? NLEmbeddingProvider.version) == embeddingProvider.version
+            ($0.embedding?.isEmpty ?? true)
+                || ($0.embeddingVersion ?? NLEmbeddingProvider.version) == embeddingProvider.version
         }
         let transferredIDs = Set(placedMidpoints.filter(\.isNodeConcept)
             .flatMap { $0.sources.filter { !$0.isNode }.map(\.insightID) })
@@ -745,7 +753,8 @@ final class InsightTreeViewModel: ObservableObject {
             var state = input
             let graph = state.build(from: members)
             applyGraph(SemanticTreeResult(nodes: graph.nodes, edges: graph.edges,
-                assignments: state.insightClusterAssignments, merges: state.clusterMergeTargets), embeddedInsights: embeddedInsights)
+                assignments: state.insightClusterAssignments, merges: state.clusterMergeTargets,
+                budParents: state.budParents), embeddedInsights: embeddedInsights)
         }
     }
 
@@ -755,12 +764,13 @@ final class InsightTreeViewModel: ObservableObject {
         appendPromotedNodes(to: &nextNodes, edges: &nextEdges, from: embeddedInsights)
         appendPlacedMidpointNodes(to: &nextNodes, edges: &nextEdges)
         applyNodeBookmarkTransfers(to: &nextNodes, edges: &nextEdges, merges: result.merges)
+        let grownIDs = growTree(nodes: &nextNodes, edges: &nextEdges, budParents: result.budParents)
         let relaxation = SemanticOverlapRelaxation(placedMidpointNodeIDs: placedMidpointNodeIDs,
             showsAllClusterInsights: showsAllClusterInsights)
         let relaxed = await graphWorker.relax(nextNodes, edges: nextEdges, using: relaxation)
         guard !Task.isCancelled, revision == graphRevision else { return }
         applyGraph(result, embeddedInsights: embeddedInsights, preparedNodes: relaxed.nodes, preparedEdges: nextEdges,
-                   spawnNodes: nextNodes, untangledIDs: relaxed.untangledIDs)
+                   spawnNodes: nextNodes, untangledIDs: relaxed.untangledIDs.union(grownIDs))
     }
 
     private func applyGraph(_ result: SemanticTreeResult, embeddedInsights: [InsightModel], preparedNodes: [NodeModel]? = nil, preparedEdges: [EdgeModel]? = nil, spawnNodes: [NodeModel]? = nil, untangledIDs: Set<UUID> = []) {
@@ -778,7 +788,9 @@ final class InsightTreeViewModel: ObservableObject {
             appendPromotedNodes(to: &nextNodes, edges: &nextEdges, from: embeddedInsights)
             appendPlacedMidpointNodes(to: &nextNodes, edges: &nextEdges)
         applyNodeBookmarkTransfers(to: &nextNodes, edges: &nextEdges, merges: result.merges)
+            let grownIDs = growTree(nodes: &nextNodes, edges: &nextEdges, budParents: result.budParents)
             adoptSpawnTargets(for: nextNodes)
+            adoptUntangledTargets(grownIDs, in: nextNodes)
             let relaxed = separateOverlaps(nodes: nextNodes, edges: nextEdges)
             nextNodes = relaxed.nodes
             adoptUntangledTargets(relaxed.untangledIDs, in: nextNodes)
@@ -797,7 +809,39 @@ final class InsightTreeViewModel: ObservableObject {
         }
         scene.render(nodes: nodes, edges: edges, animated: hasNew)
         requestClusterLabels(for: nextNodes)
+#if DEBUG
+        dumpTreeForTuning()
+#endif
     }
+
+#if DEBUG
+    /// TEMP: snapshot of the global tree for offline tuning of the growth rules.
+    private func dumpTreeForTuning() {
+        guard midpointStoreScope == nil, !nodes.isEmpty else { return }
+        struct DumpInsight: Encodable { let id: UUID; let title: String; let definition: String; let embedding: [Double]? }
+        struct DumpNode: Encodable {
+            let id: UUID; let label: String; let definition: String; let kind: String
+            let seed: [Double]?; let subject: [Double]?; let centroid: [Double]
+            let insightIDs: [UUID]; let x: Double; let y: Double
+        }
+        struct Dump: Encodable { let version: String; let nodes: [DumpNode]; let insights: [DumpInsight]; let edges: [[UUID]] }
+        let seeds = Dictionary(effectiveSeedAnchors.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        var allInsights: [UUID: InsightModel] = [:]
+        for node in nodes { for insight in node.insights { allInsights[insight.id] = insight } }
+        let dump = Dump(version: embeddingProvider.version, nodes: nodes.map { node in
+            let kind = placedMidpointNodeIDs.contains(node.id) ? "placedMidpoint" : node.isMidpointConcept ? "midpointConcept"
+                : promotedSourceInsightID(forNodeID: node.id) != nil ? "promoted" : seeds[node.id] != nil ? "seed" : "cluster"
+            return DumpNode(id: node.id, label: node.conceptLabel, definition: node.definition, kind: kind,
+                seed: seeds[node.id]?.embedding, subject: clusterSubjectEmbeddings[node.id]?.vector, centroid: node.embedding,
+                insightIDs: node.insights.map(\.id), x: node.position.x, y: node.position.y)
+        }, insights: allInsights.values.map { DumpInsight(id: $0.id, title: $0.title, definition: $0.definition, embedding: $0.embedding) },
+           edges: edges.map { [$0.fromNodeID, $0.toNodeID] })
+        guard let data = try? JSONEncoder().encode(dump),
+              let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("tree-dump.json") else { return }
+        try? data.write(to: url)
+        fputs("[TreeDump] wrote \(nodes.count) nodes, \(allInsights.count) insights, version \(embeddingProvider.version)\n", stderr)
+    }
+#endif
 
     /// Bond length per visible insight = relatedness (semantic distance) to its parent node's
     /// centroid embedding. Midpoint nodes (bare center chip) are skipped.
@@ -1117,13 +1161,20 @@ final class InsightTreeViewModel: ObservableObject {
                 && !$0.conceptLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
         for node in completed where promotedSourceInsightID(forNodeID: node.id) == nil && !node.isMidpointConcept {
+            let existing = nodeBookmarks.anchors.first { $0.id == node.id }
+            // Keep a real saved vector; never replace it with an empty one.
+            let kept = existing.flatMap { anchor in
+                anchor.embedding?.isEmpty == false && anchor.label == node.conceptLabel && anchor.summary == node.definition ? anchor : nil
+            }
             let seed = LocalInsightTreeSeed(id: node.id, label: node.conceptLabel, summary: node.definition,
-                embedding: node.embedding, embeddingVersion: embeddingProvider.version,
-                createdAt: nodeBookmarks.anchors.first { $0.id == node.id }?.createdAt ?? Date())
+                embedding: kept?.embedding ?? (node.embedding.isEmpty ? nil : node.embedding),
+                embeddingVersion: kept?.embeddingVersion ?? embeddingProvider.version,
+                createdAt: existing?.createdAt ?? Date())
             nodeBookmarks.anchors.removeAll { $0.id == node.id }
             nodeBookmarks.anchors.append(seed)
         }
         persistNodeBookmarks()
+        if nodeBookmarks.anchors.contains(where: { $0.embedding?.isEmpty != false }) { refreshEmbeddingsIfNeeded() }
         let scopeInsightIDs = Set(insights.map(\.id) + nodes.flatMap(\.insights).map(\.id))
         var references = InsightTreeLocalStateStore.load([NodeBookmarkReference].self, key: Self.nodeCatalogKey) ?? []
         references.removeAll { $0.scope == midpointStoreScope }
@@ -1587,6 +1638,103 @@ final class InsightTreeViewModel: ObservableObject {
             preservesMatchingTitle: placedMidpointNodeIDs.contains(node.id) || node.isMidpointConcept
         )
         return showsAllClusterInsights || node.isMidpointConcept ? members : Array(members.prefix(6))
+    }
+
+    // MARK: - Growth
+
+    /// Each concept's saved parent, scoped like the other canvas stores.
+    private var treeParents: [UUID: UUID] = [:]
+    private var treeParentsStoreKey: String {
+        "aquinas.insight-tree.parents.v1:\(midpointStoreScope?.uuidString ?? "global")"
+    }
+    /// Set once a scope's tree has been laid out by `InsightTreeGrowth` with real vectors.
+    private var grownLayoutStoreKey: String {
+        "aquinas.insight-tree.grown-layout.v1:\(midpointStoreScope?.uuidString ?? "global")"
+    }
+
+    /// Attaches every concept to one parent (saved, explicit, or chosen once by subject
+    /// similarity), draws that line, and places concepts that have no position yet. The first
+    /// time a scope is grown with real vectors, every concept is placed fresh from the root, so
+    /// older trees whose lines and positions came from different passes become coherent.
+    /// Returns the concepts given a new position, whose layout anchors must follow them.
+    private func growTree(nodes: inout [NodeModel], edges: inout [EdgeModel], budParents: [UUID: UUID]) -> Set<UUID> {
+        let excluded = Set(nodes.filter { $0.isSuggested || placedMidpointNodeIDs.contains($0.id) }.map(\.id))
+        let growing = nodes.filter { !excluded.contains($0.id) }
+        guard !growing.isEmpty else { return [] }
+        let ids = Set(growing.map(\.id))
+        let seeds = Dictionary(effectiveSeedAnchors.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+
+        func vector(for node: NodeModel) -> [Double] {
+            if let subject = clusterSubjectEmbeddings[node.id], subject.version == embeddingProvider.version { return subject.vector }
+            if let midpoint = midpointEmbeddings[node.id], midpoint.version == embeddingProvider.version { return midpoint.vector }
+            if let seed = seeds[node.id], (seed.embeddingVersion ?? NLEmbeddingProvider.version) == embeddingProvider.version,
+               let embedding = seed.embedding, !embedding.isEmpty { return embedding }
+            return node.embedding
+        }
+        let vectors = Dictionary(growing.map { ($0.id, vector(for: $0)) }, uniquingKeysWith: { first, _ in first })
+
+        // Explicit parents come from the structural lines already present: Make Node origins,
+        // Branch parents, and a Midpoint's sources. The most similar one is the tree parent.
+        var explicit: [UUID: [UUID]] = [:]
+        for edge in edges where ids.contains(edge.fromNodeID) && ids.contains(edge.toNodeID) {
+            explicit[edge.toNodeID, default: []].append(edge.fromNodeID)
+        }
+        for (child, parents) in explicit {
+            let own = vectors[child] ?? []
+            explicit[child] = parents.sorted { lhs, rhs in
+                let left = (vectors[lhs]?.count == own.count && !own.isEmpty) ? cosineSimilarity(own, vectors[lhs]!) : -1
+                let right = (vectors[rhs]?.count == own.count && !own.isEmpty) ? cosineSimilarity(own, vectors[rhs]!) : -1
+                return left == right ? lhs.uuidString < rhs.uuidString : left > right
+            }
+        }
+        for (bud, parent) in budParents where ids.contains(bud) { treeParents[bud] = parent }
+
+        // Concepts that share a Midpoint sit near each other, keeping the Midpoint between them short.
+        var affinity: [Set<UUID>: Double] = [:]
+        for parents in explicit.values where parents.count > 1 {
+            for a in parents { for b in parents where a != b { affinity[[a, b]] = InsightTreeGrowth.sharedMidpointAffinity } }
+        }
+
+        let relaxation = SemanticOverlapRelaxation(placedMidpointNodeIDs: placedMidpointNodeIDs,
+            showsAllClusterInsights: showsAllClusterInsights)
+        let placedConcepts = Dictionary(placedMidpoints.map { ($0.concept.id, $0.position) }, uniquingKeysWith: { first, _ in first })
+        let growthNodes = growing.map { node in
+            let fixed = explicit[node.id] ?? treeParents[node.id].map { [$0] } ?? []
+            return InsightTreeGrowth.Node(
+                id: node.id, vector: vectors[node.id] ?? [], fixedParents: fixed,
+                restoredPosition: restoredPosition(for: node.id) ?? placedConcepts[node.id],
+                radius: relaxation.footprintRadius(of: node),
+                leansToward: node.isMidpointConcept ? (explicit[node.id] ?? []) : [])
+        }
+        let ready = growthNodes.allSatisfy { !$0.vector.isEmpty }
+        let relayout = ready && InsightTreeLocalStateStore.load(Bool.self, key: grownLayoutStoreKey) != true
+        let grown = InsightTreeGrowth.grow(growthNodes, affinity: affinity, relayout: relayout)
+
+        for index in nodes.indices {
+            if let point = grown.positions[nodes[index].id] { nodes[index].position = point }
+        }
+        for (child, parent) in grown.parents.sorted(by: { $0.key.uuidString < $1.key.uuidString }) {
+            guard !edges.contains(where: { Set([$0.fromNodeID, $0.toNodeID]) == Set([child, parent]) }) else { continue }
+            let own = vectors[child] ?? [], other = vectors[parent] ?? []
+            let distance = own.count == other.count && !own.isEmpty ? semanticDistance(own, other) : 1
+            edges.append(EdgeModel(id: stableUUID(from: "tree:\(parent):\(child)"), fromNodeID: parent, toNodeID: child,
+                distance: distance, isSuggested: false, showSuggestButton: false))
+        }
+        let treePairs = Set(grown.parents.map { Set([$0.key, $0.value]) })
+        for index in edges.indices where ids.contains(edges[index].fromNodeID) && ids.contains(edges[index].toNodeID) {
+            edges[index].isSecondary = !treePairs.contains(Set([edges[index].fromNodeID, edges[index].toNodeID]))
+        }
+
+        // Only free concepts keep a saved parent; explicit ones are re-derived from their lines.
+        var nextParents = treeParents
+        for (child, parent) in grown.persistableParents where explicit[child] == nil { nextParents[child] = parent }
+        if nextParents != treeParents {
+            treeParents = nextParents
+            InsightTreeLocalStateStore.save(treeParents.reduce(into: [String: String]()) { $0[$1.key.uuidString] = $1.value.uuidString },
+                                            key: treeParentsStoreKey)
+        }
+        if relayout { InsightTreeLocalStateStore.save(true, key: grownLayoutStoreKey) }
+        return grown.placed
     }
 
     /// Gently pushes apart only the nodes whose footprints overlap, starting from their current

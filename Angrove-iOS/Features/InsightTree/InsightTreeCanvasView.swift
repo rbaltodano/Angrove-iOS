@@ -138,6 +138,7 @@ struct InsightTreeCanvasView: View {
     /// Per-node simulated position + velocity. The canvas briefly relaxes these from the
     /// view model's seed positions after topology changes, then freezes to avoid passive drift.
     @State var bodies: [UUID: SimBody] = [:]
+    @State var connectorBendCache = InsightTreeConnectorBendCache()
     /// Per-insight free bond angle around its node; VSEPR repulsion spreads chips to maximize
     /// angular separation. Keyed by insight id.
     @State var chipAngles: [UUID: ChipAngle] = [:]

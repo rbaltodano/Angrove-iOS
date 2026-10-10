@@ -29,7 +29,8 @@ extension InsightTreeCanvasView {
                     id: $0.id.uuidString,
                     fromNodeID: $0.fromNodeID,
                     toNodeID: $0.toNodeID,
-                    isSuggested: $0.isSuggested
+                    isSuggested: $0.isSuggested,
+                    isSecondary: $0.isSecondary
                 )
             }
         }

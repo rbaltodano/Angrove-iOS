@@ -199,7 +199,7 @@ nonisolated enum InsightTreeEdgeUntangling {
 
     /// The nodes reachable from `tip` without crossing back over its bond to `pivot`. Nil when
     /// the bond sits on a cycle, because rotating one side would then stretch another bond.
-    static func pendantSide(from tip: UUID, across pivot: UUID, adjacency: [UUID: [UUID]]) -> Set<UUID>? {
+    private static func pendantSide(from tip: UUID, across pivot: UUID, adjacency: [UUID: [UUID]]) -> Set<UUID>? {
         var side: Set<UUID> = [tip]
         var queue = [tip]
         while let current = queue.popLast() {
@@ -229,7 +229,7 @@ nonisolated enum InsightTreeEdgeUntangling {
         return count
     }
 
-    static func overlapCount(_ side: Set<UUID>, _ ids: [UUID], _ positions: [UUID: CGPoint], _ radii: [UUID: CGFloat]) -> Int {
+    private static func overlapCount(_ side: Set<UUID>, _ ids: [UUID], _ positions: [UUID: CGPoint], _ radii: [UUID: CGFloat]) -> Int {
         var count = 0
         for id in side {
             guard let point = positions[id] else { continue }
@@ -242,48 +242,3 @@ nonisolated enum InsightTreeEdgeUntangling {
         return count
     }
 }
-
-#if DEBUG
-// TEMP diagnostics: why remaining crossings were not cleared.
-private func untangleLog(_ line: String) { fputs(line + "\n", stderr); fflush(stderr) }
-extension InsightTreeEdgeUntangling {
-    static func diagnose(positions: [UUID: CGPoint], result: [UUID: CGPoint], edges: [(UUID, UUID)],
-                         pinned: Set<UUID>, radii: [UUID: CGFloat], labels: [UUID: String], lengths: [Bond: CGFloat]) {
-        var bonds: [Bond] = []
-        for (f, t) in edges where f != t && positions[f] != nil && positions[t] != nil {
-            let b = f.uuidString < t.uuidString ? Bond(a: f, b: t) : Bond(a: t, b: f)
-            if !bonds.contains(b) { bonds.append(b) }
-        }
-        var adjacency: [UUID: [UUID]] = [:]
-        for b in bonds { adjacency[b.a, default: []].append(b.b); adjacency[b.b, default: []].append(b.a) }
-        let ids = Array(positions.keys)
-        func name(_ id: UUID) -> String { labels[id] ?? id.uuidString.prefix(4).description }
-        untangleLog("[Untangle] nodes=\(positions.count) bonds=\(bonds.count) pinned=\(pinned.count) crossings \(crossingCount(bonds, positions)) -> \(crossingCount(bonds, result)) moved=\(result.filter { positions[$0.key] != $0.value }.count)")
-        for bond in bonds {
-            guard let goal = lengths[bond], let p = result[bond.a], let q = result[bond.b] else { continue }
-            let length = hypot(p.x - q.x, p.y - q.y)
-            guard length > goal * stretchLimit else { continue }
-            let sideA = pendantSide(from: bond.a, across: bond.b, adjacency: adjacency)
-            let sideB = pendantSide(from: bond.b, across: bond.a, adjacency: adjacency)
-            func describe(_ side: Set<UUID>?) -> String {
-                guard let side else { return "loop" }
-                return side.isDisjoint(with: pinned) ? "free(\(side.count))" : "pinned(\(side.count))"
-            }
-            untangleLog("[Untangle] LONG \(name(bond.a))[\(pinned.contains(bond.a) ? "P" : "")]–\(name(bond.b))[\(pinned.contains(bond.b) ? "P" : "")] len \(Int(length)) goal \(Int(goal)) sideA \(describe(sideA)) sideB \(describe(sideB))")
-        }
-        for (x, y) in crossingPairs(bonds, result) {
-            var reasons: [String] = []
-            for bond in [x, y] {
-                for (pivot, tip) in [(bond.a, bond.b), (bond.b, bond.a)] {
-                    let tag = "\(name(pivot))→\(name(tip))"
-                    guard let side = pendantSide(from: tip, across: pivot, adjacency: adjacency) else { reasons.append("\(tag): cycle"); continue }
-                    if !side.isDisjoint(with: pinned) { reasons.append("\(tag): pinned"); continue }
-                    let over = overlapCount(side, ids, result, radii)
-                    reasons.append("\(tag): side \(side.count), overlaps \(over), radius \(Int(radii[tip] ?? 0))")
-                }
-            }
-            untangleLog("[Untangle] X \(name(x.a))–\(name(x.b)) × \(name(y.a))–\(name(y.b)) | " + reasons.joined(separator: "; "))
-        }
-    }
-}
-#endif
