@@ -59,5 +59,6 @@ struct Angrove_iOSApp: App {
         ContentView(modelTasks: runtime.modelTasks)
             .environment(\.angroveModel, runtime.model)
             .environment(\.embeddingProvider, runtime.embeddingProvider)
+            .onAppear { NewUserCardEligibility.registerFirstUse() }
     }
 }

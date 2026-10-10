@@ -217,7 +217,7 @@ struct InsightTreeView: View {
         showQuestionBar: Bool = true,
         modelTasks: ModelTaskQueue? = nil,
         modelTaskOriginPage: ModelTaskOriginPage = .insights,
-        model: AngroveModel = MockAngroveModel(),
+        model: AngroveModel = UnavailableAngroveModel(),
         embeddingProvider: EmbeddingProvider = NLEmbeddingProvider()
     ) {
         self.insights              = insights

@@ -60,7 +60,7 @@ struct MiniLMGroundingRetrievalTests {
             for: "What was the second ecumenical council?",
             limit: 3
         )
-        // LiteRTAngroveModel.verifiedGroundedResponse gates on this exact id.
+        // The generation prompt receives this exact primary-source reference.
         #expect(references.contains { $0.id == "constantinople-381" })
     }
 
@@ -136,23 +136,7 @@ struct MiniLMGroundingRetrievalTests {
         )
     }
 
-    @MainActor
-    @Test("Direct authority answers render the retrieved primary-source text")
-    func trentJustificationUsesPrimarySourceText() throws {
-        let question = "What did the Council of Trent teach about justification?"
-        let provider = try MiniLMGroundingProvider()
-        let references = provider.references(for: question, limit: 3)
-        let response = try #require(
-            LiteRTAngroveModel.groundedResponse(
-                for: question,
-                references: references
-            )
-        )
 
-        #expect(response.text.contains("From Canons and Decrees of the Council of Trent"))
-        #expect(response.text.contains("not remission of sins merely"))
-        #expect(response.keyTerms.isEmpty)
-    }
 
     @Test("A person named as the whole question still searches within that source")
     func ariusQuestionUsesCouncilSource() throws {

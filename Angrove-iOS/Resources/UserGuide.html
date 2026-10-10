@@ -32,7 +32,6 @@
   --ink: #120F0C;
   --logo: #2B2520;
   --light-green: #86803E;
-  --accent-gold: #A28F1E;
   --dark-green-text: #B7AE78;
   --cream: #FFFAF0;
   --border: rgba(var(--guide-border-rgb), 0.08);
@@ -73,7 +72,7 @@ a { color: inherit; text-decoration: none; transition: color 0.25s ease, border-
 }
 .display--tight { letter-spacing: -0.05em; }
 .display em { font-style: italic; color: var(--light-green); }
-.display em.gold { color: var(--accent-gold); }
+.display em.gold { color: var(--light-green); }
 
 .heading-md {
   font-family: var(--serif);
@@ -608,7 +607,7 @@ a { color: inherit; text-decoration: none; transition: color 0.25s ease, border-
 .pillar:last-child { padding-right: 0; }
 .pillar + .pillar { border-left: 1px solid var(--border); }
 .pillar__top { display: flex; align-items: baseline; gap: 12px; }
-.pillar__num { font-family: var(--serif); font-size: 18px; color: var(--accent-gold); min-width: 1.6em; }
+.pillar__num { font-family: var(--serif); font-size: 18px; color: var(--light-green); min-width: 1.6em; }
 .pillar h3 {
   font-weight: 700;
   font-size: 14px;
@@ -1935,6 +1934,7 @@ a { color: inherit; text-decoration: none; transition: color 0.25s ease, border-
 }
 .guide-list li + li a { border-top: 1px solid var(--border); }
 .guide-list [data-guide-topic] span { flex: 1; padding: 10px 0; }
+.guide-list [data-guide-topic] .guide-unread-dot { flex: none; width: 8px; height: 8px; padding: 0; border-radius: 50%; background: var(--unread-dot); }
 .guide-list [data-guide-topic] .ic { font-size: 16px; width: 20px; }
 .guide-list [data-guide-topic] .ic--chev { font-size: 12px; width: 12px; stroke-width: 2.4; opacity: 0.6; }
 .guide-list [data-guide-topic]:hover, .guide-list [data-guide-topic][aria-current="true"] { color: var(--light-green); }
@@ -3776,6 +3776,21 @@ code.cmd { background: var(--canvas-secondary); }
 (function () {
   var context = window.guideContext || {};
   var topic = context.topicID || null;
+  window.restoreGuideVisitedTopics = function (visited) {
+    context.visitedTopics = visited || [];
+    document.querySelectorAll('[data-guide-topic]').forEach(function (button) {
+      var dot = button.querySelector('.guide-unread-dot');
+      var unread = context.visitedTopics.indexOf(button.dataset.guideTopic) < 0;
+      if (!unread && dot) dot.remove();
+      if (unread && !dot) {
+        dot = document.createElement('span');
+        dot.className = 'guide-unread-dot';
+        dot.setAttribute('role', 'img');
+        dot.setAttribute('aria-label', 'Not opened');
+        button.insertBefore(dot, button.querySelector('.ic--chev'));
+      }
+    });
+  };
   window.angroveSaved = context.savedTerms || [];
   var topics = Array.from(document.querySelectorAll('.guide-topic'));
   if (topic) {
@@ -3787,9 +3802,13 @@ code.cmd { background: var(--canvas-secondary); }
     document.querySelector('.guide__topics').remove();
     document.querySelectorAll('[data-guide-topic]').forEach(function (button) {
       button.addEventListener('click', function () {
+        var visited = (context.visitedTopics || []).slice();
+        if (visited.indexOf(button.dataset.guideTopic) < 0) visited.push(button.dataset.guideTopic);
+        window.restoreGuideVisitedTopics(visited);
         window.webkit.messageHandlers.guideTopic.postMessage(button.dataset.guideTopic);
       });
     });
+    window.restoreGuideVisitedTopics(context.visitedTopics);
   }
 
   var palette = {};

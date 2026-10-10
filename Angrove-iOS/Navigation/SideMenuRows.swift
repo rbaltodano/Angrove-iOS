@@ -25,7 +25,7 @@ struct SideMenuRow: View {
                     if showsIcon {
                         Image(systemName: icon)
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(AngroveTheme.Colors.accentGreen)
+                            .foregroundColor(AngroveTheme.Colors.lightGreen)
                             .frame(width: 16, height: 16)
                             .sfSymbolDrawOn()
                     } else {
@@ -188,7 +188,7 @@ struct ConversationSpeakingIndicator: View {
         if speech.activeConversationID == conversationID, speech.phase != .idle {
             Image(systemName: "speaker.wave.2.fill")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(AngroveTheme.Colors.accentGreen)
+                .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 .symbolEffect(.variableColor.iterative, isActive: speech.phase == .speaking && !speech.isPaused && !reduceMotion)
                 .accessibilityLabel("Reading aloud")
         }
@@ -376,7 +376,7 @@ struct StudyTopicMenuRow: View {
             HStack(spacing: 12) {
                 Image(systemName: "square.stack")
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(AngroveTheme.Colors.accentGreen)
+                    .foregroundColor(AngroveTheme.Colors.lightGreen)
                     .frame(width: 16, height: 16)
                     .sfSymbolDrawOn()
 

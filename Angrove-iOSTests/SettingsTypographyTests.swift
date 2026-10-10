@@ -96,7 +96,15 @@ struct SettingsTypographyTests {
             conversationFontSize: .constant(.medium), conversationTextAlignment: .constant(.left),
             inputFont: .constant(.serif), responseFont: .constant(.serif))
         let appearancePage = AppearanceSettingsView(colorSchemeOverride: .constant(scheme))
-        for (name, page) in [("text-display", AnyView(textPage)), ("appearance", AnyView(appearancePage))] {
+        let feedbackPopup = ResponseFeedbackSheet(
+            report: ResponseFeedbackReport(question: "Example question", response: "Example response"))
+        let pages: [(String, AnyView)] = [
+            ("text-display", AnyView(textPage)),
+            ("appearance", AnyView(appearancePage)),
+            ("bug-report", AnyView(BugReportSettingsView())),
+            ("feedback-popup", AnyView(feedbackPopup))
+        ]
+        for (name, page) in pages {
             let window = try host(page.dynamicTypeSize(size).environment(\.colorScheme, scheme), width: 320, height: 1400)
             defer { window.isHidden = true }
             window.overrideUserInterfaceStyle = scheme == .dark ? .dark : .light

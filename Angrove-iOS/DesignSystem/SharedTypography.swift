@@ -32,7 +32,6 @@ enum AngroveTheme {
             darkAlpha: 0.25
         )
         static let lightGreen = Color(UIColor.angroveLinkGreen)
-        static let accentGreen = Color(light: 0xA28F1E, dark: 0xB7AE78)
         static let darkGreen = Color(light: 0x6F6844, dark: 0xB7AE78)
         static let primaryBrown = Color(light: 0x4A321C, dark: 0xFFFAF0)
         static let headingText = Color(light: 0x614C40, dark: 0xFFFAF0)
@@ -70,9 +69,9 @@ enum AngroveTheme {
             darkAlpha: 0.08
         )
         static let systemSelection = Color(light: 0xF0E9DA, dark: 0x181511)
-        /// A tint of `accentGreen` behind a response word while its Copy/Define menu is open.
+        /// A tint of `lightGreen` behind a response word while its Copy/Define menu is open.
         static let wordHighlight = Color(
-            light: 0xA28F1E,
+            light: 0x86803E,
             lightAlpha: 0.28,
             dark: 0xB7AE78,
             darkAlpha: 0.30
@@ -143,6 +142,7 @@ enum AngroveTheme {
     // Figtree carries UI labels, body copy, buttons, and cards.
     enum Typography {
         static let title = Font.custom("LibreBaskerville-Regular", size: 24)
+        static let illustratedCardHeading = Font.custom("LibreBaskerville-Regular", size: 28)
         static let titleLarge = Font.custom("LibreBaskerville-Regular", size: 34)
         static let titleHome = Font.custom("LibreBaskerville-Regular", size: 40)
         static let titleXLarge = Font.custom("LibreBaskerville-Regular", size: 40)
@@ -160,6 +160,10 @@ enum AngroveTheme {
 
         // Settings subpages follow the iPhone's Text Size setting.
         static let settingsTitle = Font.custom("LibreBaskerville-Regular", size: 28, relativeTo: .title)
+        static let settingsDetailTitle = Font.custom("LibreBaskerville-Regular", fixedSize: 40)
+        static let settingsGuideParagraph = Font.custom("Figtree-Regular", size: 18, relativeTo: .body)
+        static let settingsGuideLineSpacing: CGFloat = 8.1
+        static let settingsGuideTitleLineSpacing: CGFloat = 1.6
         static let settingsGuideTitle = Font.custom("LibreBaskerville-Regular", size: 34, relativeTo: .largeTitle)
         static let settingsHeading = Font.custom("Figtree-Bold", size: 17, relativeTo: .headline)
         static let settingsLabel = Font.custom("Figtree-Bold", size: 17, relativeTo: .body)
@@ -619,5 +623,23 @@ struct SettingsTextModifier: ViewModifier {
 extension View {
     func settingsText(_ role: SettingsTextModifier.Role) -> some View {
         modifier(SettingsTextModifier(role: role))
+    }
+}
+
+/// Matches the bundled User Guide's introductory copy (18pt Figtree, 1.65 line height).
+struct SettingsGuideParagraphModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .font(AngroveTheme.Typography.settingsGuideParagraph)
+            .lineSpacing(AngroveTheme.Typography.settingsGuideLineSpacing)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+extension View {
+    func settingsGuideParagraph() -> some View {
+        modifier(SettingsGuideParagraphModifier())
     }
 }

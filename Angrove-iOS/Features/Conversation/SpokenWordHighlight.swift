@@ -31,7 +31,7 @@ private let retainsReadWords = true
 /// An 8pt blur (a SwiftUI radius of 4) in the accent green, centered on the text.
 private struct GreenGlow: ViewModifier {
     func body(content: Content) -> some View {
-        content.shadow(color: AngroveTheme.Colors.accentGreen.opacity(0.5), radius: 4, x: 0, y: 0)
+        content.shadow(color: AngroveTheme.Colors.lightGreen.opacity(0.5), radius: 4, x: 0, y: 0)
     }
 }
 
@@ -71,7 +71,7 @@ private struct SpokenWordFill: ViewModifier {
                     wipe(progress: reduceMotion ? 1 : speech.progress(ofWord: index) ?? 0)
                 }
             } else if isRetained {
-                fill.foregroundColor(AngroveTheme.Colors.accentGreen).modifier(GreenGlow())
+                fill.foregroundColor(AngroveTheme.Colors.lightGreen).modifier(GreenGlow())
             }
         }
     }
@@ -83,7 +83,7 @@ private struct SpokenWordFill: ViewModifier {
         let start = min(max(front, 0), 1)
         let end = max(min(front + soft, 1), start + 0.0001)
         return fill
-            .foregroundColor(AngroveTheme.Colors.accentGreen)
+            .foregroundColor(AngroveTheme.Colors.lightGreen)
             .mask {
                 LinearGradient(
                     stops: [

@@ -500,7 +500,7 @@ final class CommandHighlightTextView: UITextView {
         let fullRange = NSRange(location: 0, length: textStorage.length)
         textStorage.addAttribute(.foregroundColor, value: baseColor, range: fullRange)
         if let commandRange, NSMaxRange(commandRange) <= textStorage.length {
-            let green = UIColor(AngroveTheme.Colors.accentGreen).resolvedColor(with: traitCollection)
+            let green = UIColor(AngroveTheme.Colors.lightGreen).resolvedColor(with: traitCollection)
             var color = green
             if progress < 1, bounds.width > 0, bounds.height > 0 {
                 let glyphRange = layoutManager.glyphRange(forCharacterRange: commandRange, actualCharacterRange: nil)

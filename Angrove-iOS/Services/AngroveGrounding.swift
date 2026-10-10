@@ -298,7 +298,7 @@ nonisolated struct LocalAngroveGroundingProvider: AngroveGroundingProviding {
     /// text: "Nicene Creed" appears once in the whole export (incidentally, in the Thirty-Nine
     /// Articles) and "begotten, not made" once, so semantic search answers council questions out
     /// of Livy and Herodotus. These curated entries carry the anti-confusion facts that coverage
-    /// gap would otherwise lose, and their stable ids are what `verifiedGroundedResponse` gates on.
+    /// gap would otherwise lose. They supply evidence to generation, never replacement answers.
     static func aliasMatchedReferences(
         for question: String,
         limit: Int

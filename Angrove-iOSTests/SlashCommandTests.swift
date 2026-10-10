@@ -15,7 +15,7 @@ struct SlashCommandTests {
         editor.updateCommandHighlight(baseColor: .angrovePrimaryReadable)
         try await Task.sleep(for: .milliseconds(1100))
         editor.layoutSubviews()
-        let green = UIColor(AngroveTheme.Colors.accentGreen).resolvedColor(with: editor.traitCollection)
+        let green = UIColor(AngroveTheme.Colors.lightGreen).resolvedColor(with: editor.traitCollection)
         #expect(editor.text == "/rename Reading Notes")
         #expect(editor.selectedRange == selection)
         #expect((editor.textStorage.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor) == green)
@@ -50,7 +50,7 @@ struct SlashCommandTests {
         editor.updateCommandHighlight(baseColor: .angrovePrimaryReadable)
         try await Task.sleep(for: .milliseconds(1100))
         editor.layoutSubviews()
-        let green = UIColor(AngroveTheme.Colors.accentGreen).resolvedColor(with: editor.traitCollection)
+        let green = UIColor(AngroveTheme.Colors.lightGreen).resolvedColor(with: editor.traitCollection)
         #expect((editor.textStorage.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor) == green)
         #expect(editor.text == "/clear")
     }

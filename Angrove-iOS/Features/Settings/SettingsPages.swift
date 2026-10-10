@@ -621,12 +621,9 @@ struct SettingsInformationView: View {
 
     var body: some View {
         SettingsDetailScaffold(title: title) {
-            SettingsControlCard {
-                Text(message)
-                    .settingsText(.paragraph)
-                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text(message)
+                .settingsGuideParagraph()
+                .foregroundStyle(AngroveTheme.Colors.paragraphText)
         }
     }
 }
@@ -651,17 +648,9 @@ struct BugReportSettingsView: View {
     var body: some View {
         SettingsDetailScaffold(title: "Report a Bug") {
             VStack(alignment: .leading, spacing: 24) {
-                HStack(alignment: .top, spacing: 14) {
-                    Image(systemName: "lock.shield")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(AngroveTheme.Colors.accentGreen)
-                        .frame(width: 24, height: 24)
-                        .accessibilityHidden(true)
-                    Text("Tell us what went wrong. This app runs on your device. Sending this report is the one exception: it shares what you write below plus your app version, build number, and iOS version. Nothing is sent unless you tap Send Report. Please leave out passwords or private conversations.")
-                        .settingsText(.paragraph)
-                        .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text("Tell us what went wrong. This app runs on your device. Sending this report is the one exception: it shares what you write below plus your app version, build number, and iOS version. Nothing is sent unless you tap Send Report. Please leave out passwords or private conversations.")
+                    .settingsGuideParagraph()
+                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
 
                 reportField(
                     title: "What happened?",
@@ -728,10 +717,10 @@ struct BugReportSettingsView: View {
                         HStack(alignment: .top, spacing: 10) {
                             Image(systemName: hasFailed ? "exclamationmark.circle" : hasSent ? "checkmark.circle" : "ellipsis.circle")
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundStyle(hasFailed ? AngroveTheme.Colors.accentRed : AngroveTheme.Colors.accentGreen)
+                                .foregroundStyle(hasFailed ? AngroveTheme.Colors.accentRed : AngroveTheme.Colors.lightGreen)
                                 .accessibilityHidden(true)
                             Text(statusMessage)
-                                .settingsText(.paragraph)
+                                .settingsGuideParagraph()
                                 .foregroundStyle(AngroveTheme.Colors.paragraphText)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -772,7 +761,7 @@ struct BugReportSettingsView: View {
                 .overlay {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .stroke(
-                            isFocused ? AngroveTheme.Colors.accentGreen : AngroveTheme.Colors.controlBorder,
+                            isFocused ? AngroveTheme.Colors.lightGreen : AngroveTheme.Colors.controlBorder,
                             lineWidth: isFocused ? 1.5 : 1
                         )
                 }
@@ -780,7 +769,7 @@ struct BugReportSettingsView: View {
 
             if let footnote {
                 Text(footnote)
-                    .settingsText(.paragraph)
+                    .settingsGuideParagraph()
                     .foregroundStyle(AngroveTheme.Colors.paragraphText.opacity(0.8))
             }
         }
@@ -794,7 +783,8 @@ struct BugReportSettingsView: View {
         label: String
     ) -> some View {
         TextEditor(text: text)
-            .settingsText(.control)
+            .font(AngroveTheme.Typography.settingsGuideParagraph)
+            .lineSpacing(AngroveTheme.Typography.settingsGuideLineSpacing)
             .foregroundStyle(AngroveTheme.Colors.primaryReadable)
             .scrollContentBackground(.hidden)
             .focused($focusedField, equals: field)
@@ -804,7 +794,8 @@ struct BugReportSettingsView: View {
             .overlay(alignment: .topLeading) {
                 if text.wrappedValue.isEmpty {
                     Text(prompt)
-                        .settingsText(.control)
+                        .font(AngroveTheme.Typography.settingsGuideParagraph)
+                        .lineSpacing(AngroveTheme.Typography.settingsGuideLineSpacing)
                         .foregroundStyle(AngroveTheme.Colors.paragraphText.opacity(0.55))
                         .allowsHitTesting(false)
                 }

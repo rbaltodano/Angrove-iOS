@@ -43,8 +43,7 @@ nonisolated final class MiniLMGroundingProvider: AngroveGroundingProviding {
     ///
     /// 1. **Curated facts.** The export carries almost no conciliar or creedal text, so council
     ///    questions retrieve Roman history. Alias-matched curated entries cover that gap and are
-    ///    the only source of the stable ids (`nicaea-325`, `constantinople-381`, …) that
-    ///    `LiteRTAngroveModel.verifiedGroundedResponse` gates its verified answers on.
+    ///    provide stable ids (`nicaea-325`, `constantinople-381`, …) for prompt evidence.
     /// 2. **Explicit citations.** "John 14" is a lookup key, not a topic; resolved lexically
     ///    against the corpus's own chapter tags. See `ScriptureCitation`.
     /// 3. **Authority-section lookup.** A named doctrinal question such as Trent on justification

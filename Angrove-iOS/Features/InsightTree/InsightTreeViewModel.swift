@@ -170,7 +170,7 @@ final class InsightTreeViewModel: ObservableObject {
         insights: [ConceptDefinition],
         promotedInsightIDs: [UUID] = [],
         showsAllClusterInsights: Bool = false,
-        model: AngroveModel = MockAngroveModel(),
+        model: AngroveModel = UnavailableAngroveModel(),
         modelTasks: ModelTaskQueue? = nil,
         modelTaskOriginPage: ModelTaskOriginPage = .insights,
         embeddingProvider: EmbeddingProvider = NLEmbeddingProvider(),

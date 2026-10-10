@@ -585,7 +585,7 @@ struct InquiryControlDock: View {
         } label: {
             Image(systemName: "speaker.wave.2.fill")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(AngroveTheme.Colors.accentGreen)
+                .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 .symbolEffect(
                     .variableColor.iterative,
                     isActive: speech.phase == .speaking && !speech.isPaused

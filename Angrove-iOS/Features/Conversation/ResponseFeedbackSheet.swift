@@ -59,14 +59,24 @@ struct ResponseFeedbackSheet: View {
         NavigationStack {
             // Scrolls so the attachment preview and keyboard fit on small phones.
             ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Report a Bug")
+                    .font(AngroveTheme.Typography.settingsDetailTitle)
+                    .foregroundStyle(AngroveTheme.Colors.headingText)
+                    .lineSpacing(AngroveTheme.Typography.settingsGuideTitleLineSpacing)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+
                 Text("What went wrong with this response? This app runs on your device. Sending this report is the one exception. It shares your note plus your app version, build number, and iOS version. Nothing is sent unless you tap Send Report. Please leave out anything private.")
-                    .settingsText(.paragraph)
+                    .settingsGuideParagraph()
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
                     .fixedSize(horizontal: false, vertical: true)
 
                 TextEditor(text: $feedback)
-                    .settingsText(.control)
+                    .font(AngroveTheme.Typography.settingsGuideParagraph)
+                    .lineSpacing(AngroveTheme.Typography.settingsGuideLineSpacing)
                     .foregroundStyle(AngroveTheme.Colors.primaryReadable)
                     .scrollContentBackground(.hidden)
                     .focused($isFocused)
@@ -78,14 +88,15 @@ struct ResponseFeedbackSheet: View {
                     .overlay {
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
                             .stroke(
-                                isFocused ? AngroveTheme.Colors.accentGreen : AngroveTheme.Colors.controlBorder,
+                                isFocused ? AngroveTheme.Colors.lightGreen : AngroveTheme.Colors.controlBorder,
                                 lineWidth: isFocused ? 1.5 : 1
                             )
                     }
                     .overlay(alignment: .topLeading) {
                         if feedback.isEmpty {
                             Text("Tell us what was wrong or unhelpful")
-                                .settingsText(.control)
+                                .font(AngroveTheme.Typography.settingsGuideParagraph)
+                                .lineSpacing(AngroveTheme.Typography.settingsGuideLineSpacing)
                                 .foregroundStyle(AngroveTheme.Colors.paragraphText.opacity(0.55))
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 14)
@@ -100,18 +111,18 @@ struct ResponseFeedbackSheet: View {
 
                 if hasFailed {
                     Text("We couldn’t send your feedback. Check your connection and try again, or email bugreport@angrove.app directly.")
-                        .settingsText(.paragraph)
+                        .font(AngroveTheme.Typography.settingsGuideParagraph)
+                        .lineSpacing(AngroveTheme.Typography.settingsGuideLineSpacing)
                         .foregroundStyle(AngroveTheme.Colors.accentRed)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
+            .padding(.horizontal, 24)
+            .padding(.top, 24)
             .padding(.bottom, 16)
             }
             .scrollDismissesKeyboard(.interactively)
             .background(AngroveTheme.Colors.canvas.ignoresSafeArea())
-            .navigationTitle("Response Feedback")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -123,8 +134,7 @@ struct ResponseFeedbackSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
-        .onAppear { isFocused = true }
+        .presentationDetents([.large])
     }
 
     /// The opt-in to attach the flagged response and its question, with the exact text shown
@@ -134,17 +144,19 @@ struct ResponseFeedbackSheet: View {
             Toggle(isOn: $includesResponse) {
                 Text("Include this response and the question before it")
                     .settingsText(.control)
+                    .lineSpacing(AngroveTheme.Typography.settingsGuideLineSpacing)
                     .foregroundStyle(AngroveTheme.Colors.primaryReadable)
             }
-            .tint(AngroveTheme.Colors.accentGreen)
+            .tint(AngroveTheme.Colors.lightGreen)
 
             if includesResponse {
                 Text("This text will be sent with your report:")
-                    .settingsText(.paragraph)
+                    .settingsGuideParagraph()
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
                 ScrollView {
                     Text("Question\n\(report.question)\n\nResponse\n\(report.response)")
-                        .settingsText(.paragraph)
+                        .font(AngroveTheme.Typography.settingsGuideParagraph)
+                        .lineSpacing(AngroveTheme.Typography.settingsGuideLineSpacing)
                         .foregroundStyle(AngroveTheme.Colors.paragraphText)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)

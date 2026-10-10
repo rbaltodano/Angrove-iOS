@@ -218,7 +218,7 @@ final class AskingTextView: UITextView {
     }
 
     private var greenColor: UIColor {
-        UIColor(AngroveTheme.Colors.accentGreen).resolvedColor(with: traitCollection)
+        UIColor(AngroveTheme.Colors.lightGreen).resolvedColor(with: traitCollection)
     }
 
     private static func readAttributes(color: UIColor) -> [NSAttributedString.Key: Any] {

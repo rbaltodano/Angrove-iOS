@@ -38,7 +38,7 @@ struct ReadingControlsCard: View {
                     Text("READING")
                         .font(.custom("Figtree-Bold", size: 10))
                         .tracking(1.2)
-                        .foregroundStyle(AngroveTheme.Colors.accentGreen)
+                        .foregroundStyle(AngroveTheme.Colors.lightGreen)
 
                     Button {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.65)
@@ -148,7 +148,7 @@ struct ReadingControlsCard: View {
         } label: {
             Image(systemName: speech.isPaused ? "play.fill" : "pause.fill")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(AngroveTheme.Colors.accentGreen)
+                .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 .contentTransition(.symbolEffect(.replace))
                 .frame(width: 32, height: 32)
                 .contentShape(Rectangle())
@@ -276,7 +276,7 @@ struct ReadingSpeakerButton: View {
         } label: {
             Image(systemName: "speaker.wave.2.fill")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(AngroveTheme.Colors.accentGreen)
+                .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 .symbolEffect(
                     .variableColor.iterative,
                     isActive: speech.phase == .speaking && !speech.isPaused

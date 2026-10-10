@@ -418,35 +418,9 @@ struct OpenConversationsView: View {
     }
 
     private func insights(for conversation: InquiryConversation) -> [ConceptDefinition] {
-        // Only surface insights the user actually saved *within* this conversation —
-        // i.e. concepts embedded in its branches — not every saved insight whose
-        // word happens to appear somewhere in the conversation text.
-        let conceptWords = Set(embeddedConcepts(in: conversation).map { $0.word.lowercased() })
-
-        return savedInsights.filter { insight in
-            conceptWords.contains(insight.word.lowercased())
-        }
-        .uniquedByWord()
-    }
-
-    private func embeddedConcepts(in conversation: InquiryConversation) -> [ConceptDefinition] {
-        var concepts: [ConceptDefinition] = []
-
-        for branch in conversation.branches {
-            concepts.append(contentsOf: [
-                branch.startingConcept,
-                branch.attachedConcept,
-                branch.branchContextConcept
-            ].compactMap { $0 })
-
-            for block in branch.activeChatBlocks {
-                if case .user(_, let concept?, _) = block {
-                    concepts.append(concept)
-                }
-            }
-        }
-
-        return concepts
+        // Same rule as Study Topics: any saved insight whose word appears in the conversation.
+        let text = searchableConversationText(conversation).lowercased()
+        return savedInsights.filter { text.contains($0.word.lowercased()) }.uniquedByWord()
     }
 
     private func conversationMatchesSearch(_ conversation: InquiryConversation) -> Bool {

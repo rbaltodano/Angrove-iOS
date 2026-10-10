@@ -46,8 +46,26 @@ struct SettingsDetailScaffold<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        SettingsPageScaffold(title: title) {
-            content
+        ZStack {
+            AngroveTheme.Colors.canvas.ignoresSafeArea()
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text(title)
+                        .font(AngroveTheme.Typography.settingsDetailTitle)
+                        .foregroundStyle(AngroveTheme.Colors.headingText)
+                        .lineSpacing(AngroveTheme.Typography.settingsGuideTitleLineSpacing)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityAddTraits(.isHeader)
+
+                    content
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Spacer(minLength: 80)
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 140)
+            }
         }
     }
 }

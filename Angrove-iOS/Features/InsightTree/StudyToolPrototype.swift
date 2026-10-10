@@ -421,7 +421,7 @@ struct StudyToolResultsLayer: View {
     // MARK: Links
 
     private func drawLinks(_ placed: [Placed], in context: inout GraphicsContext) {
-        let accent = AngroveTheme.Colors.accentGreen
+        let accent = AngroveTheme.Colors.lightGreen
         let stem = AngroveTheme.Colors.paragraphText
         let bySource = Dictionary(grouping: placed) { "\($0.result.sourceKey)-\($0.result.kind)" }
         for item in placed where !item.isFolded {
@@ -511,7 +511,7 @@ struct StudyToolResultsLayer: View {
                 }
             } else if result.kind == .part, !result.isNode, !inStudy {
                 Circle()
-                    .fill(AngroveTheme.Colors.accentGreen)
+                    .fill(AngroveTheme.Colors.lightGreen)
                     .frame(width: 7, height: 7)
             } else if result.isNode {
                 nodeView(result)
@@ -576,7 +576,7 @@ struct StudyToolResultsLayer: View {
                     } label: {
                         Label("Make it a node", systemImage: "arrow.up.right")
                             .font(.custom("Figtree-Bold", size: 12))
-                            .foregroundStyle(AngroveTheme.Colors.accentGreen)
+                            .foregroundStyle(AngroveTheme.Colors.lightGreen)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
                             .background(AngroveTheme.Colors.canvas, in: Capsule())
@@ -595,7 +595,7 @@ struct StudyToolResultsLayer: View {
         VStack(spacing: 6) {
             Circle()
                 .fill(AngroveTheme.Colors.canvas)
-                .overlay(Circle().strokeBorder(AngroveTheme.Colors.accentGreen, lineWidth: 2))
+                .overlay(Circle().strokeBorder(AngroveTheme.Colors.lightGreen, lineWidth: 2))
                 .frame(width: 26, height: 26)
             Text(result.title)
                 .font(.custom("Figtree-Bold", size: 16))
@@ -614,11 +614,11 @@ struct StudyToolResultsLayer: View {
         } label: {
             Text("+\(count) earlier")
                 .font(.custom("Figtree-Bold", size: 13))
-                .foregroundStyle(AngroveTheme.Colors.accentGreen)
+                .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
                 .background(AngroveTheme.Colors.canvas, in: Capsule())
-                .overlay(Capsule().strokeBorder(AngroveTheme.Colors.accentGreen.opacity(0.5), lineWidth: 1))
+                .overlay(Capsule().strokeBorder(AngroveTheme.Colors.lightGreen.opacity(0.5), lineWidth: 1))
         }
         .buttonStyle(.plain)
     }

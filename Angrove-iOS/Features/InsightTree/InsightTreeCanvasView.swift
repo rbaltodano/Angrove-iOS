@@ -237,7 +237,7 @@ struct InsightTreeCanvasView: View {
     // layout; the sim only anchors nodes to those targets, separates overlaps, and spreads
     // chip labels — it never invents structure of its own.
     static let anchorSpringK: CGFloat = 0.04    // weak pull toward the MDS target
-    static let overlapPadding: CGFloat = 24
+    static let overlapPadding: CGFloat = 72
     static let simDamping: CGFloat = 0.62       // lower = settles faster, less wobble
     static let simMaxStep: CGFloat = 4          // per-frame move clamp
     static let simMaxDt: CFTimeInterval = 1.0 / 30
@@ -252,8 +252,8 @@ struct InsightTreeCanvasView: View {
     static let settleVelocityThreshold: CGFloat = 0.02
     // Insight collision uses the chip's measured horizontal label footprint, not a fixed circle.
     // Cross-node contact both separates parent nodes and rotates each free Insight bond.
-    static let insightCollisionPadding: CGFloat = 24
-    static let bubblePushK: CGFloat = 0.08
+    static let insightCollisionPadding: CGFloat = 40
+    static let bubblePushK: CGFloat = 0.16
     static let crossNodeChipTorqueK: Double = 2.4
     static let forceGain: CGFloat = 0.5          // scales summed force → velocity
     // Chip-label angular spread: every bond domain around a Node Concept has equal angular

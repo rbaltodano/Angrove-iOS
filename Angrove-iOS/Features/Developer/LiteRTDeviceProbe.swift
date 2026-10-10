@@ -717,7 +717,7 @@ private struct LiteRTProbeStatus: View {
                 .foregroundStyle(
                     model.phase == .failed
                         ? AngroveTheme.Colors.accentRed
-                        : AngroveTheme.Colors.accentGreen
+                        : AngroveTheme.Colors.lightGreen
                 )
             }
 

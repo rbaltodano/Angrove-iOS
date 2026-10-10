@@ -908,20 +908,6 @@ struct LiteRTProductionRuntimeTests {
     }
 
     @MainActor
-    @Test("Council and Didache questions use generation instead of prewritten answers", arguments: [
-        "What was the first ecumenical council?",
-        "What was the second ecumenical council?",
-        "What was the seventh ecumenical council?",
-        "Was the Didache written by Paul?"
-    ])
-    func councilAndDidacheQuestionsHaveNoPrewrittenAnswer(question: String) {
-        let references = LocalAngroveGroundingProvider().references(for: question, limit: 3)
-        #expect(!references.isEmpty)
-        #expect(LiteRTAngroveModel.groundedResponse(for: question, references: references) == nil)
-        #expect(LiteRTAngroveModel.groundedResponse(for: question, references: references, thinkingEnabled: false) == nil)
-    }
-
-    @MainActor
     @Test("Structured local responses preserve exact key terms and public summaries")
     func structuredConversationResponseIsValidated() {
         let raw = #"""

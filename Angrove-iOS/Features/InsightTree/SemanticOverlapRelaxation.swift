@@ -24,8 +24,8 @@ nonisolated struct SemanticOverlapRelaxation: Sendable {
 
     func solve(nodes: [NodeModel]) -> [NodeModel] {
         var working = nodes
-        let iterations = 8
-        let padding: CGFloat = 24
+        let iterations = 16
+        let padding: CGFloat = 72
         let maxStep: CGFloat = 12
         for _ in 0..<iterations {
             var moved = false

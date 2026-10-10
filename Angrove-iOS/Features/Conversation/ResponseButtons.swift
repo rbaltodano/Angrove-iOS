@@ -78,7 +78,7 @@ struct ModelResponseFooter: View {
             showsFeedbackSheet = isThumbsDownSelected
         } label: {
             actionIcon(isThumbsDownSelected ? "hand.thumbsdown.fill" : "hand.thumbsdown")
-                .foregroundStyle(isThumbsDownSelected ? AngroveTheme.Colors.accentGreen : AngroveTheme.Colors.responseButton)
+                .foregroundStyle(isThumbsDownSelected ? AngroveTheme.Colors.lightGreen : AngroveTheme.Colors.responseButton)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(String(localized: "Bad response"))

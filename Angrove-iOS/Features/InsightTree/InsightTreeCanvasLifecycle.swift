@@ -76,6 +76,22 @@ extension InsightTreeCanvasView {
                 reconcileBodies()
                 reportUndiscoveredInsightCount()
             }
+            .onChange(of: displayGraphEdges().map(\.id)) { _, edgeIDs in
+                // Edges can appear between nodes that already exist (re-solved semantic links),
+                // so no node/Insight entrance ever reveals them. Once no reveal tour owns the
+                // sets, show any edge whose endpoints are both visible.
+                let reveal = revealState
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(500))
+                    guard reveal.activeSequence == nil else { return }
+                    let visible = displayGraphEdges().filter {
+                        reveal.revealedNodeIDs.contains($0.fromNodeID)
+                            && reveal.revealedNodeIDs.contains($0.toNodeID)
+                    }.map(\.id)
+                    guard !Set(visible).isSubset(of: reveal.revealedGraphEdgeIDs) else { return }
+                    reveal.revealedGraphEdgeIDs.formUnion(visible)
+                }
+            }
             .onChange(of: layoutTargets) { _, _ in
                 // New semantic targets (re-solve after a topology change): wake the sim so
                 // the anchor springs glide nodes to their new positions.

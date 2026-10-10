@@ -26,7 +26,22 @@ struct HomeDashboardView: View {
     var onOpenUserGuide: () -> Void = {}
     var onRefresh: () -> Void = {}
     var onLoadHomeSections: () async -> Void = {}
+    var isPageVisible: Bool = true
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(NewUserCardEligibility.firstUseKey) private var firstUseTimestamp: Double = 0
+    @AppStorage(UserGuideReadingHistory.key) private var visitedGuideTopicsJSON = "[]"
+    @State private var eligibilityDate = Date()
+
+    private var showsNewUserCard: Bool {
+        let visited = (try? JSONDecoder().decode([String].self, from: Data(visitedGuideTopicsJSON.utf8))) ?? []
+        return NewUserCardEligibility.shouldShow(
+            firstUse: firstUseTimestamp > 0 ? Date(timeIntervalSince1970: firstUseTimestamp) : nil,
+            now: eligibilityDate,
+            visited: Set(visited),
+            topics: Set(UserGuideTopic.all.map(\.id))
+        )
+    }
 
     /// Landscape has ample horizontal room but a much shorter reading lane. This lets the
     /// dashboard use the extra width while releasing vertical pressure on a phone.
@@ -154,23 +169,28 @@ struct HomeDashboardView: View {
                             onOpenListeningWork: openListeningWork
                         )
 
-                        HomeFigmaDivider()
-
-                        HomeStartHereSection(onOpen: onOpenUserGuide)
-
-                        HomeFigmaDivider()
-
-                        HomeFigmaResumeSection(
-                            conversation: featuredConversation,
-                            latestText: featuredConversation.map(HomeDashboardContent.latestText) ?? "",
-                            insights: featuredConversation.map {
-                                HomeDashboardContent.insights(for: $0, savedInsights: savedInsights)
-                            } ?? [],
-                            onSelectConversation: onSelectConversation,
-                            onOpenInsight: { activeInsight = $0 }
-                        )
+                        if showsNewUserCard {
+                            HomeFigmaDivider()
+                            HomeStartHereSection(isPageVisible: isPageVisible, onOpen: onOpenUserGuide)
+                        }
 
                         HomeFigmaDivider()
+
+                        // A fresh install has nothing to resume; a bare heading reads as broken.
+                        if let featuredConversation {
+                            HomeFigmaResumeSection(
+                                conversation: featuredConversation,
+                                latestText: HomeDashboardContent.latestText(in: featuredConversation),
+                                insights: HomeDashboardContent.insights(
+                                    for: featuredConversation,
+                                    savedInsights: savedInsights
+                                ),
+                                onSelectConversation: onSelectConversation,
+                                onOpenInsight: { activeInsight = $0 }
+                            )
+
+                            HomeFigmaDivider()
+                        }
 
                         if let bridgeSuggestion = sections.bridge {
                             Group {
@@ -263,6 +283,7 @@ struct HomeDashboardView: View {
                 .zIndex(2)
         }
         .onAppear {
+            eligibilityDate = Date()
             MonthlyUsageStore.recordVisitIfNeeded()
             usageMonth = MonthlyUsageStore.currentMonth()
             studyTopics = StudyTopicStore.load()
@@ -271,6 +292,20 @@ struct HomeDashboardView: View {
             loadHomeSections()
         }
         .onChange(of: liveSections) { revealNewSections() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { eligibilityDate = Date() }
+        }
+        .onChange(of: isPageVisible) { _, visible in
+            if visible { eligibilityDate = Date() }
+        }
+        .task(id: firstUseTimestamp) {
+            eligibilityDate = Date()
+            guard firstUseTimestamp > 0 else { return }
+            let remaining = firstUseTimestamp + NewUserCardEligibility.lifetime - Date().timeIntervalSince1970
+            guard remaining > 0 else { return }
+            do { try await Task.sleep(for: .seconds(remaining)) } catch { return }
+            eligibilityDate = Date()
+        }
         .onChange(of: canRevealNewSections) { revealNewSections() }
         .task(id: savedInsights) {
             let insights = savedInsights
@@ -413,16 +448,8 @@ private struct HomeFigmaUsageAndStats: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 24) {
-            VStack(alignment: .leading, spacing: 8) {
-                HomeFigmaUsageGrid(month: month)
-                    .anchorPreference(key: HomeCalendarBoundsKey.self, value: .bounds) { $0 }
-
-                Text("\(month.title) activity")
-                    .font(AngroveTheme.Typography.uiLabel)
-                    .foregroundColor(AngroveTheme.Colors.lightGreen)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
+            HomeFigmaUsageGrid(month: month)
+                .anchorPreference(key: HomeCalendarBoundsKey.self, value: .bounds) { $0 }
 
             HomeFigmaStatsGrid(
                 conversationCount: conversationCount,
@@ -465,7 +492,7 @@ private struct HomeFigmaQuestionCard: View {
 }
 
 private struct HomeFigmaResumeSection: View {
-    let conversation: InquiryConversation?
+    let conversation: InquiryConversation
     let latestText: String
     let insights: [ConceptDefinition]
     var onSelectConversation: (InquiryConversation) -> Void
@@ -475,16 +502,14 @@ private struct HomeFigmaResumeSection: View {
         VStack(alignment: .leading, spacing: 24) {
             HomeFigmaSectionTitle("Where You Left Off")
 
-            if let conversation {
-                OpenConversationCard(
-                    conversation: conversation,
-                    isActive: true,
-                    latestAnswer: latestText,
-                    insights: insights,
-                    onSelect: { onSelectConversation(conversation) },
-                    onOpenInsight: onOpenInsight
-                )
-            }
+            OpenConversationCard(
+                conversation: conversation,
+                isActive: true,
+                latestAnswer: latestText,
+                insights: insights,
+                onSelect: { onSelectConversation(conversation) },
+                onOpenInsight: onOpenInsight
+            )
         }
     }
 }
@@ -617,30 +642,43 @@ private struct HomeInsightBridgeLabel: View {
 }
 
 private struct HomeStartHereSection: View {
+    var isPageVisible: Bool
     var onOpen: () -> Void
 
     var body: some View {
         Button(action: onOpen) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Start Here")
-                    .font(.custom("LibreBaskerville-Regular", size: 18))
-                    .foregroundColor(AngroveTheme.Colors.primaryReadable)
-
-                Text("New to Angrove? The User Guide shows how conversations, Insights, the Insight Tree, and the Library work together.")
-                    .paragraphFont()
-                    .foregroundColor(AngroveTheme.Colors.paragraphText)
+                Text("Getting Started with Angrove")
+                    .font(AngroveTheme.Typography.illustratedCardHeading)
+                    .foregroundStyle(AngroveTheme.Colors.illustratedCardTitle)
                     .lineSpacing(7)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(minHeight: 84, alignment: .topLeading)
+
+                Text("See User Guide")
+                    .font(AngroveTheme.Typography.uiSubheading)
+                    .foregroundStyle(AngroveTheme.Colors.canvas)
+                    .frame(minHeight: 28)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 10)
+                    .background(AngroveTheme.Colors.lightGreen, in: Capsule())
             }
-            .padding(24)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .multilineTextAlignment(.leading)
+            .padding(AngroveTheme.Spacing.illustratedCardPadding)
+            .frame(maxWidth: .infinity, minHeight: 327, alignment: .topLeading)
+            .background(alignment: .bottomTrailing) {
+                LibraryPaintedArtwork(image: UIImage(named: "HomeUserStart"), isPageVisible: isPageVisible)
+            }
             .background(AngroveTheme.Colors.canvasSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous)
                     .stroke(AngroveTheme.Colors.quietBorder, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Getting Started with Angrove. See User Guide")
         .accessibilityHint("Opens the User Guide")
     }
 }

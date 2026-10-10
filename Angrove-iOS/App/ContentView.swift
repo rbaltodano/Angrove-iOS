@@ -899,7 +899,8 @@ struct ContentView: View {
                                     onRefresh: refreshPersistedContent,
                                     onLoadHomeSections: {
                                         await refreshHomeSections()
-                                    }
+                                    },
+                                    isPageVisible: activePage == .home && isPageContentVisible
                                 )
                             case .conversation:
                                 Color.clear

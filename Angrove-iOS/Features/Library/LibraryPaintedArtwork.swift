@@ -36,6 +36,11 @@ struct LibraryPaintedArtwork: View {
         self.isPageVisible = isPageVisible
     }
 
+    init(image: UIImage?, isPageVisible: Bool = true) {
+        self.image = image
+        self.isPageVisible = isPageVisible
+    }
+
     var body: some View {
         GeometryReader { geometry in
             if let image {

@@ -128,18 +128,6 @@ struct LiteRTAngroveModel: AngroveModel {
         return contradictsAuthorshipCorrection(correction, response: response)
     }
 
-    static func groundedResponse(
-        for question: String,
-        references: [AngroveGroundingReference],
-        thinkingEnabled: Bool = true
-    ) -> ModelResponse? {
-        verifiedGroundedResponse(
-            for: question,
-            references: references,
-            thinkingEnabled: thinkingEnabled
-        )
-    }
-
     static func requiresFactualAccuracyAudit(_ question: String) -> Bool {
         factualAccuracyAuditNeeded(for: question)
     }
@@ -387,13 +375,6 @@ struct LiteRTAngroveModel: AngroveModel {
                         Self.groundingSourceDetails(for: responseReferences)
                     )
                 )
-            }
-            if let verifiedResponse = Self.verifiedGroundedResponse(
-                for: latestQuestion,
-                references: responseReferences,
-                thinkingEnabled: thinkingEnabled
-            ) {
-                return deliver(verifiedResponse.withEvidenceBasis(.corpusGrounded))
             }
             if let term = requestedDefinitionTerm {
                 let definition = try await generateDefinition(
@@ -1398,77 +1379,6 @@ private extension LiteRTAngroveModel {
             }
         }
         return ""
-    }
-
-    static func verifiedGroundedResponse(
-        for question: String,
-        references: [AngroveGroundingReference],
-        thinkingEnabled: Bool = true
-    ) -> ModelResponse? {
-        let normalized = question.folding(
-            options: [.caseInsensitive, .diacriticInsensitive],
-            locale: Locale(identifier: "en_US_POSIX")
-        )
-        .lowercased()
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-        let asksDirectly = normalized.count <= 140
-            && (normalized.hasPrefix("what ")
-                || normalized.hasPrefix("which ")
-                || normalized.hasPrefix("who ")
-                || normalized.hasPrefix("was ")
-                || normalized.hasPrefix("is "))
-        guard asksDirectly else { return nil }
-        if let primarySource = references.first(where: {
-            $0.id.hasPrefix("authority-section-")
-        }), let excerpt = primarySourceExcerpt(from: primarySource.facts) {
-            return ModelResponse(
-                text: "From \(primarySource.title): \u{201C}\(excerpt)\u{201D}",
-                thinkingSummary: thinkingEnabled ? [
-                    "Showing the exact primary-source passage selected for the named authority and topic."
-                ] : [],
-                keyTerms: []
-            )
-        }
-        return nil
-    }
-
-    /// Named-authority questions carry an exact corpus section. The compact on-device model has
-    /// shown that it can contradict that text while attempting a paraphrase, so render a bounded
-    /// excerpt directly instead of inventing a summary. This is source extraction, not a curated
-    /// answer: every word remains in the bundled primary source selected for the user's question.
-    static func primarySourceExcerpt(from text: String) -> String? {
-        var body = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        for _ in 0..<2 {
-            guard let headingEnd = body.firstIndex(where: { $0 == "." || $0 == "!" || $0 == "?" }),
-                  body.distance(from: body.startIndex, to: headingEnd) < 240
-            else { break }
-            let leadingSentence = body[..<body.index(after: headingEnd)]
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-            let looksLikeHeading = leadingSentence.hasPrefix("chap")
-                || leadingSentence.hasPrefix("chapter")
-                || leadingSentence.hasPrefix("article")
-                || leadingSentence.hasPrefix("question")
-                || leadingSentence.hasPrefix("what ")
-            guard looksLikeHeading else { break }
-            body = String(body[body.index(after: headingEnd)...])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        guard !body.isEmpty else { return nil }
-
-        let maximumCharacters = 420
-        let end = body.index(
-            body.startIndex,
-            offsetBy: min(maximumCharacters, body.count)
-        )
-        var excerpt = String(body[..<end])
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if end < body.endIndex,
-           let sentenceEnd = excerpt.lastIndex(where: { $0 == "." || $0 == "!" || $0 == "?" }) {
-            excerpt = String(excerpt[..<body.index(after: sentenceEnd)])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return excerpt.isEmpty ? nil : excerpt
     }
 
     static func validatedKeyTerms(

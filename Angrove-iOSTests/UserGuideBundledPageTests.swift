@@ -6,6 +6,32 @@ import WebKit
 @Suite(.serialized)
 @MainActor
 struct UserGuideBundledPageTests {
+    @Test(arguments: [ColorScheme.light, .dark])
+    func unopenedTopicsHaveDots(scheme: ColorScheme) async throws {
+        let state = PracticeState()
+        let index = try await page(topicID: nil, scheme: scheme, state: state)
+        #expect(try await index.evaluateJavaScript("document.querySelectorAll('.guide-unread-dot').length") as? Int == 11)
+        _ = try await index.evaluateJavaScript("document.querySelector('[data-guide-topic=\"tree\"]').click()")
+        try await waitUntil({ state.selected == "tree" })
+        #expect(try await index.evaluateJavaScript("document.querySelectorAll('.guide-unread-dot').length") as? Int == 10)
+        #expect(try await index.evaluateJavaScript("document.querySelector('[data-guide-topic=\"tree\"] .guide-unread-dot') === null") as? Bool == true)
+        _ = try await index.evaluateJavaScript("window.restoreGuideVisitedTopics(['tree', 'privacy'])")
+        #expect(try await index.evaluateJavaScript("document.querySelectorAll('.guide-unread-dot').length") as? Int == 9)
+        try await expectNoErrors(in: index)
+    }
+
+    @Test
+    func visitedHistorySurvivesReloadWithoutDuplicates() throws {
+        let suite = "guide-history-\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        UserGuideReadingHistory.markVisited("tree", defaults: defaults)
+        UserGuideReadingHistory.markVisited("tree", defaults: defaults)
+        UserGuideReadingHistory.markVisited("privacy", defaults: defaults)
+        let encoded = try #require(defaults.string(forKey: UserGuideReadingHistory.key))
+        #expect(try JSONDecoder().decode([String].self, from: Data(encoded.utf8)) == ["tree", "privacy"])
+    }
+
     @Test
     func indexOpensNativeTopicPagesWithoutAnchors() async throws {
         let state = PracticeState()

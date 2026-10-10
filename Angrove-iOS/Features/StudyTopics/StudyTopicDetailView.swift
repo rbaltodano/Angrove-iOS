@@ -297,22 +297,20 @@ struct StudyTopicDetailView: View {
             try? await Task.sleep(for: .milliseconds(550))
             isTitleFocused = true
         }
-        // Swipe right to go back, swipe left to enter the Insight Tree.
+        // Swipe right to go back, swipe left to enter the Insight Tree. Disabled while the
+        // tree is showing so panning the canvas never exits it; the back button does that.
         .simultaneousGesture(
             DragGesture(minimumDistance: 18)
                 .onEnded { value in
                     guard abs(value.translation.width) > abs(value.translation.height) else { return }
                     if value.translation.width > 60 {
-                        if canvasMode.isTopicCanvasVisible {
-                            closeInsightTree()
-                        } else {
-                            onBack()
-                        }
-                    } else if value.translation.width < -60 && !canvasMode.isTopicCanvasVisible {
+                        onBack()
+                    } else if value.translation.width < -60 {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         enterInsightTree()
                     }
-                }
+                },
+            including: canvasMode.isTopicCanvasVisible ? .subviews : .all
         )
         // Publishes to the shell's single Model Controls bar; renders nothing here.
         .background {

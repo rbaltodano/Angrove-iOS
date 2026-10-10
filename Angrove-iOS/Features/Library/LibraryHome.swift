@@ -443,7 +443,7 @@ struct LibrarySpeakingIndicator: View {
            workID == nil || activeWorkID == workID, speech.phase != .idle {
             Image(systemName: "speaker.wave.2.fill")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(AngroveTheme.Colors.accentGreen)
+                .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 .symbolEffect(.variableColor.iterative, isActive: speech.phase == .speaking && !speech.isPaused && !reduceMotion)
                 .accessibilityLabel("Reading aloud")
         }

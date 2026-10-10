@@ -8,6 +8,11 @@ struct UserGuideWebsiteView: UIViewRepresentable {
     @Binding var savedTerms: [String]
     var onSelectTopic: (String) -> Void
     @Environment(\.colorScheme) private var colorScheme
+    @AppStorage(UserGuideReadingHistory.key) private var visitedTopicsJSON = "[]"
+
+    private var visitedTopics: [String] {
+        (try? JSONDecoder().decode([String].self, from: Data(visitedTopicsJSON.utf8))) ?? []
+    }
 
     init(topicID: String? = nil, savedTerms: Binding<[String]>, onSelectTopic: @escaping (String) -> Void = { _ in }) {
         self.topicID = topicID
@@ -26,7 +31,7 @@ struct UserGuideWebsiteView: UIViewRepresentable {
             configuration.userContentController.add(context.coordinator, name: name)
         }
         configuration.userContentController.addUserScript(WKUserScript(
-            source: Self.bootstrapScript(topicID: topicID, savedTerms: savedTerms, colorScheme: colorScheme),
+            source: Self.bootstrapScript(topicID: topicID, savedTerms: savedTerms, colorScheme: colorScheme, visitedTopics: visitedTopics),
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         ))
@@ -57,6 +62,7 @@ struct UserGuideWebsiteView: UIViewRepresentable {
         context.coordinator.onSelectTopic = onSelectTopic
         applyAppearance(to: webView, coordinator: context.coordinator)
         webView.evaluateJavaScript("window.restoreGuideSavedTerms?.(\(Self.json(savedTerms)))")
+        webView.evaluateJavaScript("window.restoreGuideVisitedTopics?.(\(Self.json(visitedTopics)))")
     }
 
     static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
@@ -78,9 +84,9 @@ struct UserGuideWebsiteView: UIViewRepresentable {
         webView.evaluateJavaScript(script)
     }
 
-    static func bootstrapScript(topicID: String?, savedTerms: [String], colorScheme: ColorScheme) -> String {
+    static func bootstrapScript(topicID: String?, savedTerms: [String], colorScheme: ColorScheme, visitedTopics: [String] = []) -> String {
         let initial = PageContext(topicID: topicID, savedTerms: savedTerms,
-                                  isDark: colorScheme == .dark, palette: palette(for: colorScheme))
+                                  visitedTopics: visitedTopics, isDark: colorScheme == .dark, palette: palette(for: colorScheme))
         return "window.guideContext = \(json(initial));"
     }
 
@@ -91,6 +97,7 @@ struct UserGuideWebsiteView: UIViewRepresentable {
     private struct PageContext: Encodable {
         let topicID: String?
         let savedTerms: [String]
+        let visitedTopics: [String]
         let isDark: Bool
         let palette: [String: String]
     }
@@ -111,6 +118,7 @@ struct UserGuideWebsiteView: UIViewRepresentable {
             ("paragraph-dim", AngroveTheme.Colors.placeholderText),
             ("brown", AngroveTheme.Colors.primaryReadable),
             ("light-green", AngroveTheme.Colors.lightGreen),
+            ("unread-dot", AngroveTheme.Colors.unreadDot),
             ("border", AngroveTheme.Colors.border),
             ("guide-ink", AngroveTheme.Colors.primaryReadable),
             ("guide-green", AngroveTheme.Colors.lightGreen),
@@ -161,6 +169,7 @@ struct UserGuideWebsiteView: UIViewRepresentable {
                 if let text = message.body as? String { UIPasteboard.general.string = text }
             case "guideTopic":
                 guard let id = message.body as? String, UserGuideTopic.topic(id: id) != nil else { return }
+                UserGuideReadingHistory.markVisited(id)
                 SettingsHaptics.playSelection()
                 onSelectTopic(id)
             case "guideSaved":

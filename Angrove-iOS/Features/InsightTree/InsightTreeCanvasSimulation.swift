@@ -384,7 +384,7 @@ extension InsightTreeCanvasView {
                 if let na = nodeByID[idA], let nb = nodeByID[idB] {
                     let minDist = simFootprintRadius(na) + simFootprintRadius(nb) + Self.overlapPadding
                     if dist < minDist {
-                        let push = (minDist - dist) * 0.05
+                        let push = (minDist - dist) * 0.18
                         fx += (dx / dist) * push
                         fy += (dy / dist) * push
                     }

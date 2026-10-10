@@ -1272,7 +1272,7 @@ private struct LibraryReaderHeader: View {
                     Text(isListening ? "Pause" : "Listen")
                         .font(.custom("Figtree-Bold", size: 14))
                 }
-                .foregroundStyle(AngroveTheme.Colors.accentGreen)
+                .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 .padding(.horizontal, 18)
                 .padding(.vertical, 10)
                 .background(AngroveTheme.Colors.canvasSecondary, in: Capsule())

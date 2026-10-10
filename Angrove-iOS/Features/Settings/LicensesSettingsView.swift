@@ -112,7 +112,7 @@ struct LicensesSettingsView: View {
         SettingsDetailScaffold(title: "Licenses") {
             VStack(alignment: .leading, spacing: 24) {
                 Text("Angrove is built on openly licensed models, open-source software, and open fonts. Thank you to their authors.")
-                    .settingsText(.paragraph)
+                    .settingsGuideParagraph()
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -179,7 +179,8 @@ struct LicenseTextView: View {
             SettingsControlCard {
                 ForEach(Array(license.paragraphs.enumerated()), id: \.offset) { _, paragraph in
                     Text(paragraph)
-                        .settingsText(.detail)
+                        .font(AngroveTheme.Typography.settingsBody)
+                        .lineSpacing(AngroveTheme.Typography.settingsGuideLineSpacing)
                         .foregroundStyle(AngroveTheme.Colors.paragraphText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
