@@ -16,7 +16,7 @@ struct EncryptedStorageGate<Content: View>: View {
             } else if ready {
                 content()
             } else {
-                ProgressView("Protecting your saved data…")
+                LeafPageLoadingView(title: "Protecting your saved data…")
             }
         }
         .task { if !ready { await prepare() } }

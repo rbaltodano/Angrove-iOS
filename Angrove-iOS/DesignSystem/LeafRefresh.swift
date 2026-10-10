@@ -39,6 +39,29 @@ struct LeafLoadingAnimation: View {
     }
 }
 
+/// The loading state shown while a page waits for its content: the same leaf animation as the
+/// pull-to-refresh, with an optional caption. Keeps Reduce Motion (a still grown leaf) and
+/// announces itself to VoiceOver as a single loading element.
+struct LeafPageLoadingView: View {
+    var title: LocalizedStringKey? = nil
+    var size: CGFloat = 28
+
+    var body: some View {
+        VStack(spacing: 12) {
+            LeafLoadingAnimation(size: size)
+            if let title {
+                Text(title)
+                    .settingsText(.detail)
+                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title ?? "Loading")
+        .accessibilityAddTraits(.updatesFrequently)
+    }
+}
+
 /// One frame of the leaf animation (`WritingLeaf1`…`WritingLeaf5`).
 struct LeafSprite: View {
     let stage: Int

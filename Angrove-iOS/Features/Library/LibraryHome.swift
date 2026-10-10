@@ -374,8 +374,7 @@ struct LibraryHomeView: View {
                                 .transition(.opacity)
                         }
                     } else {
-                        ProgressView()
-                            .tint(AngroveTheme.Colors.lightGreen)
+                        LeafPageLoadingView()
                             .frame(maxWidth: .infinity)
                             .padding(.top, 64)
                     }
