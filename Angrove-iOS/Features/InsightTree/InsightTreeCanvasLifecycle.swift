@@ -214,6 +214,21 @@ extension InsightTreeCanvasView {
                             in: size
                         )
                     }
+                } else if !addedLiveNodeIDs.isEmpty && !defersEntranceUntilPersistedTree
+                            && newOnes.isEmpty && placedMidpointID == nil
+                            && !newNodes.contains(where: { addedLiveNodeIDs.contains($0.id) && $0.isMidpointConcept }) {
+                    // A new concept on its own (a conversation's seed accepted into the Global
+                    // tree) is often placed off screen; tour to it like new Insights.
+                    revealState.entranceTask?.cancel()
+                    markNodesUndiscovered(Array(addedLiveNodeIDs))
+                    reportUndiscoveredInsightCount()
+                    InsightDiscoveryStore.clearPendingTreePresentation(insightIDs: [], nodeIDs: addedLiveNodeIDs)
+                    revealState.entranceTask = Task {
+                        await Task.yield()
+                        try? await Task.sleep(for: .milliseconds(50))
+                        guard !Task.isCancelled else { return }
+                        await runPersistedUpdateSequence(newInsights: [], newNodeIDs: addedLiveNodeIDs, in: size)
+                    }
                 } else if !addedLiveNodeIDs.isEmpty && !defersEntranceUntilPersistedTree {
                     // Make Node and other node-only additions own their Insight animation below,
                     // but their parent concept still needs to become visible immediately.

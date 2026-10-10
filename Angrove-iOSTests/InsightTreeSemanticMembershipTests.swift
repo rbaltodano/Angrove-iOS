@@ -95,6 +95,23 @@ struct InsightTreeSemanticMembershipTests {
         #expect(Set(reopened.nodes.map(\.id)) == [politics.id, law.id])
     }
 
+    @Test("Related but distinct concepts with no Insights yet both stay on the tree")
+    func memberlessRelatedConceptsStaySeparate() async {
+        let provider = MembershipEmbeddingProvider()
+        func seed(_ label: String, _ embedding: [Double]) -> LocalInsightTreeSeed {
+            LocalInsightTreeSeed(id: UUID(), label: label, summary: label, embedding: embedding,
+                                 embeddingVersion: provider.version, createdAt: Date())
+        }
+        // 0.72: above the member bar (0.65) but below the subject bar (0.75), like
+        // "Theological Virtues" and "Moral Virtues". A memberless name is not member evidence.
+        let moral = seed("Moral Virtues", [1, 0])
+        let theological = seed("Theological Virtues", [0.72, (1 - 0.72 * 0.72).squareRoot()])
+        let tree = InsightTreeViewModel(insights: [], embeddingProvider: provider,
+                                       localSeedAnchors: [moral, theological], midpointStoreScope: UUID())
+        await tree.prepareSemanticTree()
+        #expect(Set(tree.nodes.map(\.id)) == [moral.id, theological.id])
+    }
+
     @Test("Nodes about the same subject fold together even when their members differ")
     func mergesBySubject() async {
         let thucydides = ConceptDefinition(id: UUID(), word: "Thucydides", partOfSpeech: "",

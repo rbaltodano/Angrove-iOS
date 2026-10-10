@@ -47,6 +47,23 @@ nonisolated struct SemanticTreeComputation: Equatable, Sendable {
         insightClusterAssignments = insightClusterAssignments.mapValues(mergeSurvivor(of:))
         let seedIDs = Set(localSeedAnchors.map(\.id))
         let assignedClusterIDs = Set(insightClusterAssignments.values)
+        // A seed folded on its name alone needs the subject bar. Earlier builds folded memberless
+        // seeds at the looser member bar, hiding distinct subjects ("Theological Virtues" into
+        // "Moral Virtues", 0.72); those folds are released.
+        func seedVector(_ id: UUID) -> [Double]? {
+            if let subject = clusterSubjectEmbeddings[id], subject.version == providerVersion { return subject.vector }
+            guard let seed = localSeedAnchors.first(where: { $0.id == id }),
+                  (seed.embeddingVersion ?? NLEmbeddingProvider.version) == providerVersion,
+                  let vector = seed.embedding, !vector.isEmpty else { return nil }
+            return vector
+        }
+        for id in seedIDs where !assignedClusterIDs.contains(id) {
+            guard clusterMergeTargets[id] != nil else { continue }
+            let survivor = mergeSurvivor(of: id)
+            guard let own = seedVector(id), let other = seedVector(survivor), own.count == other.count,
+                  cosineSimilarity(own, other) < InsightTreeSemanticPolicy.nodeSubjectMergeSimilarity else { continue }
+            clusterMergeTargets[id] = nil
+        }
         // An absorbed seed stays folded while the Node that absorbed it still exists.
         let foldedSeedIDs = Set(localSeedAnchors.map(\.id).filter { id in
             let survivor = mergeSurvivor(of: id)
@@ -139,7 +156,10 @@ nonisolated struct SemanticTreeComputation: Equatable, Sendable {
                     let pair = Set([clusters[left].id, clusters[right].id])
                     var margin = pairMargins[pair] ?? -Double.infinity
                     if pairMargins[pair] == nil {
-                    if !clusters[left].embedding.isEmpty, !clusters[right].embedding.isEmpty {
+                    // A memberless concept's "centroid" is just its name, which is not member
+                    // evidence; it can only merge on the stricter subject bar below.
+                    if !clusters[left].insights.isEmpty, !clusters[right].insights.isEmpty,
+                       !clusters[left].embedding.isEmpty, !clusters[right].embedding.isEmpty {
                         margin = cosineSimilarity(clusters[left].embedding, clusters[right].embedding) - memberThreshold
                     }
                     if let leftSubject = subjectVector(of: clusters[left]),
