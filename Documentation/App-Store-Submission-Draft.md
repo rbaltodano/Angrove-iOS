@@ -79,6 +79,13 @@ The widget uses a separate key for its shared content. Deliberate exports are re
 are controlled by the person exporting them. Device backups and Keychain availability affect
 recovery; document the tested restore behavior before release.
 
+Support reports are optional and sent only when the person taps Send Report. A report contains the
+text they write, their app and iOS version numbers and, if they provide one, a reply email address.
+A thumbs-down on a response can also include that response and the question before it, but only if
+the person switches on the option after seeing the exact text; it is off by default. Reports go
+through Formspree to the support inbox, and Formspree also receives the sender's IP address. Add
+retention rules before publishing the final policy.
+
 Apple provides model-asset delivery during installation and recovery. Network access is needed
 to obtain those assets. This does not send your conversation to a remote model. Add any confirmed
 SDK collection, support-contact handling, policy contact details and retention rules before
