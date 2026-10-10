@@ -604,12 +604,16 @@ struct ContentView: View {
             onBookmarkConcepts: { concepts in
                 withAnimation(.springBouncy) {
                     for concept in concepts {
-                        if !collectedDefinitions.contains(where: { $0.id == concept.id }) {
-                            collectedDefinitions.append(concept)
-                        }
-                        if !globalTreeInsights.contains(where: { $0.id == concept.id }) {
-                            globalTreeInsights.append(concept)
-                        }
+                        if let index = collectedDefinitions.firstIndex(where: { $0.id == concept.id }) {
+                            if InsightTreeViewModel.nodeBookmarkReference(for: concept.id, preferredScope: nil)?.seed != nil {
+                                collectedDefinitions[index] = concept
+                            }
+                        } else { collectedDefinitions.append(concept) }
+                        if let index = globalTreeInsights.firstIndex(where: { $0.id == concept.id }) {
+                            if InsightTreeViewModel.nodeBookmarkReference(for: concept.id, preferredScope: nil)?.seed != nil {
+                                globalTreeInsights[index] = concept
+                            }
+                        } else { globalTreeInsights.append(concept) }
                     }
                 }
                 GlobalInsightTreeStore.save(globalTreeInsights)
@@ -818,6 +822,18 @@ struct ContentView: View {
             ) { request in
                 redirect(to: .library, opensConversationSource: true)
                 libraryNavigationRequest = request
+            }
+            .onReceive(NotificationCenter.default.publisher(for: LocalInsightTreeSeedStore.didChange)) { notification in
+                guard let conversationID = notification.object as? UUID else { return }
+                for seed in LocalInsightTreeSeedStore.seeds(for: conversationID) {
+                    guard let concept = InsightTreeViewModel.bookmarkSeed(seed, scope: conversationID) else { continue }
+                    if let index = collectedDefinitions.firstIndex(where: { $0.id == concept.id }) {
+                        if collectedDefinitions[index] != concept { collectedDefinitions[index] = concept }
+                    } else {
+                        collectedDefinitions.append(concept)
+                    }
+                    ConversationInsightMembershipStore.add(insightID: concept.id, to: conversationID)
+                }
             }
             .onChange(of: collectedDefinitions) { _, newValue in handleCollectedDefinitionsChange(newValue) }
     }

@@ -15,6 +15,7 @@ extension InsightTreeCanvasView {
                 transaction.disablesAnimations = true
                 withTransaction(transaction) {
                     hasAppeared = true
+                    revealState.previousBondLengths = insightBondLengths
                     reconcileBodies()   // seed live physics bodies + start the tick
                     undiscoveredInsightIDs = loadUndiscoveredInsightIDs()
                     undiscoveredNodeIDs = loadUndiscoveredNodeIDs()
@@ -70,12 +71,6 @@ extension InsightTreeCanvasView {
                     withAnimation(.easeInOut(duration: 0.2)) { selectionState.selectionFlashOpacity = 1 }
                 }
             }
-            .onChange(of: physicsTopologySignature) { _, _ in
-                // Only membership changes wake the layout. Content-only updates such as
-                // generated labels and definitions leave the settled tree completely still.
-                reconcileBodies()
-                reportUndiscoveredInsightCount()
-            }
             .onChange(of: displayGraphEdges().map(\.id)) { _, edgeIDs in
                 // Edges can appear between nodes that already exist (re-solved semantic links),
                 // so no node/Insight entrance ever reveals them. Once no reveal tour owns the
@@ -101,7 +96,13 @@ extension InsightTreeCanvasView {
                     frameBudget: 90
                 )
             }
-            .onChange(of: nodes) { _, newNodes in
+            .onChange(of: nodes) { oldNodes, newNodes in
+                beginMidpointTransfers(from: oldNodes, to: newNodes)
+                if oldNodes.map(\.id) != newNodes.map(\.id) || oldNodes.map({ $0.insights.map(\.id) }) != newNodes.map({ $0.insights.map(\.id) }) {
+                    reconcileBodies()
+                    reportUndiscoveredInsightCount()
+                }
+                revealState.previousBondLengths = insightBondLengths
                 // Insights added after the initial entrance (Make Node children, placed midpoints):
                 // they start as a flashing icon at the node center, splay out to their orbit
                 // staggered by 0.15s each, then once "loaded" the title blurs up.
@@ -285,7 +286,7 @@ extension InsightTreeCanvasView {
             // start out crossing some other line by default.
             .onChange(of: placedMidpointSources) { _, newValue in
                 withAnimation(.springRelaxed) {
-                    for midpointID in newValue.keys {
+                    for midpointID in newValue.keys where midpointID != midpointPlacedInsightID {
                         reangleMidpointSources(of: midpointID)
                     }
                 }

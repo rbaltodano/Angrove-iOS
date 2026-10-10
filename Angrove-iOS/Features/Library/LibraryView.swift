@@ -1121,7 +1121,7 @@ private struct LibraryDocumentDetail: View {
                 )
                 .frame(maxHeight: .infinity)
             } else {
-                ProgressView()
+                LibraryLoadingView()
             }
         }
         .onDisappear {

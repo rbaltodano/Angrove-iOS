@@ -14,6 +14,11 @@ struct InsightLibraryPopup: View {
     let clippedPassages: [ConceptDefinition]
     @Binding var savedInsights: [ConceptDefinition]
     var opensPassages: Bool = false
+    var conversationID: UUID? = nil
+    @Environment(\.embeddingProvider) private var embeddingProvider
+    @State private var pendingNodeRemoval: NodeModel?
+    @State private var removalTree: InsightTreeViewModel?
+    @State private var preparingNodeRemoval = false
     var onQuote: (ConceptDefinition) -> Void
     var onFork: (ConceptDefinition) -> Void
     var onToggleSaved: (ConceptDefinition) -> Void
@@ -60,7 +65,7 @@ struct InsightLibraryPopup: View {
                             onFork: { onFork(insight) },
                             onToggleSaved: {
                                 if insight.isLibraryQuote { onToggleClipped(insight) }
-                                else { onToggleSaved(insight) }
+                                else { toggleBookmark(insight) }
                             }
                         )
                         .frame(maxWidth: 315)
@@ -110,6 +115,17 @@ struct InsightLibraryPopup: View {
                 )
             }
         )
+        .alert("Redistribute attached Insights?", isPresented: Binding(
+            get: { pendingNodeRemoval != nil },
+            set: { if !$0 { pendingNodeRemoval = nil } }
+        )) {
+            Button("Redistribute") { removeNode(deletingInsights: false) }
+            Button("Delete Insights", role: .destructive) { removeNode(deletingInsights: true) }
+            Button("Cancel", role: .cancel) { pendingNodeRemoval = nil; removalTree = nil }
+        } message: {
+            let count = pendingNodeRemoval.map { removalTree?.attachedInsights(for: $0).count ?? 0 } ?? 0
+            Text("Remove this Node Concept and redistribute its \(count) attached \(count == 1 ? "Insight" : "Insights") to relevant nearby concepts? You can also delete the attached Insights.")
+        }
         .onChange(of: selectedScope) { oldValue, newValue in
             selectedIndex = 0
             dragOffset = 0
@@ -124,8 +140,42 @@ struct InsightLibraryPopup: View {
         }
     }
 
+    private func toggleBookmark(_ concept: ConceptDefinition) {
+        guard isSaved(concept), let reference = InsightTreeViewModel.nodeBookmarkReference(for: concept.id, preferredScope: conversationID) else {
+            onToggleSaved(concept)
+            return
+        }
+        guard !preparingNodeRemoval else { return }
+        preparingNodeRemoval = true
+        Task { @MainActor in
+            defer { preparingNodeRemoval = false }
+            let tree = InsightTreeViewModel(insights: savedInsights.filter { reference.insightIDs.contains($0.id) || $0.id == concept.id },
+                promotedInsightIDs: reference.promotedIDs, embeddingProvider: embeddingProvider,
+                localSeedAnchors: reference.scope.map { LocalInsightTreeSeedStore.seeds(for: $0) } ?? [],
+                midpointStoreScope: reference.scope)
+            await tree.prepareSemanticTree()
+            await tree.waitForSettledTree()
+            guard let node = tree.nodes.first(where: { $0.id == reference.nodeID }) else {
+                onToggleSaved(concept)
+                return
+            }
+            removalTree = tree
+            pendingNodeRemoval = node
+        }
+    }
+
+    private func removeNode(deletingInsights: Bool) {
+        guard let node = pendingNodeRemoval, let tree = removalTree else { return }
+        let concepts = tree.removeBookmarkedNode(id: node.id, deletingInsights: deletingInsights)
+        for concept in concepts where savedInsights.contains(where: { $0.id == concept.id }) {
+            onToggleSaved(concept)
+        }
+        pendingNodeRemoval = nil
+        removalTree = nil
+    }
+
     private func isSaved(_ insight: ConceptDefinition) -> Bool {
-        savedInsights.contains { $0.word.caseInsensitiveCompare(insight.word) == .orderedSame }
+        savedInsights.contains { $0.id == insight.id }
     }
 
     private func isClipped(_ passage: ConceptDefinition) -> Bool {

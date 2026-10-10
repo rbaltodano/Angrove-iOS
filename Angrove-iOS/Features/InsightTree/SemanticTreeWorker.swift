@@ -346,8 +346,8 @@ actor SemanticTreeWorker {
     private var previousMembers: [InsightModel] = []
     private var previousResult: SemanticTreeResult?
 
-    func relax(_ nodes: [NodeModel], using relaxation: SemanticOverlapRelaxation) -> [NodeModel] {
-        PerformanceTrace.measure("Graph Overlap Relaxation") { relaxation.solve(nodes: nodes) }
+    func relax(_ nodes: [NodeModel], edges: [EdgeModel], using relaxation: SemanticOverlapRelaxation) -> (nodes: [NodeModel], untangledIDs: Set<UUID>) {
+        PerformanceTrace.measure("Graph Overlap Relaxation") { relaxation.solve(nodes: nodes, edges: edges) }
     }
 
     func compute(_ input: SemanticTreeComputation, members: [InsightModel]) -> SemanticTreeResult {

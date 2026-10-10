@@ -34,7 +34,6 @@ enum SettingsStorageKey {
     static let citationPreference = "aquinas.settings.citationPreference"
     static let citationFormat = "aquinas.settings.citationFormat"
     static let linkHandling = "aquinas.settings.linkHandling"
-    static let modelActivityDisplay = "aquinas.settings.modelActivityDisplay"
     static let conversationTitles = "aquinas.settings.conversationTitles"
     static let insightMapping = "aquinas.settings.insightMapping"
     static let definitionHighlights = "aquinas.settings.definitionHighlights"
@@ -68,7 +67,6 @@ enum SettingsStorageKey {
         citationPreference,
         citationFormat,
         linkHandling,
-        modelActivityDisplay,
         conversationTitles,
         insightMapping,
         definitionHighlights,
@@ -191,20 +189,6 @@ enum LinkHandlingOption: String, SettingsChoice {
         case .inApp: "In App"
         case .systemBrowser: "System Browser"
         case .askEveryTime: "Ask Every Time"
-        }
-    }
-}
-
-enum ModelActivityDisplayOption: String, SettingsChoice {
-    case detailed
-    case compact
-    case hidden
-
-    var title: LocalizedStringResource {
-        switch self {
-        case .detailed: "Detailed"
-        case .compact: "Compact"
-        case .hidden: "Hidden"
         }
     }
 }

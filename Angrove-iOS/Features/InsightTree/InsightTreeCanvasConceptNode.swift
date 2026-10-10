@@ -16,6 +16,7 @@ struct InsightTreeCanvasConceptNode: View {
     let zOrder: Double
     let onTap: () -> Void
     let onDismiss: () -> Void
+    var onUnbookmark: (() -> Void)? = nil
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -74,6 +75,11 @@ struct InsightTreeCanvasConceptNode: View {
                 }
                 .buttonStyle(.plain)
                 .offset(x: 20, y: -10)
+            }
+        }
+        .contextMenu {
+            if let onUnbookmark, !isSuggested {
+                Button("Unbookmark Node Concept", systemImage: "bookmark.slash", action: onUnbookmark)
             }
         }
         .offset(y: hasAppeared ? 0 : 24)

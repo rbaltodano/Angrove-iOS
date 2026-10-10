@@ -216,8 +216,7 @@ private struct DockedInsightLinkRow: View {
                 // locks later-inserted rows at a slightly reduced scale. Fixed size + truncation
                 // keeps every link identical.
                 Text(insight.title)
-                    .paragraphFont()
-                    .bold()
+                    .font(.custom("Figtree-Bold", size: 14))
                     .foregroundColor(AngroveTheme.Colors.secondaryMuted)
                     .lineLimit(1)
                     .truncationMode(.tail)

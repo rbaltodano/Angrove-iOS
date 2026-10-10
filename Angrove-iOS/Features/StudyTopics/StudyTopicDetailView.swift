@@ -660,8 +660,7 @@ struct StudyTopicDetailView: View {
             savedConceptIDs: Set(treeInsights.map(\.id)),
             onToggleSavedConcept: toggleSavedInsight,
             onBookmarkConcepts: { concepts in
-                for concept in concepts
-                where !treeInsights.contains(where: { $0.id == concept.id }) {
+                for concept in concepts {
                     restoreTopicTreeInsight(concept)
                 }
             },

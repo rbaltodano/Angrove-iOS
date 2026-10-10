@@ -22,6 +22,34 @@ nonisolated struct SemanticOverlapRelaxation: Sendable {
         return showsAllClusterInsights ? members : Array(members.prefix(6))
     }
 
+    /// Separates footprints, then turns branches so Node-to-Node connectors stop crossing.
+    /// `untangledIDs` are the nodes a branch turn moved, whose anchors must follow them.
+    func solve(nodes: [NodeModel], edges: [EdgeModel]) -> (nodes: [NodeModel], untangledIDs: Set<UUID>) {
+        var working = solve(nodes: nodes)
+        let positions = Dictionary(working.map { ($0.id, $0.position) }, uniquingKeysWith: { _, latest in latest })
+        let pinned = placedMidpointNodeIDs.union(working.filter(\.isMidpointConcept).map(\.id))
+        let radii = Dictionary(working.map { ($0.id, nodeFootprintRadius($0)) }, uniquingKeysWith: { _, latest in latest })
+        // Semantic bond length per connector; a duplicate pair keeps its shortest.
+        let lengths = edges.reduce(into: [InsightTreeEdgeUntangling.Bond: CGFloat]()) { result, edge in
+            let bond = InsightTreeEdgeUntangling.Bond.between(edge.fromNodeID, edge.toNodeID)
+            result[bond] = min(result[bond] ?? .infinity, mapDistanceToLength(edge.distance))
+        }
+        let untangled = InsightTreeEdgeUntangling.untangle(positions: positions,
+            edges: edges.map { ($0.fromNodeID, $0.toNodeID) }, pinned: pinned, radii: radii, lengths: lengths)
+        #if DEBUG
+        InsightTreeEdgeUntangling.diagnose(positions: positions, result: untangled,
+            edges: edges.map { ($0.fromNodeID, $0.toNodeID) }, pinned: pinned, radii: radii,
+            labels: Dictionary(working.map { ($0.id, $0.conceptLabel) }, uniquingKeysWith: { a, _ in a }), lengths: lengths)
+        #endif
+        var untangledIDs: Set<UUID> = []
+        for index in working.indices {
+            guard let point = untangled[working[index].id], point != working[index].position else { continue }
+            working[index].position = point
+            untangledIDs.insert(working[index].id)
+        }
+        return (working, untangledIDs)
+    }
+
     func solve(nodes: [NodeModel]) -> [NodeModel] {
         var working = nodes
         let iterations = 16

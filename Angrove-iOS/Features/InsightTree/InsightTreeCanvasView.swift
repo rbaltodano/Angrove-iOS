@@ -59,6 +59,7 @@ struct InsightTreeCanvasView: View {
     var midpointPercentRequest: Int = 0
     var onMidpointWeightsChange: ([Double]) -> Void = { _ in }
     var onNodeTapped: (NodeModel) -> Void
+    var onUnbookmarkNode: ((NodeModel) -> Void)? = nil
     var onInsightTapped: (InsightModel) -> Void
     var onCanvasMoved: () -> Void
     var onSuggestConnection: (EdgeModel) -> Void
@@ -101,10 +102,12 @@ struct InsightTreeCanvasView: View {
 
 
     @Environment(\.scenePhase) var scenePhase
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
 
     // State stays owned by this view; feature extensions implement its behavior.
     @State var cameraState = InsightTreeCanvasCameraState()
     @State var revealState = InsightTreeRevealState()
+    @State var crowdingSpacing = InsightTreeCrowdingSpacing()
     @State var selectionState = InsightTreeSelectionState()
     @State var rippleTrigger:      RippleTrigger? = nil
     @State var hasAppeared:        Bool = false
@@ -369,6 +372,7 @@ struct InsightTreeCanvasView: View {
             let labelOpacity = Self.labelOpacity(for: activeScale)
             let nodeLabelOpacity = Self.nodeLabelOpacity(for: activeScale)
             let layout = makeInsightLayout()
+            let connectorRoutes = conceptConnectorRoutes(layout: layout, camera: camera, size: size)
             let studyChipTargets = studyReady ? studyTapTargets(layout: layout, camera: camera, size: size) : []
             let studyNodeTarget = studyReady ? studyNodeTapTarget(camera: camera, size: size) : nil
 
@@ -406,7 +410,7 @@ struct InsightTreeCanvasView: View {
                     // one flattened layer keeps a large global tree from compositing hundreds of
                     // separate layers on every pan and zoom frame.
                     ZStack {
-                        graphEdges(camera: camera, size: size)
+                        graphEdges(routes: connectorRoutes, size: size, screenPerWorld: -camera.scale)
                         midpointConnectors(layout: layout, camera: camera, size: size)
                             .opacity(restFade)
                         insightConnectors(layout: layout, camera: camera, size: size)
@@ -415,7 +419,7 @@ struct InsightTreeCanvasView: View {
                     .drawingGroup()
                     // Hover pulses stay in Study: they only ever run along the hovered item's
                     // connectors, which in Study belong to the studied cluster.
-                    connectorPulseOverlay(layout: layout, camera: camera, size: size)
+                    connectorPulseOverlay(layout: layout, camera: camera, size: size, routes: connectorRoutes)
                     // Fades with the rest of the tree, except a studied selection's own lines.
                     selectionOverlay(layout: layout, camera: camera, size: size, restFade: restFade)
                     edgeHitTargets(camera: camera, size: size)

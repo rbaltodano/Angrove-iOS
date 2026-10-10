@@ -160,9 +160,9 @@ enum AngroveTheme {
 
         // Settings subpages follow the iPhone's Text Size setting.
         static let settingsTitle = Font.custom("LibreBaskerville-Regular", size: 28, relativeTo: .title)
+        static let settingsDetailTitleTracking: CGFloat = -2
+        static let settingsHubEntry = Font.custom("LibreBaskerville-Regular", fixedSize: 16)
         static let settingsDetailTitle = Font.custom("LibreBaskerville-Regular", fixedSize: 40)
-        static let settingsGuideParagraph = Font.custom("Figtree-Regular", size: 18, relativeTo: .body)
-        static let settingsGuideLineSpacing: CGFloat = 8.1
         static let settingsGuideTitleLineSpacing: CGFloat = 1.6
         static let settingsGuideTitle = Font.custom("LibreBaskerville-Regular", size: 34, relativeTo: .largeTitle)
         static let settingsHeading = Font.custom("Figtree-Bold", size: 17, relativeTo: .headline)
@@ -594,15 +594,13 @@ extension View {
 
 // MARK: - Settings text
 
-/// Settings-page text that follows the user's conversation font size. Paragraphs also follow
-/// the response font; labels, controls, and details stay in the UI sans face.
+/// Settings prose always uses Figtree, while retaining the person's text-size preference.
 struct SettingsTextModifier: ViewModifier {
     enum Role {
         case label, control, paragraph, detail
     }
 
     let role: Role
-    @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .serif
     @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .medium
 
     func body(content: Content) -> some View {
@@ -612,10 +610,7 @@ struct SettingsTextModifier: ViewModifier {
         case .control: content.font(.custom("Figtree-Regular", fixedSize: base))
         case .detail: content.font(.custom("Figtree-Regular", fixedSize: max(base - 2, 11)))
         case .paragraph:
-            switch responseFont {
-            case .sans: content.font(.custom("Figtree-Regular", fixedSize: base))
-            case .serif: content.font(.custom("LibreBaskerville-Regular", fixedSize: base))
-            }
+            content.font(.custom("Figtree-Regular", fixedSize: base)).lineSpacing(FlowLayout.rowSpacing)
         }
     }
 }
@@ -626,20 +621,20 @@ extension View {
     }
 }
 
-/// Matches the bundled User Guide's introductory copy (18pt Figtree, 1.65 line height).
-struct SettingsGuideParagraphModifier: ViewModifier {
+/// Left-aligned settings prose with consistent Figtree typography and an entrance reveal.
+struct SettingsParagraphModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .font(AngroveTheme.Typography.settingsGuideParagraph)
-            .lineSpacing(AngroveTheme.Typography.settingsGuideLineSpacing)
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity, alignment: .center)
+            .settingsText(.paragraph)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
+            .settingsTextReveal()
     }
 }
 
 extension View {
-    func settingsGuideParagraph() -> some View {
-        modifier(SettingsGuideParagraphModifier())
+    func settingsParagraph() -> some View {
+        modifier(SettingsParagraphModifier())
     }
 }

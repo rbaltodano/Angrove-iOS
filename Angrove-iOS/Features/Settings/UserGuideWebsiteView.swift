@@ -8,6 +8,8 @@ struct UserGuideWebsiteView: UIViewRepresentable {
     @Binding var savedTerms: [String]
     var onSelectTopic: (String) -> Void
     @Environment(\.colorScheme) private var colorScheme
+    @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .serif
+    @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .medium
     @AppStorage(UserGuideReadingHistory.key) private var visitedTopicsJSON = "[]"
 
     private var visitedTopics: [String] {
@@ -33,6 +35,11 @@ struct UserGuideWebsiteView: UIViewRepresentable {
         configuration.userContentController.addUserScript(WKUserScript(
             source: Self.bootstrapScript(topicID: topicID, savedTerms: savedTerms, colorScheme: colorScheme, visitedTopics: visitedTopics),
             injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        ))
+        configuration.userContentController.addUserScript(WKUserScript(
+            source: Self.typographyScript(font: responseFont, size: fontSize),
+            injectionTime: .atDocumentEnd,
             forMainFrameOnly: true
         ))
         let webView = WKWebView(frame: .zero, configuration: configuration)
@@ -78,6 +85,8 @@ struct UserGuideWebsiteView: UIViewRepresentable {
         let background = UIColor(AngroveTheme.Colors.canvas).resolvedColor(with: traits)
         webView.backgroundColor = background
         webView.scrollView.backgroundColor = background
+        coordinator.typographyScript = Self.typographyScript(font: responseFont, size: fontSize)
+        webView.evaluateJavaScript(coordinator.typographyScript)
         let script = Self.appearanceScript(for: colorScheme)
         guard coordinator.appearanceScript != script else { return }
         coordinator.appearanceScript = script
@@ -92,6 +101,36 @@ struct UserGuideWebsiteView: UIViewRepresentable {
 
     static func appearanceScript(for scheme: ColorScheme) -> String {
         "window.applyGuideAppearance?.(\(json(palette(for: scheme))), \(scheme == .dark));"
+    }
+
+    /// Web paragraphs use the same registered font metrics and extra line spacing as native prose.
+    static func typographyScript(font _: ConversationFontOption, size: ConversationFontSizeOption) -> String {
+        // Settings prose stays in Figtree even when conversation responses use serif.
+        let fontName = "Figtree-Regular"
+        let family = "Figtree"
+        let nativeFont = UIFont(name: fontName, size: size.pointSize) ?? UIFont.systemFont(ofSize: size.pointSize)
+        let lineHeight = nativeFont.lineHeight + FlowLayout.rowSpacing
+        let css = """
+        .page-hero__inner { align-items: flex-start; text-align: start; }
+        .lede, .para, .guide-text, .guide-topic__intro, .guide-tech__panel p,
+        .guide-tech__list li, .w-card__body, .w-read__answer, .w-read--thread .w-read__answer,
+        .w-home__body, .mid-card__body, .flow-insight__body, .flow-answer__text {
+            font-family: "\(family)";
+            font-size: \(size.pointSize)px;
+            line-height: \(lineHeight)px;
+        }
+        """
+        return """
+        (() => {
+            let style = document.getElementById('native-paragraph-typography');
+            if (!style) {
+                style = document.createElement('style');
+                style.id = 'native-paragraph-typography';
+                document.head.appendChild(style);
+            }
+            style.textContent = \(json(css));
+        })();
+        """
     }
 
     private struct PageContext: Encodable {
@@ -142,6 +181,7 @@ struct UserGuideWebsiteView: UIViewRepresentable {
         static let messageNames = ["guideCopy", "guideTopic", "guideSaved"]
         var guideURL: URL?
         var appearanceScript = ""
+        var typographyScript = ""
         var savedTerms: Binding<[String]>
         var onSelectTopic: (String) -> Void
 
@@ -152,6 +192,7 @@ struct UserGuideWebsiteView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             webView.evaluateJavaScript(appearanceScript)
+            webView.evaluateJavaScript(typographyScript)
         }
 
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,

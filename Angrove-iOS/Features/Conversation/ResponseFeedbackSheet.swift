@@ -60,23 +60,16 @@ struct ResponseFeedbackSheet: View {
             // Scrolls so the attachment preview and keyboard fit on small phones.
             ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text("Report a Bug")
-                    .font(AngroveTheme.Typography.settingsDetailTitle)
-                    .foregroundStyle(AngroveTheme.Colors.headingText)
-                    .lineSpacing(AngroveTheme.Typography.settingsGuideTitleLineSpacing)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
+                SettingsDetailHeading(title: "Report a Bug")
 
                 Text("What went wrong with this response? This app runs on your device. Sending this report is the one exception. It shares your note plus your app version, build number, and iOS version. Nothing is sent unless you tap Send Report. Please leave out anything private.")
-                    .settingsGuideParagraph()
+                    .settingsParagraph()
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
                     .fixedSize(horizontal: false, vertical: true)
 
                 TextEditor(text: $feedback)
-                    .font(AngroveTheme.Typography.settingsGuideParagraph)
-                    .lineSpacing(AngroveTheme.Typography.settingsGuideLineSpacing)
+                    .settingsText(.paragraph)
+                    .lineSpacing(FlowLayout.rowSpacing)
                     .foregroundStyle(AngroveTheme.Colors.primaryReadable)
                     .scrollContentBackground(.hidden)
                     .focused($isFocused)
@@ -95,8 +88,8 @@ struct ResponseFeedbackSheet: View {
                     .overlay(alignment: .topLeading) {
                         if feedback.isEmpty {
                             Text("Tell us what was wrong or unhelpful")
-                                .font(AngroveTheme.Typography.settingsGuideParagraph)
-                                .lineSpacing(AngroveTheme.Typography.settingsGuideLineSpacing)
+                                .settingsText(.paragraph)
+                                .lineSpacing(FlowLayout.rowSpacing)
                                 .foregroundStyle(AngroveTheme.Colors.paragraphText.opacity(0.55))
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 14)
@@ -111,8 +104,8 @@ struct ResponseFeedbackSheet: View {
 
                 if hasFailed {
                     Text("We couldn’t send your feedback. Check your connection and try again, or email bugreport@angrove.app directly.")
-                        .font(AngroveTheme.Typography.settingsGuideParagraph)
-                        .lineSpacing(AngroveTheme.Typography.settingsGuideLineSpacing)
+                        .settingsText(.paragraph)
+                        .lineSpacing(FlowLayout.rowSpacing)
                         .foregroundStyle(AngroveTheme.Colors.accentRed)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -144,19 +137,19 @@ struct ResponseFeedbackSheet: View {
             Toggle(isOn: $includesResponse) {
                 Text("Include this response and the question before it")
                     .settingsText(.control)
-                    .lineSpacing(AngroveTheme.Typography.settingsGuideLineSpacing)
+                    .lineSpacing(FlowLayout.rowSpacing)
                     .foregroundStyle(AngroveTheme.Colors.primaryReadable)
             }
             .tint(AngroveTheme.Colors.lightGreen)
 
             if includesResponse {
                 Text("This text will be sent with your report:")
-                    .settingsGuideParagraph()
+                    .settingsParagraph()
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
                 ScrollView {
                     Text("Question\n\(report.question)\n\nResponse\n\(report.response)")
-                        .font(AngroveTheme.Typography.settingsGuideParagraph)
-                        .lineSpacing(AngroveTheme.Typography.settingsGuideLineSpacing)
+                        .settingsText(.paragraph)
+                        .lineSpacing(FlowLayout.rowSpacing)
                         .foregroundStyle(AngroveTheme.Colors.paragraphText)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)

@@ -30,6 +30,15 @@ final class InsightTreeRevealState {
     var confirmedPersistedInsightIDs: Set<UUID> = []
     var confirmedPersistedNodeIDs: Set<UUID> = []
     var loadingInsightIDs: Set<UUID> = []
+    var transferProgress: CGFloat = 1
+    var transfers: [UUID: MidpointTransfer] = [:]
+    var previousBondLengths: [UUID: CGFloat] = [:]
+    @ObservationIgnored var transferTask: Task<Void, Never>?
+    struct MidpointTransfer {
+        let oldParent: CGPoint
+        let world: CGPoint
+        let elevation: CGFloat
+    }
     var loadingFlashOpacity: CGFloat = 1
     var unsplayedInsightIDs: Set<UUID> = []
 
@@ -48,6 +57,8 @@ final class InsightTreeRevealState {
     }
 
     func cancelPendingAnimations() {
+        transferTask?.cancel()
+        transfers = [:]
         entranceTask?.cancel()
         midpointRevealTask?.cancel()
         makeNodeRevealTask?.cancel()
@@ -69,4 +80,36 @@ final class InsightTreeSelectionState {
     var selectionRipples: [RippleTrigger] = []
     var selectionPulseStartTime: TimeInterval?
     var selectionFlashOpacity: CGFloat = 1
+}
+
+/// One clock keeps the new connector attached before releasing the old parent or moving a chip.
+nonisolated struct MidpointTransferPresentation {
+    static let connectorDuration: TimeInterval = 0.63
+    static let fadeDuration: TimeInterval = 0.36
+    static let pullStart = connectorDuration + fadeDuration
+    static let duration = pullStart + Spring.relaxed.settlingDuration
+
+    let connectorGrowth: CGFloat
+    let oldConnectorOpacity: CGFloat
+    let pullProgress: CGFloat
+
+    init(progress: CGFloat) {
+        let elapsed = Double(min(max(progress, 0), 1)) * Self.duration
+        connectorGrowth = Self.ease(CGFloat(elapsed / Self.connectorDuration))
+        oldConnectorOpacity = 1 - Self.ease(CGFloat((elapsed - Self.connectorDuration) / Self.fadeDuration))
+        let pullElapsed = elapsed - Self.pullStart
+        if pullElapsed <= 0 {
+            pullProgress = 0
+        } else if progress >= 1 {
+            pullProgress = 1
+        } else {
+            // Keep the drag-release spring's overshoot instead of clamping it to the orbit.
+            pullProgress = CGFloat(Spring.relaxed.value(target: 1.0, time: pullElapsed))
+        }
+    }
+
+    private static func ease(_ value: CGFloat) -> CGFloat {
+        let t = min(max(value, 0), 1)
+        return t * t * (3 - 2 * t)
+    }
 }

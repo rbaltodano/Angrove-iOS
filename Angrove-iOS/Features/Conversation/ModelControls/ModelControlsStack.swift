@@ -335,8 +335,6 @@ struct ModelStatusButton: View {
     /// Allows non-model background work (such as Global Insight Tree reconciliation) to use the
     /// same activity affordance without acquiring a model-runtime lease.
     var statusOverride: String? = nil
-    @AppStorage(SettingsStorageKey.modelActivityDisplay)
-    private var activityDisplay: ModelActivityDisplayOption = .detailed
 
     private var isActive: Bool {
         modelTasks.isBusy || statusOverride != nil
@@ -373,7 +371,7 @@ struct ModelStatusButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {
-                if activityDisplay == .detailed && isActive && totalTaskCount > 1 {
+                if isActive && totalTaskCount > 1 {
                     ModelTaskCounter(
                         currentTaskNumber: currentTaskNumber,
                         totalTaskCount: totalTaskCount
@@ -382,47 +380,19 @@ struct ModelStatusButton: View {
                 }
 
                 if isActive {
-                    if activityDisplay == .compact {
-                        HStack(spacing: 3) {
-                            ForEach(0..<3, id: \.self) { _ in
-                                Circle()
-                                    .fill(AngroveTheme.Colors.lightGreen)
-                                    .frame(width: 4, height: 4)
-                            }
-                        }
+                    BlurSwapText(activeStatusText)
+                        .fixedSize(horizontal: statusOverride != nil, vertical: false)
                         .modifier(
                             ThinkingShimmer(
                                 isActive: true,
                                 color: AngroveTheme.Colors.lightGreen
                             )
                         )
-                        .transition(.opacity)
-                    } else {
-                        BlurSwapText(activeStatusText)
-                            .fixedSize(horizontal: statusOverride != nil, vertical: false)
-                            .modifier(
-                                ThinkingShimmer(
-                                    isActive: true,
-                                    color: AngroveTheme.Colors.lightGreen
-                                )
-                            )
-                            .transition(.blurFade)
-                    }
+                        .transition(.blurFade)
                 } else {
-                    if activityDisplay == .compact {
-                        HStack(spacing: 3) {
-                            ForEach(0..<3, id: \.self) { _ in
-                                Circle()
-                                    .fill(AngroveTheme.Colors.paragraphText)
-                                    .frame(width: 4, height: 4)
-                            }
-                        }
-                        .transition(.opacity)
-                    } else {
-                        Text("Idle")
-                            .foregroundColor(AngroveTheme.Colors.paragraphText)
-                            .transition(.blurFade)
-                    }
+                    Text("Idle")
+                        .foregroundColor(AngroveTheme.Colors.paragraphText)
+                        .transition(.blurFade)
                 }
             }
             .font(.custom("Figtree-SemiBold", size: 14))

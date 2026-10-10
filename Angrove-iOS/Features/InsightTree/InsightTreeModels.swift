@@ -70,6 +70,7 @@ nonisolated struct NodeModel: Sendable, Identifiable, Equatable {
     /// The concept's own definition, shown in its docked card just like an insight's. Set when an
     /// insight is promoted to a node (carries the source insight's definition); empty for auto
     /// clustered nodes, whose card falls back to a summary of their member insights.
+    var isMidpointConcept: Bool = false
     var definition: String = ""
     var insights: [InsightModel]
     var embedding: [Double]

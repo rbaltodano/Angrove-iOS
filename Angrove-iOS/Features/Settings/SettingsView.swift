@@ -142,8 +142,7 @@ private enum SettingsRoute: Hashable {
     case appExperience
     case notifications
     case privacyAndData
-    case modelBehavior
-    case modelActivity
+    case personalization
     case modelDownload
     case textAndDisplay
     case conversationDefaults
@@ -208,6 +207,7 @@ private struct SettingsHubView: View {
     private var parts: [(title: LocalizedStringResource, rows: [SettingsHubItem])] {
         [
             ("General", [
+                SettingsHubItem(title: "Personalization", detail: "How Angrove addresses you", iconName: "person.crop.circle", route: .personalization),
                 SettingsHubItem(title: "Appearance", detail: appearanceDetail, iconName: "paintpalette", route: .appearance),
                 SettingsHubItem(title: "App Experience", detail: "Start screen and haptics", iconName: "sparkles", route: .appExperience),
                 SettingsHubItem(title: "Notifications", detail: "Daily question and finished responses", iconName: "bell", route: .notifications),
@@ -224,20 +224,13 @@ private struct SettingsHubView: View {
                 SettingsHubItem(title: "Conversation Defaults", detail: "Titles and daily study", iconName: "bubble.left.and.bubble.right", route: .conversationDefaults)
             ]),
             ("Model", [
-                SettingsHubItem(title: "On-device Model", detail: "Download, readiness, and recovery", iconName: "arrow.down.circle", route: .modelDownload),
-                SettingsHubItem(
-                    title: "Model Behavior",
-                    detail: "Your name",
-                    iconName: "brain",
-                    route: .modelBehavior
-                ),
-                SettingsHubItem(title: "Model Activity", detail: "How on-device work is shown", iconName: "waveform.circle", route: .modelActivity)
+                SettingsHubItem(title: "On-device Model", detail: "Download, readiness, and recovery", iconName: "arrow.down.circle", route: .modelDownload)
             ]),
             ("Support", [
                 SettingsHubItem(title: "User Guide", detail: "How each part of Angrove works", iconName: "book", route: .userGuide),
                 SettingsHubItem(title: "Report a Bug", detail: "Tell us what went wrong", iconName: "ladybug", route: .reportBug),
                 SettingsHubItem(title: "Privacy Policy", detail: "How Angrove handles your information", iconName: "hand.raised", route: .privacyPolicy),
-                SettingsHubItem(title: "Licenses", detail: "Models, software, and fonts", iconName: "doc.text", route: .licenses)
+                SettingsHubItem(title: "Licenses", detail: "Models, software, fonts, and Library", iconName: "doc.text", route: .licenses)
             ])
         ]
     }
@@ -245,13 +238,12 @@ private struct SettingsHubView: View {
 
 private struct SettingsHubHeader: View {
     var body: some View {
-        Text("Settings")
-            .font(AngroveTheme.Typography.titleXLarge)
-            .foregroundStyle(AngroveTheme.Colors.primaryReadable)
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityAddTraits(.isHeader)
+        VStack(alignment: .leading, spacing: 20) {
+            SettingsDetailHeading(title: "Settings")
+            Text("Choose how Angrove looks, works, and fits your conversations.")
+                .settingsParagraph()
+                .foregroundStyle(AngroveTheme.Colors.paragraphText)
+        }
     }
 }
 
@@ -319,7 +311,7 @@ private struct SettingsHubRow: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.title)
-                        .font(.custom("LibreBaskerville-Regular", size: 16))
+                        .font(AngroveTheme.Typography.settingsHubEntry)
                         .foregroundStyle(AngroveTheme.Colors.primaryReadable)
 
                     Text(item.detail)
@@ -401,12 +393,10 @@ private struct SettingsDestinationView: View {
             NotificationSettingsView()
         case .privacyAndData:
             PrivacyAndDataSettingsView(onClearInsightTree: onClearInsightTree)
-        case .modelBehavior:
-            ModelBehaviorSettingsView(userName: $userName)
+        case .personalization:
+            PersonalizationSettingsView(userName: $userName)
         case .modelDownload:
             ModelDownloadSettingsView()
-        case .modelActivity:
-            ModelActivitySettingsView()
         case .textAndDisplay:
             TextAndDisplaySettingsView(
                 conversationFontSize: $conversationFontSize,

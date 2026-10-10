@@ -44,6 +44,7 @@ struct AngroveSideMenu: View, Equatable {
     @State private var sideMenuStudyTopics: [StudyTopic] = []
     @State private var topicBeingRenamed: StudyTopic? = nil
     @State private var topicRenameDraft = ""
+    @State private var showsTopFade = false
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.currentTitle == rhs.currentTitle
@@ -215,12 +216,33 @@ struct AngroveSideMenu: View, Equatable {
                 }
             }
 
+            .padding(.top, topPadding)
             .padding(.bottom, 88) // let the last row scroll fully above the pinned buttons
 
             } // end scrollable content
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top > 0.5
+            } action: { _, isScrolled in
+                showsTopFade = isScrolled
+            }
             .padding(.horizontal, 24)
-            .padding(.top, topPadding)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            LinearGradient(
+                colors: [
+                    AngroveTheme.Colors.sideMenuSurface,
+                    AngroveTheme.Colors.sideMenuSurface.opacity(0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 160)
+            .clipShape(UnevenRoundedRectangle(topTrailingRadius: 24))
+            .frame(maxHeight: .infinity, alignment: .top)
+            .opacity(showsTopFade ? 1 : 0)
+            .animation(.easeInOut(duration: 0.28), value: showsTopFade)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
 
             // Fade scrolling rows into the panel's own adaptive surface, beneath the buttons.
             LinearGradient(

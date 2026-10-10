@@ -3563,7 +3563,7 @@ code.cmd { background: var(--canvas-secondary); }
         
         <div class="guide-paras">
           <div><h3 class="guide-label">What it does</h3><p class="guide-text">Settings controls how the app looks and how conversations read.</p></div>
-          <div><h3 class="guide-label">How to use it</h3><p class="guide-text">Appearance switches between light and dark. Text &amp; Display changes fonts, text size, and alignment. Model Behavior sets your name. App Experience sets your start screen and haptics, and Notifications sets reminders.</p></div>
+          <div><h3 class="guide-label">How to use it</h3><p class="guide-text">Appearance switches between light and dark. Text &amp; Display changes fonts, text size, and alignment. Personalization sets the name Angrove uses to address you. App Experience sets your start screen and haptics, and Notifications sets reminders.</p></div>
           <div><h3 class="guide-label">When it helps</h3><p class="guide-text">Choose larger text for long reading sessions, or a serif font for responses.</p></div>
         </div>
       </article>
@@ -3701,7 +3701,7 @@ code.cmd { background: var(--canvas-secondary); }
   // ---------- Headline reveal ----------
   // Each word of a headline resolves from a blur, in order, the first time it comes into view.
   if (!reduceMotion && 'IntersectionObserver' in window) {
-    var headlines = document.querySelectorAll('h1.display, h2.display, .row__copy h2, .cta__copy h2, .why__quote blockquote p');
+    var headlines = document.querySelectorAll('h1.display, h2.display, .guide-topic h2, .row__copy h2, .cta__copy h2, .why__quote blockquote p');
     var seen = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
         if (!entry.isIntersecting) return;

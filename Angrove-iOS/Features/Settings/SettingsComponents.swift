@@ -43,6 +43,7 @@ struct SettingsPageScaffold<Content: View>: View {
 
 struct SettingsDetailScaffold<Content: View>: View {
     let title: LocalizedStringResource
+    var intro: LocalizedStringResource? = nil
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -50,14 +51,13 @@ struct SettingsDetailScaffold<Content: View>: View {
             AngroveTheme.Colors.canvas.ignoresSafeArea()
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text(title)
-                        .font(AngroveTheme.Typography.settingsDetailTitle)
-                        .foregroundStyle(AngroveTheme.Colors.headingText)
-                        .lineSpacing(AngroveTheme.Typography.settingsGuideTitleLineSpacing)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity)
-                        .accessibilityAddTraits(.isHeader)
+                    SettingsDetailHeading(title: title)
+
+                    if let intro {
+                        Text(intro)
+                            .settingsParagraph()
+                            .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                    }
 
                     content
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -159,7 +159,7 @@ struct SettingsChoiceRow<Option: SettingsChoice>: View {
 
                 if let detail {
                     Text(detail)
-                        .settingsText(.detail)
+                        .settingsText(.paragraph)
                         .foregroundStyle(AngroveTheme.Colors.placeholderText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -225,7 +225,7 @@ struct SettingsToggleRow: View {
 
                 if let detail {
                     Text(detail)
-                        .settingsText(.detail)
+                        .settingsText(.paragraph)
                         .foregroundStyle(AngroveTheme.Colors.placeholderText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -277,7 +277,7 @@ struct SettingsNavigationLabel: View {
 
                 if let detail {
                     Text(detail)
-                        .settingsText(.detail)
+                        .settingsText(.paragraph)
                         .foregroundStyle(AngroveTheme.Colors.placeholderText)
                 }
             }
@@ -560,5 +560,75 @@ enum SettingsHaptics {
         }
         guard isEnabled else { return }
         feedback.impactOccurred()
+    }
+}
+
+/// Native counterpart of the guide's word-by-word headline reveal.
+struct SettingsDetailHeading: View {
+    let title: LocalizedStringResource
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var hasRevealed = false
+    @State private var elapsed: Double = 0
+
+    var body: some View {
+        let words = String(localized: title).split(separator: " ", omittingEmptySubsequences: false)
+        let duration = 0.6 + Double(max(words.count - 1, 0)) * 0.055
+        words.enumerated().reduce(Text(verbatim: "")) { text, word in
+            text + Text(verbatim: (word.offset == 0 ? "" : " ") + String(word.element))
+                .customAttribute(SettingsRevealWord(index: word.offset))
+        }
+        .font(AngroveTheme.Typography.settingsDetailTitle)
+        .tracking(AngroveTheme.Typography.settingsDetailTitleTracking)
+        .foregroundStyle(AngroveTheme.Colors.headingText)
+        .lineSpacing(AngroveTheme.Typography.settingsGuideTitleLineSpacing)
+        .multilineTextAlignment(.leading)
+        .lineLimit(words.count == 1 ? 1 : nil)
+        .minimumScaleFactor(0.75)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .textRenderer(SettingsHeadingRenderer(elapsed: reduceMotion ? duration : elapsed))
+        .accessibilityLabel(Text(title))
+        .accessibilityAddTraits(.isHeader)
+        .onScrollVisibilityChange(threshold: 0.4) { isVisible in
+            guard isVisible, !hasRevealed else { return }
+            hasRevealed = true
+            withAnimation(reduceMotion ? nil : .linear(duration: duration)) {
+                elapsed = duration
+            }
+        }
+    }
+}
+
+private struct SettingsRevealWord: TextAttribute {
+    let index: Int
+}
+
+private struct SettingsHeadingRenderer: TextRenderer {
+    var elapsed: Double
+    var animatableData: Double {
+        get { elapsed }
+        set { elapsed = newValue }
+    }
+
+    func draw(layout: Text.Layout, in context: inout GraphicsContext) {
+        for line in layout {
+            for run in line {
+                let index = run[SettingsRevealWord.self]?.index ?? 0
+                let progress = min(max((elapsed - Double(index) * 0.055) / 0.6, 0), 1)
+                let fade = UnitCurve.bezier(
+                    startControlPoint: UnitPoint(x: 0.25, y: 0.1),
+                    endControlPoint: UnitPoint(x: 0.25, y: 1)
+                ).value(at: progress)
+                let movement = UnitCurve.bezier(
+                    startControlPoint: UnitPoint(x: 0.2, y: 0.8),
+                    endControlPoint: UnitPoint(x: 0.2, y: 1)
+                ).value(at: progress)
+                var copy = context
+                copy.opacity *= fade
+                copy.addFilter(.blur(radius: 4 * (1 - fade)))
+                copy.translateBy(x: 0, y: 12 * (1 - movement))
+                copy.draw(run)
+            }
+        }
     }
 }

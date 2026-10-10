@@ -140,21 +140,75 @@ final class InsightTreeViewModel: ObservableObject {
     /// so a saved Insight that's semantically related attaches under the seeded subject (see
     /// `setLocalSeedAnchors`'s doc comment).
     private var localSeedAnchors: [LocalInsightTreeSeed] = []
+    // Node bookmarks are anchors, never extra Insight chips. Persist removals and explicit
+    // transfers per canvas so stale seeds and historical Midpoint parents cannot resurrect them.
+    private struct NodeBookmarkState: Codable {
+        var anchors: [LocalInsightTreeSeed] = []
+        var removedNodeIDs: Set<UUID> = []
+        var removedInsightIDs: Set<UUID> = []
+        var transfers: [UUID: UUID] = [:]
+    }
+    struct NodeBookmarkReference: Codable {
+        let scope: UUID?
+        let nodeID: UUID
+        let bookmarkID: UUID
+        let seed: LocalInsightTreeSeed?
+        let insightIDs: Set<UUID>
+        let promotedIDs: [UUID]
+    }
+    private static let nodeCatalogKey = "aquinas.insight-tree.node-bookmark-catalog.v1"
+    static func nodeBookmarkReference(for bookmarkID: UUID, preferredScope: UUID?) -> NodeBookmarkReference? {
+        let references = InsightTreeLocalStateStore.load([NodeBookmarkReference].self, key: nodeCatalogKey) ?? []
+        return references.first { $0.bookmarkID == bookmarkID && $0.scope == preferredScope }
+            ?? references.first { $0.bookmarkID == bookmarkID }
+    }
+    static func bookmarkSeed(_ seed: LocalInsightTreeSeed, scope: UUID) -> ConceptDefinition? {
+        let key = "aquinas.insight-tree.node-bookmarks.v1:\(scope.uuidString)"
+        var state = InsightTreeLocalStateStore.load(NodeBookmarkState.self, key: key) ?? NodeBookmarkState()
+        guard !state.removedNodeIDs.contains(seed.id) else { return nil }
+        state.anchors.removeAll { $0.id == seed.id }
+        state.anchors.append(seed)
+        InsightTreeLocalStateStore.save(state, key: key)
+        var references = InsightTreeLocalStateStore.load([NodeBookmarkReference].self, key: nodeCatalogKey) ?? []
+        let memberIDs = references.first { $0.scope == scope }?.insightIDs ?? []
+        let promotions = references.first { $0.scope == scope }?.promotedIDs ?? []
+        references.removeAll { $0.scope == scope && $0.bookmarkID == seed.id }
+        references.append(NodeBookmarkReference(scope: scope, nodeID: seed.id, bookmarkID: seed.id,
+            seed: seed, insightIDs: memberIDs, promotedIDs: promotions))
+        InsightTreeLocalStateStore.save(references, key: nodeCatalogKey)
+        return ConceptDefinition(id: seed.id, word: seed.label, partOfSpeech: "", pronunciation: "", meaning: seed.summary, example: "")
+    }
 
-    /// A user-placed "midpoint" insight: a permanent node pinned at an explicit world
-    /// position, connected by an edge to each of the source insights it was spawned from.
+    private var nodeBookmarks = NodeBookmarkState()
+    private var nodeBookmarkStoreKey: String {
+        "aquinas.insight-tree.node-bookmarks.v1:\(midpointStoreScope?.uuidString ?? "global")"
+    }
+    private var effectiveSeedAnchors: [LocalInsightTreeSeed] {
+        let externalIDs = Set(localSeedAnchors.map(\.id))
+        return (localSeedAnchors + nodeBookmarks.anchors.filter { !externalIDs.contains($0.id) })
+            .filter { !nodeBookmarks.removedNodeIDs.contains($0.id) }
+    }
+    private var nodeRecordIDs: Set<UUID> { Set(nodeBookmarks.anchors.map(\.id)) }
+
+
+    /// A placed blend. Completed records own selected Insights as a Node Concept;
+    /// older records and generation placeholders retain the pinned Insight presentation.
     private struct PlacedMidpoint: Equatable {
         let concept: ConceptDefinition
         let position: CGPoint
         let sources: [MidpointSource]
+        var isNodeConcept: Bool = false
+        var formerParents: [LocalInsightTreeSeed] = []
     }
 
     /// On-disk form of `PlacedMidpoint` — `ConceptDefinition` and `MidpointSource` are already
     /// Codable; only `CGPoint` needs the usual wrapper.
     private struct CodablePlacedMidpoint: Codable {
         let concept: ConceptDefinition
-        let position: CodablePoint
+        var position: CodablePoint
         let sources: [MidpointSource]
+        var isNodeConcept: Bool? = nil
+        var formerParents: [LocalInsightTreeSeed]? = nil
     }
 
     /// Which conversation's tree this instance belongs to (`nil` for the Global tree) — scopes
@@ -209,6 +263,9 @@ final class InsightTreeViewModel: ObservableObject {
         branchInsightCounts = InsightTreeLocalStateStore.load([UUID: Int].self, key: "aquinas.insight-tree.branch-counts.v1:\(midpointStoreScope?.uuidString ?? "global")") ?? [:]
         generatedMakeNodeChildIDs = Set(generatedChildInsights.values.flatMap { $0.map(\.id) })
         scene = InsightTreeScene(size: CGSize(width: 390, height: 844))
+        nodeBookmarks = InsightTreeLocalStateStore.load(NodeBookmarkState.self, key: nodeBookmarkStoreKey) ?? NodeBookmarkState()
+        importNodeBookmarkAnchors(from: self.insights.map(\.id))
+        self.insights.removeAll { nodeRecordIDs.contains($0.id) || nodeBookmarks.removedInsightIDs.contains($0.id) }
         scene.scaleMode = .resizeFill
         scene.backgroundColor = UIColor(AngroveTheme.Colors.canvas)
         scene.onNodeTapped = { [weak self] node in
@@ -235,8 +292,10 @@ final class InsightTreeViewModel: ObservableObject {
         print("Angrove updateInsights: incoming \(concepts.count) concept(s) \(concepts.map(\.word))")
 #endif
         embeddingRefreshGeneration += 1
+        nodeBookmarks = InsightTreeLocalStateStore.load(NodeBookmarkState.self, key: nodeBookmarkStoreKey) ?? nodeBookmarks
+        importNodeBookmarkAnchors(from: concepts.map(\.id))
         let previous = Dictionary(uniqueKeysWithValues: insights.map { ($0.id, $0) })
-        insights = Self.deduplicated(concepts.map { concept in
+        insights = Self.deduplicated(concepts.filter { !nodeRecordIDs.contains($0.id) && !nodeBookmarks.removedInsightIDs.contains($0.id) }.map { concept in
             let next = InsightModel(concept: concept)
             if let existing = previous[next.id], existing.title == next.title,
                existing.definition == next.definition { return existing }
@@ -321,6 +380,7 @@ final class InsightTreeViewModel: ObservableObject {
         let generation = embeddingRefreshGeneration
         let originalInsights = insights
         let originalSeeds = localSeedAnchors
+        let originalBookmarkAnchors = nodeBookmarks.anchors
         let corrected = await ensureEmbeddings(for: originalInsights)
         let originalChildren = generatedChildInsights
         var correctedChildren = originalChildren
@@ -331,7 +391,7 @@ final class InsightTreeViewModel: ObservableObject {
             correctedChildren[nodeID] = await preparedChildren(children, source: source)
         }
         var correctedSeeds: [LocalInsightTreeSeed] = []
-        for seed in originalSeeds {
+        for seed in originalSeeds + originalBookmarkAnchors {
             if seed.embedding != nil,
                (seed.embeddingVersion ?? NLEmbeddingProvider.version) == embeddingProvider.version {
                 correctedSeeds.append(seed)
@@ -344,6 +404,8 @@ final class InsightTreeViewModel: ObservableObject {
                 ))
             }
         }
+        let preparedBookmarkAnchors = Array(correctedSeeds.suffix(originalBookmarkAnchors.count))
+        correctedSeeds = Array(correctedSeeds.prefix(originalSeeds.count))
         let originalMidpoints = placedMidpoints
         var correctedMidpoints = midpointEmbeddings
         for midpoint in originalMidpoints {
@@ -367,9 +429,9 @@ final class InsightTreeViewModel: ObservableObject {
             subjectEmbeddings[id] = SemanticClusterSubjectEmbedding(text: text, version: embeddingProvider.version, vector: vector)
         }
         guard !Task.isCancelled, generation == embeddingRefreshGeneration,
-              insights == originalInsights, localSeedAnchors == originalSeeds,
+              insights == originalInsights, localSeedAnchors == originalSeeds, nodeBookmarks.anchors == originalBookmarkAnchors,
               generatedChildInsights == originalChildren, placedMidpoints == originalMidpoints else { return }
-        guard corrected != insights || correctedSeeds != localSeedAnchors
+        guard corrected != insights || correctedSeeds != localSeedAnchors || preparedBookmarkAnchors != nodeBookmarks.anchors
                 || subjectEmbeddings != clusterSubjectEmbeddings
                 || correctedChildren != generatedChildInsights || correctedMidpoints != midpointEmbeddings else {
             // A refresh with already-prepared vectors can still have an in-flight graph build.
@@ -379,6 +441,8 @@ final class InsightTreeViewModel: ObservableObject {
         midpointEmbeddings = correctedMidpoints.filter { id, _ in originalMidpoints.contains { $0.concept.id == id } }
         insights = corrected
         localSeedAnchors = correctedSeeds
+        nodeBookmarks.anchors = preparedBookmarkAnchors
+        persistNodeBookmarks()
         clusterSubjectEmbeddings = subjectEmbeddings
         generatedChildInsights = correctedChildren
         persistMakeNodeChildren()
@@ -442,7 +506,9 @@ final class InsightTreeViewModel: ObservableObject {
             placedMidpoints[index] = PlacedMidpoint(
                 concept: placedMidpoints[index].concept,
                 position: p,
-                sources: placedMidpoints[index].sources
+                sources: placedMidpoints[index].sources,
+                isNodeConcept: placedMidpoints[index].isNodeConcept,
+                formerParents: placedMidpoints[index].formerParents
             )
             midpointsChanged = true
         }
@@ -459,14 +525,34 @@ final class InsightTreeViewModel: ObservableObject {
         rebuildTree()
     }
 
-    /// Replaces a placed Midpoint's loading placeholder without changing its application-owned
-    /// identity, position, or source connectors. Keeping the id stable prevents the canvas from
-    /// treating the generated contents as a second Insight and replaying the entrance sequence.
-    func replacePlacedMidpoint(id: UUID, with generatedConcept: ConceptDefinition) {
+    /// Embed the generated concept and its sources before committing a stable Node identity
+    /// and persistent ownership. Failure leaves source membership untouched.
+    func replacePlacedMidpoint(id: UUID, with generatedConcept: ConceptDefinition) async throws {
         guard let index = placedMidpoints.firstIndex(where: { $0.concept.id == id }) else {
             return
         }
         let placed = placedMidpoints[index]
+        guard let vector = await embeddingProvider.embed("\(generatedConcept.word). \(generatedConcept.semanticDefinition)"), !vector.isEmpty else {
+            throw AngroveModelActionError.invalidResponse
+        }
+        let sourceIDs = Set(placed.sources.filter { !$0.isNode }.map(\.insightID))
+        let prepared = await ensureEmbeddings(for: nodes.flatMap(\.insights).filter { sourceIDs.contains($0.id) })
+        guard prepared.allSatisfy({ $0.embedding?.count == vector.count && $0.embeddingVersion == embeddingProvider.version }) else {
+            throw AngroveModelActionError.invalidResponse
+        }
+        try Task.checkCancellation()
+        guard placedMidpoints.indices.contains(index), placedMidpoints[index] == placed else { return }
+        for source in prepared {
+            if let i = insights.firstIndex(where: { $0.id == source.id }) { insights[i] = source }
+            for key in generatedChildInsights.keys {
+                if let i = generatedChildInsights[key]?.firstIndex(where: { $0.id == source.id }) {
+                    generatedChildInsights[key]?[i] = source
+                }
+            }
+        }
+        midpointEmbeddings[id] = SemanticClusterSubjectEmbedding(
+            text: "\(generatedConcept.word). \(generatedConcept.semanticDefinition)",
+            version: embeddingProvider.version, vector: vector)
         let replacement = ConceptDefinition(
             id: id,
             word: generatedConcept.word,
@@ -475,11 +561,20 @@ final class InsightTreeViewModel: ObservableObject {
             meaning: generatedConcept.meaning,
             example: generatedConcept.example
         )
+        let parents = nodes.filter { !placedMidpointNodeIDs.contains($0.id)
+            && $0.insights.contains { sourceIDs.contains($0.id) } }.map { node in
+                LocalInsightTreeSeed(id: node.id, label: node.conceptLabel, summary: node.definition,
+                    embedding: node.embedding, embeddingVersion: embeddingProvider.version, createdAt: Date())
+            }
         placedMidpoints[index] = PlacedMidpoint(
             concept: replacement,
             position: placed.position,
-            sources: placed.sources
+            sources: placed.sources,
+            isNodeConcept: true,
+            formerParents: parents
         )
+        for source in placedMidpoints[index].sources where !source.isNode { nodeBookmarks.transfers.removeValue(forKey: source.insightID) }
+        persistNodeBookmarks()
         persistPlacedMidpoints()
         rebuildTree()
     }
@@ -488,6 +583,10 @@ final class InsightTreeViewModel: ObservableObject {
         placedMidpoints.removeAll { $0.concept.id == id }
         persistPlacedMidpoints()
         rebuildTree()
+    }
+
+    func isCompletedMidpoint(id: UUID) -> Bool {
+        placedMidpoints.contains { $0.concept.id == id && $0.isNodeConcept }
     }
 
     func placedMidpointConcept(for id: UUID) -> ConceptDefinition? {
@@ -605,28 +704,30 @@ final class InsightTreeViewModel: ObservableObject {
             return (0..<childCount(for: insightID)).map { makeNodeChildID(for: nodeID, index: $0) }
         })
 
-        // A placed Midpoint gets auto-bookmarked (see `InsightTreeView.placeMidpointInsight`),
-        // which feeds its concept right back into `insights` alongside every ordinary saved
-        // Insight. Without this exclusion it also goes through normal clustering below and gets
-        // folded into whichever existing Node it's semantically nearest to — showing up doubled:
-        // once as its own pinned Midpoint node, and again as a member listed under some other
-        // Node's description that it happens to resemble.
+        // Legacy Midpoint bookmarks never reenter automatic clustering. Completed Midpoints
+        // own their selected sources explicitly, independently of automatic membership.
+        nodeBookmarks.transfers = nodeBookmarks.transfers.filter { !nodeBookmarks.removedNodeIDs.contains($0.value) && !nodeBookmarks.removedInsightIDs.contains($0.key) }
+        placedMidpoints.removeAll { nodeBookmarks.removedNodeIDs.contains($0.concept.id) }
+        promotedInsightIDs.removeAll { nodeBookmarks.removedInsightIDs.contains($0) }
+        insightClusterAssignments = insightClusterAssignments.filter { !nodeBookmarks.removedNodeIDs.contains($0.value) }
         let placedMidpointIDs = Set(placedMidpoints.map { $0.concept.id })
         let attachedMakeNodeIDs = activeMakeNodeBookmarkIDs
-        let seedsReady = localSeedAnchors.allSatisfy {
+        let seedsReady = effectiveSeedAnchors.allSatisfy {
             $0.embedding != nil
                 && ($0.embeddingVersion ?? NLEmbeddingProvider.version) == embeddingProvider.version
         }
+        let transferredIDs = Set(placedMidpoints.filter(\.isNodeConcept)
+            .flatMap { $0.sources.filter { !$0.isNode }.map(\.insightID) })
         let members = embeddedInsights.filter {
             let semanticReady = seedsReady && (embeddingProvider.version == NLEmbeddingProvider.version
                 || ($0.embedding != nil && $0.embeddingVersion == embeddingProvider.version))
-            return semanticReady && !placedMidpointIDs.contains($0.id) && !attachedMakeNodeIDs.contains($0.id)
+            return semanticReady && !placedMidpointIDs.contains($0.id) && !attachedMakeNodeIDs.contains($0.id) && !transferredIDs.contains($0.id) && nodeBookmarks.transfers[$0.id] == nil
         }
         let saved = Self.loadStoredPositions(storageKey: positionStoreKey)
         let positions = saved.reduce(into: [UUID: CGPoint]()) { output, entry in
             if let id = UUID(uuidString: entry.key) { output[id] = entry.value.cgPoint }
         }
-        let input = SemanticTreeComputation(allInsights: embeddedInsights, localSeedAnchors: localSeedAnchors,
+        let input = SemanticTreeComputation(allInsights: embeddedInsights, localSeedAnchors: effectiveSeedAnchors,
             insightClusterAssignments: insightClusterAssignments, clusterMergeTargets: clusterMergeTargets,
             clusterSubjectEmbeddings: clusterSubjectEmbeddings, generatedClusterLabels: generatedClusterLabels,
             generatedClusterDefinitions: generatedClusterDefinitions, positions: positions,
@@ -653,14 +754,16 @@ final class InsightTreeViewModel: ObservableObject {
         var nextEdges = result.edges
         appendPromotedNodes(to: &nextNodes, edges: &nextEdges, from: embeddedInsights)
         appendPlacedMidpointNodes(to: &nextNodes, edges: &nextEdges)
+        applyNodeBookmarkTransfers(to: &nextNodes, edges: &nextEdges, merges: result.merges)
         let relaxation = SemanticOverlapRelaxation(placedMidpointNodeIDs: placedMidpointNodeIDs,
             showsAllClusterInsights: showsAllClusterInsights)
-        let relaxed = await graphWorker.relax(nextNodes, using: relaxation)
+        let relaxed = await graphWorker.relax(nextNodes, edges: nextEdges, using: relaxation)
         guard !Task.isCancelled, revision == graphRevision else { return }
-        applyGraph(result, embeddedInsights: embeddedInsights, preparedNodes: relaxed, preparedEdges: nextEdges, spawnNodes: nextNodes)
+        applyGraph(result, embeddedInsights: embeddedInsights, preparedNodes: relaxed.nodes, preparedEdges: nextEdges,
+                   spawnNodes: nextNodes, untangledIDs: relaxed.untangledIDs)
     }
 
-    private func applyGraph(_ result: SemanticTreeResult, embeddedInsights: [InsightModel], preparedNodes: [NodeModel]? = nil, preparedEdges: [EdgeModel]? = nil, spawnNodes: [NodeModel]? = nil) {
+    private func applyGraph(_ result: SemanticTreeResult, embeddedInsights: [InsightModel], preparedNodes: [NodeModel]? = nil, preparedEdges: [EdgeModel]? = nil, spawnNodes: [NodeModel]? = nil, untangledIDs: Set<UUID> = []) {
         insightClusterAssignments = result.assignments
         if clusterMergeTargets != result.merges {
             clusterMergeTargets = result.merges
@@ -674,10 +777,14 @@ final class InsightTreeViewModel: ObservableObject {
         if preparedNodes == nil {
             appendPromotedNodes(to: &nextNodes, edges: &nextEdges, from: embeddedInsights)
             appendPlacedMidpointNodes(to: &nextNodes, edges: &nextEdges)
+        applyNodeBookmarkTransfers(to: &nextNodes, edges: &nextEdges, merges: result.merges)
             adoptSpawnTargets(for: nextNodes)
-            nextNodes = separateOverlaps(nodes: nextNodes)
+            let relaxed = separateOverlaps(nodes: nextNodes, edges: nextEdges)
+            nextNodes = relaxed.nodes
+            adoptUntangledTargets(relaxed.untangledIDs, in: nextNodes)
         }
         if let spawnNodes { adoptSpawnTargets(for: spawnNodes) }
+        adoptUntangledTargets(untangledIDs, in: nextNodes)
         persistPositions(nextNodes)
         recomputeBondLengths(for: nextNodes)
 
@@ -751,7 +858,7 @@ final class InsightTreeViewModel: ObservableObject {
         let seedLabels = Dictionary(localSeedAnchors.map { ($0.id, $0.label) }, uniquingKeysWith: { first, _ in first })
         // Make Node is an explicit promotion; its chosen title is intentional. Midpoints are
         // single Insights rendered without a parent circle, not automatically named clusters.
-        let explicitNodeIDs = Set(promotedInsightIDs.map { promotedNodeID(for: $0) }).union(promotedInsightIDs).union(placedMidpointNodeIDs)
+        let explicitNodeIDs = Set(promotedInsightIDs.map { promotedNodeID(for: $0) }).union(promotedInsightIDs).union(placedMidpoints.map { $0.concept.id })
         for cluster in clusters where !explicitNodeIDs.contains(cluster.id) {
             let subjects = Self.labelDescriptions(for: cluster.insights)
             let existingLabel = generatedClusterLabels[cluster.id] ?? seedLabels[cluster.id]
@@ -995,6 +1102,163 @@ final class InsightTreeViewModel: ObservableObject {
         rebuildTree()
     }
 
+    func bookmarkConcept(for node: NodeModel) -> ConceptDefinition {
+        let id = promotedSourceInsightID(forNodeID: node.id) ?? node.id
+        return ConceptDefinition(id: id, word: node.conceptLabel, partOfSpeech: "",
+            pronunciation: "", meaning: node.definition, example: "")
+    }
+
+    /// Record ordinary concepts before their bookmark enters the host's Insight collection.
+    /// This keeps the same identity on reload without clustering the bookmark as an Insight.
+    func automaticNodeBookmarks() -> [ConceptDefinition] {
+        let completed = nodes.filter {
+            !$0.isSuggested && !placedMidpointNodeIDs.contains($0.id)
+                && !nodeBookmarks.removedNodeIDs.contains($0.id)
+                && !$0.conceptLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        for node in completed where promotedSourceInsightID(forNodeID: node.id) == nil && !node.isMidpointConcept {
+            let seed = LocalInsightTreeSeed(id: node.id, label: node.conceptLabel, summary: node.definition,
+                embedding: node.embedding, embeddingVersion: embeddingProvider.version,
+                createdAt: nodeBookmarks.anchors.first { $0.id == node.id }?.createdAt ?? Date())
+            nodeBookmarks.anchors.removeAll { $0.id == node.id }
+            nodeBookmarks.anchors.append(seed)
+        }
+        persistNodeBookmarks()
+        let scopeInsightIDs = Set(insights.map(\.id) + nodes.flatMap(\.insights).map(\.id))
+        var references = InsightTreeLocalStateStore.load([NodeBookmarkReference].self, key: Self.nodeCatalogKey) ?? []
+        references.removeAll { $0.scope == midpointStoreScope }
+        references += completed.map { node in
+            let bookmarkID = bookmarkConcept(for: node).id
+            let seed = promotedSourceInsightID(forNodeID: node.id) == nil
+                ? LocalInsightTreeSeed(id: bookmarkID, label: node.conceptLabel, summary: node.definition,
+                    embedding: node.embedding, embeddingVersion: embeddingProvider.version, createdAt: Date()) : nil
+            return NodeBookmarkReference(scope: midpointStoreScope, nodeID: node.id, bookmarkID: bookmarkID,
+                seed: seed, insightIDs: scopeInsightIDs, promotedIDs: promotedInsightIDs)
+        }
+        InsightTreeLocalStateStore.save(references, key: Self.nodeCatalogKey)
+        return completed.map(bookmarkConcept(for:))
+    }
+
+    private func importNodeBookmarkAnchors(from ids: [UUID]) {
+        let incoming = Set(ids)
+        let placedIDs = Set(placedMidpoints.map { $0.concept.id })
+        let references = InsightTreeLocalStateStore.load([NodeBookmarkReference].self, key: Self.nodeCatalogKey) ?? []
+        for reference in references where reference.scope != midpointStoreScope && incoming.contains(reference.bookmarkID) {
+            guard let seed = reference.seed, !placedIDs.contains(seed.id),
+                  !nodeRecordIDs.contains(seed.id), !nodeBookmarks.removedNodeIDs.contains(seed.id) else { continue }
+            nodeBookmarks.anchors.append(seed)
+        }
+    }
+
+    func attachedInsights(for node: NodeModel) -> [InsightModel] {
+        let bookmarkID = bookmarkConcept(for: node).id
+        return node.insights.filter { !$0.title.isEmpty && $0.id != bookmarkID }
+    }
+
+    /// Both alert choices remove the concept. Retained members choose the most relevant among
+    /// the nearest three concepts; missing vectors fall back to spatial proximity.
+    func removeBookmarkedNode(id: UUID, deletingInsights: Bool) -> [ConceptDefinition] {
+        guard let node = nodes.first(where: { $0.id == id }) else { return [] }
+        _ = automaticNodeBookmarks()
+        let bookmark = bookmarkConcept(for: node)
+        let members = attachedInsights(for: node)
+        let memberIDs = Set(members.map(\.id))
+        let candidates = nodes.filter { $0.id != id && !$0.isSuggested && !placedMidpointNodeIDs.contains($0.id) }
+            .sorted {
+                hypot($0.position.x - node.position.x, $0.position.y - node.position.y)
+                    < hypot($1.position.x - node.position.x, $1.position.y - node.position.y)
+            }
+        nodeBookmarks.removedNodeIDs.insert(id)
+        nodeBookmarks.anchors.removeAll { $0.id == id }
+        localSeedAnchors.removeAll { $0.id == id }
+        // Every former owner must release the members, including older Midpoints.
+        placedMidpoints = placedMidpoints.filter { $0.concept.id != id && $0.concept.id != bookmark.id }.map { placed in
+            PlacedMidpoint(concept: placed.concept, position: placed.position,
+                sources: placed.sources.filter { $0.isNode ? $0.insightID != id : !memberIDs.contains($0.insightID) },
+                isNodeConcept: placed.isNodeConcept,
+                formerParents: placed.formerParents.filter { $0.id != id })
+        }
+        if let sourceID = promotedSourceInsightID(forNodeID: id) {
+            cancelMakeNodeGeneration(for: sourceID)
+            promotedInsightIDs.removeAll { $0 == sourceID }
+        }
+        for key in Array(generatedChildInsights.keys) {
+            generatedChildInsights[key]?.removeAll { memberIDs.contains($0.id) }
+        }
+        generatedMakeNodeChildIDs.subtract(memberIDs)
+        insights.removeAll { $0.id == bookmark.id || memberIDs.contains($0.id) }
+        nodeBookmarks.removedInsightIDs.insert(bookmark.id)
+        for member in members {
+            insightClusterAssignments.removeValue(forKey: member.id)
+            nodeBookmarks.transfers.removeValue(forKey: member.id)
+            if deletingInsights {
+                nodeBookmarks.removedInsightIDs.insert(member.id)
+            } else {
+                insights.append(member)
+                let nearby = Array(candidates.prefix(3))
+                let owner = nearby.min { left, right in
+                    guard let embedding = member.embedding, !embedding.isEmpty,
+                          left.embedding.count == embedding.count, right.embedding.count == embedding.count else {
+                        return hypot(left.position.x - node.position.x, left.position.y - node.position.y)
+                            < hypot(right.position.x - node.position.x, right.position.y - node.position.y)
+                    }
+                    let a = semanticDistance(embedding, left.embedding)
+                    let b = semanticDistance(embedding, right.embedding)
+                    return a == b ? candidates.firstIndex(of: left)! < candidates.firstIndex(of: right)! : a < b
+                }
+                if let owner {
+                    insightClusterAssignments[member.id] = owner.id
+                    nodeBookmarks.transfers[member.id] = owner.id
+                }
+            }
+        }
+        insightClusterAssignments = insightClusterAssignments.filter { $0.value != id }
+        clusterMergeTargets = clusterMergeTargets.filter { $0.key != id && $0.value != id }
+        var references = InsightTreeLocalStateStore.load([NodeBookmarkReference].self, key: Self.nodeCatalogKey) ?? []
+        for reference in references where reference.bookmarkID == bookmark.id && reference.scope != midpointStoreScope {
+            let key = "aquinas.insight-tree.node-bookmarks.v1:\(reference.scope?.uuidString ?? "global")"
+            var state = InsightTreeLocalStateStore.load(NodeBookmarkState.self, key: key) ?? NodeBookmarkState()
+            state.removedNodeIDs.insert(reference.nodeID)
+            state.anchors.removeAll { $0.id == reference.nodeID }
+            state.removedInsightIDs.insert(bookmark.id)
+            if deletingInsights { state.removedInsightIDs.formUnion(memberIDs) }
+            InsightTreeLocalStateStore.save(state, key: key)
+        }
+        references.removeAll { $0.bookmarkID == bookmark.id }
+        InsightTreeLocalStateStore.save(references, key: Self.nodeCatalogKey)
+        persistNodeBookmarks()
+        persistPlacedMidpoints()
+        persistMakeNodeChildren()
+        persistInsightClusterAssignments()
+        rebuildTree()
+        return [bookmark] + (deletingInsights ? members.map(Self.concept(for:)) : [])
+    }
+
+    private func persistNodeBookmarks() {
+        InsightTreeLocalStateStore.save(nodeBookmarks, key: nodeBookmarkStoreKey)
+    }
+
+    private func applyNodeBookmarkTransfers(to nodes: inout [NodeModel], edges: inout [EdgeModel], merges: [UUID: UUID]) {
+        nodes.removeAll { nodeBookmarks.removedNodeIDs.contains($0.id) }
+        let available = Dictionary((nodes.flatMap(\.insights) + insights + generatedChildInsights.values.flatMap { $0 })
+            .map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for (insightID, originalOwnerID) in nodeBookmarks.transfers {
+            var ownerID = originalOwnerID
+            var visited = Set<UUID>()
+            while let next = merges[ownerID], visited.insert(ownerID).inserted { ownerID = next }
+            guard let ownerIndex = nodes.firstIndex(where: { $0.id == ownerID }),
+                  var member = available[insightID], !nodeBookmarks.removedInsightIDs.contains(insightID) else { continue }
+            for index in nodes.indices { nodes[index].insights.removeAll { $0.id == insightID } }
+            let vector = nodes[ownerIndex].embedding
+            member.distanceToNode = member.embedding.flatMap { $0.count == vector.count && !vector.isEmpty ? semanticDistance($0, vector) : nil }
+            member.relatednessToNode = member.distanceToNode.map { 1 - $0 }
+            nodes[ownerIndex].insights.append(member)
+        }
+        for index in nodes.indices { nodes[index].insights.removeAll { nodeBookmarks.removedInsightIDs.contains($0.id) } }
+        let ids = Set(nodes.map(\.id))
+        edges.removeAll { !ids.contains($0.fromNodeID) || !ids.contains($0.toNodeID) }
+    }
+
     /// The bookmark records represented by a completed Make Node action: the promoted node
     /// concept itself followed by its generated child Insights.
     func makeNodeBookmarkConcepts(for insightID: UUID) -> [ConceptDefinition] {
@@ -1138,31 +1402,85 @@ final class InsightTreeViewModel: ObservableObject {
     /// to every source concept it was spawned from. Runs AFTER the force layout so these nodes
     /// are never relocated.
     private func appendPlacedMidpointNodes(to nodes: inout [NodeModel], edges: inout [EdgeModel]) {
-        placedMidpointNodeIDs = Set(placedMidpoints.map { $0.concept.id })
-        placedMidpointSources = Dictionary(placedMidpoints.map { ($0.concept.id, $0.sources) }, uniquingKeysWith: { _, latest in latest })
-        guard !placedMidpoints.isEmpty else { return }
-
+        // Only legacy/pending Midpoints use the pinned Insight presentation.
+        placedMidpointNodeIDs = Set(placedMidpoints.filter { !$0.isNodeConcept }.map { $0.concept.id })
+        placedMidpointSources = Dictionary(placedMidpoints.filter { !$0.isNodeConcept }
+            .map { ($0.concept.id, $0.sources) }, uniquingKeysWith: { _, latest in latest })
+        let livePlacedIDs = Set(placedMidpoints.map { $0.concept.id })
+        for placed in placedMidpoints where placed.isNodeConcept {
+            // A surviving Midpoint is built below with its remaining members. Do not shadow it
+            // with an empty historical parent snapshot before its real node can be appended.
+            for parent in placed.formerParents where !nodeBookmarks.removedNodeIDs.contains(parent.id) && !livePlacedIDs.contains(parent.id)
+                && !nodes.contains(where: { $0.id == parent.id }) {
+                nodes.append(NodeModel(id: parent.id, conceptLabel: parent.label, definition: parent.summary,
+                    insights: [], embedding: parent.embedding ?? [],
+                    position: restoredPosition(for: parent.id) ?? placed.position,
+                    isSuggested: false, suggestedInsights: nil))
+            }
+        }
+        let available = nodes.flatMap(\.insights) + insights + generatedChildInsights.values.flatMap { $0 }
+        var owners: [UUID: UUID] = [:]
+        for placed in placedMidpoints where placed.isNodeConcept {
+            for source in placed.sources where !source.isNode { owners[source.insightID] = placed.concept.id }
+        }
+        for index in nodes.indices { nodes[index].insights.removeAll { owners[$0.id] != nil } }
         for placed in placedMidpoints {
-            if branchInsightCounts[placed.concept.id] != nil,
-               promotedInsightIDs.contains(placed.concept.id) { continue }
-            let nodeID = placed.concept.id
-            guard !nodes.contains(where: { $0.id == nodeID }) else { continue }
-
-            let insight = InsightModel(concept: placed.concept)
-            let placedNode = NodeModel(
-                id: nodeID,
-                conceptLabel: placed.concept.word,
-                insights: [insight],
-                embedding: midpointEmbeddings[nodeID]?.vector
-                    ?? ((modelTasks == nil || !usesBackgroundGraphWorker) ? computeEmbedding(for: "\(insight.title). \(insight.definition)") : nil) ?? [],
-                position: placed.position,
-                isSuggested: false,
-                suggestedInsights: nil
-            )
-
-            // Connector lines are drawn by the canvas directly to each source insight chip /
-            // node concept (see placedMidpointSources), not as generic node-to-node edges.
+            let id = placed.concept.id
+            if branchInsightCounts[id] != nil, promotedInsightIDs.contains(id) { continue }
+            guard !nodes.contains(where: { $0.id == id }) else { continue }
+            let vector = midpointEmbeddings[id]?.vector ?? []
+            var members: [InsightModel] = []
+            var seen: Set<UUID> = []
+            if placed.isNodeConcept {
+                for source in available where owners[source.id] == id && seen.insert(source.id).inserted {
+                    var member = source
+                    // Recompute against the generated concept, never the old parent's centroid.
+                    if let embedding = member.embedding, embedding.count == vector.count, !vector.isEmpty {
+                        member.distanceToNode = semanticDistance(embedding, vector)
+                        member.relatednessToNode = 1 - member.distanceToNode!
+                    } else {
+                        member.distanceToNode = nil
+                        member.relatednessToNode = nil
+                    }
+                    members.append(member)
+                }
+            } else {
+                members = [InsightModel(concept: placed.concept)]
+            }
+            var placedNode = NodeModel(id: id, conceptLabel: placed.concept.word,
+                definition: placed.concept.semanticDefinition, insights: members, embedding: vector,
+                position: restoredPosition(for: id) ?? placed.position,
+                isSuggested: false, suggestedInsights: nil)
+            placedNode.isMidpointConcept = placed.isNodeConcept
             nodes.append(placedNode)
+        }
+        // A blend remains attached to every source Insight's former parent. Explicitly selected
+        // Node Concepts are linked too, with one edge per parent even for shared-parent Insights.
+        for placed in placedMidpoints where placed.isNodeConcept {
+            let parentIDs = Set(placed.formerParents.map(\.id))
+                .union(placed.sources.filter(\.isNode).map(\.insightID))
+            for parentID in parentIDs.sorted(by: { $0.uuidString < $1.uuidString }) {
+                guard let parent = nodes.first(where: { $0.id == parentID }), parent.id != placed.concept.id,
+                      let node = nodes.first(where: { $0.id == placed.concept.id }),
+                      !edges.contains(where: {
+                          ($0.fromNodeID == parent.id && $0.toNodeID == node.id)
+                              || ($0.fromNodeID == node.id && $0.toNodeID == parent.id)
+                      }) else { continue }
+                edges.append(EdgeModel(id: stableUUID(from: "midpoint-node:\(parent.id):\(node.id)"),
+                    fromNodeID: parent.id, toNodeID: node.id,
+                    distance: semanticDistance(parent.embedding, node.embedding),
+                    isSuggested: false, showSuggestButton: false))
+            }
+            // Keep an Insight-only Midpoint connected to the surrounding concept graph.
+            if !edges.contains(where: { $0.fromNodeID == placed.concept.id || $0.toNodeID == placed.concept.id }),
+               let node = nodes.first(where: { $0.id == placed.concept.id }),
+               let neighbor = nodes.filter({ $0.id != node.id && !placedMidpointNodeIDs.contains($0.id) })
+                .min(by: { semanticDistance($0.embedding, node.embedding) < semanticDistance($1.embedding, node.embedding) }) {
+                edges.append(EdgeModel(id: stableUUID(from: "midpoint-neighbor:\(neighbor.id):\(node.id)"),
+                    fromNodeID: neighbor.id, toNodeID: node.id,
+                    distance: semanticDistance(neighbor.embedding, node.embedding),
+                    isSuggested: false, showSuggestButton: false))
+            }
         }
     }
 
@@ -1266,17 +1584,23 @@ final class InsightTreeViewModel: ObservableObject {
         let members = canvasInsightMembers(
             nodeLabel: node.conceptLabel,
             insights: node.insights,
-            preservesMatchingTitle: placedMidpointNodeIDs.contains(node.id)
+            preservesMatchingTitle: placedMidpointNodeIDs.contains(node.id) || node.isMidpointConcept
         )
-        return showsAllClusterInsights ? members : Array(members.prefix(6))
+        return showsAllClusterInsights || node.isMidpointConcept ? members : Array(members.prefix(6))
     }
 
     /// Gently pushes apart only the nodes whose footprints overlap, starting from their current
     /// positions. Pinned midpoint nodes stay fixed (neighbors move around them). A no-op when
     /// nothing overlaps, so a settled tree never moves.
-    private func separateOverlaps(nodes: [NodeModel]) -> [NodeModel] {
+    private func separateOverlaps(nodes: [NodeModel], edges: [EdgeModel]) -> (nodes: [NodeModel], untangledIDs: Set<UUID>) {
         SemanticOverlapRelaxation(placedMidpointNodeIDs: placedMidpointNodeIDs,
-            showsAllClusterInsights: showsAllClusterInsights).solve(nodes: nodes)
+            showsAllClusterInsights: showsAllClusterInsights).solve(nodes: nodes, edges: edges)
+    }
+
+    /// A branch turned to clear a connector crossing anchors at its new place; otherwise the
+    /// canvas anchor spring would pull it straight back across the line it just left.
+    private func adoptUntangledTargets(_ ids: Set<UUID>, in nodes: [NodeModel]) {
+        for node in nodes where ids.contains(node.id) { layoutTargets[node.id] = node.position }
     }
 
     private func makeNodeChildID(for nodeID: UUID, index: Int) -> UUID {
@@ -1305,12 +1629,50 @@ final class InsightTreeViewModel: ObservableObject {
 
     private static func loadStoredPositions(storageKey: String) -> [String: CodablePoint] {
         if let cached = storedPositionsCache[storageKey] { return cached }
-        let stored = InsightTreeLocalStateStore.load(
+        let loaded = InsightTreeLocalStateStore.load(
             [String: CodablePoint].self,
             key: storageKey
-        ) ?? [:]
+        )
+        var stored = loaded ?? [:]
+        if loaded != nil {
+            migrateSpacing(storageKey: storageKey) {
+                stored = stored.mapValues { CodablePoint(scaledForSpacing($0.cgPoint)) }
+                InsightTreeLocalStateStore.save(stored, key: storageKey)
+            }
+        }
         storedPositionsCache[storageKey] = stored
         return stored
+    }
+
+    /// Store keys whose saved layout already has `nodeNodeSpacingScale` applied.
+    private static let spacingMigrationKey = "aquinas.insight-tree.spacing-1.4.v1"
+
+    private static var spacingMigratedKeys: Set<String>?
+
+    /// Applies the 1.4× Node Concept spacing to a saved layout exactly once. Every point scales
+    /// about the world origin, which keeps each tree's shape and relative distances. Only data
+    /// that was actually read is scaled; anything written at the new spacing is marked first.
+    private static func migrateSpacing(storageKey: String, apply: () -> Void) {
+        guard !isSpacingMigrated(storageKey) else { return }
+        apply()
+        markSpacingMigrated(storageKey)
+    }
+
+    private static func isSpacingMigrated(_ storageKey: String) -> Bool {
+        if spacingMigratedKeys == nil {
+            spacingMigratedKeys = Set(InsightTreeLocalStateStore.load([String].self, key: spacingMigrationKey) ?? [])
+        }
+        return spacingMigratedKeys?.contains(storageKey) == true
+    }
+
+    private static func markSpacingMigrated(_ storageKey: String) {
+        guard !isSpacingMigrated(storageKey) else { return }
+        spacingMigratedKeys?.insert(storageKey)
+        InsightTreeLocalStateStore.save((spacingMigratedKeys ?? []).sorted(), key: spacingMigrationKey)
+    }
+
+    private static func scaledForSpacing(_ point: CGPoint) -> CGPoint {
+        CGPoint(x: point.x * nodeNodeSpacingScale, y: point.y * nodeNodeSpacingScale)
     }
 
     private func restoredPosition(for id: UUID) -> CGPoint? {
@@ -1324,6 +1686,7 @@ final class InsightTreeViewModel: ObservableObject {
         }
         Self.storedPositionsCache[positionStoreKey] = positions
         InsightTreeLocalStateStore.save(positions, key: positionStoreKey)
+        Self.markSpacingMigrated(positionStoreKey)
     }
 
     private static func loadClusterLabels(storageKey: String) -> [UUID: String] {
@@ -1403,20 +1766,28 @@ final class InsightTreeViewModel: ObservableObject {
     /// staying a pinned node connected to its two sources. Persisting them the same way positions
     /// and cluster labels already are fixes that.
     private static func loadPlacedMidpoints(storageKey: String) -> [PlacedMidpoint] {
-        guard let stored = InsightTreeLocalStateStore.load(
+        guard var stored = InsightTreeLocalStateStore.load(
             [CodablePlacedMidpoint].self,
             key: storageKey
         ) else { return [] }
-        return stored.map {
-            PlacedMidpoint(concept: $0.concept, position: $0.position.cgPoint, sources: $0.sources)
+        migrateSpacing(storageKey: storageKey) {
+            for index in stored.indices {
+                stored[index].position = CodablePoint(scaledForSpacing(stored[index].position.cgPoint))
+            }
+            InsightTreeLocalStateStore.save(stored, key: storageKey)
+        }
+        // Incomplete generation is transient, even if the process exits during loading.
+        return stored.filter { !$0.concept.word.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.map {
+            PlacedMidpoint(concept: $0.concept, position: $0.position.cgPoint, sources: $0.sources, isNodeConcept: $0.isNodeConcept ?? false, formerParents: $0.formerParents ?? [])
         }
     }
 
     private func persistPlacedMidpoints() {
         let stored = placedMidpoints.map {
-            CodablePlacedMidpoint(concept: $0.concept, position: CodablePoint($0.position), sources: $0.sources)
+            CodablePlacedMidpoint(concept: $0.concept, position: CodablePoint($0.position), sources: $0.sources, isNodeConcept: $0.isNodeConcept, formerParents: $0.formerParents)
         }
         InsightTreeLocalStateStore.save(stored, key: placedMidpointStoreKey)
+        Self.markSpacingMigrated(placedMidpointStoreKey)
     }
 
     private static func loadMakeNodeChildren(storageKey: String) -> [UUID: [InsightModel]] {
@@ -1502,9 +1873,13 @@ nonisolated func semanticDistance(_ a: [Double], _ b: [Double]) -> Double {
 
 nonisolated let nodeNodeMinLength: CGFloat = 360
 nonisolated private let nodeNodeDistanceScale: CGFloat = 320
+/// Uniform room between Node Concepts. Scaling the whole mapping (floor included) keeps every
+/// connector's length relative to the others. Saved layouts are scaled once to match
+/// (`InsightTreeViewModel.migrateSpacing`).
+nonisolated let nodeNodeSpacingScale: CGFloat = 1.4
 
 nonisolated func mapDistanceToLength(_ distance: Double) -> CGFloat {
-    nodeNodeMinLength + CGFloat(max(distance, 0)) * nodeNodeDistanceScale
+    (nodeNodeMinLength + CGFloat(max(distance, 0)) * nodeNodeDistanceScale) * nodeNodeSpacingScale
 }
 
 /// Bond length (insight connector radius) from how related an insight is to its parent node.

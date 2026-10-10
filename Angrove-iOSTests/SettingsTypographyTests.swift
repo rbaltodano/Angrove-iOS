@@ -96,11 +96,26 @@ struct SettingsTypographyTests {
             conversationFontSize: .constant(.medium), conversationTextAlignment: .constant(.left),
             inputFont: .constant(.serif), responseFont: .constant(.serif))
         let appearancePage = AppearanceSettingsView(colorSchemeOverride: .constant(scheme))
+        let delivery = ModelDeliveryState(prepare: {})
+        delivery.update(.development)
         let feedbackPopup = ResponseFeedbackSheet(
             report: ResponseFeedbackReport(question: "Example question", response: "Example response"))
+        let hub = SettingsView(colorSchemeOverride: .constant(scheme), userName: .constant(""),
+            customInstructions: .constant(""), conversationFontSize: .constant(.medium),
+            conversationTextAlignment: .constant(.left), inputFont: .constant(.serif),
+            responseFont: .constant(.serif), conversationPersonality: .constant(.default),
+            collectedDefinitions: .constant([]), onOpenMenu: {})
         let pages: [(String, AnyView)] = [
+            ("hub", AnyView(hub)),
             ("text-display", AnyView(textPage)),
             ("appearance", AnyView(appearancePage)),
+            ("personalization", AnyView(PersonalizationSettingsView(userName: .constant("")))),
+            ("app-experience", AnyView(AppExperienceSettingsView(onReset: {}))),
+            ("notifications", AnyView(NotificationSettingsView())),
+            ("privacy-data", AnyView(PrivacyAndDataSettingsView())),
+            ("audio", AnyView(AudioSettingsView())),
+            ("conversation-defaults", AnyView(ConversationDefaultsSettingsView())),
+            ("on-device-model", AnyView(ModelDownloadSettingsView(delivery: delivery))),
             ("bug-report", AnyView(BugReportSettingsView())),
             ("feedback-popup", AnyView(feedbackPopup))
         ]
@@ -108,7 +123,7 @@ struct SettingsTypographyTests {
             let window = try host(page.dynamicTypeSize(size).environment(\.colorScheme, scheme), width: 320, height: 1400)
             defer { window.isHidden = true }
             window.overrideUserInterfaceStyle = scheme == .dark ? .dark : .light
-            try await Task.sleep(for: .milliseconds(250))
+            try await Task.sleep(for: .milliseconds(1200))
             let format = UIGraphicsImageRendererFormat()
             format.scale = 1
             let image = UIGraphicsImageRenderer(size: window.bounds.size, format: format).image { _ in

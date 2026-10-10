@@ -21,9 +21,9 @@ extension InsightTreeCanvasView {
         let members = canvasInsightMembers(
             nodeLabel: node.conceptLabel,
             insights: node.insights,
-            preservesMatchingTitle: placedMidpointNodeIDs.contains(node.id)
+            preservesMatchingTitle: placedMidpointNodeIDs.contains(node.id) || node.isMidpointConcept
         )
-        return showsAllClusterInsights ? members : Array(members.prefix(6))
+        return showsAllClusterInsights || node.isMidpointConcept ? members : Array(members.prefix(6))
     }
 
     /// Live simulated position for a node id (for by-id lookups).
@@ -148,9 +148,13 @@ extension InsightTreeCanvasView {
         chipElevationAngles = nextElevations
 
         if isInitialLayout {
-            // Restored positions are already authoritative. Opening the Canvas should be
-            // perfectly still rather than replaying a global settling pass.
-            freezeSimulation()
+            // Clear restored layouts stay still. Only visible cross-cluster contact wakes a
+            // bounded cleanup; saved trees never replay their entrance or expand just on opening.
+            if hasVisibleClusterContact() {
+                startSim(intensity: Self.updateIntensity, frameBudget: Self.settleFrameBudget)
+            } else {
+                freezeSimulation()
+            }
         } else {
             startSim(
                 intensity: Self.updateIntensity,
@@ -159,6 +163,27 @@ extension InsightTreeCanvasView {
                 frameBudget: 90
             )
         }
+    }
+
+    /// Opening a clear saved tree stays still; a crowded one gets a bounded cleanup pass.
+    private func hasVisibleClusterContact() -> Bool {
+        let layout = makeInsightLayout()
+        var footprints: [InsightTreeCrowdingSpacing.Footprint] = []
+        for node in layout.nodes {
+            let width = min(max(CGFloat(node.conceptLabel.count) * 9, 80), 180)
+            footprints.append(.init(nodeID: node.id, rectangle: CGRect(x: node.position.x - width / 2,
+                y: node.position.y - 50, width: width, height: 100)))
+            for insight in layout.insightsByNode[node.id] ?? [] {
+                guard let placement = layout.placements[insight.id] else { continue }
+                let size = insightCollisionSize(for: insight)
+                footprints.append(.init(nodeID: node.id, rectangle: CGRect(
+                    x: placement.world.x - size.width / 2 - Self.insightCollisionPadding / 2,
+                    y: placement.world.y - size.height / 2 - Self.insightCollisionPadding / 2,
+                    width: size.width + Self.insightCollisionPadding,
+                    height: size.height + Self.insightCollisionPadding)))
+            }
+        }
+        return InsightTreeCrowdingSpacing.hasCrossClusterCollision(footprints)
     }
 
     /// One cleanup step. Anchors each node to its semantic (MDS) target, separates overlapping
@@ -340,7 +365,30 @@ extension InsightTreeCanvasView {
             }
         }
 
-        // Anchor spring toward the MDS target + whole-node and global Insight separation.
+        // Give angular spreading and local collision forces time to work first. Only actual
+        // cross-cluster label contact triggers expansion; overlapping empty orbit rings do not.
+        let conceptFootprints = entries.compactMap { entry -> InsightTreeCrowdingSpacing.Footprint? in
+            guard let node = nodeByID[entry.0], !placedMidpointNodeIDs.contains(node.id) else { return nil }
+            let width = min(max(CGFloat(node.conceptLabel.count) * 9, 80), 180)
+            return .init(nodeID: node.id, rectangle: CGRect(x: entry.1.pos.x - width / 2,
+                y: entry.1.pos.y - 50, width: width, height: 100))
+        }
+        let footprints = zip(chipInfos, chipRectangles).map {
+            InsightTreeCrowdingSpacing.Footprint(nodeID: $0.0.nodeID, rectangle: $0.1)
+        } + conceptFootprints
+        let hasContact = InsightTreeCrowdingSpacing.hasCrossClusterCollision(footprints)
+        let targets = Dictionary(nodes.map { ($0.id, layoutTargets[$0.id] ?? $0.position) },
+                                 uniquingKeysWith: { _, latest in latest })
+        crowdingSpacing.synchronize(targets: targets)
+        let canExpand = draggingChipID == nil && !cameraState.isDragging && !isHoveringTarget && !isInStudy
+            && !isMidpointMode && revealState.transfers.isEmpty && revealState.loadingInsightIDs.isEmpty
+        if crowdingSpacing.advance(colliding: hasContact, canExpand: canExpand, elapsed: Double(dt)) {
+            // A bounded extra pass follows each small expansion, rather than an endless idle sim.
+            simFramesRemaining = max(simFramesRemaining, Self.settleFrameBudget)
+            alpha = max(alpha, Self.updateIntensity)
+        }
+
+        // Anchor spring toward the uniformly spaced semantic targets + local separation.
         let nodeRectangles = entries.map { entry -> CGRect in
             let radius = nodeByID[entry.0].map { simFootprintRadius($0) } ?? 240
             return CGRect(x: entry.1.pos.x - radius - Self.overlapPadding / 2, y: entry.1.pos.y - radius - Self.overlapPadding / 2,
@@ -356,7 +404,7 @@ extension InsightTreeCanvasView {
             if pinned.contains(idA) { continue }
             var fx = crossNodeForces[idA]?.dx ?? 0
             var fy = crossNodeForces[idA]?.dy ?? 0
-            if let target = layoutTargets[idA] {
+            if let target = crowdingSpacing.target(for: idA) {
                 fx += (target.x - a.pos.x) * Self.anchorSpringK
                 fy += (target.y - a.pos.y) * Self.anchorSpringK
             }

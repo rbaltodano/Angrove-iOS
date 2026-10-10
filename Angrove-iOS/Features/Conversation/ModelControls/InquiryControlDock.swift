@@ -97,8 +97,6 @@ struct InquiryControlDock: View {
         nonmutating set { recentPhotosOpen.wrappedValue = newValue }
     }
     @State private var addFlashOpacity: CGFloat = 1
-    @AppStorage(SettingsStorageKey.modelActivityDisplay)
-    private var activityDisplay: ModelActivityDisplayOption = .detailed
 
     /// Flash the Add button while in Select mode with an insight hovered, hinting it can be added.
     private var shouldFlashAdd: Bool {
@@ -131,7 +129,7 @@ struct InquiryControlDock: View {
     }
 
     private var showsModelStatusControl: Bool {
-        !showsStudyControls && activityDisplay != .hidden
+        !showsStudyControls
             && modelTasks != nil
             && (keepsIdleModelStatus || modelTasks?.isBusy == true || modelStatusOverride != nil)
             && !(isCanvasMode && (

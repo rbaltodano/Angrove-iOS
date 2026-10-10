@@ -141,7 +141,7 @@ extension InsightTreeCanvasView {
         revealState.loadingInsightIDs.insert(insightID)
         cameraState.userMovedSincePlacement = false
         markUndiscovered([insightID])
-        if let position = worldPosition(forInsightID: insightID) {
+        if let position = simPosition(of: insightID) {
             focusHoveredTarget(at: position, in: size)
         }
     }
@@ -160,7 +160,7 @@ extension InsightTreeCanvasView {
             try? await Task.sleep(for: .seconds(remainingDelay))
             guard !Task.isCancelled else { return }
             await MainActor.run {
-                if let position = worldPosition(forInsightID: insightID) {
+                if let position = simPosition(of: insightID) {
                     if !cameraState.userMovedSincePlacement {
                         focusHoveredTarget(at: position, in: size)
                     }
@@ -178,9 +178,62 @@ extension InsightTreeCanvasView {
                 }
                 revealState.midpointLoadingStartedAt[insightID] = nil
             }
-            try? await Task.sleep(for: .milliseconds(650))
+            try? await Task.sleep(for: .milliseconds(1900))
             guard !Task.isCancelled else { return }
             await MainActor.run { onMidpointInsightLoaded(insightID) }
+        }
+    }
+
+    /// Preserve the old endpoints before physics drops parents or changes member radii.
+    func beginMidpointTransfers(from oldNodes: [NodeModel], to newNodes: [NodeModel]) {
+        var transfers: [UUID: InsightTreeRevealState.MidpointTransfer] = [:]
+        for node in newNodes where node.isMidpointConcept {
+            for insight in canvasInsights(for: node) {
+                guard let old = oldNodes.first(where: { $0.insights.contains { $0.id == insight.id } }),
+                      old.id != node.id else { continue }
+                let members = canvasInsights(for: old)
+                guard let index = members.firstIndex(where: { $0.id == insight.id }) else { continue }
+                let parent = bodies[old.id]?.pos ?? old.position
+                let radius = revealState.previousBondLengths[insight.id] ?? 190
+                let angle = chipAngles[insight.id]?.angle ?? baseChipAngle(index: index, count: members.count)
+                let world = CGPoint(x: parent.x + cos(angle) * radius, y: parent.y + sin(angle) * radius)
+                let elevation = InsightClusterSpatialLayout.elevation(
+                    angle: chipElevationAngles[insight.id] ?? 0, horizontalDistance: radius)
+                transfers[insight.id] = .init(oldParent: parent, world: world, elevation: elevation)
+                revealState.revealedInsightIDs.insert(insight.id)
+                revealState.revealedInsightConnectorIDs.insert(insight.id)
+            }
+            revealState.revealedNodeIDs.insert(node.id)
+        }
+        guard !transfers.isEmpty else { return }
+        revealState.transferTask?.cancel()
+        guard !reduceMotion else {
+            revealState.transfers = [:]
+            revealState.transferProgress = 1
+            revealState.transferTask = nil
+            return
+        }
+        revealState.transfers = transfers
+        revealState.transferProgress = 0
+        let reveal = revealState
+        let loadingStart = newNodes.filter(\.isMidpointConcept).compactMap { reveal.midpointLoadingStartedAt[$0.id] }.max()
+        let delay = loadingStart.map { max(0, 3.5 - (Date().timeIntervalSinceReferenceDate - $0)) } ?? 0
+        reveal.transferTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            // Each stage shares one clock for chips and both connector endpoints.
+            let start = Date().timeIntervalSinceReferenceDate
+            while !Task.isCancelled {
+                let progress = min((Date().timeIntervalSinceReferenceDate - start) / MidpointTransferPresentation.duration, 1)
+                var transaction = Transaction(animation: nil)
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { reveal.transferProgress = CGFloat(progress) }
+                if progress >= 1 { break }
+                try? await Task.sleep(for: .milliseconds(16))
+            }
+            guard !Task.isCancelled else { return }
+            reveal.transfers = [:]
+            reveal.transferTask = nil
         }
     }
 

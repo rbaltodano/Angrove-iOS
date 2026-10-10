@@ -675,12 +675,13 @@ struct StudyTopicsView: View {
     }
 
     private func restoreInsight(_ insight: ConceptDefinition, toTreeFor topicID: UUID) {
-        if !savedInsights.contains(where: { $0.id == insight.id }) {
-            savedInsights.append(insight)
-        }
-        if !topicTreeSnapshots[topicID.uuidString, default: []].contains(where: { $0.id == insight.id }) {
-            topicTreeSnapshots[topicID.uuidString, default: []].append(insight)
-        }
+        let isNodeAnchor = InsightTreeViewModel.nodeBookmarkReference(for: insight.id, preferredScope: topicID)?.seed != nil
+        if let index = savedInsights.firstIndex(where: { $0.id == insight.id }) {
+            if isNodeAnchor { savedInsights[index] = insight }
+        } else { savedInsights.append(insight) }
+        if let index = topicTreeSnapshots[topicID.uuidString, default: []].firstIndex(where: { $0.id == insight.id }) {
+            if isNodeAnchor { topicTreeSnapshots[topicID.uuidString, default: []][index] = insight }
+        } else { topicTreeSnapshots[topicID.uuidString, default: []].append(insight) }
         StudyTopicInsightTreeStore.save(topicTreeSnapshots)
     }
 

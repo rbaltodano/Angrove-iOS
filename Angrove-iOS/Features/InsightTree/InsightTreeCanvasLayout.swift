@@ -248,6 +248,13 @@ extension InsightTreeCanvasView {
                         spatial.localDepth * CGFloat(1 - studyProgress)
                     )
                 }
+                if let transfer = revealState.transfers[insight.id] {
+                    let eased = MidpointTransferPresentation(progress: revealState.transferProgress).pullProgress
+                    spatial.world = CGPoint(
+                        x: transfer.world.x + (spatial.world.x - transfer.world.x) * eased,
+                        y: transfer.world.y + (spatial.world.y - transfer.world.y) * eased)
+                    spatial.elevation = transfer.elevation + (spatial.elevation - transfer.elevation) * eased
+                }
                 layout.placements[insight.id] = InsightPlacement(
                     insight: insight,
                     nodeID: node.id,

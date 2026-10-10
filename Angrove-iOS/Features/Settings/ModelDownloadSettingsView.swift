@@ -6,17 +6,17 @@ struct ModelDownloadSettingsView: View {
     var body: some View {
         SettingsDetailScaffold(title: "On-device Model") {
             VStack(alignment: .leading, spacing: AngroveTheme.Spacing.screenPadding) {
+                Text("The 3.66 GB model downloads through Apple during installation. If installation is interrupted, you can finish preparing it here. Once the model is ready, generation runs on your device without a connection.")
+                    .settingsParagraph()
+                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                Text("Downloading the model doesn’t upload your conversations. Keep enough free space for installation; the download and unpacking can need more room than the model file itself.")
+                    .settingsParagraph()
+                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
                 if delivery.phase != .development {
                     SettingsControlCard {
                         ModelDownloadStatusView(delivery: delivery)
                     }
                 }
-                Text("The 3.66 GB model downloads through Apple during installation. If installation is interrupted, you can finish preparing it here. Once the model is ready, generation runs on your device without a connection.")
-                    .font(AngroveTheme.Typography.settingsBody)
-                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                Text("Downloading the model doesn’t upload your conversations. Keep enough free space for installation; the download and unpacking can need more room than the model file itself.")
-                    .font(AngroveTheme.Typography.settingsDetail)
-                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
             }
         }
         .task { await delivery.refreshAvailability() }
@@ -49,7 +49,7 @@ struct ModelDownloadStatusView: View {
                 }
 
                 Text(explanation)
-                    .font(AngroveTheme.Typography.settingsDetail)
+                    .settingsText(.paragraph)
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
                     .fixedSize(horizontal: false, vertical: true)
 

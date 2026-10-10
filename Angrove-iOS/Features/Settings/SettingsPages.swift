@@ -21,7 +21,7 @@ struct AppearanceSettingsView: View {
     }
 
     var body: some View {
-        SettingsDetailScaffold(title: "Appearance") {
+        SettingsDetailScaffold(title: "Appearance", intro: "Choose the colors, backgrounds, and app icon that feel right for you.") {
             VStack(alignment: .leading, spacing: 24) {
                 SettingsControlCard {
                     SettingsLabeledControl(title: "Color Scheme") {
@@ -68,7 +68,7 @@ struct AppExperienceSettingsView: View {
     @State private var showsResetConfirmation = false
 
     var body: some View {
-        SettingsDetailScaffold(title: "App Experience") {
+        SettingsDetailScaffold(title: "App Experience", intro: "Choose where Angrove opens and how it responds to your touch.") {
             VStack(alignment: .leading, spacing: 24) {
                 SettingsControlCard {
                     SettingsChoiceRow(
@@ -122,7 +122,7 @@ struct NotificationSettingsView: View {
     private var dailyQuestionReminderSeconds = 9.0 * 60.0 * 60.0
 
     var body: some View {
-        SettingsDetailScaffold(title: "Notifications") {
+        SettingsDetailScaffold(title: "Notifications", intro: "Choose when Angrove lets you know a daily question or finished response is ready.") {
             SettingsControlCard {
                 SettingsToggleRow(
                     title: "Question of the Day",
@@ -215,7 +215,7 @@ struct PrivacyAndDataSettingsView: View {
     var onClearInsightTree: () -> Void = {}
 
     var body: some View {
-        SettingsDetailScaffold(title: "Privacy & Data") {
+        SettingsDetailScaffold(title: "Privacy & Data", intro: "Protect access to Angrove and manage the conversations and Insights stored on this device.") {
             VStack(alignment: .leading, spacing: 24) {
                 SettingsSubsection(title: "Security") {
                     SettingsToggleRow(title: "App Lock", isOn: $appLock)
@@ -231,7 +231,7 @@ struct PrivacyAndDataSettingsView: View {
 
                 SettingsSubsection(title: "Data Controls") {
                     Text("Your saved personal data is fully encrypted on this device. Conversation exports are readable JSON files; anyone with an exported file can read it.")
-                        .settingsText(.label)
+                        .settingsText(.paragraph)
                         .foregroundStyle(AngroveTheme.Colors.paragraphText)
 
                     Button(action: exportConversations) {
@@ -395,15 +395,15 @@ extension Notification.Name {
     )
 }
 
-struct ModelBehaviorSettingsView: View {
+struct PersonalizationSettingsView: View {
     @Binding var userName: String
 
     var body: some View {
-        SettingsDetailScaffold(title: "Model Behavior") {
+        SettingsDetailScaffold(title: "Personalization", intro: "Choose the name Angrove should use when addressing you. You can leave it blank if you prefer.") {
             SettingsControlCard {
                 SettingsTextInputRow(
-                    title: "Name",
-                    placeholder: "John Appleseed",
+                    title: "Preferred name",
+                    placeholder: "Your name",
                     text: $userName
                 )
             }
@@ -420,7 +420,7 @@ private struct ResearchAndCitationsSettingsView: View {
     private var linkHandling: LinkHandlingOption = .inApp
 
     var body: some View {
-        SettingsDetailScaffold(title: "Research & Citations") {
+        SettingsDetailScaffold(title: "Research & Citations", intro: "Choose how sources and citations appear, and where their links open.") {
             SettingsControlCard {
                 SettingsChoiceRow(
                     title: "Citation Preference",
@@ -442,58 +442,6 @@ private struct ResearchAndCitationsSettingsView: View {
     }
 }
 
-struct ModelActivitySettingsView: View {
-    @AppStorage(SettingsStorageKey.modelActivityDisplay)
-    private var modelActivityDisplay: ModelActivityDisplayOption = .detailed
-
-    var body: some View {
-        SettingsDetailScaffold(title: "Model Activity") {
-            SettingsControlCard {
-                SettingsChoiceRow(
-                    title: "Activity Display",
-                    selection: $modelActivityDisplay,
-                    options: Array(ModelActivityDisplayOption.allCases)
-                )
-
-                ModelActivityPreview(display: modelActivityDisplay)
-            }
-        }
-    }
-}
-
-private struct ModelActivityPreview: View {
-    let display: ModelActivityDisplayOption
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Preview")
-                .settingsText(.label)
-                .foregroundStyle(AngroveTheme.Colors.paragraphText)
-
-            switch display {
-            case .detailed:
-                Text("Thinking...")
-                    .settingsText(.control)
-                    .foregroundStyle(AngroveTheme.Colors.primaryReadable)
-            case .compact:
-                HStack(spacing: 3) {
-                    ForEach(0..<3, id: \.self) { _ in
-                        Circle()
-                            .fill(AngroveTheme.Colors.primaryReadable)
-                            .frame(width: 4, height: 4)
-                    }
-                }
-                .accessibilityLabel("Model active")
-            case .hidden:
-                Text("No visual activity indicator")
-                    .settingsText(.detail)
-                    .foregroundStyle(AngroveTheme.Colors.placeholderText)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
 struct TextAndDisplaySettingsView: View {
     @Binding var conversationFontSize: ConversationFontSizeOption
     @Binding var conversationTextAlignment: ConversationTextAlignmentOption
@@ -501,7 +449,7 @@ struct TextAndDisplaySettingsView: View {
     @Binding var responseFont: ConversationFontOption
 
     var body: some View {
-        SettingsDetailScaffold(title: "Text & Display") {
+        SettingsDetailScaffold(title: "Text & Display", intro: "Choose the size, fonts, and alignment of your conversation text.") {
             SettingsControlCard {
                 SettingsLabeledControl(title: "Font Size") {
                     FontSizeSegmentedControl(selection: $conversationFontSize)
@@ -531,7 +479,7 @@ struct AudioSettingsView: View {
     private var showsReaderInControls = true
 
     var body: some View {
-        SettingsDetailScaffold(title: "Audio") {
+        SettingsDetailScaffold(title: "Audio", intro: "Choose when responses are read aloud and how playback behaves when you leave Angrove.") {
             SettingsControlCard {
                 SettingsToggleRow(
                     title: "Read Responses Automatically",
@@ -566,7 +514,7 @@ struct ConversationDefaultsSettingsView: View {
     private var conversationTitles: ConversationTitleOption = .automatic
 
     var body: some View {
-        SettingsDetailScaffold(title: "Conversation Defaults") {
+        SettingsDetailScaffold(title: "Conversation Defaults", intro: "Choose how your conversations are titled so they’re easier to find later.") {
             SettingsControlCard {
                 SettingsChoiceRow(
                     title: "Conversation Titles",
@@ -588,7 +536,7 @@ private struct InsightsAndDailyStudySettingsView: View {
     private var dailyQuestionFocus: DailyQuestionFocusOption = .varied
 
     var body: some View {
-        SettingsDetailScaffold(title: "Insights & Daily Study") {
+        SettingsDetailScaffold(title: "Insights & Daily Study", intro: "Choose how ideas are highlighted and connected, and what your daily study focuses on.") {
             VStack(alignment: .leading, spacing: 24) {
                 SettingsSubsection(title: "Insight Tree") {
                     SettingsChoiceRow(
@@ -622,7 +570,7 @@ struct SettingsInformationView: View {
     var body: some View {
         SettingsDetailScaffold(title: title) {
             Text(message)
-                .settingsGuideParagraph()
+                .settingsParagraph()
                 .foregroundStyle(AngroveTheme.Colors.paragraphText)
         }
     }
@@ -649,7 +597,7 @@ struct BugReportSettingsView: View {
         SettingsDetailScaffold(title: "Report a Bug") {
             VStack(alignment: .leading, spacing: 24) {
                 Text("Tell us what went wrong. This app runs on your device. Sending this report is the one exception: it shares what you write below plus your app version, build number, and iOS version. Nothing is sent unless you tap Send Report. Please leave out passwords or private conversations.")
-                    .settingsGuideParagraph()
+                    .settingsParagraph()
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
 
                 reportField(
@@ -720,7 +668,7 @@ struct BugReportSettingsView: View {
                                 .foregroundStyle(hasFailed ? AngroveTheme.Colors.accentRed : AngroveTheme.Colors.lightGreen)
                                 .accessibilityHidden(true)
                             Text(statusMessage)
-                                .settingsGuideParagraph()
+                                .settingsParagraph()
                                 .foregroundStyle(AngroveTheme.Colors.paragraphText)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -769,7 +717,7 @@ struct BugReportSettingsView: View {
 
             if let footnote {
                 Text(footnote)
-                    .settingsGuideParagraph()
+                    .settingsParagraph()
                     .foregroundStyle(AngroveTheme.Colors.paragraphText.opacity(0.8))
             }
         }
@@ -783,8 +731,8 @@ struct BugReportSettingsView: View {
         label: String
     ) -> some View {
         TextEditor(text: text)
-            .font(AngroveTheme.Typography.settingsGuideParagraph)
-            .lineSpacing(AngroveTheme.Typography.settingsGuideLineSpacing)
+            .settingsText(.paragraph)
+            .lineSpacing(FlowLayout.rowSpacing)
             .foregroundStyle(AngroveTheme.Colors.primaryReadable)
             .scrollContentBackground(.hidden)
             .focused($focusedField, equals: field)
@@ -794,8 +742,8 @@ struct BugReportSettingsView: View {
             .overlay(alignment: .topLeading) {
                 if text.wrappedValue.isEmpty {
                     Text(prompt)
-                        .font(AngroveTheme.Typography.settingsGuideParagraph)
-                        .lineSpacing(AngroveTheme.Typography.settingsGuideLineSpacing)
+                        .settingsText(.paragraph)
+                        .lineSpacing(FlowLayout.rowSpacing)
                         .foregroundStyle(AngroveTheme.Colors.paragraphText.opacity(0.55))
                         .allowsHitTesting(false)
                 }

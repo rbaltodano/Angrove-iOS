@@ -1,5 +1,6 @@
 import SwiftUI
 import Testing
+import UIKit
 import WebKit
 @testable import Angrove_iOS
 
@@ -167,4 +168,49 @@ struct UserGuideBundledPageTests {
     }
 
     private enum GuideTestError: Error { case timeout }
+}
+
+@Suite("Bundled guide paragraph preferences", .serialized)
+@MainActor
+struct UserGuideTypographyTests {
+    @Test(arguments: [ConversationFontOption.sans, .serif], [ConversationFontSizeOption.small, .large])
+    func nativeMetricsAndLiveChanges(font: ConversationFontOption, size: ConversationFontSizeOption) async throws {
+        let url = try #require(Bundle.main.url(forResource: "UserGuide", withExtension: "html"))
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .nonPersistent()
+        configuration.userContentController.addUserScript(WKUserScript(
+            source: UserGuideWebsiteView.bootstrapScript(topicID: nil, savedTerms: [], colorScheme: .light),
+            injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        configuration.userContentController.addUserScript(WKUserScript(
+            source: UserGuideWebsiteView.typographyScript(font: font, size: size),
+            injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 320, height: 800), configuration: configuration)
+        defer { webView.stopLoading() }
+        webView.loadFileURL(url, allowingReadAccessTo: url)
+        var ready = false
+        for _ in 0..<100 where !ready {
+            ready = (try? await webView.evaluateJavaScript("document.readyState === 'complete' && document.fonts.status === 'loaded' && !!document.querySelector('.lede')")) as? Bool == true
+            if !ready { try await Task.sleep(for: .milliseconds(100)) }
+        }
+        try #require(ready, "Bundled guide must finish loading before typography is inspected")
+        try await expectMetrics(in: webView, font: font, size: size)
+
+        // Switching both preferences updates this same page without navigating or adding styles.
+        let otherFont: ConversationFontOption = font == .sans ? .serif : .sans
+        let otherSize: ConversationFontSizeOption = size == .small ? .large : .small
+        _ = try await webView.evaluateJavaScript(UserGuideWebsiteView.typographyScript(font: otherFont, size: otherSize))
+        try await expectMetrics(in: webView, font: otherFont, size: otherSize)
+        #expect(try await webView.evaluateJavaScript("document.querySelectorAll('#native-paragraph-typography').length") as? Int == 1)
+    }
+
+    private func expectMetrics(in webView: WKWebView, font: ConversationFontOption, size: ConversationFontSizeOption) async throws {
+        let values = try #require(try await webView.evaluateJavaScript("(() => { const s = getComputedStyle(document.querySelector('.lede')); return { family: s.fontFamily, size: parseFloat(s.fontSize), lineHeight: parseFloat(s.lineHeight) }; })()") as? [String: Any])
+        let nativeFont = try #require(UIFont(name: "Figtree-Regular", size: size.pointSize))
+        #expect((values["family"] as? String)?.contains("Figtree") == true,
+                "Settings and guide prose stay in Figtree for either response-font preference")
+        let actualSize = try #require(values["size"] as? Double)
+        let actualLineHeight = try #require(values["lineHeight"] as? Double)
+        #expect(abs(actualSize - Double(size.pointSize)) < 0.01)
+        #expect(abs(actualLineHeight - Double(nativeFont.lineHeight + FlowLayout.rowSpacing)) < 0.01)
+    }
 }

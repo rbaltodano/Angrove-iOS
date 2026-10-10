@@ -11,10 +11,22 @@ struct LicensesTests {
         #expect(paragraphs.allSatisfy { !$0.contains("\n") })
     }
 
+    @Test("Library acknowledgments cover every bundled work")
+    func libraryWorksAreAcknowledged() throws {
+        let corpus = try #require(BundledPassageCorpus.bundled())
+        let titles = Set(corpus.passages.map(\.title))
+        let works = AcknowledgedWork.library
+        #expect(works.count == 37)
+        #expect(Set(works.map(\.name)) == titles)
+        #expect(Set(works.map(\.id)).count == works.count)
+        #expect(works.allSatisfy { $0.license == .libraryPublicDomain })
+        #expect(works.allSatisfy { !$0.notice.isEmpty })
+    }
+
     @Test("Each acknowledged work names its copyright holder")
     func worksCarryNotices() {
         let works = AcknowledgedWork.models + AcknowledgedWork.software + AcknowledgedWork.fonts
         #expect(works.allSatisfy { $0.notice.hasPrefix("Copyright") })
-        #expect(Set(works.map(\.license)) == Set(BundledLicense.allCases))
+        #expect(Set(works.map(\.license)) == Set(BundledLicense.allCases.filter { $0 != .libraryPublicDomain }))
     }
 }

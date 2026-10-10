@@ -23,11 +23,9 @@ struct PageModelControls: View {
     var extraFade: (height: CGFloat, opacity: Double)? = nil
 
     @State private var isControlButtonPressed = false
-    @AppStorage(SettingsStorageKey.modelActivityDisplay)
-    private var activityDisplay: ModelActivityDisplayOption = .detailed
 
     private var showsModelStatus: Bool {
-        modelTasks.isBusy && activityDisplay != .hidden
+        modelTasks.isBusy
     }
 
     private var showsControlPill: Bool {

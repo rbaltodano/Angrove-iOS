@@ -114,6 +114,7 @@ struct InsightTreeView: View {
     @State private var undoTask: Task<Void, Never>? = nil
     @State private var pendingRemoveInsight: InsightModel? = nil
     @State private var pendingUnbookmarkMakeNode: NodeModel? = nil
+    @State private var lastNodeBookmarkDefinitions: [UUID: ConceptDefinition] = [:]
     @State private var questionBarContextInsight: InsightModel? = nil
     @State private var questionBarKeyboardActive: Bool = false
     @State private var cardShouldHide: Bool = false
@@ -358,11 +359,11 @@ struct InsightTreeView: View {
                 .transition(.scale(scale: 0.35, anchor: .bottom).combined(with: .opacity))
                 .padding(.horizontal, 10)
             } else if !cardShouldHide {
-                if !showQuestionBar, showsDockedCardAfterStudy, let concept = hoveredConcept {
+                if !showQuestionBar, selectedNode == nil, showsDockedCardAfterStudy, let concept = hoveredConcept {
                     DockedConceptCard(
                         concept: concept,
                         isSaved: savedConceptIDs.contains(concept.id),
-                        onToggleSaved: { onToggleSavedConcept?(concept) },
+                        onToggleSaved: { toggleCanvasBookmark(concept) },
                         onFork: {
                             dismissDockedInsight()
                             onForkInsight?(concept)
@@ -381,7 +382,7 @@ struct InsightTreeView: View {
                         animateIn: animateMidpointCardText,
                         linkedInsights: makeNodeLinkInsights,
                         onToggleSaved: {
-                            onToggleSavedConcept?(concept(for: selectedInsight))
+                            toggleCanvasBookmark(concept(for: selectedInsight))
                         },
                         onRemove: { pendingRemoveInsight = selectedInsight },
                         onFork:   { performForkInsight(selectedInsight) },
@@ -400,17 +401,14 @@ struct InsightTreeView: View {
                     // Selection keeps an identity snapshot; show the live node so a background
                     // relabel also reaches the docked heading's replacement animation.
                     let currentNode = viewModel.nodes.first { $0.id == selectedNode.id } ?? selectedNode
-                    let makeNodeSourceID = viewModel.promotedSourceInsightID(
-                        forNodeID: selectedNode.id
-                    )
                     DockedNodeTreeCard(
                         node: currentNode,
-                        isSaved: makeNodeSourceID.map(savedConceptIDs.contains) ?? false,
+                        isSaved: savedConceptIDs.contains(viewModel.bookmarkConcept(for: currentNode).id),
                         onSelectInsight: { insight in
                             focusedInsightID = insight.id
                             showInsightCard(insight)
                         },
-                        onToggleSaved: makeNodeSourceID == nil ? nil : {
+                        onToggleSaved: {
                             toggleMakeNodeBookmark(selectedNode)
                         },
                         onFork: { performForkNode(selectedNode) }
@@ -452,7 +450,7 @@ struct InsightTreeView: View {
         } else if isMidpointMode {
             parts.append("midpoint")
         } else if !cardShouldHide, showsDockedCardAfterStudy {
-            if !showQuestionBar, let concept = hoveredConcept {
+            if !showQuestionBar, selectedNode == nil, let concept = hoveredConcept {
                 parts.append("concept-\(concept.id)")
             } else if let selectedInsight {
                 parts.append("insight-\(selectedInsight.id)-\(makeNodeLinkInsights.count)")
@@ -524,6 +522,7 @@ struct InsightTreeView: View {
                 onNodeTapped: { node in
                     showNodeCard(node)
                 },
+                onUnbookmarkNode: { node in toggleMakeNodeBookmark(node) },
                 onInsightTapped: { insight in
                     showInsightCard(insight)
                 },
@@ -765,6 +764,7 @@ struct InsightTreeView: View {
                 dismissDockedInsight()
             }
         }
+        .onChange(of: viewModel.nodes) { _, _ in bookmarkAllNodeConcepts() }
         .onChange(of: promotedInsightIDs) { _, newValue in
             viewModel.updateInsights(insights, promotedInsightIDs: newValue)
         }
@@ -781,6 +781,12 @@ struct InsightTreeView: View {
         // absence tore down still-generating placeholders out from under their own generation
         // task the moment anything else touched the saved-insights set.
         .onChange(of: savedConceptIDs) { oldValue, newValue in
+            if pendingUnbookmarkMakeNode == nil, let removedNode = viewModel.nodes.first(where: {
+                let id = viewModel.bookmarkConcept(for: $0).id
+                return !viewModel.placedMidpointNodeIDs.contains($0.id) && oldValue.contains(id) && !newValue.contains(id)
+            }) {
+                pendingUnbookmarkMakeNode = removedNode
+            }
             for placedID in viewModel.placedMidpointNodeIDs
             where oldValue.contains(placedID) && !newValue.contains(placedID) {
                 viewModel.removePlacedMidpoint(id: placedID)
@@ -877,6 +883,7 @@ struct InsightTreeView: View {
         }
         .task(id: conversationID) {
             viewModel.startModelWork()
+            bookmarkAllNodeConcepts()
             enqueuePersistedTreeLoad(animateChanges: false)
         }
         .onChange(of: persistedTreeRefreshRequest) { _, _ in
@@ -914,18 +921,30 @@ struct InsightTreeView: View {
         } message: {
             Text("This insight will be removed from this conversation’s tree. Its global bookmark is unchanged.")
         }
-        .alert("Unbookmark attached Insights?", isPresented: Binding(
+        .alert("Redistribute attached Insights?", isPresented: Binding(
             get: { pendingUnbookmarkMakeNode != nil },
             set: { if !$0 { pendingUnbookmarkMakeNode = nil } }
         )) {
-            Button("No") {
+            Button("Redistribute") {
                 resolveMakeNodeUnbookmark(removingAttachedInsights: false)
             }
-            Button("Yes", role: .destructive) {
+            Button("Delete Insights", role: .destructive) {
                 resolveMakeNodeUnbookmark(removingAttachedInsights: true)
             }
+            Button("Cancel", role: .cancel) {
+                if let node = pendingUnbookmarkMakeNode {
+                    let concept = viewModel.bookmarkConcept(for: node)
+                    if !savedConceptIDs.contains(concept.id) {
+                        onToggleSavedConcept?(concept)
+                    }
+                }
+                pendingUnbookmarkMakeNode = nil
+            }
         } message: {
-            Text("Would you also like to unbookmark the Insights attached to this node?")
+            let count = pendingUnbookmarkMakeNode.flatMap { pending in
+                viewModel.nodes.first { $0.id == pending.id }
+            }.map { viewModel.attachedInsights(for: $0).count } ?? 0
+            Text("Remove this Node Concept and redistribute its \(count) attached \(count == 1 ? "Insight" : "Insights") to relevant nearby concepts? You can also delete the attached Insights.")
         }
         .alert(
             "Couldn’t complete that model action",
@@ -1646,35 +1665,36 @@ struct InsightTreeView: View {
         }
     }
 
-    private func toggleMakeNodeBookmark(_ node: NodeModel) {
-        guard let sourceID = viewModel.promotedSourceInsightID(forNodeID: node.id),
-              let nodeConcept = viewModel.makeNodeBookmarkConcepts(for: sourceID).first else {
-            return
-        }
-        if savedConceptIDs.contains(sourceID) {
-            pendingUnbookmarkMakeNode = node
-        } else if let onBookmarkConcepts {
-            onBookmarkConcepts([nodeConcept])
+    private func toggleCanvasBookmark(_ concept: ConceptDefinition) {
+        if let node = viewModel.nodes.first(where: { viewModel.bookmarkConcept(for: $0).id == concept.id && !viewModel.placedMidpointNodeIDs.contains($0.id) }) {
+            toggleMakeNodeBookmark(node)
         } else {
-            onToggleSavedConcept?(nodeConcept)
+            onToggleSavedConcept?(concept)
         }
     }
 
-    private func resolveMakeNodeUnbookmark(removingAttachedInsights: Bool) {
-        guard let node = pendingUnbookmarkMakeNode,
-              let sourceID = viewModel.promotedSourceInsightID(forNodeID: node.id) else {
-            pendingUnbookmarkMakeNode = nil
-            return
-        }
-        let bookmarks = viewModel.makeNodeBookmarkConcepts(for: sourceID)
-        viewModel.removeMakeNode(
-            for: sourceID,
-            keepingChildren: !removingAttachedInsights
-        )
-        onPromotedInsightIDsChange?(promotedInsightIDs.filter { $0 != sourceID })
+    private func bookmarkAllNodeConcepts() {
+        guard pendingUnbookmarkMakeNode == nil else { return }
+        let all = viewModel.automaticNodeBookmarks()
+        let concepts = all.filter { !savedConceptIDs.contains($0.id) || lastNodeBookmarkDefinitions[$0.id] != $0 }
+        lastNodeBookmarkDefinitions = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        guard !concepts.isEmpty else { return }
+        if let onBookmarkConcepts { onBookmarkConcepts(concepts) }
+        else { concepts.filter { !savedConceptIDs.contains($0.id) }.forEach { onToggleSavedConcept?($0) } }
+    }
 
-        let conceptsToRemove = removingAttachedInsights ? bookmarks : Array(bookmarks.prefix(1))
-        for concept in conceptsToRemove where savedConceptIDs.contains(concept.id) {
+    private func toggleMakeNodeBookmark(_ node: NodeModel) {
+        pendingUnbookmarkMakeNode = viewModel.nodes.first { $0.id == node.id } ?? node
+    }
+
+    private func resolveMakeNodeUnbookmark(removingAttachedInsights: Bool) {
+        guard let node = pendingUnbookmarkMakeNode else { return }
+        let sourceID = viewModel.promotedSourceInsightID(forNodeID: node.id)
+        let removed = viewModel.removeBookmarkedNode(id: node.id, deletingInsights: removingAttachedInsights)
+        if let sourceID {
+            onPromotedInsightIDsChange?(promotedInsightIDs.filter { $0 != sourceID })
+        }
+        for concept in removed where savedConceptIDs.contains(concept.id) {
             onToggleSavedConcept?(concept)
         }
         pendingUnbookmarkMakeNode = nil
@@ -1773,32 +1793,17 @@ struct InsightTreeView: View {
                     cachedSourceEmbeddings: cachedSourceEmbeddings
                 )
                 guard !Task.isCancelled, midpointPlacedInsightID == placedID else { return }
-                viewModel.replacePlacedMidpoint(id: placedID, with: generated)
-                midpointGeneratedInsightID = placedID
-                // Midpoint blends aren't the user's own saved research — they're synthesized on
-                // the spot from sources the user already selected, so save it automatically
-                // rather than making them separately hunt down and bookmark their own creation.
-                // `onToggleSavedConcept` only adds (this id can't already be saved — it's fresh),
-                // so this is the easy "unbookmark to get rid of it" the user asked for: the normal
-                // save toggle already removes it from the tree like any other bookmark.
-                if !savedConceptIDs.contains(placedID) {
-                    onToggleSavedConcept?(
-                        ConceptDefinition(
-                            id: placedID,
-                            word: generated.word,
-                            partOfSpeech: generated.partOfSpeech,
-                            pronunciation: generated.pronunciation,
-                            meaning: generated.meaning,
-                            example: generated.example
-                        )
-                    )
-                }
-            } catch {
+                try await viewModel.replacePlacedMidpoint(id: placedID, with: generated)
+                await viewModel.waitForSettledTree()
                 guard !Task.isCancelled, midpointPlacedInsightID == placedID else { return }
+                midpointGeneratedInsightID = placedID
+            } catch {
+                guard midpointPlacedInsightID == placedID else { return }
                 viewModel.removePlacedMidpoint(id: placedID)
                 midpointPlacedInsightID = nil
                 midpointGeneratedInsightID = nil
                 onMidpointGeneratingChange?(false)
+                guard !Task.isCancelled else { return }
                 presentModelActionError {
                     selectedCanvasTargets = sourceTargets
                     placeMidpointInsight(
@@ -1821,7 +1826,8 @@ struct InsightTreeView: View {
             kind: .createMidpoint,
             originPage: modelTaskOriginPage,
             onCancel: {
-                guard midpointPlacedInsightID == placedID else { return }
+                guard midpointPlacedInsightID == placedID,
+                      !viewModel.isCompletedMidpoint(id: placedID) else { return }
                 viewModel.removePlacedMidpoint(id: placedID)
                 midpointPlacedInsightID = nil
                 midpointGeneratedInsightID = nil
@@ -1832,8 +1838,7 @@ struct InsightTreeView: View {
         }
     }
 
-    /// Called by the canvas after generation and the loading-icon reveal sequence. Pops the
-    /// generated Insight card with its body text animating in like a streamed model response.
+    /// Open the new Node Concept after its source transfer finishes.
     private func revealPlacedMidpointCard(_ insightID: UUID) {
         guard midpointPlacedInsightID == insightID else { return }
         midpointPlacedInsightID = nil
@@ -1843,8 +1848,8 @@ struct InsightTreeView: View {
         // If the user navigated to another insight/node while it generated, don't hijack their card.
         let viewingOther = (selectedInsight != nil && selectedInsight?.id != insightID) || selectedNode != nil
         guard !viewingOther else { return }
-        guard let insight = viewModel.nodes.flatMap(\.insights).first(where: { $0.id == insightID }) else { return }
-        showInsightCard(insight, animateText: true, moveCamera: false)
+        guard let node = viewModel.nodes.first(where: { $0.id == insightID }) else { return }
+        showNodeCard(node)
     }
 
     /// Empty, identity-bearing content used only while the loading icon is visible. It is never
@@ -1937,7 +1942,7 @@ struct InsightTreeView: View {
         case .insight(let id):
             return id
         case .node(let id):
-            return viewModel.nodes.first(where: { $0.id == id })?.insights.first?.id
+            return id
         }
     }
 

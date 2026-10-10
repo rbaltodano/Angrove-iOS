@@ -12,14 +12,17 @@ struct InsightTreeCanvasChip: View {
     let labelOpacity: Double
     let selectionStudyAmount: Double
     let backgroundColor: Color
+    /// A placed Midpoint still generating becomes a Node Concept, so its loading symbol matches
+    /// the finished Node Concept's icon size instead of an Insight chip's.
+    var isNodeConceptLoading = false
 
     var body: some View {
         ZStack(alignment: .leading) {
-            // While generating: the hollow loading bubble, flashing. On completion it fades
+            // While generating: the Node Concept symbol flashes. On completion it fades
             // out and blurs as the solid content cross-fades in.
             if isLoading {
-                Image(systemName: "text.bubble")
-                    .font(.system(size: 14, weight: .semibold))
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: isNodeConceptLoading ? 24 : 14, weight: .semibold))
                     .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     .opacity(loadingFlashOpacity)
                     .transition(.fadeBlur)

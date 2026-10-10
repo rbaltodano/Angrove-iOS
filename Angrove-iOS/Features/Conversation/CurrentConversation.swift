@@ -621,7 +621,7 @@ struct CurrentConversationView: View {
             onPromotedInsightIDsChange: { canvasMode.promotedCanvasInsightIDs = $0 },
             savedConceptIDs: Set(collectedDefinitions.map(\.id)),
             onToggleSavedConcept: { concept in
-                toggleSavedConcept(concept)
+                setSavedConcept(concept, isSaved: !collectedDefinitions.contains { $0.id == concept.id })
             },
             onBookmarkConcepts: { concepts in
                 for concept in concepts {
@@ -894,6 +894,7 @@ struct CurrentConversationView: View {
                 clippedPassages: clippedPassages,
                 savedInsights: $collectedDefinitions,
                 opensPassages: opensPassagesInInsightPicker,
+                conversationID: session.activeConversationID,
                 onQuote: { concept in
                     withAnimation(.springBouncy) {
                         attachedConcept = concept
@@ -921,13 +922,7 @@ struct CurrentConversationView: View {
                     isInsightLibraryOpen = false
                 },
                 onToggleSaved: { concept in
-                    withAnimation(.springBouncy) {
-                        if collectedDefinitions.contains(where: { $0.word.caseInsensitiveCompare(concept.word) == .orderedSame }) {
-                            collectedDefinitions.removeAll { $0.word.caseInsensitiveCompare(concept.word) == .orderedSame }
-                        } else {
-                            collectedDefinitions.append(concept)
-                        }
-                    }
+                    setSavedConcept(concept, isSaved: !collectedDefinitions.contains { $0.id == concept.id })
                 },
                 onToggleClipped: { passage in
                     if clippedPassages.contains(where: { $0.id == passage.id }) {
@@ -2384,7 +2379,8 @@ struct CurrentConversationView: View {
     private func setSavedConcept(_ concept: ConceptDefinition, isSaved: Bool) {
         let wasSavedToConversation = manuallySavedConversationInsightIDs.contains(concept.id)
         let existingConcept = collectedDefinitions.first { $0.id == concept.id }
-        let conceptToSave = existingConcept?.mergingDefinitions(from: concept) ?? concept
+        let isNodeAnchor = InsightTreeViewModel.nodeBookmarkReference(for: concept.id, preferredScope: session.activeConversationID)?.seed != nil
+        let conceptToSave = isNodeAnchor ? concept : (existingConcept?.mergingDefinitions(from: concept) ?? concept)
 
         withAnimation(.springBouncy) {
             if isSaved {

@@ -4,36 +4,58 @@ import simd
 
 // Rendering behavior for the shared global and conversation canvas.
 extension InsightTreeCanvasView {
-    @ViewBuilder
-    func graphEdges(camera: InsightTreeCamera, size: CGSize) -> some View {
-        let hasSelection = !selectedCanvasTargets.isEmpty
-        ForEach(displayGraphEdges()) { edge in
-            if revealState.revealedGraphEdgeIDs.contains(edge.id),
-               let from = simPosition(of: edge.fromNodeID),
-               let to = simPosition(of: edge.toNodeID) {
-                let start = camera.worldToScreen(from, in: size)
-                let end = camera.worldToScreen(to, in: size)
-
-                let isPromotionEdge = nodes.contains { node in
-                    (node.id == edge.fromNodeID || node.id == edge.toNodeID)
-                        && node.insights.contains { makeNodeChildIDs.contains($0.id) }
-                }
-                let lineColor = isPromotionEdge
-                    ? AngroveTheme.Colors.primaryReadable.opacity(0.3)
-                    : AngroveTheme.Colors.divider.opacity(edge.isSuggested ? 0.55 : 0.9)
-                InsightTreeCanvasGraphEdge(
-                    start: start, end: end, canvasSize: size, color: lineColor,
-                    isAnimated: revealState.animatedGraphEdgeIDs.contains(edge.id),
-                    isSuggested: edge.isSuggested
-                )
-                    .frame(width: size.width, height: size.height)
-                    .allowsHitTesting(false)
-                    .opacity((hasSelection ? 0.5 : 1.0) * (isInStudy
-                        && !(studyFocusNodeID == completedBranchNodeID
-                            && (edge.fromNodeID == completedBranchNodeID || edge.toNodeID == completedBranchNodeID))
-                        ? 1 - studyProgress : 1))
-                    .animation(.easeInOut(duration: 0.22), value: hasSelection)
+    /// Bends are chosen once in world space, against label footprints at the default zoom, so
+    /// they follow the layout but never the camera. Crossing gaps are then cut on screen.
+    func conceptConnectorRoutes(layout: CanvasInsightLayout, camera: InsightTreeCamera, size: CGSize) -> [InsightTreeConnectorRouting.Route] {
+        let worldConnectors = displayGraphEdges().compactMap { edge -> InsightTreeConnectorRouting.Connector? in
+            guard revealState.revealedGraphEdgeIDs.contains(edge.id),
+                  let from = simPosition(of: edge.fromNodeID), let to = simPosition(of: edge.toNodeID) else { return nil }
+            return .init(id: edge.id, start: from, end: to, fromNodeID: edge.fromNodeID, toNodeID: edge.toNodeID)
+        }
+        var obstacles: [InsightTreeConnectorRouting.Obstacle] = []
+        for node in layout.nodes {
+            let scale = depthScale(node.id)
+            obstacles.append(.init(ownerID: node.id, rect: CGRect(x: node.position.x - 130 * scale, y: node.position.y - 52 * scale,
+                                                                  width: 260 * scale, height: 104 * scale).insetBy(dx: -12, dy: -12)))
+            for insight in layout.insightsByNode[node.id] ?? [] {
+                guard let placement = layout.placements[insight.id] else { continue }
+                let footprint = insightCollisionSize(for: insight)
+                obstacles.append(.init(ownerID: node.id, rect: CGRect(
+                    x: placement.world.x - footprint.width / 2, y: placement.world.y - footprint.height / 2,
+                    width: footprint.width, height: footprint.height).insetBy(dx: -8, dy: -8)))
             }
+        }
+        // The screen flips world y, which reverses which side a positive bend falls on.
+        let worldBends = InsightTreeConnectorRouting.bends(connectors: worldConnectors, obstacles: obstacles)
+        let screenBends = worldBends.mapValues { -$0 * camera.scale }
+        let screenConnectors = worldConnectors.map {
+            InsightTreeConnectorRouting.Connector(id: $0.id, start: camera.worldToScreen($0.start, in: size),
+                end: camera.worldToScreen($0.end, in: size), fromNodeID: $0.fromNodeID, toNodeID: $0.toNodeID)
+        }
+        let viewport = CGRect(origin: .zero, size: size).insetBy(dx: -32, dy: -32)
+        return InsightTreeConnectorRouting.routes(connectors: screenConnectors, bends: screenBends, viewport: viewport)
+    }
+
+    @ViewBuilder
+    func graphEdges(routes: [InsightTreeConnectorRouting.Route], size: CGSize, screenPerWorld: CGFloat) -> some View {
+        let hasSelection = !selectedCanvasTargets.isEmpty
+        ForEach(routes, id: \.connector.id) { route in
+            let edge = route.connector
+            let suggested = displayGraphEdges().first { $0.id == edge.id }?.isSuggested ?? false
+            let isPromotionEdge = nodes.contains { node in
+                (node.id == edge.fromNodeID || node.id == edge.toNodeID) && node.insights.contains { makeNodeChildIDs.contains($0.id) }
+            }
+            let lineColor = isPromotionEdge ? AngroveTheme.Colors.primaryReadable.opacity(0.3)
+                : AngroveTheme.Colors.divider.opacity(suggested ? 0.55 : 0.9)
+            RoutedConceptConnector(route: route, canvasSize: size, color: lineColor,
+                isAnimated: revealState.animatedGraphEdgeIDs.contains(edge.id), isSuggested: suggested,
+                screenPerWorld: screenPerWorld)
+                .frame(width: size.width, height: size.height)
+                .allowsHitTesting(false)
+                .opacity((hasSelection ? 0.5 : 1.0) * (isInStudy
+                    && !(studyFocusNodeID == completedBranchNodeID
+                        && (edge.fromNodeID == completedBranchNodeID || edge.toNodeID == completedBranchNodeID)) ? 1 - studyProgress : 1))
+                .animation(.easeInOut(duration: 0.22), value: hasSelection)
         }
     }
 
@@ -69,7 +91,8 @@ extension InsightTreeCanvasView {
     func midpointConnectors(layout: CanvasInsightLayout, camera: InsightTreeCamera, size: CGSize) -> some View {
         let hasSelection = !selectedCanvasTargets.isEmpty
         ForEach(Array(placedMidpointNodeIDs), id: \.self) { placedID in
-            if let placedWorld = simPosition(of: placedID), let sources = placedMidpointSources[placedID] {
+            if !revealState.loadingInsightIDs.contains(placedID),
+               let placedWorld = simPosition(of: placedID), let sources = placedMidpointSources[placedID] {
                 let end = camera.worldToScreen(placedWorld, in: size)
                 ForEach(Array(sources.enumerated()), id: \.offset) { _, source in
                     if let start = midpointSourceScreenPosition(source, layout: layout, camera: camera, size: size) {
@@ -94,7 +117,20 @@ extension InsightTreeCanvasView {
                 if revealState.revealedInsightConnectorIDs.contains(insight.id),
                    let placement = layout.placements[insight.id] {
                     let start = camera.worldToScreen(node.position, in: size)
-                    let end = insightScreenPosition(placement, camera: camera, size: size)
+                    let chipEnd = insightScreenPosition(placement, camera: camera, size: size)
+                    let transfer = revealState.transfers[insight.id]
+                    let presentation = MidpointTransferPresentation(progress: revealState.transferProgress)
+                    let growth = transfer == nil ? CGFloat(1) : presentation.connectorGrowth
+                    let end = CGPoint(x: start.x + (chipEnd.x - start.x) * growth,
+                                      y: start.y + (chipEnd.y - start.y) * growth)
+                    if let transfer {
+                        let oldStart = camera.worldToScreen(transfer.oldParent, in: size)
+                        let oldEnd = camera.project(transfer.world, elevation: transfer.elevation, in: size).position
+                        FadedCanvasLine(start: oldStart, end: oldEnd, canvasSize: size,
+                                        color: AngroveTheme.Colors.divider.opacity(0.55))
+                            .opacity(Double(presentation.oldConnectorOpacity))
+                            .allowsHitTesting(false)
+                    }
                     // Connector lines stay at a constant opacity regardless of zoom — only the
                     // chip label/background fade with `labelOpacity`, not the lines themselves.
                     let baseOpacity = 0.55
@@ -135,6 +171,7 @@ extension InsightTreeCanvasView {
         let start: CGPoint
         let end: CGPoint
         let lineWidth: CGFloat
+        var control: CGPoint? = nil
     }
 
     /// Screen endpoints of every connector that should pulse, resolved once per render from the
@@ -143,7 +180,8 @@ extension InsightTreeCanvasView {
     private func connectorPulseEndpoints(
         layout: CanvasInsightLayout,
         camera: InsightTreeCamera,
-        size: CGSize
+        size: CGSize,
+        routes: [InsightTreeConnectorRouting.Route]
     ) -> [ConnectorPulseEndpoints] {
         guard pulsingInsightID != nil || pulsingNodeID != nil else { return [] }
         var lines: [ConnectorPulseEndpoints] = []
@@ -159,7 +197,8 @@ extension InsightTreeCanvasView {
                     id: "edge-\(edge.id)",
                     start: start,
                     end: camera.worldToScreen(targetPos, in: size),
-                    lineWidth: 2.2
+                    lineWidth: 2.2,
+                    control: routes.first { $0.connector.id == edge.id }.map(\.control)
                 ))
             }
         }
@@ -192,8 +231,8 @@ extension InsightTreeCanvasView {
     }
 
     @ViewBuilder
-    func connectorPulseOverlay(layout: CanvasInsightLayout, camera: InsightTreeCamera, size: CGSize) -> some View {
-        let lines = connectorPulseEndpoints(layout: layout, camera: camera, size: size)
+    func connectorPulseOverlay(layout: CanvasInsightLayout, camera: InsightTreeCamera, size: CGSize, routes: [InsightTreeConnectorRouting.Route]) -> some View {
+        let lines = connectorPulseEndpoints(layout: layout, camera: camera, size: size, routes: routes)
         // Paused while idle: an always-running `.animation` timeline re-evaluated this overlay
         // every display frame even when no connector was pulsing.
         TimelineView(.animation(minimumInterval: nil, paused: lines.isEmpty)) { timeline in
@@ -201,8 +240,14 @@ extension InsightTreeCanvasView {
 
             ZStack {
                 ForEach(lines) { line in
-                    TravelingCanvasPulse(start: line.start, end: line.end, progress: pulseProgress, lineWidth: line.lineWidth)
-                        .frame(width: size.width, height: size.height)
+                    TravelingCanvasPulse(
+                        start: line.start,
+                        end: line.end,
+                        progress: pulseProgress,
+                        lineWidth: line.lineWidth,
+                        control: line.control
+                    )
+                    .frame(width: size.width, height: size.height)
                 }
             }
             .frame(width: size.width, height: size.height)
@@ -432,7 +477,7 @@ extension InsightTreeCanvasView {
         InsightTreeCanvasConceptNode(
             title: node.conceptLabel,
             isSuggested: node.isSuggested,
-            isNaming: namingNodeIDs.contains(node.id),
+            isNaming: namingNodeIDs.contains(node.id) || revealState.loadingInsightIDs.contains(node.id),
             isUndiscovered: undiscoveredNodeIDs.contains(node.id),
             hasAppeared: hasAppeared,
             labelOpacity: labelOpacity,
@@ -453,7 +498,8 @@ extension InsightTreeCanvasView {
                 focusHoveredTarget(at: node.position, in: size)
                 onNodeTapped(node)
             },
-            onDismiss: { onDismissSuggestedNode(node) }
+            onDismiss: { onDismissSuggestedNode(node) },
+            onUnbookmark: onUnbookmarkNode.map { action in { action(node) } }
         )
     }
 
@@ -510,7 +556,8 @@ extension InsightTreeCanvasView {
             loadingFlashOpacity: revealState.loadingFlashOpacity,
             labelOpacity: labelOpacity,
             selectionStudyAmount: selectionStudyAmount,
-            backgroundColor: insightTreeCanvasColor
+            backgroundColor: insightTreeCanvasColor,
+            isNodeConceptLoading: isPinnedAtNode
         )
         .onTapGesture {
             // The placed-midpoint "Insight Loading Icon" stays hoverable even while generating;

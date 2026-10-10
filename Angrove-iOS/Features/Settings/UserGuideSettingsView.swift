@@ -397,7 +397,7 @@ struct UserGuideTopic: Identifiable, Hashable {
             id: "personalization", title: "Personalizing Angrove", icon: "slider.horizontal.3",
             intro: "You can make Angrove more comfortable to read and tell it what to call you. Everything is in {gearshape|Settings}, at the bottom of the menu.",
             overview: "Settings controls how the app looks and how conversations read.",
-            instructions: "Appearance switches between light and dark. Text & Display changes fonts, text size, and alignment. Model Behavior sets your name. App Experience sets your start screen and haptics, and Notifications sets reminders.",
+            instructions: "Appearance switches between light and dark. Text & Display changes fonts, text size, and alignment. Personalization sets the name Angrove uses to address you. App Experience sets your start screen and haptics, and Notifications sets reminders.",
             example: "Choose larger text for long reading sessions, or a serif font for responses."
         ),
         .init(
