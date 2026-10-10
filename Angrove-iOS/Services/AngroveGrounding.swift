@@ -51,10 +51,11 @@ nonisolated struct LocalAngroveGroundingProvider: AngroveGroundingProviding {
     /// The sentence written to prevent that confusion produced it.
     ///
     /// Disambiguation belongs in `retrievalAliases`, which steer retrieval without entering the
-    /// prompt. Several entries below still carry contrastive clauses ("It was not called the
-    /// Council of Adhesion", "It must not be confused with Nicaea in 325", "It is not known to have
-    /// been written by the Apostle Paul") and are the same hazard; they are kept for now only
-    /// because they predate this finding and have not been individually re-tested on device.
+    /// prompt. The council and Didache entries used to carry contrastive clauses ("not called the
+    /// Council of Adhesion", "must not be confused with Nicaea", "not known to have been written by
+    /// the Apostle Paul"); those were removed because they are the same hazard. Their aliases
+    /// ("council of adhesion", "written by paul") still route those questions here. Re-check the
+    /// reworded entries on a physical iPhone.
     private static let references: [AngroveGroundingReference] = [
         AngroveGroundingReference(
             id: "nicaea-325",
@@ -70,7 +71,7 @@ nonisolated struct LocalAngroveGroundingProvider: AngroveGroundingProviding {
             id: "constantinople-381",
             title: "First Council of Constantinople (381)",
             sourceName: "Catechism of the Catholic Church §245",
-            facts: "The First Council of Constantinople met in 381 and is counted as the second ecumenical council. It reaffirmed the faith of Nicaea and confessed the divinity of the Holy Spirit, contributing to the Nicene-Constantinopolitan Creed. It was not called the Council of Adhesion and it was not the council that settled the veneration of icons.",
+            facts: "The First Council of Constantinople met in 381 and is counted as the second ecumenical council. It reaffirmed the faith of Nicaea and confessed the divinity of the Holy Spirit, contributing to the Nicene-Constantinopolitan Creed.",
             retrievalAliases: [
                 "second ecumenical council", "first council of constantinople",
                 "council of constantinople", "constantinople", "council of adhesion",
@@ -81,7 +82,7 @@ nonisolated struct LocalAngroveGroundingProvider: AngroveGroundingProviding {
             id: "nicaea-787",
             title: "Second Council of Nicaea (787)",
             sourceName: "Catechism of the Catholic Church §2131",
-            facts: "The Second Council of Nicaea met in 787 and is counted as the seventh ecumenical council. It defended the veneration of sacred images against iconoclasm. It must not be confused with Nicaea in 325 or Constantinople in 381.",
+            facts: "The Second Council of Nicaea met in 787 and is counted as the seventh ecumenical council. It defended the veneration of sacred images against iconoclasm.",
             retrievalAliases: [
                 "second council of nicaea", "nicaea ii", "seventh ecumenical council",
                 "icons", "icon veneration", "iconoclasm"
@@ -91,7 +92,7 @@ nonisolated struct LocalAngroveGroundingProvider: AngroveGroundingProviding {
             id: "didache-authorship",
             title: "The Didache",
             sourceName: "Angrove curated reference note",
-            facts: "The Didache, also called the Teaching of the Twelve Apostles, is an anonymous early Christian church-order and teaching text. Its author is unknown. It is not known to have been written by the Apostle Paul.",
+            facts: "The Didache, also called the Teaching of the Twelve Apostles, is an anonymous early Christian church-order and teaching text. Its author is unknown.",
             retrievalAliases: [
                 "didache", "teaching of the twelve apostles", "written by paul",
                 "apostle paul", "didache authorship"

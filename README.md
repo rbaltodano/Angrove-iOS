@@ -23,7 +23,7 @@ Built around understanding, Angrove brings conversation, primary sources, and a 
 thinking into one workspace. A discussion becomes something you can revisit and build on.
 
 [Website](https://angrove.app/) · [User Guide](https://angrove.app/guide.html) ·
-[FAQ](https://angrove.app/faq.html) · [Launch Status](https://angrove.app/waitlist.html) ·
+[FAQ](https://angrove.app/faq.html) ·
 [Case Study](https://angrove.app/case-study.html)
 
 ## Building the product around the model
