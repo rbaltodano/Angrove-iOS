@@ -941,9 +941,12 @@ struct LiteRTAngroveModel: AngroveModel {
         \(groundedContext)
 
         Use a passage only where it genuinely bears on the term's meaning here; do not force-fit
-        one that doesn't. When no passage explicitly defines the term, give its ordinary
-        general-knowledge definition. Never answer that the term is undefined, absent, or not in
-        the provided context. Reserve uncertainty for a specific date, attribution, or disputed
+        one that doesn't. Whether or not a passage defines the term, define it in the sense the
+        context uses it: a name, title, or technical sense in the subject being discussed comes
+        before an everyday meaning. For example, in an exchange about John 14, "Father" means God
+        the Father, not a male parent. Give the ordinary general-knowledge definition only when
+        the context uses the term in its ordinary sense. Never answer that the term is undefined,
+        absent, or not in the provided context. Reserve uncertainty for a specific date, attribution, or disputed
         claim, not for ordinary vocabulary or well-established concepts.
 
         Context:

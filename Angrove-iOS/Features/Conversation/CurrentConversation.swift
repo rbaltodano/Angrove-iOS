@@ -2320,13 +2320,22 @@ struct CurrentConversationView: View {
         postDefinitionCompletedNotification(completedWord)
     }
 
+    /// The answer the term appears in, preceded by the question it answered. Without the
+    /// question, a term like "Father" in an answer about John 14 reads as everyday vocabulary,
+    /// and retrieval has only the bare word to search with.
     private func definitionContext(sourceResponseBlock: String?) -> ConversationContext {
         guard let sourceResponseBlock else {
             return ConversationContext()
         }
-        return ConversationContext(
-            transcript: [.text(ResponseTextFormatting.definitionContext(from: sourceResponseBlock))]
-        )
+        let response = ChatBlock.text(ResponseTextFormatting.definitionContext(from: sourceResponseBlock))
+        for branch in session.activeBranches {
+            guard let index = branch.activeChatBlocks.firstIndex(where: {
+                if case .text(let text) = $0 { return text == sourceResponseBlock }
+                return false
+            }), let question = precedingQuestion(in: branch, before: index) else { continue }
+            return ConversationContext(transcript: [.user(question, nil, []), response])
+        }
+        return ConversationContext(transcript: [response])
     }
 
     private func stableDefinition(
