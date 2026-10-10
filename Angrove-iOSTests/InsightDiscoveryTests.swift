@@ -14,6 +14,20 @@ struct InsightDiscoveryTests {
         body(PrivatePreferences(defaults: defaults, cipher: LocalDataCipher { _ in key }))
     }
 
+    @Test("The Insights badge tracks the Global tree alone, starting from earlier history")
+    func globalTreeSeenIsSeparate() throws {
+        try withPreferences { preferences in
+            let earlier = UUID(), inConversation = UUID(), inGlobal = UUID()
+            InsightDiscoveryStore.markPresented(insightIDs: [earlier], preferences: preferences)
+            // No Global record yet: earlier shared history is the starting estimate.
+            #expect(InsightDiscoveryStore.loadGlobalTreeSeenInsightIDs(preferences: preferences) == [earlier])
+            InsightDiscoveryStore.saveGlobalTreeSeenInsightIDs([earlier, inGlobal], preferences: preferences)
+            // A conversation tree presenting an Insight does not mark it seen in the Global tree.
+            InsightDiscoveryStore.markPresented(insightIDs: [inConversation], preferences: preferences)
+            #expect(InsightDiscoveryStore.loadGlobalTreeSeenInsightIDs(preferences: preferences) == [earlier, inGlobal])
+        }
+    }
+
     @Test("Reopening an empty global canvas reveals only newly added insights and nodes")
     func restoredSnapshotDoesNotReplay() throws {
         try withPreferences { preferences in

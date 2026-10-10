@@ -601,7 +601,12 @@ struct InsightTreeView: View {
             .allowsHitTesting(studyBranchSource != nil || studySubject == nil || studiedNodeID != nil || studiedSelectionIDs != nil)
 
             if viewModel.nodes.isEmpty {
-                EmptyInsightTreeView()
+                // While the first build runs, an empty canvas only means "not ready yet".
+                if viewModel.hasPreparedTree {
+                    EmptyInsightTreeView()
+                } else {
+                    LibraryLoadingView()
+                }
             }
 
             VStack {

@@ -14,6 +14,21 @@ enum InsightDiscoveryStore {
         "AquinasPendingInsightPresentationIDs"
     private static let pendingNodePresentationIDsKey =
         "AquinasPendingNodePresentationIDs"
+    private static let globalTreeSeenInsightIDsKey = "AngroveGlobalTreeSeenInsightIDs"
+
+    /// Saved Insights the person has seen in the Global Insights tree, which drives the sidebar's
+    /// Insights badge. Conversation trees present Insights too, so their shared "seen" history
+    /// cannot answer this. Before this record existed, that shared history is the best estimate.
+    static func loadGlobalTreeSeenInsightIDs(preferences: PrivatePreferences = .standard) -> Set<UUID> {
+        guard let strings = loadStrings(forKey: globalTreeSeenInsightIDsKey, preferences: preferences) else {
+            return loadSeenInsightIDs(preferences: preferences)
+        }
+        return Set(strings.compactMap { UUID(uuidString: $0) })
+    }
+
+    static func saveGlobalTreeSeenInsightIDs(_ ids: Set<UUID>, preferences: PrivatePreferences = .standard) {
+        saveStrings(ids.map(\.uuidString).sorted(), forKey: globalTreeSeenInsightIDsKey, preferences: preferences)
+    }
 
     static func loadSeenInsightIDs(preferences: PrivatePreferences = .standard) -> Set<UUID> {
         guard let strings = loadStrings(forKey: seenInsightIDsKey, preferences: preferences) else {

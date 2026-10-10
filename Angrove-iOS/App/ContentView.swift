@@ -40,6 +40,7 @@ struct ContentView: View {
     /// different page completes. Global-page actions must not repeatedly re-offer the same sync.
     @State private var suppressGlobalTreePromptUntilExternalModelCompletion: Bool = false
     @State private var activePage: AppPage = .home
+    @State private var globalTreeSeenInsightIDs: Set<UUID> = InsightDiscoveryStore.loadGlobalTreeSeenInsightIDs()
     @State private var displayedPage: AppPage = .home
     @State private var isLibraryReaderVisible = false
     /// Measured height of the shell's single Model Controls bar, reserved as bottom inset.
@@ -188,9 +189,19 @@ struct ContentView: View {
             : canvasColor
     }
 
+    /// Saved Insights not yet seen in the Global Insights tree (see `markGlobalTreeInsightsSeen`).
     private var newInsightsCount: Int {
-        let seenIDs = InsightDiscoveryStore.loadSeenInsightIDs()
-        return collectedDefinitions.filter { !seenIDs.contains($0.id) }.count
+        collectedDefinitions.filter { !globalTreeSeenInsightIDs.contains($0.id) }.count
+    }
+
+    /// Insights the Global tree shows count as seen while its page is open. Pending saves stay
+    /// counted until the tree is updated to include them.
+    private func markGlobalTreeInsightsSeen() {
+        guard activePage == .insights else { return }
+        let shown = Set(globalTreeInsights.map(\.id))
+        guard !shown.isSubset(of: globalTreeSeenInsightIDs) else { return }
+        globalTreeSeenInsightIDs.formUnion(shown)
+        InsightDiscoveryStore.saveGlobalTreeSeenInsightIDs(globalTreeSeenInsightIDs)
     }
 
     private var globalInsightContextWordCount: Int {
@@ -1247,7 +1258,11 @@ struct ContentView: View {
             hasPendingDailyQuestionLink = true
             openPendingDailyQuestionLinkIfReady()
         }
-        .onChange(of: activePage) { oldValue, newValue in handleActivePageChange(from: oldValue, to: newValue) }
+        .onChange(of: activePage) { oldValue, newValue in
+            handleActivePageChange(from: oldValue, to: newValue)
+            markGlobalTreeInsightsSeen()
+        }
+        .onChange(of: globalTreeInsights) { _, _ in markGlobalTreeInsightsSeen() }
         .onChange(of: modelTasks.isBusy) { _, _ in
             scheduleDailyQuestionRefreshIfNeeded()
         }

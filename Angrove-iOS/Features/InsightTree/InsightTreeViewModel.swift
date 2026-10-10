@@ -34,6 +34,9 @@ final class InsightTreeViewModel: ObservableObject {
     /// Normalized [0,1] depth per node from the third MDS component (1 = nearest),
     /// consumed by the canvas's 2.5D depth cues.
     @Published private(set) var nodeDepths: [UUID: Double] = [:]
+    /// False until the first embedding refresh and graph build finish, so an empty tree reads
+    /// as loading rather than as having nothing yet.
+    @Published private(set) var hasPreparedTree = false
     @Published var selectedNode: NodeModel?
     @Published var selectedSuggestedNode: NodeModel?
 
@@ -290,6 +293,11 @@ final class InsightTreeViewModel: ObservableObject {
         modelWorkStarted = true
         rebuildTree()
         refreshEmbeddingsIfNeeded()
+        // Never leave the tree on its loading view if preparation stalls.
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(8))
+            self?.hasPreparedTree = true
+        }
     }
 
     func updateInsights(_ concepts: [ConceptDefinition], promotedInsightIDs: [UUID]? = nil) {
@@ -442,6 +450,7 @@ final class InsightTreeViewModel: ObservableObject {
                 || correctedChildren != generatedChildInsights || correctedMidpoints != midpointEmbeddings else {
             // A refresh with already-prepared vectors can still have an in-flight graph build.
             await graphBuildTask?.value
+            if !Task.isCancelled { hasPreparedTree = true }
             return
         }
         midpointEmbeddings = correctedMidpoints.filter { id, _ in originalMidpoints.contains { $0.concept.id == id } }
@@ -454,6 +463,7 @@ final class InsightTreeViewModel: ObservableObject {
         persistMakeNodeChildren()
         rebuildTree()
         await graphBuildTask?.value
+        if !Task.isCancelled { hasPreparedTree = true }
     }
 
     private func ensureEmbeddings(for insights: [InsightModel]) async -> [InsightModel] {
