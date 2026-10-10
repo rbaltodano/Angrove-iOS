@@ -4368,7 +4368,14 @@ code.cmd { background: var(--canvas-secondary); }
     return getComputedStyle(document.documentElement).getPropertyValue('--guide-' + name + '-rgb').trim();
   }
   var BROWN = guideRGB('ink');
-  document.addEventListener('guide:appearance', function () { BROWN = guideRGB('ink'); });
+  // AnimatedDotGridBackground: AngroveTheme.Colors.dotGrid, with a lower opacity scale and a
+  // gentler ripple in dark mode (1.0 and 0.15, against 1.6 and 0.25 in light).
+  function dotStyle() {
+    var dark = document.documentElement.style.colorScheme === 'dark';
+    return dark ? { rgb: '183, 174, 120', scale: 1.0, ripple: 0.15 } : { rgb: '74, 50, 28', scale: 1.6, ripple: 0.25 };
+  }
+  var DOT = dotStyle();
+  document.addEventListener('guide:appearance', function () { BROWN = guideRGB('ink'); DOT = dotStyle(); });
   var BOND = 190;                        // InsightTreeCanvasView.bondLength default
   var FOCAL = 3990;                      // InsightTreeCamera.focalLength
   var MAX_ELEVATION = Math.PI / 4;       // InsightClusterSpatialLayout guardrail
@@ -5172,7 +5179,8 @@ code.cmd { background: var(--canvas-secondary); }
       back: { icon: 'i-chevron-left', label: function () { return 'Back'; }, on: function () { if (mid.phase === 'active') exit(); } },
       center: { icon: 'i-lines-measurement-horizontal', label: function () { return 'Center'; }, on: function () { if (mid.phase === 'active') setT(0.5, true); } },
       place: { icon: 'i-arrow-down', label: function () { return 'Place'; }, on: place },
-      reset: { icon: 'i-arrow-counterclockwise', label: function () { return 'Reset'; }, on: function () { if (mid.phase === 'done') reopen(); else resetAll(); } },
+      // Reset always returns to the whole tree with nothing selected, ready for Select.
+      reset: { icon: 'i-arrow-counterclockwise', label: function () { return 'Reset'; }, on: resetAll },
       how: { icon: 'i-graph-2d', label: function () { return 'How It Works'; }, on: function () { if (mid.phase === 'done') showVectors(true); } },
       tree: { icon: 'i-point-3-connected-trianglepath-dotted', label: function () { return 'Back to Tree'; }, on: function () { showVectors(false); } }
     };
@@ -5281,17 +5289,6 @@ code.cmd { background: var(--canvas-secondary); }
       selecting = false; picked = [];
       dock(null);
       exit();
-    }
-    // Reset after placing: back to the Midpoint selector for the same two Insights, at the same
-    // balance, without replaying the opening script.
-    function reopen() {
-      var t = mid.t.target;
-      unplace();
-      mid.vec.on = false; mid.vec.k = mid.vec.kFrom = mid.vec.kTo = 0;
-      root.classList.remove('is-vectors');
-      dock(null);
-      enter();
-      setT(t, false);
     }
     function exit() {
       mid.phase = 'idle';
@@ -5478,16 +5475,16 @@ code.cmd { background: var(--canvas-secondary); }
           var front = Math.hypot(pr.x - rp.x, pr.y - rp.y) - radius;
           if (front > -width && front < 8) {
             var bump = Math.cos(Math.max(-1, front / width) * Math.PI / 2);
-            boost += bump * bump * (1 - Math.pow(rp.progress, 2.2)) * 0.25 * rp.strength;
+            boost += bump * bump * (1 - Math.pow(rp.progress, 2.2)) * DOT.ripple * rp.strength;
           }
         }
         if (state.hover.amount > 0.01) {
           var hd = Math.hypot(pr.x - state.hover.x, pr.y - state.hover.y);
-          if (hd < 170) boost += 0.2 * state.hover.amount * Math.exp(-(hd * hd) / 6500);
+          if (hd < 170) boost += 0.8 * DOT.ripple * state.hover.amount * Math.exp(-(hd * hd) / 6500);
         }
-        var o = Math.min((blobOpacity(wx, wy, time) + boost) * 1.6, 0.85) * alpha;
+        var o = Math.min((blobOpacity(wx, wy, time) + boost) * DOT.scale, 0.85) * alpha;
         var rad = 0.9 * pr.scale;
-        ctx.fillStyle = 'rgba(' + BROWN + ',' + o.toFixed(3) + ')';
+        ctx.fillStyle = 'rgba(' + DOT.rgb + ',' + o.toFixed(3) + ')';
         ctx.fillRect(pr.x - rad, pr.y - rad, rad * 2, rad * 2);
       }
     }
@@ -5508,9 +5505,9 @@ code.cmd { background: var(--canvas-secondary); }
         var radial = 1 - smoothstep(n * 0.6, n, Math.hypot(i, j));
         var fade = (1 - edge * edge * (3 - 2 * edge)) * radial;
         if (fade < 0.01) continue;
-        var o = Math.min(blobOpacity(i * 16, j * 16, time) * 1.6, 0.85) * fade * 0.5 * alpha;
+        var o = Math.min(blobOpacity(i * 16, j * 16, time) * DOT.scale, 0.85) * fade * 0.5 * alpha;
         var rad = clamp(0.9 * pr.scale * cam.zoom / f.studyZoom, 0.35, 2);
-        ctx.fillStyle = 'rgba(' + BROWN + ',' + o.toFixed(3) + ')';
+        ctx.fillStyle = 'rgba(' + DOT.rgb + ',' + o.toFixed(3) + ')';
         ctx.fillRect(pr.x - rad, pr.y - rad, rad * 2, rad * 2);
       }
     }
