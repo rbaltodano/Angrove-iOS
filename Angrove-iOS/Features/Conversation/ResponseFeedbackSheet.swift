@@ -59,88 +59,147 @@ struct ResponseFeedbackSheet: View {
         NavigationStack {
             // Scrolls so the attachment preview and keyboard fit on small phones.
             ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("What went wrong with this response? This app runs on your device. Sending this report is the one exception. It shares your note plus your app version, build number, and iOS version. Nothing is sent unless you tap Send Report. Please leave out anything private.")
-                    .settingsText(.paragraph)
-                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                TextEditor(text: $feedback)
-                    .settingsText(.control)
-                    .foregroundStyle(AngroveTheme.Colors.primaryReadable)
-                    .scrollContentBackground(.hidden)
-                    .focused($isFocused)
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 6)
-                    .frame(minHeight: 140, maxHeight: 220)
-                    .background(AngroveTheme.Colors.canvasSecondary)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(
-                                isFocused ? AngroveTheme.Colors.accentGreen : AngroveTheme.Colors.controlBorder,
-                                lineWidth: isFocused ? 1.5 : 1
-                            )
+                VStack(alignment: .leading, spacing: 22) {
+                    HStack(alignment: .top, spacing: 14) {
+                        Image(systemName: "lock.shield")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundStyle(AngroveTheme.Colors.accentGreen)
+                            .frame(width: 24, height: 24)
+                            .accessibilityHidden(true)
+                        Text("This app runs on your device. Sending this report is the one exception. It shares your note plus your app version, build number, and iOS version. Nothing is sent unless you tap Send Report. Please leave out anything private.")
+                            .settingsText(.paragraph)
+                            .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .overlay(alignment: .topLeading) {
-                        if feedback.isEmpty {
-                            Text("Tell us what was wrong or unhelpful")
-                                .settingsText(.control)
-                                .foregroundStyle(AngroveTheme.Colors.paragraphText.opacity(0.55))
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 14)
-                                .allowsHitTesting(false)
+
+                    noteField
+
+                    if let report {
+                        attachmentOption(report)
+                    }
+
+                    if hasFailed {
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "exclamationmark.circle")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(AngroveTheme.Colors.accentRed)
+                                .accessibilityHidden(true)
+                            Text("We couldn’t send your feedback. Check your connection and try again, or email bugreport@angrove.app directly.")
+                                .settingsText(.paragraph)
+                                .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
+                        .accessibilityElement(children: .combine)
                     }
-                    .accessibilityLabel("What went wrong with this response")
-
-                if let report {
-                    attachmentOption(report)
                 }
-
-                if hasFailed {
-                    Text("We couldn’t send your feedback. Check your connection and try again, or email bugreport@angrove.app directly.")
-                        .settingsText(.paragraph)
-                        .foregroundStyle(AngroveTheme.Colors.accentRed)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
-            .padding(.bottom, 16)
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 24)
             }
             .scrollDismissesKeyboard(.interactively)
             .background(AngroveTheme.Colors.canvas.ignoresSafeArea())
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                sendButton
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(AngroveTheme.Colors.canvas.ignoresSafeArea())
+            }
             .navigationTitle("Response Feedback")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(isSending ? "Sending…" : "Send Report", action: send)
-                        .disabled(!canSend)
-                }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
         .onAppear { isFocused = true }
+    }
+
+    /// The note field: a label above a bordered input that picks up the accent color while focused.
+    private var noteField: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("What went wrong?")
+                    .settingsText(.label)
+                    .foregroundStyle(AngroveTheme.Colors.headingText)
+                Spacer(minLength: 8)
+                Text("Required")
+                    .font(.custom("Figtree-Bold", size: 12))
+                    .foregroundStyle(AngroveTheme.Colors.paragraphText.opacity(0.7))
+            }
+
+            TextEditor(text: $feedback)
+                .settingsText(.control)
+                .foregroundStyle(AngroveTheme.Colors.primaryReadable)
+                .scrollContentBackground(.hidden)
+                .focused($isFocused)
+                .frame(minHeight: 150, maxHeight: 240)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 6)
+                .background(AngroveTheme.Colors.canvasSecondary)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(
+                            isFocused ? AngroveTheme.Colors.accentGreen : AngroveTheme.Colors.controlBorder,
+                            lineWidth: isFocused ? 1.5 : 1
+                        )
+                }
+                .overlay(alignment: .topLeading) {
+                    if feedback.isEmpty {
+                        Text("Tell us what was wrong or unhelpful")
+                            .settingsText(.control)
+                            .foregroundStyle(AngroveTheme.Colors.paragraphText.opacity(0.55))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 14)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .animation(.springQuick, value: isFocused)
+                .accessibilityLabel("What went wrong with this response")
+        }
+    }
+
+    private var sendButton: some View {
+        Button(action: send) {
+            HStack(spacing: 10) {
+                Image(systemName: "paperplane")
+                Text(isSending ? "Sending…" : "Send Report")
+                    .settingsText(.label)
+            }
+            .foregroundStyle(AngroveTheme.Colors.onAccent)
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .background(AngroveTheme.Colors.darkGreen)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(!canSend)
+        .opacity(canSend || isSending ? 1 : 0.55)
     }
 
     /// The opt-in to attach the flagged response and its question, with the exact text shown
     /// while the option is on so the person knows what would be sent.
     private func attachmentOption(_ report: ResponseFeedbackReport) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             Toggle(isOn: $includesResponse) {
-                Text("Include this response and the question before it")
-                    .settingsText(.control)
-                    .foregroundStyle(AngroveTheme.Colors.primaryReadable)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Include this response")
+                        .settingsText(.label)
+                        .foregroundStyle(AngroveTheme.Colors.headingText)
+                    Text("Also sends the question before it. Off unless you turn it on.")
+                        .settingsText(.detail)
+                        .foregroundStyle(AngroveTheme.Colors.paragraphText.opacity(0.8))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .tint(AngroveTheme.Colors.accentGreen)
 
             if includesResponse {
+                Divider().overlay(AngroveTheme.Colors.controlBorder)
                 Text("This text will be sent with your report:")
-                    .settingsText(.paragraph)
+                    .settingsText(.detail)
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
                 ScrollView {
                     Text("Question\n\(report.question)\n\nResponse\n\(report.response)")
@@ -148,18 +207,19 @@ struct ResponseFeedbackSheet: View {
                         .foregroundStyle(AngroveTheme.Colors.paragraphText)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
-                        .padding(12)
                 }
-                .frame(maxHeight: 140)
-                .background(AngroveTheme.Colors.canvasSecondary)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(AngroveTheme.Colors.controlBorder, lineWidth: 1)
-                }
+                .frame(maxHeight: 160)
             }
         }
-        .animation(.default, value: includesResponse)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AngroveTheme.Colors.canvasSecondary)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(AngroveTheme.Colors.controlBorder, lineWidth: 1)
+        }
+        .animation(.springQuick, value: includesResponse)
     }
 
     private func send() {
