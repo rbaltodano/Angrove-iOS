@@ -495,10 +495,14 @@ private struct BranchMapPreviewView: View {
                     ForEach(attachments.prefix(3)) { file in
                         if file.imageData != nil {
                             AttachmentPreview(file: file) { Color.clear }
-                                .frame(width: 52, height: 52)
+                                .frame(
+                                    width: attachmentPreviewSize(for: file).width,
+                                    height: attachmentPreviewSize(for: file).height
+                                )
                                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                .overlay { RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                            .stroke(AngroveTheme.Colors.uploadBorder, lineWidth: 2) }
+                                .padding(2)
+                                .background(AngroveTheme.Colors.uploadBorder)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         }
                     }
                 }
@@ -516,6 +520,12 @@ private struct BranchMapPreviewView: View {
             questionText(question, submitted: true, lineLimit: 3).opacity(questionOpacity)
         }
         .padding(.vertical, 2).frame(maxWidth: .infinity)
+    }
+
+    private func attachmentPreviewSize(for file: UploadedFile) -> CGSize {
+        guard let image = file.image else { return CGSize(width: 52, height: 52) }
+        let scale = min(52 / image.size.width, 52 / image.size.height)
+        return CGSize(width: image.size.width * scale, height: image.size.height * scale)
     }
 
     private func connector(height: CGFloat) -> some View {

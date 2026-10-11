@@ -7,7 +7,9 @@ struct AttachmentPreview<Placeholder: View>: View {
 
     var body: some View {
         Group {
-            if let thumbnail { Image(uiImage: thumbnail).resizable().scaledToFill() }
+            // Fit within the caller's preview bounds so portrait and landscape photos keep
+            // their original proportions instead of being cropped to the thumbnail frame.
+            if let thumbnail { Image(uiImage: thumbnail).resizable().scaledToFit() }
             else { placeholder() }
         }
         .task(id: file.id) {

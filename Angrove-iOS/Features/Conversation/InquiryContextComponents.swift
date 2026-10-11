@@ -208,6 +208,15 @@ struct UploadedFileThumbnail: View {
     let file: UploadedFile
     var onRemove: (() -> Void)? = nil
 
+    private var thumbnailSize: CGSize {
+        guard file.imageData != nil, let image = file.image else {
+            return CGSize(width: 76, height: 92)
+        }
+
+        let scale = min(76 / image.size.width, 92 / image.size.height)
+        return CGSize(width: image.size.width * scale, height: image.size.height * scale)
+    }
+
     var body: some View {
         // Thumbnail size, border thickness, and shadow are tuned here.
         ZStack(alignment: .topTrailing) {
@@ -228,7 +237,7 @@ struct UploadedFileThumbnail: View {
                     .background(AngroveTheme.Colors.cardRaised)
                 }
             }
-            .frame(width: 76, height: 92)
+            .frame(width: thumbnailSize.width, height: thumbnailSize.height)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .padding(5)
             .background(AngroveTheme.Colors.uploadBorder)
