@@ -17,11 +17,12 @@ Severity: **Bug** = broken or wrong behavior · **Adjust** = works but needs pol
 
 ## Top issues (open items first; completed items marked)
 
-1. **Global Insights "Update?" → Yes does nothing** — the Global tree never fills; reproducible.
+1. **Fixed in code (`26a88d9`; simulator retest pending)** — Global Insights "Update?" → Yes did not fill
+   the tree. See "Global Insights — update prompt (retest)".
    See "Global Insights — update prompt (retest)".
-2. **Conversation tree lost its Node Concepts after the conversation was added to a Study Topic**
-   (empty state, then only a generic hub after relaunch). See "Cross-feature".
-3. **Branch → parent Node Concept no longer visible** in the conversation tree.
+2. **Fixed in code (`26a88d9`; original data retest pending)** — Conversation tree lost its Node Concepts
+   after the conversation was added to a Study Topic. See "Cross-feature".
+3. **Fixed in code (`26a88d9`; simulator retest pending)** — Branch hid the parent Node Concept.
 4. **Fixed in code (`73bc1ca`; simulator retest pending)** — Color Scheme (Dark/Light) was not
    persisted across launches (`ContentView.swift:81` `@State`).
 5. **Fixed in code (`73bc1ca`; simulator retest pending)** — Library search keyboard stayed up
@@ -132,6 +133,9 @@ Study Topic creation, Settings, and dark mode rendering.
 - **Bug** — Entering Study from a hovered Insight leaves the parent Node Concept off-screen left
   (only "…edom" visible) instead of flying it into the 300×300 slot above the ring
   (Study-Tool.md "Entry and exit" step 3).
+  **Fixed (`26a88d9`); iPhone 17 preview verified (2026-10-11):** Study entry now retains the hovered
+  Insight selection while the camera frames its parent Node Concept in the Study slot. The debug
+  preview showed the parent centered and fully visible.
 - **Fixed (`73bc1ca`)** — Branch count control was "+ 2 New Insights −" (plus on the left,
   minus on the right), the reverse of the usual stepper order.
 - **Adjust** — First frame of Branch shows the promoted "Grace" label half-clipped with a
@@ -146,6 +150,10 @@ Study Topic creation, Settings, and dark mode rendering.
   is no longer visible anywhere in the conversation tree, even at minimum zoom; only a lone blue
   "new" dot remains near where it was. Study-Tool.md says the new node keeps a visible
   connection to its old parent.
+  **Fixed in code (`26a88d9`); live-data retest pending (2026-10-11):** Branch moved the parent's only Insight,
+  leaving an empty parent that the canvas filtered out. The parent and its connecting edge now
+  remain visible, including after reopening the tree. Focused simulator tests pass. The debug
+  preview has no Study Exit control, so it cannot show the conversation tree after Branch.
 - **Adjust** — Pinch-zooming out hides all labels, leaving only icons and blue dots; minimum zoom
   is reached quickly, so a small tree can't be zoomed out further than this.
 
@@ -217,6 +225,11 @@ Study Topic creation, Settings, and dark mode rendering.
   Repro: conversation with a Branch result → Study Topics → New Study Topic → Add Conversation
   → Yes on the update prompt → open the conversation → tree button. Data stores are encrypted,
   so it is not yet confirmed whether this is lost data or a display/scope bug.
+  **Fixed in code (`26a88d9`); original-data repro pending (2026-10-11):** Branch promotion IDs are now saved
+  with the conversation when promotion occurs, before Study Topic assignment can read or update
+  its persisted record. Empty but connected parent nodes are also displayed. A focused simulator
+  regression test covers promotion persistence through topic assignment; the original encrypted
+  simulator data has not been used for a manual retest.
 
 ### Appearance / theme
 
@@ -261,6 +274,10 @@ Study Topic creation, Settings, and dark mode rendering.
   observer (`ContentView.swift:838`) while reconciliation runs, which silently re-shows the
   prompt; or (b) the Yes button's hit area is covered by the Search dock. Add logging or a
   focused test before fixing.
+  **Fixed in code (`26a88d9`); manual simulator retest pending (2026-10-11):** Reconciliation now accepts the
+  library snapshot used when Yes was tapped as long as the Global tree itself has not changed.
+  Library changes made while it runs are offered in a follow-up prompt. Yes/No targets are at
+  least 44×44 points. Focused simulator tests cover concurrent library and tree changes.
 
 ### Response actions
 
@@ -293,3 +310,18 @@ actions, Notifications, Audio / Text & Display / Conversation Defaults settings 
   preserved simulator data, but the app opened on “Couldn’t Open Encrypted Data,” so the
   interaction fixes could not be retested without changing that data. The Global Insights
   update and conversation-tree issues remain open for focused investigation.
+
+## Open-bug fixes (2026-10-11)
+
+- **Fixed (`26a88d9`)** — Branch no longer hides its empty parent Node Concept or the connecting
+  edge. Promotion IDs are persisted immediately, before Study Topic assignment can update the
+  same conversation record. Study entry frames the parent Node Concept while retaining the
+  tapped Insight selection.
+- **Fixed in code (`26a88d9`)** — Global Insights Yes accepts the library snapshot it began with
+  when the tree has not changed. Newer library changes receive another prompt. Yes/No targets
+  are at least 44×44 points.
+- **Verification** — Focused `StudyBranchTests`, `InsightTreeSemanticMembershipTests`, and
+  `GlobalInsightTreeUpdateResolutionTests` passed on the iPhone 17 Simulator. A synthetic debug
+  preview showed the parent centered and fully visible on Study entry. The preview cannot Exit
+  Study. The original encrypted simulator data was preserved, so the reported Study Topic flow,
+  post-Branch Exit view, and Global Insights Yes tap still need manual retests with readable data.
