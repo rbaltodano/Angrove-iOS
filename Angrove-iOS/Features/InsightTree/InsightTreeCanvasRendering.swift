@@ -41,13 +41,17 @@ extension InsightTreeCanvasView {
         let hasSelection = !selectedCanvasTargets.isEmpty
         let renderedEdges = Dictionary(displayGraphEdges().map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let promotionNodeIDs = Set(nodes.filter { $0.insights.contains { makeNodeChildIDs.contains($0.id) } }.map(\.id))
+        let midpointNodeIDs = Set(nodes.filter(\.isMidpointConcept).map(\.id))
         ForEach(routes, id: \.connector.id) { route in
             let edge = route.connector
             let suggested = renderedEdges[edge.id]?.isSuggested ?? false
-            let secondary = renderedEdges[edge.id]?.isSecondary ?? false
-            let isPromotionEdge = promotionNodeIDs.contains(edge.fromNodeID) || promotionNodeIDs.contains(edge.toNodeID)
+            let isMidpointEdge = midpointNodeIDs.contains(edge.fromNodeID) || midpointNodeIDs.contains(edge.toNodeID)
+            // Completed Midpoint links match ordinary concept lines, including secondary sources
+            // and connections to a concept that was created with Branch.
+            let isPromotionEdge = !isMidpointEdge
+                && (promotionNodeIDs.contains(edge.fromNodeID) || promotionNodeIDs.contains(edge.toNodeID))
             let lineColor = isPromotionEdge ? AngroveTheme.Colors.primaryReadable.opacity(0.3)
-                : AngroveTheme.Colors.divider.opacity(suggested || secondary ? 0.45 : 0.9)
+                : AngroveTheme.Colors.divider.opacity(suggested ? 0.45 : 0.9)
             RoutedConceptConnector(route: route, canvasSize: size, color: lineColor,
                 isAnimated: revealState.animatedGraphEdgeIDs.contains(edge.id), isSuggested: suggested,
                 screenPerWorld: screenPerWorld)
