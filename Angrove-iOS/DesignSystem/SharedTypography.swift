@@ -100,6 +100,8 @@ enum AngroveTheme {
         static let accent = accentRed
         static let accentMuted = accentRed
         static let divider = brownBorder
+        /// Resting connections share one quiet style across concept, Insight, Branch and Midpoint lines.
+        static let treeConnector = brownBorder.opacity(0.55)
         static let border = brownBorder
         static let quietBorder = brownBorder
         static let controlBorder = brownBorder

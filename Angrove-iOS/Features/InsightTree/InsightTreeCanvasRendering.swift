@@ -40,18 +40,10 @@ extension InsightTreeCanvasView {
     func graphEdges(routes: [InsightTreeConnectorRouting.Route], size: CGSize, screenPerWorld: CGFloat) -> some View {
         let hasSelection = !selectedCanvasTargets.isEmpty
         let renderedEdges = Dictionary(displayGraphEdges().map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let promotionNodeIDs = Set(nodes.filter { $0.insights.contains { makeNodeChildIDs.contains($0.id) } }.map(\.id))
-        let midpointNodeIDs = Set(nodes.filter(\.isMidpointConcept).map(\.id))
         ForEach(routes, id: \.connector.id) { route in
             let edge = route.connector
             let suggested = renderedEdges[edge.id]?.isSuggested ?? false
-            let isMidpointEdge = midpointNodeIDs.contains(edge.fromNodeID) || midpointNodeIDs.contains(edge.toNodeID)
-            // Completed Midpoint links match ordinary concept lines, including secondary sources
-            // and connections to a concept that was created with Branch.
-            let isPromotionEdge = !isMidpointEdge
-                && (promotionNodeIDs.contains(edge.fromNodeID) || promotionNodeIDs.contains(edge.toNodeID))
-            let lineColor = isPromotionEdge ? AngroveTheme.Colors.primaryReadable.opacity(0.3)
-                : AngroveTheme.Colors.divider.opacity(suggested ? 0.45 : 0.9)
+            let lineColor = AngroveTheme.Colors.treeConnector.opacity(suggested ? 0.5 : 1)
             RoutedConceptConnector(route: route, canvasSize: size, color: lineColor,
                 isAnimated: revealState.animatedGraphEdgeIDs.contains(edge.id), isSuggested: suggested,
                 screenPerWorld: screenPerWorld)
@@ -102,7 +94,7 @@ extension InsightTreeCanvasView {
                 ForEach(Array(sources.enumerated()), id: \.offset) { _, source in
                     if let start = midpointSourceScreenPosition(source, layout: layout, camera: camera, size: size) {
                         InsightConnectorLine(start: start, end: end, canvasSize: size,
-                                             color: AngroveTheme.Colors.divider.opacity(source.isNode ? 0.9 : 0.55))
+                                             color: AngroveTheme.Colors.treeConnector)
                             .frame(width: size.width, height: size.height)
                             .allowsHitTesting(false)
                             .opacity(hasSelection ? 0.5 : 1.0)
@@ -131,22 +123,17 @@ extension InsightTreeCanvasView {
                         let oldStart = camera.worldToScreen(transfer.oldParent, in: size)
                         let oldEnd = camera.project(transfer.world, elevation: transfer.elevation, in: size).position
                         FadedCanvasLine(start: oldStart, end: oldEnd, canvasSize: size,
-                                        color: AngroveTheme.Colors.divider.opacity(0.55))
+                                        color: AngroveTheme.Colors.treeConnector)
                             .opacity(Double(presentation.oldConnectorOpacity))
                             .allowsHitTesting(false)
                     }
                     // Connector lines stay at a constant opacity regardless of zoom — only the
                     // chip label/background fade with `labelOpacity`, not the lines themselves.
-                    let baseOpacity = 0.55
-
-                    let lineColor = makeNodeChildIDs.contains(insight.id)
-                        ? AngroveTheme.Colors.primaryReadable.opacity(0.28)
-                        : AngroveTheme.Colors.divider.opacity(baseOpacity)
                     InsightConnectorLine(
                         start: start,
                         end: chipEnd,
                         canvasSize: size,
-                        color: lineColor.opacity((hasSelection ? 0.5 : 1.0)
+                        color: AngroveTheme.Colors.treeConnector.opacity((hasSelection ? 0.5 : 1.0)
                             * studyOpacity(forInsightID: insight.id, nodeID: node.id)),
                         grows: revealState.growingConnectorIDs.contains(insight.id),
                         revealProgress: growth

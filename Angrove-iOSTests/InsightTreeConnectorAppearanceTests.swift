@@ -13,6 +13,41 @@ struct InsightTreeConnectorAppearanceTests {
         #expect(try render(scheme: scheme, midpoint: true) == ordinary)
         #expect(try render(scheme: scheme, midpoint: true, secondary: true) == ordinary)
         #expect(try render(scheme: scheme, midpoint: true, secondary: true, branchedSource: true) == ordinary)
+        #expect(try render(scheme: scheme, branchedSource: true) == ordinary)
+        let insight = try renderInsight(scheme: scheme)
+        #expect(try renderInsight(scheme: scheme, branched: true) == insight)
+        #expect(try renderInsight(scheme: scheme, midpoint: true) == insight)
+        #expect(try renderInsight(scheme: scheme, midpoint: true, branched: true) == insight)
+        #expect(insight == ordinary)
+    }
+
+    @MainActor
+    private func renderInsight(scheme: ColorScheme, midpoint: Bool = false, branched: Bool = false) throws -> Data {
+        let nodeID = UUID(), insightID = UUID()
+        let insight = InsightModel(concept: ConceptDefinition(id: insightID, word: "Source", partOfSpeech: "",
+            pronunciation: "", meaning: "A transferred Insight", example: ""))
+        var node = NodeModel(id: nodeID, conceptLabel: "Parent", definition: "", insights: [insight],
+            embedding: [], position: CGPoint(x: -140, y: 0), isSuggested: false, suggestedInsights: nil)
+        node.isMidpointConcept = midpoint
+        let canvas = InsightTreeCanvasView(nodes: [node], edges: [], restoreFocusedCameraRequest: 0,
+            focusedInsightID: nil, focusedSearchNodeID: nil, pulsingInsightID: nil, pulsingNodeID: nil,
+            selectedCanvasTargets: [], selectionPulseRequest: 0, makeNodeChildIDs: branched ? [insightID] : [],
+            onNodeTapped: { _ in }, onInsightTapped: { _ in }, onCanvasMoved: {},
+            onSuggestConnection: { _ in }, onDismissSuggestedNode: { _ in })
+        canvas.revealState.revealedInsightConnectorIDs.insert(insightID)
+        let layout = InsightTreeCanvasView.CanvasInsightLayout(nodes: [node], insightsByNode: [nodeID: [insight]],
+            placements: [insightID: .init(insight: insight, nodeID: nodeID, index: 0, count: 1,
+                isPinnedAtNode: false, world: CGPoint(x: 140, y: 0), elevation: 0, localDepth: 0)])
+        let size = CGSize(width: 320, height: 80)
+        let renderer = ImageRenderer(content: canvas.insightConnectors(layout: layout,
+            camera: .init(scale: 1, offset: .zero), size: size)
+            .frame(width: size.width, height: size.height)
+            .background(AngroveTheme.Colors.canvas)
+            .environment(\.colorScheme, scheme))
+        renderer.scale = 3
+        let png = try #require(renderer.uiImage?.pngData())
+        Attachment.record(png, named: "\(scheme)-insight-midpoint-\(midpoint)-branch-\(branched).png")
+        return png
     }
 
     @MainActor
