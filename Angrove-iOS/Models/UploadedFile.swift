@@ -4,6 +4,7 @@
 //
 
 import ImageIO
+import UniformTypeIdentifiers
 import UIKit
 
 /// File/image selected before submitting a question.
@@ -34,6 +35,26 @@ extension UploadedFile {
     nonisolated static func isImageData(_ data: Data) -> Bool {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return false }
         return CGImageSourceGetCount(source) > 0
+    }
+
+    /// Bound model decoding cost and apply EXIF orientation without decoding the full original.
+    /// Originals remain in encrypted attachment storage; only the model input is normalized.
+    nonisolated static func normalizedModelImageData(_ data: Data) -> Data? {
+        guard let source = CGImageSourceCreateWithData(data as CFData,
+                [kCGImageSourceShouldCache: false] as CFDictionary),
+              let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: 1_536,
+                kCGImageSourceShouldCacheImmediately: true
+              ] as CFDictionary) else { return nil }
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            output, UTType.png.identifier as CFString, 1, nil
+        ) else { return nil }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return output as Data
     }
 
     /// The attachment's image, decoded once and reused across redraws.

@@ -83,3 +83,38 @@ simulators only; use a concrete arm64 destination.
 
 Before device model experiments, back up the app's data. Do not use `devicectl` with
 `--remove-existing-content true` against the production bundle.
+
+## Native image input — development validation
+
+The owner requested Gemma 4 E4B native image recognition on October 11, 2026.
+DEBUG builds enable the existing GPU vision encoder on the shared runtime with
+`--litert-enable-vision`. Release and ordinary launches remain text-only until the physical
+iPhone load/memory check passes. No second engine, cloud service, model download, or OCR-only
+substitute is involved. Photos and Camera appear in the attachment menu when vision is enabled;
+Camera also requires an available camera. Originals remain in encrypted attachment storage.
+Model input is orientation-corrected lossless PNG bounded to 1,536 pixels, and the context budget reserves
+280 tokens per image. Image-bearing requests can use the attached page as evidence without
+requiring it to exist in the bundled Library. Text-only launches retain the explicit unavailable
+image note and preserve follow-up text.
+
+Run the production adapter probe with:
+
+```sh
+--litert-probe --litert-probe-auto --litert-quality-probe --litert-enable-vision \
+--litert-probe-image red-blue.png \
+--litert-probe-question "Name the two colors from left to right." \
+--litert-probe-expected "red and blue" \
+--litert-probe-follow-up "Which color is on the left?" \
+--litert-probe-follow-up-expected "red"
+```
+
+The image argument accepts a file in app Documents or an absolute simulator path.
+Use `--litert-probe-cpu` only for the simulator decoder; the vision encoder stays on the GPU.
+Results include image path/hash, effective vision backend, first/follow-up responses, and memory.
+Simulator results do not establish phone memory, thermals, or sustained reliability.
+See C12 in the progress ledger for evidence and pending validation.
+
+Current result: the encoder and adapter load in the simulator, but recognition is unreliable.
+The final lossless color and word-transcription probes fail their objective checks. A package-
+default precision comparison also fails. Keep the normal and Release paths text-only; validate
+the phone's GPU-decoder/GPU-vision path before deciding whether runtime changes are required.

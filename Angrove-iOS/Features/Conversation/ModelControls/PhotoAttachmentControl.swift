@@ -1,10 +1,12 @@
 import SwiftUI
 
-/// Launch attachment menu: saved Insights and Library passages only.
+/// Attach saved material or a photo for the on-device vision encoder.
 struct PhotoAttachmentControl: View {
     @Binding var isPressed: Bool
     let onInsights: () -> Void
     let onPassages: () -> Void
+    var onPhotos: (() -> Void)? = nil
+    var onCamera: (() -> Void)? = nil
     @State private var isMenuOpen = false
     @State private var pendingAction: Task<Void, Never>?
 
@@ -19,12 +21,16 @@ struct PhotoAttachmentControl: View {
         .popover(isPresented: $isMenuOpen, arrowEdge: .bottom) {
             AttachmentActionsMenu(
                 onInsights: { select(onInsights) },
-                onPassages: { select(onPassages) }
+                onPassages: { select(onPassages) },
+                onPhotos: onPhotos.map { action in { select(action) } },
+                onCamera: onCamera.map { action in { select(action) } }
             )
             .presentationCompactAdaptation(.popover)
         }
         .accessibilityLabel("Add attachment")
-        .accessibilityHint("Choose a saved Insight or Library passage.")
+        .accessibilityHint(onPhotos == nil
+            ? "Choose a saved Insight or Library passage."
+            : "Choose a saved Insight, Library passage, or photo.")
         .onDisappear { pendingAction?.cancel() }
     }
 
@@ -42,11 +48,19 @@ struct PhotoAttachmentControl: View {
 private struct AttachmentActionsMenu: View {
     let onInsights: () -> Void
     let onPassages: () -> Void
+    let onPhotos: (() -> Void)?
+    let onCamera: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
             AttachmentActionRow(title: "Insights", icon: "text.bubble", action: onInsights)
             AttachmentActionRow(title: "Passages", icon: "books.vertical", action: onPassages)
+            if let onPhotos {
+                AttachmentActionRow(title: "Photos", icon: "photo", action: onPhotos)
+            }
+            if let onCamera {
+                AttachmentActionRow(title: "Camera", icon: "camera", action: onCamera)
+            }
         }
         .padding(8)
         .frame(width: 200)

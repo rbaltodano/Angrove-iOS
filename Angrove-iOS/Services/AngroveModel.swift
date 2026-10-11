@@ -275,11 +275,18 @@ enum AngroveContextBudget {
         return Int(ceil(Double(text.utf8.count) / 4.0))
     }
 
-    static func estimatedRequestTokenCount(for context: ConversationContext) -> Int {
+    static func estimatedRequestTokenCount(
+        for context: ConversationContext,
+        supportsVision: Bool = LiteRTAngroveRuntime.supportsVision
+    ) -> Int {
         nonConversationReserve
             + estimatedTokenCount(in: context.compactedContext ?? "")
             + context.transcript.reduce(into: 0) { count, block in
                 count += estimatedTokenCount(in: plainText(for: block))
+                if supportsVision, case .user(_, _, let uploads) = block {
+                    // The E4B package's largest vision signature emits 280 tokens per image.
+                    count += uploads.filter { $0.imageData != nil }.count * 280
+                }
             }
     }
 

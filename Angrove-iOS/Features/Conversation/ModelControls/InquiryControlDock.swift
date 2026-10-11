@@ -533,7 +533,15 @@ struct InquiryControlDock: View {
             PhotoAttachmentControl(
                 isPressed: $isControlButtonPressed,
                 onInsights: { isRecentPhotosOpen = false; onOpenInsights() },
-                onPassages: { isRecentPhotosOpen = false; onOpenPassages() }
+                onPassages: { isRecentPhotosOpen = false; onOpenPassages() },
+                onPhotos: LiteRTAngroveRuntime.supportsVision ? {
+                    isRecentPhotosOpen = false
+                    showPhotoPicker = true
+                } : nil,
+                onCamera: LiteRTAngroveRuntime.supportsVision && UIImagePickerController.isSourceTypeAvailable(.camera) ? {
+                    isRecentPhotosOpen = false
+                    showCamera = true
+                } : nil
             )
         } else {
         Menu {

@@ -1,6 +1,8 @@
 import Foundation
 import LiteRTLM
 import Testing
+import ImageIO
+import UIKit
 @testable import Angrove_iOS
 
 @Suite("LiteRT production runtime contracts")
@@ -501,7 +503,6 @@ struct LiteRTProductionRuntimeTests {
     @MainActor
     @Test("A text-only runtime sends image turns as text with a note, never image content")
     func imagesBecomeTextNotesWithoutVision() throws {
-        try #require(!LiteRTAngroveRuntime.supportsVision)
         let upload = UploadedFile(
             name: "diagram.png",
             imageData: Data([0x89, 0x50]),
@@ -511,7 +512,8 @@ struct LiteRTProductionRuntimeTests {
             let message = try #require(
                 LiteRTAngroveModel.engineMessage(
                     .user("What does this diagram show?", nil, [upload]),
-                    isLatestUserRequest: isLatest
+                    isLatestUserRequest: isLatest,
+                    supportsVision: false
                 )
             )
             #expect(message.contents.allSatisfy { content in
@@ -522,9 +524,89 @@ struct LiteRTProductionRuntimeTests {
             #expect(message.toString.contains("cannot view"))
         }
         let imageOnly = try #require(
-            LiteRTAngroveModel.engineMessage(.user("", nil, [upload]))
+            LiteRTAngroveModel.engineMessage(.user("", nil, [upload]), supportsVision: false)
         )
         #expect(imageOnly.toString.contains("cannot view"))
+    }
+
+    @MainActor
+    @Test("Vision preserves image bytes in the latest turn, history, and image-only messages")
+    func imagesReachVisionEncoder() throws {
+        let bytes = Data([0x89, 0x50, 0x4E, 0x47])
+        let upload = UploadedFile(name: "diagram.png", imageData: bytes, rotationDegrees: 0)
+        for isLatest in [true, false] {
+            let message = try #require(LiteRTAngroveModel.engineMessage(
+                .user("Describe this diagram", nil, [upload]),
+                isLatestUserRequest: isLatest, supportsVision: true
+            ))
+            #expect(message.toString.contains("Describe this diagram"))
+            #expect(!message.toString.contains("cannot view"))
+            #expect(message.contents.contains { content in
+                if case .imageData(let data) = content { return data == bytes }
+                return false
+            })
+        }
+        let imageOnly = try #require(LiteRTAngroveModel.engineMessage(
+            .user("", nil, [upload]), supportsVision: true
+        ))
+        #expect(imageOnly.contents.count == 1)
+    }
+
+    @MainActor
+    @Test("Model images are bounded lossless PNGs while attachment originals remain intact")
+    func modelImagesAreBounded() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let original = try #require(UIGraphicsImageRenderer(
+            size: CGSize(width: 3_000, height: 1_000), format: format
+        ).image { context in
+            UIColor.red.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 3_000, height: 1_000))
+        }.pngData())
+        let upload = UploadedFile(name: "large.png", imageData: original, rotationDegrees: 0)
+        let message = try #require(LiteRTAngroveModel.engineMessage(
+            .user("Describe this image", nil, [upload]), supportsVision: true
+        ))
+        let normalized = try #require(message.contents.compactMap { content -> Data? in
+            if case .imageData(let data) = content { return data }
+            return nil
+        }.first)
+        let source = try #require(CGImageSourceCreateWithData(normalized as CFData, nil))
+        let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+        #expect(image.width == 1_536)
+        #expect(image.height == 512)
+        #expect((CGImageSourceGetType(source) as String?) == "public.png")
+        #expect(upload.imageData == original)
+    }
+
+    @Test("Context budgeting reserves image tokens across conversation history")
+    func contextBudgetIncludesImageTokens() {
+        let photo = UploadedFile(name: "photo", imageData: Data([1]), rotationDegrees: 0)
+        let context = ConversationContext(transcript: [
+            .user("Describe this", nil, [photo]), .text("A red square."),
+            .user("Compare it with this", nil, [photo])
+        ])
+        let textOnly = AngroveContextBudget.estimatedRequestTokenCount(
+            for: context, supportsVision: false
+        )
+        #expect(AngroveContextBudget.estimatedRequestTokenCount(
+            for: context, supportsVision: true
+        ) == textOnly + 560)
+    }
+
+    @Test("Attached pages can be read without requiring a matching Library passage")
+    func attachedPageIsInputEvidence() {
+        #expect(LiteRTAngroveModel.requiresCorpusEvidence("What does this page say?"))
+        #expect(!LiteRTAngroveModel.requiresCorpusEvidence(
+            "What does this page say?", hasImageInput: true
+        ))
+        #expect(LiteRTAngroveModel.requiresCorpusEvidence("Quote the Summa on justice."))
+        #expect(LiteRTAngroveModel.requiresCorpusEvidence(
+            "Who wrote the Didache?", hasImageInput: true
+        ))
+        #expect(LiteRTAngroveModel.requiresCorpusEvidence(
+            "Is this the latest version?", hasImageInput: true
+        ))
     }
 
     @MainActor

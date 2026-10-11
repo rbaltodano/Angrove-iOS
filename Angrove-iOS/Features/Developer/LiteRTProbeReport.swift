@@ -41,6 +41,7 @@ struct LiteRTProbeReport: Encodable {
         let sampler: Sampler
         let systemMessage: String?
         let benchmarkEnabled: Bool
+        var visionBackend: String?
     }
 
     struct Input: Encodable {
@@ -49,6 +50,8 @@ struct LiteRTProbeReport: Encodable {
         let priorTurnCount: Int
         var questionFilePath: String?
         var questionFileSHA256: String?
+        var imagePath: String?
+        var imageSHA256: String?
     }
 
     struct Activation: Encodable {
@@ -73,6 +76,7 @@ struct LiteRTProbeReport: Encodable {
         var beforeLoad: LiteRTProbeMemory.Sample?
         var afterLoad: LiteRTProbeMemory.Sample?
         var afterGeneration: LiteRTProbeMemory.Sample?
+        var afterFollowUp: LiteRTProbeMemory.Sample?
         var afterHold: LiteRTProbeMemory.Sample?
     }
 
@@ -93,6 +97,7 @@ struct LiteRTProbeReport: Encodable {
     var memory = Memory()
     var holdSeconds: Int?
     var response: String?
+    var followUpResponse: String?
     var validatedKeyTermCount: Int?
     var evidenceBasis: String?
 

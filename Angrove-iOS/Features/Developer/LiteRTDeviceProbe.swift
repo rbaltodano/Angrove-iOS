@@ -323,6 +323,27 @@ final class LiteRTDeviceProbeModel {
                 )
                 fixturePath = nil
             }
+            var imageTranscript = context.transcript
+            var probeImageURL: URL?
+            if let imageValue = LiteRTProbeArguments.value(after: "--litert-probe-image", in: arguments) {
+                let imageURL = try LiteRTModelOverride.resolvedInputURL(
+                    imageValue, documentsDirectory: Self.documentsDirectory
+                )
+                probeImageURL = imageURL
+                let imageData = try Data(contentsOf: imageURL)
+                guard UploadedFile.isImageData(imageData), LiteRTAngroveRuntime.supportsVision else {
+                    throw LiteRTProbeFixtureError.malformed(
+                        "Vision probe requires a readable image and --litert-enable-vision."
+                    )
+                }
+                if case let .user(question, concept, uploads)? = imageTranscript.last {
+                    imageTranscript[imageTranscript.count - 1] = .user(
+                        question, concept, uploads + [UploadedFile(
+                            name: imageURL.lastPathComponent, imageData: imageData, rotationDegrees: 0
+                        )]
+                    )
+                }
+            }
             let sampling = LiteRTSampling.conversation
             let usesCPU = arguments.contains("--litert-probe-cpu")
             report.settings = .init(
@@ -336,13 +357,16 @@ final class LiteRTDeviceProbeModel {
                     seed: sampling.seed
                 ),
                 systemMessage: nil,
-                benchmarkEnabled: false
+                benchmarkEnabled: false,
+                visionBackend: LiteRTAngroveRuntime.supportsVision ? "gpu" : nil
             )
             if case let .user(question, _, _)? = context.transcript.last {
                 report.input = .init(
                     question: question,
                     fixturePath: fixturePath,
-                    priorTurnCount: context.transcript.count - 1
+                    priorTurnCount: context.transcript.count - 1,
+                    imagePath: probeImageURL?.path,
+                    imageSHA256: try probeImageURL.map { try LiteRTModelInstaller.sha256(of: $0) }
                 )
             }
 
@@ -378,7 +402,11 @@ final class LiteRTDeviceProbeModel {
             detail = "Testing production answer depth and repetition safeguards."
             let generationClock = ContinuousClock.now
             let result = await model.respond(
-                to: context,
+                to: ConversationContext(
+                    compactedContext: context.compactedContext,
+                    transcript: imageTranscript,
+                    personality: context.personality
+                ),
                 thinkingEnabled: false,
                 onUpdate: { _ in }
             )
@@ -396,6 +424,31 @@ final class LiteRTDeviceProbeModel {
                 throw LiteRTDeviceProbeError.productionPathFailed(response)
             }
 
+            if let expected = LiteRTProbeArguments.value(after: "--litert-probe-expected", in: arguments),
+               !response.localizedCaseInsensitiveContains(expected) {
+                throw LiteRTDeviceProbeError.productionPathFailed("Expected response to contain: \(expected)")
+            }
+            if let followUp = LiteRTProbeArguments.value(after: "--litert-probe-follow-up", in: arguments) {
+                let followUpResult = await model.respond(
+                    to: ConversationContext(
+                        compactedContext: context.compactedContext,
+                        transcript: imageTranscript + [.text(response), .user(followUp, nil, [])],
+                        personality: context.personality
+                    ),
+                    thinkingEnabled: false, onUpdate: { _ in }
+                )
+                report.followUpResponse = followUpResult.text
+                guard !followUpResult.text.isEmpty,
+                      !followUpResult.text.contains("on-device Angrove model couldn't complete") else {
+                    throw LiteRTDeviceProbeError.emptyResponse
+                }
+                if let expected = LiteRTProbeArguments.value(
+                    after: "--litert-probe-follow-up-expected", in: arguments
+                ), !followUpResult.text.localizedCaseInsensitiveContains(expected) {
+                    throw LiteRTDeviceProbeError.productionPathFailed("Expected follow-up to contain: \(expected)")
+                }
+                report.memory.afterFollowUp = LiteRTProbeMemory.sample()
+            }
             phase = .completed
             detail = "The production conversation path completed locally with \(result.keyTerms.count) validated Insight links."
             report.status = "passed"

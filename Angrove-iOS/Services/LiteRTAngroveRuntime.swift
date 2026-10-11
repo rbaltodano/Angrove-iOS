@@ -388,10 +388,15 @@ actor LiteRTAngroveRuntime: ModelRuntimeDriver {
         }
     }
 
-    // Text-only. The E4B package ships a vision encoder, but it hasn't passed a load and memory
-    // gate on the phone (optional plan step C12). Re-enable (.gpu) only once it has; until then
-    // image turns become text notes (`supportsVision`).
-    private static let visionBackend: Backend? = nil
+    // C12: exercise the existing E4B vision encoder on the shared engine. Keep release
+    // text-only until the physical-device load/memory check passes.
+    private static let visionBackend: Backend? = {
+#if DEBUG
+        ProcessInfo.processInfo.arguments.contains("--litert-enable-vision") ? .gpu : nil
+#else
+        nil
+#endif
+    }()
     /// Whether image content may be sent to the engine. Without a vision executor LiteRT-LM
     /// rejects the whole request ("Vision executor should not be null").
     static let supportsVision = visionBackend != nil

@@ -135,7 +135,7 @@ The owner is handing this work to Codex. State as of commit `2776cc9` on `featur
 | C9 | Physical-device sustained gate | C8 | failed | Codex takeover | 2026-09-27 | M4-Ls failed cold-load and short-answer p95 gates; C9-M4Ls-2, early stop is decisive for nearest-rank p95 |
 | C10 | Promotion | C9 + owner approval | blocked | Claude Code + Codex takeover | 2026-09-27 | C9 failed; branch prework retained, no merge/PR. Existing phone E4B remains a temporary personal trial |
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
-| C12 | Optional: vision probe | C10 | in-progress | Codex / gemma-vision | 2026-10-11 | Owner explicitly requested native image input; current E4B integration is authoritative. Initial DEBUG probe before default enablement. |
+| C12 | Optional: vision probe | C10 | in-progress | Codex / gemma-vision | 2026-10-11 | Owner explicitly requested native image input; current E4B integration is authoritative. GPU vision loads in simulator; recognition checks fail. Phone unavailable; normal/Release vision remains disabled. |
 
 **Next action:** Claude reviews the [review handoff](Gemma4-E4B-Review-Handoff.md) and the frozen
 [P1 diagnostic plan](Gemma4-E4B-Post-C9-Diagnostics.md). P1 has no runs and the owner requested
@@ -153,6 +153,8 @@ a new row (plan §0, rule 5).
 | B0 | `gemma-4-E2B-it.litertlm` (wi8 E2B fine-tune, bundled) | local export | 3,862,121,696 | `9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282` (manifest) | `9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282` (match, C0-B0-1) | LiteRT-LM 0.14.0, GPU, 4,096, deterministic | fine-tuned PTQ | baseline |
 | M4-L | `gemma-4-E4B-it-gpu.litertlm` | `litert-community/gemma-4-E4B-it-litert-lm` @ `2eee7ac325f20eb8c9ac1d0e972f7c84663062da` | 2,969,059,328 | `4912bb5a9c30993c51a7711f763212077458529312175df0573a78323a2bb7ff` | `4912bb5a9c30993c51a7711f763212077458529312175df0573a78323a2bb7ff` (match, C1-M4L-2) | LiteRT-LM 0.14.0, GPU (GPU_ARTISAN), 4,096, deterministic | unconfirmed (C2-M4L-1); text-only `gpu_artisan` decoder | **rejected at C5** (jetsam `vm-pageshortage` at 2K and 4K prefill; `C5-M4L-4`, `C5-M4L-5`) |
 | M4-Ls | `gemma-4-E4B-it.litertlm` | same @ same | 3,659,530,240 | `0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0` | `0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0` (match, C1-M4Ls-1) | LiteRT-LM 0.14.0, GPU, 4,096, deterministic, vision/audio not loaded | unconfirmed (no statement for any E4B package; see C2) | **failed C9**; retained for informational P1 |
+| M4-LsV-sim | `gemma-4-E4B-it.litertlm` | same @ same | 3,659,530,240 | `0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0` | same (probe-computed runs 3–8) | LiteRT-LM 0.14.0, simulator CPU decoder/F32 override, GPU vision, 4,096, greedy | unconfirmed | Encoder/adapter load; recognition unreliable/failed; phone not tested |
+| M4-LsV-simDefault | `gemma-4-E4B-it.litertlm` | same @ same | 3,659,530,240 | `0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0` | same (probe-computed run 9) | Same simulator backends; `--litert-f16` removes activation override | unconfirmed | Failed OCR expectation; phone not tested |
 | M2-L | `gemma-4-E2B-it.litertlm` (stock) | `litert-community/gemma-4-E2B-it-litert-lm` @ `b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1` | 2,588,147,712 | `181938105e0eefd105961417e8da75903eacda102c4fce9ce90f50b97139a63c` | | control arm (D9) | confirmed QAT (E2B discussion #30) | optional |
 
 ## Frozen values
@@ -1136,3 +1138,47 @@ Initial configuration: unchanged package and LiteRT-LM 0.14.0, 4,096-token conte
 decoder, GPU vision behind DEBUG `--litert-enable-vision`, greedy decoding, audio/MTP off.
 A successful physical-device vision/memory check is required before enabling vision by default.
 The phone initially reports unavailable; implementation and simulator checks continue.
+
+### C12 implementation and simulator evidence — October 11, 2026
+
+- **Implemented:** DEBUG `--litert-enable-vision` selects the existing GPU encoder in the shared
+  engine. Restored Photos/Camera actions, bounded orientation-corrected lossless PNG model
+  inputs, image token budgeting, visual-source request handling, and image-aware system
+  instructions. Original encrypted attachments and text-only fallback are preserved.
+- **Probe:** `--litert-probe-image`, `--litert-probe-follow-up`,
+  `--litert-probe-expected`, and `--litert-probe-follow-up-expected` exercise the production
+  adapter and report provenance, responses, effective backends and memory. The expected
+  strings are checked by the harness, never included in the model prompt.
+- **Artifact:** stock M4-Ls, 3,659,530,240 bytes; probe-computed SHA-256
+  `0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0`.
+  LiteRT-LM 0.14.0 simulator binary SHA-256
+  `12aba062062d7dc3d027ded18452c58f90445a5d7b18e4114f17af34d0cb153a`.
+- **Configuration:** CPU decoder (simulator diagnostic), GPU vision, 4,096 context, greedy,
+  native thinking/MTP/audio off. F32 override for runs 3–8; run 9 uses the existing
+  `--litert-f16` package-default precision comparison. These are simulator configurations,
+  not new phone gates or revisions to historical C9.
+- **Runs:** immutable ignored `LocalModels/e4b-eval/C12-M4LsV-sim-1` through `-9`.
+  Run 1 ended during simulator shutdown; run 2 stopped because symlinked grounding assets
+  copied the uncompiled mlpackage (fixed by APFS-cloning the assets so Xcode compiles MiniLM).
+  Run 3 loaded the encoder/adapter and correctly named the red/blue PNG. It took 19.53 s for
+  generation and reached 3,010,650,608 bytes peak simulator footprint; simulator available
+  memory reports zero, so no phone-cap ratio can be inferred.
+  Run 4's nonempty refusal and follow-up were mistakenly labeled passed by the old harness;
+  `semantic-review.txt` invalidates that as recognition evidence. The harness now checks
+  expected substrings. Run 5 misidentified red/blue JPEG as black/white; run 6 misidentified
+  green/yellow JPEG as orange/yellow. Lossless PNG plus explicit vision instructions did not
+  resolve the problem: run 7 described the color input as a dark pattern; run 8 transcribed
+  the clearly rendered word PRUDENCE as “transcribe”. Run 9 gave the same wrong transcription
+  with package-default precision. All final recognition checks failed.
+- **Verification:** arm64 iPhone 17/iOS 27 simulator build passed; 76 focused tests passed,
+  zero failures (xcresult `Test-Angrove-iOS-2026.10.11_16-35-14--0400.xcresult` under
+  `build-output/gemma-vision/Logs/Test`). Cases cover vision/latest/history/image-only bytes,
+  bounded inputs with original preservation, context image tokens, visual-source guards and
+  text-only fallback. `git diff --check` passed.
+- **UI verification:** static menu/picker wiring reviewed. Interactive verification was unavailable:
+  no DeviceInteraction APIs/idb/axe, and CUA cannot select Simulator. No physical app install
+  or production data changes were performed.
+- **Remaining:** physical base iPhone GPU-decoder/GPU-vision recognition, memory, repeated
+  image/follow-up, lifecycle and UI checks. `devicectl` reports the owner's phone unavailable.
+  **Do not enable ordinary/Release vision from these simulator results.** The attachment wiring
+  is reviewable, but native image recognition is not validated for normal use.

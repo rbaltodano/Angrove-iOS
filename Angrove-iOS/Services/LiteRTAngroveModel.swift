@@ -68,9 +68,10 @@ struct LiteRTAngroveModel: AngroveModel {
     /// The engine message for one transcript block, exactly as a request would send it.
     static func engineMessage(
         _ block: ChatBlock,
-        isLatestUserRequest: Bool = false
+        isLatestUserRequest: Bool = false,
+        supportsVision: Bool = LiteRTAngroveRuntime.supportsVision
     ) -> Message? {
-        liteRTMessage(block, isLatestUserRequest: isLatestUserRequest)
+        liteRTMessage(block, isLatestUserRequest: isLatestUserRequest, supportsVision: supportsVision)
     }
 
     static func questionOfTheDayQuestion(from raw: String) -> String? {
@@ -134,7 +135,9 @@ struct LiteRTAngroveModel: AngroveModel {
 
     /// Require passages for explicit source verification, quotations, attribution, and current
     /// information. A topic's historical or technical vocabulary alone must not block discussion.
-    static func requiresCorpusEvidence(_ question: String) -> Bool {
+    static func requiresCorpusEvidence(_ question: String, hasImageInput: Bool = false) -> Bool {
+        // An attached page is itself evidence for a transcription/description request.
+        // It need not also exist in the bundled Library.
         let normalized = question
             .folding(
                 options: [.caseInsensitive, .diacriticInsensitive],
@@ -143,6 +146,13 @@ struct LiteRTAngroveModel: AngroveModel {
             .lowercased()
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return false }
+        let imageReference = #"\b(image|photo|picture|screenshot|scan|diagram|chart|attached|attachment|page|text|read|transcribe|here|this|that|it)\b"#
+        let currentInformation = #"\b(current|latest|up.to.date)\b"#
+        if hasImageInput,
+           normalized.range(of: imageReference, options: .regularExpression) != nil,
+           normalized.range(of: currentInformation, options: .regularExpression) == nil {
+            return false
+        }
 
         let sourceRequests = [
             #"\b(quote|quotation|citation|cite|authorship)\b"#,
@@ -348,7 +358,15 @@ struct LiteRTAngroveModel: AngroveModel {
             // and the model answered, labeled corpus-grounded, that no single pope had (seal-D5).
             let hasEvidence = !responseReferences.isEmpty
                 && Self.referencesNameSubject(of: latestQuestion, in: responseReferences)
-            guard hasEvidence || !Self.requiresCorpusEvidence(latestQuestion) else {
+            let hasImageInput = ([request.latest] + request.history).contains { message in
+                message.contents.contains { content in
+                    if case .imageData = content { return true }
+                    return false
+                }
+            }
+            guard hasEvidence || !Self.requiresCorpusEvidence(
+                latestQuestion, hasImageInput: hasImageInput
+            ) else {
                 return deliver(ModelResponse(
                     text: Self.corpusScopeAbstentionText,
                     thinkingSummary: thinkingEnabled ? [
@@ -399,7 +417,7 @@ struct LiteRTAngroveModel: AngroveModel {
             } else {
                 correction = nil
             }
-            let systemInstruction = Self.conversationSystemInstruction(
+            var systemInstruction = Self.conversationSystemInstruction(
                 context: request.startsFreshTopic
                     ? ConversationContext(
                         transcript: context.transcript.last.map { [$0] } ?? [],
@@ -409,6 +427,15 @@ struct LiteRTAngroveModel: AngroveModel {
                 explicitCorrection: correction,
                 groundingReferences: responseReferences
             )
+            if hasImageInput {
+                systemInstruction += """
+
+                    You receive image inputs through your native vision encoder as well as text.
+                    Use the attached images as visual evidence when answering the question.
+                    Read visible text and describe visible details; distinguish what is visible
+                    from what you infer. If a detail is illegible or unclear, say so specifically.
+                    """
+            }
             // With thinking on, Gemma reasons in its native thought channel before answering; that
             // reasoning streams to the live Thinking display and is kept for Show Thinking.
             let thoughtStream = ThoughtStream()
@@ -484,7 +511,7 @@ struct LiteRTAngroveModel: AngroveModel {
             }
             // An exact primary-source section is already controlling evidence, so only semantic
             // retrieval is audited.
-            if !responseReferences.isEmpty,
+            if !hasImageInput, !responseReferences.isEmpty,
                Self.factualAccuracyAuditNeeded(for: latestQuestion),
                !authorityEvidenceFirst {
                 do {
@@ -1748,7 +1775,8 @@ private extension LiteRTAngroveModel {
     static func liteRTMessage(
         _ block: ChatBlock,
         isLatestUserRequest: Bool = false,
-        followUpNote: String = ""
+        followUpNote: String = "",
+        supportsVision: Bool = LiteRTAngroveRuntime.supportsVision
     ) -> Message? {
         switch block {
         case .text(let text):
@@ -1779,7 +1807,7 @@ private extension LiteRTAngroveModel {
                 """
             }
             let images = uploads.filter { $0.imageData != nil }
-            if !images.isEmpty, !LiteRTAngroveRuntime.supportsVision {
+            if !images.isEmpty, !supportsVision {
                 // A text-only engine rejects any image content, which failed this turn and
                 // every later turn carrying it in history. Keep the text and say what's missing.
                 prompt += Self.unviewableImageNote(count: images.count)
@@ -1787,9 +1815,12 @@ private extension LiteRTAngroveModel {
             if !prompt.isEmpty {
                 contents.append(.text(prompt))
             }
-            if LiteRTAngroveRuntime.supportsVision {
+            if supportsVision {
                 contents.append(contentsOf: images.compactMap {
-                    $0.imageData.map(Content.imageData)
+                    $0.imageData.map { data in
+                        // Malformed input still reaches LiteRT's explicit error path.
+                        Content.imageData(UploadedFile.normalizedModelImageData(data) ?? data)
+                    }
                 })
             }
             return contents.isEmpty
