@@ -273,3 +273,17 @@ backgrounds, Today in History / Loose Thread / Terms You Glossed Over / Your Quo
 qualifying data), `/compact` `/clear` `/new` `/topic`, App Lock, Export, all Delete/Clear
 actions, Notifications, Audio / Text & Display / Conversation Defaults settings pages, small-phone
 (iPhone SE-class) layouts, landscape lockout, Reduce Motion, VoiceOver.
+
+## Follow-up (2026-10-11)
+
+- **Fixed in code (`73bc1ca`), simulator retest pending** — Color Scheme now uses a persisted
+  setting, and Reset Settings restores System. Library navigation now dismisses search-field
+  focus before opening a reader.
+- **Fixed (`73bc1ca`)** — Removed the hardcoded name from the tree empty state; corrected
+  “Search Study Topics”; added the missing Midpoint sentence period; put minus before plus in
+  the Branch count control; made “Delete All Clipped Passages” capitalization consistent in
+  Settings and the User Guide.
+- **Verification** — The final source passed an iPhone 17 Simulator build. A separate install
+  preserved simulator data, but the app opened on “Couldn’t Open Encrypted Data,” so the
+  interaction fixes could not be retested without changing that data. The Global Insights
+  update and conversation-tree issues remain open for focused investigation.
