@@ -22,6 +22,9 @@ struct StudyBranchScene: View {
     @State private var childHeight: CGFloat = 72
     @State private var childWidth: CGFloat = 160
     @State private var openedInsightIDs: Set<UUID> = []
+    /// Children whose title has replaced the flashing loading icon.
+    @State private var revealedTitleIDs: Set<UUID> = []
+    @State private var loadingFlash: Double = 1
 
     var body: some View {
         GeometryReader { proxy in
@@ -55,7 +58,7 @@ struct StudyBranchScene: View {
                         _ = openedInsightIDs.insert(child.id)
                         onInsightTapped(child)
                     } label: {
-                        InsightTreeChip(title: child.title, isUndiscovered: !openedInsightIDs.contains(child.id))
+                        childChip(child)
                     }
                     .buttonStyle(.plain)
                     .fixedSize()
@@ -99,22 +102,24 @@ struct StudyBranchScene: View {
                 }
             }
             .animation(.easeInOut(duration: 0.3), value: isPromoted)
-            .task(id: isReady) {
-                guard isReady, !finished, !children.isEmpty else { return }
-                // Let the ready labels report their footprints before the first burst.
-                do { try await Task.sleep(for: .milliseconds(40)) }
+            .animation(.springStandard, value: fitScale)
+            .task(id: isPromoted && !children.isEmpty) {
+                // Release the loading children as soon as the Insight becomes a Node Concept,
+                // before the model has produced any text.
+                guard isPromoted, !children.isEmpty, !finished else { return }
+                withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+                    loadingFlash = 0.35
+                }
+                do { try await Task.sleep(for: .milliseconds(320)) }
                 catch { return }
-                for (index, child) in children.enumerated() {
+                for (index, child) in children.enumerated() where !releasedIDs.contains(child.id) {
                     if index > 0 {
                         do { try await Task.sleep(for: .seconds(StudyBranchAnimation.releaseDelay() - (reduceMotion ? 0 : 0.08))) }
                         catch { return }
                     }
                     guard !Task.isCancelled else { return }
                     let offset = offsets[child.id] ?? .zero
-                    let destination = CGPoint(x: center.x + offset.x, y: center.y + offset.y)
-                    let dx = destination.x - center.x, dy = destination.y - center.y
-                    let length = max(hypot(dx, dy), 1)
-                    let direction = CGVector(dx: dx / length, dy: dy / length)
+                    let length = max(hypot(offset.x, offset.y), 1)
                     if SettingsHaptics.isEnabled {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred(intensity: 0.8)
                     }
@@ -123,23 +128,66 @@ struct StudyBranchScene: View {
                     }
                     if !reduceMotion {
                         withAnimation(.springMicro) {
-                            recoil = CGSize(width: -direction.dx * 9, height: -direction.dy * 9)
+                            recoil = CGSize(width: -offset.x / length * 9, height: -offset.y / length * 9)
                         }
                         do { try await Task.sleep(for: .milliseconds(80)) }
                         catch { return }
                         withAnimation(.springStandard) { recoil = .zero }
                     }
                 }
-                do { try await Task.sleep(for: .milliseconds(650)) }
+            }
+            .task(id: isReady) {
+                // Once the whole validated batch exists, titles replace the loading icons one
+                // at a time.
+                guard isReady, !finished, !children.isEmpty else { return }
+                while releasedIDs.count < children.count {
+                    do { try await Task.sleep(for: .milliseconds(60)) }
+                    catch { return }
+                }
+                do { try await Task.sleep(for: .milliseconds(450)) }
+                catch { return }
+                for child in children {
+                    guard !Task.isCancelled else { return }
+                    if SettingsHaptics.isEnabled {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.7)
+                    }
+                    withAnimation(.easeOut(duration: 0.32)) {
+                        _ = revealedTitleIDs.insert(child.id)
+                    }
+                    do { try await Task.sleep(for: .milliseconds(320)) }
+                    catch { return }
+                }
+                do { try await Task.sleep(for: .milliseconds(400)) }
                 catch { return }
                 guard !Task.isCancelled else { return }
-                withAnimation(.springStandard) { recoil = .zero }
+                loadingFlash = 1
                 finished = true
                 onFinished()
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(isPromoted && !isReady ? "Branching \(sourceTitle)" : "Study \(sourceTitle)")
+    }
+}
+
+extension StudyBranchScene {
+    /// A new Insight: the flashing Node Concept icon alone while the model works, then the same
+    /// icon-and-title chip the tree uses, gliding in.
+    @ViewBuilder
+    fileprivate func childChip(_ child: InsightModel) -> some View {
+        ZStack {
+            if revealedTitleIDs.contains(child.id) {
+                InsightTreeChip(title: child.title, isUndiscovered: !openedInsightIDs.contains(child.id))
+                    .transition(.glideFadeUp)
+            } else {
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(AngroveTheme.Colors.lightGreen)
+                    .opacity(loadingFlash)
+                    .modifier(InsightTreeChipChrome())
+                    .transition(.fadeBlur)
+            }
+        }
     }
 }
 

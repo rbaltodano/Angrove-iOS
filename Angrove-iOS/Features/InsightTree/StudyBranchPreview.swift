@@ -113,13 +113,16 @@ struct StudyBranchPreviewView: View {
     }
 
     private func confirm() {
+        let titles = ["Identify the core idea", "Separate its assumptions", "Trace basic relationships", "Examine causes and effects", "Compare foundational concepts", "Connect the fundamental points"]
+        // Like the live flow, stable empty placeholders exist from the moment of promotion.
+        let ids = (0..<count).map { _ in UUID() }
+        children = ids.map { InsightModel(id: $0, title: "", definition: "") }
         promoted = true
         Task { @MainActor in
-            let delay = ProcessInfo.processInfo.arguments.contains("--study-branch-preview-slow-load") ? 10.0 : 2.0
+            let delay = ProcessInfo.processInfo.arguments.contains("--study-branch-preview-slow-load") ? 10.0 : 4.0
             try? await Task.sleep(for: .seconds(delay))
-            let titles = ["Identify the core idea", "Separate its assumptions", "Trace basic relationships", "Examine causes and effects", "Compare foundational concepts", "Connect the fundamental points"]
-            children = titles.prefix(count).map {
-                InsightModel(title: $0, definition: "Preview content for visual verification only.")
+            children = zip(ids, titles).map {
+                InsightModel(id: $0, title: $1, definition: "Preview content for visual verification only.")
             }
             ready = true
         }
