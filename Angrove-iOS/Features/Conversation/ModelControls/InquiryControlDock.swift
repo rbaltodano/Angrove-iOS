@@ -534,10 +534,10 @@ struct InquiryControlDock: View {
                 isPressed: $isControlButtonPressed,
                 onInsights: { isRecentPhotosOpen = false; onOpenInsights() },
                 onPassages: { isRecentPhotosOpen = false; onOpenPassages() },
-                onPhotos: LiteRTAngroveRuntime.supportsVision ? {
+                onPhotos: {
                     isRecentPhotosOpen = false
                     showPhotoPicker = true
-                } : nil,
+                },
                 onCamera: LiteRTAngroveRuntime.supportsVision && UIImagePickerController.isSourceTypeAvailable(.camera) ? {
                     isRecentPhotosOpen = false
                     showCamera = true
