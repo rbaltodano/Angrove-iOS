@@ -18,10 +18,11 @@ struct InsightTreeCanvasChip: View {
 
     var body: some View {
         ZStack(alignment: .leading) {
-            // While generating: the Node Concept symbol flashes. On completion it fades
-            // out and blurs as the solid content cross-fades in.
+            // While generating, the symbol of what is being made flashes: a Node Concept for a
+            // placed Midpoint, an Insight for Make Node and Branch children. On completion it
+            // fades out and blurs as the solid content cross-fades in.
             if isLoading {
-                Image(systemName: "brain.head.profile")
+                Image(systemName: isNodeConceptLoading ? "brain.head.profile" : "text.bubble.fill")
                     .font(.system(size: isNodeConceptLoading ? 24 : 14, weight: .semibold))
                     .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     .opacity(loadingFlashOpacity)
