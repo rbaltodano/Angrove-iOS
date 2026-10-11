@@ -15,16 +15,19 @@ rewriting old ones, and mark items **Fixed (<commit>)** when resolved.
 Severity: **Bug** = broken or wrong behavior · **Adjust** = works but needs polish ·
 **OK** = works as specified.
 
-## Top issues (fix first)
+## Top issues (open items first; completed items marked)
 
 1. **Global Insights "Update?" → Yes does nothing** — the Global tree never fills; reproducible.
    See "Global Insights — update prompt (retest)".
 2. **Conversation tree lost its Node Concepts after the conversation was added to a Study Topic**
    (empty state, then only a generic hub after relaunch). See "Cross-feature".
 3. **Branch → parent Node Concept no longer visible** in the conversation tree.
-4. **Color Scheme (Dark/Light) is not persisted** across launches (`ContentView.swift:81` `@State`).
-5. **Library search keyboard stays up over the reader** and can't be dismissed by scrolling.
-6. Copy bugs: "Theo's map" hardcoded name in the tree empty state; "Search Study Topcis" typo.
+4. **Fixed in code (`73bc1ca`; simulator retest pending)** — Color Scheme (Dark/Light) was not
+   persisted across launches (`ContentView.swift:81` `@State`).
+5. **Fixed in code (`73bc1ca`; simulator retest pending)** — Library search keyboard stayed up
+   over the reader and could not be dismissed by scrolling.
+6. **Fixed (`73bc1ca`)** — Copy bugs: "Theo's map" hardcoded name in the tree empty state;
+   "Search Study Topcis" typo.
 
 Most core flows work: live answers with sources and thinking, definitions, save, read-aloud,
 Branch, Study rotation, slash commands, Library reading/listening, conversation management,
@@ -38,7 +41,8 @@ Study Topic creation, Settings, and dark mode rendering.
   Where You Left Off, Midpoint to Explore, and Read Material all render with existing data.
 - **Adjust** — Scrolled content passes under the status bar and the floating side-menu button with
   no top fade/backdrop (e.g. "Where You Left Off" heading is cut by the menu button).
-- **Adjust** — "Midpoint to Explore" body copy lacks a final period ("…Who knows what you'll learn").
+- **Fixed (`73bc1ca`)** — "Midpoint to Explore" body copy lacked a final period
+  ("…Who knows what you'll learn").
 - **Adjust** — Read Material subtitles ("Referenced 5 times across your conversations.") use very
   loose serif line spacing compared with the title above them.
 - **Question** — Stats show "0 Open" next to "7 Conversations"; unclear what "Open" counts.
@@ -57,9 +61,9 @@ Study Topic creation, Settings, and dark mode rendering.
 
 ### Global Insights (Insight Library canvas)
 
-- **Bug** — "Insights will gather here… Theo's map of connected ideas." Empty-state copy hardcodes
-  a person's name ("Theo") — `InsightTreeView.swift` `EmptyInsightTreeView`. Should use the
-  preferred name or neutral copy.
+- **Fixed (`73bc1ca`)** — "Insights will gather here… Theo's map of connected ideas." Empty-state
+  copy hardcoded a person's name ("Theo") — `InsightTreeView.swift` `EmptyInsightTreeView`.
+  The fix uses neutral copy.
 - **Adjust** — Empty state says "Save insights…" while 7 Insights already exist (the tree is just
   waiting on the "Update Global Insights Tree?" prompt). Copy should point at the prompt instead.
 
@@ -128,8 +132,8 @@ Study Topic creation, Settings, and dark mode rendering.
 - **Bug** — Entering Study from a hovered Insight leaves the parent Node Concept off-screen left
   (only "…edom" visible) instead of flying it into the 300×300 slot above the ring
   (Study-Tool.md "Entry and exit" step 3).
-- **Adjust** — Branch count control is "+ 2 New Insights −" (plus on the left, minus on the right),
-  the reverse of the usual stepper order.
+- **Fixed (`73bc1ca`)** — Branch count control was "+ 2 New Insights −" (plus on the left,
+  minus on the right), the reverse of the usual stepper order.
 - **Adjust** — First frame of Branch shows the promoted "Grace" label half-clipped with a
   placeholder Insight icon on top of the node; settles a moment later.
 - **OK** — Branch (3) completed in ~25 s: "Grace" promoted to a Node Concept with children Vicious
@@ -161,8 +165,9 @@ Study Topic creation, Settings, and dark mode rendering.
 - **OK** — Catalog (Recently Opened, categories), search ("Summa" → Summa Theologica), loading
   state with leaf + "Loading", reader with Contents sheet, section jumps, prev/next section pill,
   Listen → Pause with per-word highlight and "Last listened here" marker after pausing.
-- **Bug** — Library search keyboard stays up after opening a result; it covers the reader and
-  isn't dismissed by scrolling. It persisted until returning to the Library and pressing Search.
+- **Fixed in code (`73bc1ca`; simulator retest pending)** — Library search keyboard stayed up
+  after opening a result; it covered the reader and wasn't dismissed by scrolling. It persisted
+  until returning to the Library and pressing Search.
 - **Adjust** — Reader shows raw source artifacts: long underscore rules ("_____") between headings,
   which also get read aloud/highlighted as words.
 - **Adjust** — Opening heading splits mid-parenthesis: small caps "FIRST PART (FP" over large italic
@@ -189,7 +194,7 @@ Study Topic creation, Settings, and dark mode rendering.
 - **OK** — Empty state, New Study Topic (inline editable title, description placeholder,
   scoped search), Add Existing Conversation sheet with multi-select "Add 1 Conversation",
   "Update Tree for Audit Topic?" prompt, topic tree opens with a "Related Insights" hub.
-- **Bug** — Typo in search placeholder: "Search Study Topcis".
+- **Fixed (`73bc1ca`)** — Typo in search placeholder: "Search Study Topcis".
 - **Adjust** — Empty-state copy mentions "files", but file attachments are deferred post-launch
   (FUNCTIONALITY.md §3).
 - **Adjust** — After adding a conversation, the "+ New Conversation / + Add Conversation" pill
@@ -218,9 +223,10 @@ Study Topic creation, Settings, and dark mode rendering.
 - **OK** — Settings → Appearance: Color Scheme (System/Light/Dark), Conversation and Insight Tree
   background pickers with live preview. Dark mode renders cleanly on Settings, side menu,
   conversation, and tree.
-- **Bug** — Color Scheme = Dark does not survive an app relaunch; the app returns to System
-  (Light on this simulator). Root cause: `colorSchemeOverride` is a plain `@State` in
-  `App/ContentView.swift:81` and is never persisted. (Background choices do persist per spec.)
+- **Fixed in code (`73bc1ca`; simulator retest pending)** — Color Scheme = Dark did not survive
+  an app relaunch; the app returned to System (Light on this simulator). Root cause:
+  `colorSchemeOverride` was a plain `@State` in `App/ContentView.swift:81` and was never
+  persisted. (Background choices do persist per spec.)
 - **Adjust** — Side menu "Current Topic" still reads "Question of the Day" after the conversation
   was renamed "Grace and Freedom".
 - **Adjust** — Question of the Day text is wrapped in straight quotes and contains nested straight
@@ -236,7 +242,7 @@ Study Topic creation, Settings, and dark mode rendering.
 - **Adjust** — On-device Model page shows only explanatory text — no readiness/status row
   (ready, size on disk, verify/repair) even though the row subtitle promises "Download,
   readiness, and recovery".
-- **Adjust** — "Delete all Clipped Passages" capitalization differs from sibling rows
+- **Fixed (`73bc1ca`)** — "Delete all Clipped Passages" capitalization differed from sibling rows
   ("Delete All Conversations", "Delete All App Data").
 - **Adjust** — User Guide hero title briefly renders blurred ("Step by Step.") during its entrance.
 - **Not tested** — Clear Insight Tree / Delete * actions (destructive), Export (share sheet),
