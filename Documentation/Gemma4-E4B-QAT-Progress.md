@@ -1213,3 +1213,10 @@ content was not removed. Caches were omitted.
   timing rejection remains unchanged. These vision checks do not establish C9 latency budgets.
 - Broader varied-photo, thermal, and interactive UI checks remain; the installed app is for the
   owner's hands-on Photos test.
+
+Final default-enabled build check `C12-M4LsV-phone-3` passed without `--litert-enable-vision`:
+PRUDENCE → PRUDENCE → prudence, GPU/GPU, same stock package/hash. Load 7.681 s; generation
+7.687 s; peak 2,009,946,008 bytes, no new crash logs. The signed app was reverified as
+**Angrove – Vision** before updating it. The normal interface was then launched without probe
+or vision flags for the owner's Photos test. Phone/UI timing claims remain limited to these
+synthetic checks; the prior 76 focused tests passed and the final phone build passed.
