@@ -121,6 +121,41 @@ struct GlobalInsightTreeUpdatePromptTests {
     }
 }
 
+@Suite("Global Insight Tree update resolution")
+struct GlobalInsightTreeUpdateResolutionTests {
+    @Test("A library change during reconciliation does not discard the accepted snapshot")
+    func concurrentLibraryChange() throws {
+        let accepted = concept("Grace")
+        let newer = concept("Charity")
+        let update = try #require(GlobalInsightTreeUpdateResolution.accept(
+            existingTree: [], currentTree: [], incomingLibrary: [accepted],
+            currentLibrary: [accepted, newer], reconciledTree: [accepted]
+        ))
+        #expect(update.insights.map(\.id) == [accepted.id])
+        #expect(update.acknowledgedLibraryIDs == [accepted.id])
+        #expect(update.hasNewerLibraryChanges)
+        #expect(GlobalInsightTreeUpdatePrompt.shouldOffer(
+            libraryIDs: [accepted.id, newer.id],
+            acknowledgedLibraryIDs: update.acknowledgedLibraryIDs,
+            treeNeedsUpdate: true
+        ))
+    }
+
+    @Test("An edit to the tree during reconciliation is preserved")
+    func concurrentTreeEdit() {
+        let edit = concept("Justice")
+        #expect(GlobalInsightTreeUpdateResolution.accept(
+            existingTree: [], currentTree: [edit], incomingLibrary: [edit],
+            currentLibrary: [edit], reconciledTree: [edit]
+        ) == nil)
+    }
+
+    private func concept(_ word: String) -> ConceptDefinition {
+        ConceptDefinition(word: word, partOfSpeech: "", pronunciation: "",
+                          meaning: "A contextual meaning of \(word).", example: "")
+    }
+}
+
 @Suite("Contextual definition duplicates")
 struct ContextualDefinitionDuplicateTests {
     private let original = "Free will is the principle by which a person judges freely, which Aquinas identifies as an appetitive power that allows man to act from free judgment rather than natural instinct. It is the capacity for a rational being to choose between various things, retaining the power to be inclined toward different outcomes."

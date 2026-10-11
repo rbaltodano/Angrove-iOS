@@ -11,6 +11,30 @@ struct StudyBranchTests {
     }
 
     @MainActor
+    @Test("A Branch promotion is saved before moving its conversation into a Study Topic")
+    func promotionSurvivesTopicAssignment() throws {
+        let source = concept()
+        let conversationID = UUID()
+        let topicID = UUID()
+        var saved: InquiryPersistenceSnapshot?
+        let session = ConversationSession(
+            loadSnapshot: { saved },
+            saveSnapshot: { saved = $0 }
+        )
+        session.conversations = [InquiryConversation(id: conversationID)]
+        session.activeConversationID = conversationID
+        session.persistPromotedInsights([source.id])
+
+        var assigned = try #require(saved)
+        assigned.conversations[0].studyTopicID = topicID
+        saved = assigned
+
+        let restored = try #require(saved?.conversations.first)
+        #expect(restored.studyTopicID == topicID)
+        #expect(restored.promotedInsightIDs == [source.id])
+    }
+
+    @MainActor
     @Test("Every Branch count retains the old parent and persists the complete batch", arguments: 2...6)
     func branchCountsAndPersistence(count: Int) async throws {
         let source = concept()
@@ -25,6 +49,10 @@ struct StudyBranchTests {
         #expect(loadingNode.insights.allSatisfy { $0.title.isEmpty })
         #expect(tree.generatedMakeNodeChildIDs.isEmpty)
         #expect(tree.edges.contains {
+            Set([$0.fromNodeID, $0.toNodeID]) == Set([parent.id, promotedID])
+        })
+        #expect(tree.visibleNodes.contains { $0.id == parent.id })
+        #expect(tree.visibleEdges.contains {
             Set([$0.fromNodeID, $0.toNodeID]) == Set([parent.id, promotedID])
         })
 
@@ -46,6 +74,10 @@ struct StudyBranchTests {
         #expect(node.insights.map(\.id) == bookmarks.dropFirst().map(\.id))
         #expect(restored.generatedMakeNodeChildIDs.count == count)
         #expect(restored.edges.contains {
+            Set([$0.fromNodeID, $0.toNodeID]) == Set([parent.id, promotedID])
+        })
+        #expect(restored.visibleNodes.contains { $0.id == parent.id })
+        #expect(restored.visibleEdges.contains {
             Set([$0.fromNodeID, $0.toNodeID]) == Set([parent.id, promotedID])
         })
     }

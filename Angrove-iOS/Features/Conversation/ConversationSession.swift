@@ -30,6 +30,13 @@ final class ConversationSession {
         conversations[idx].promotedInsightIDs = promotedInsightIDs
     }
 
+    /// A promotion changes the persisted tree topology even if the user keeps this page open.
+    /// Save it at the change rather than waiting for the conversation view to disappear.
+    func persistPromotedInsights(_ ids: [UUID]) {
+        saveActiveConversation(promotedInsightIDs: ids)
+        persist()
+    }
+
     func rename(to title: String) -> Bool {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty,

@@ -17,9 +17,15 @@ import SwiftUI
 final class InsightTreeViewModel: ObservableObject {
     @Published private(set) var nodes: [NodeModel] = []
     @Published private(set) var edges: [EdgeModel] = []
-    /// Keep empty concepts as semantic anchors, but only show concepts with attached Insights.
-    /// This lets a saved subject return when a later Insight joins it without losing its identity.
-    var visibleNodes: [NodeModel] { nodes.filter { !$0.insights.isEmpty } }
+    /// Keep unconnected empty concepts as semantic anchors. A Branch may move its parent's
+    /// only Insight into a new Node Concept; the now-empty parent and its edge must stay visible.
+    var visibleNodes: [NodeModel] {
+        let occupiedIDs = Set(nodes.filter { !$0.insights.isEmpty }.map(\.id))
+        let connectedIDs = Set(edges.filter {
+            occupiedIDs.contains($0.fromNodeID) || occupiedIDs.contains($0.toNodeID)
+        }.flatMap { [$0.fromNodeID, $0.toNodeID] })
+        return nodes.filter { occupiedIDs.contains($0.id) || connectedIDs.contains($0.id) }
+    }
 
     var visibleEdges: [EdgeModel] {
         let ids = Set(visibleNodes.map(\.id))

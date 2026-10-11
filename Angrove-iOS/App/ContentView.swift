@@ -1893,9 +1893,13 @@ struct ContentView: View {
                 )
             }.value
 
-            // Do not let a completed background pass overwrite edits made while it was running.
-            guard globalTreeInsights == existingSnapshot,
-                  collectedDefinitions == incomingSnapshot else {
+            guard let update = GlobalInsightTreeUpdateResolution.accept(
+                existingTree: existingSnapshot,
+                currentTree: globalTreeInsights,
+                incomingLibrary: incomingSnapshot,
+                currentLibrary: collectedDefinitions,
+                reconciledTree: reconciledInsights
+            ) else {
                 isGlobalTreeReconciling = false
                 suppressGlobalTreePromptUntilExternalModelCompletion = false
                 refreshGlobalInsightTreeUpdatePrompt()
@@ -1903,11 +1907,15 @@ struct ContentView: View {
             }
 
             withAnimation(.springStandard) {
-                globalTreeInsights = reconciledInsights
+                globalTreeInsights = update.insights
                 isGlobalTreeReconciling = false
             }
-            GlobalInsightTreeStore.save(reconciledInsights)
-            acknowledgeGlobalTreeLibrary(Set(incomingSnapshot.map(\.id)))
+            GlobalInsightTreeStore.save(update.insights)
+            acknowledgeGlobalTreeLibrary(update.acknowledgedLibraryIDs)
+            if update.hasNewerLibraryChanges {
+                suppressGlobalTreePromptUntilExternalModelCompletion = false
+                refreshGlobalInsightTreeUpdatePrompt()
+            }
             globalInsightsContextCardState.reset()
             modelTasksPopupState.reset()
             UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.7)

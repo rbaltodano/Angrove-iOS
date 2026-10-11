@@ -327,12 +327,11 @@ extension InsightTreeCanvasView {
     }
 
     private func flyIntoStudy() {
-        // Opened from an Insight's Study: fly straight to that Insight, hovered. It is already
-        // the hover, so only the Study camera needs it.
+        // Keep an Insight selected when Study opens from its card, but frame its parent Node
+        // Concept in the Study slot. The user can tap the Insight to move the camera to it.
         if let insightID = studyInitialHoverInsightID, studyTreeOffsets[insightID] != nil {
             studyPivotID = insightID
-            studyPivotBlend = 1
-            studyZoom = max(studyZoom, StudyFraming.hoverZoom)
+            studyPivotBlend = 0
         }
         animateStudyProgress(to: 1, duration: 0.8)
     }

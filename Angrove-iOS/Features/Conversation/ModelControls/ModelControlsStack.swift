@@ -276,9 +276,13 @@ private struct ModelControlsConfirmationPill: View {
 
             HStack(spacing: 24) {
                 Button("Yes", action: onConfirm)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
                     .accessibilityLabel("Confirm \(title)")
 
                 Button("No", action: onDecline)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
                     .accessibilityLabel("Decline \(title)")
             }
             .font(.custom("Figtree-Bold", size: 12))

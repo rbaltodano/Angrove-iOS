@@ -618,7 +618,11 @@ struct CurrentConversationView: View {
             onSelectionStateChange: { canvasMode.hasCanvasHover = $0 },
             onInsightSelectionStateChange: { canvasMode.hasHoveredCanvasInsight = $0 },
             onSelectedCanvasItemCountChange: { canvasMode.canvasSelectedItemCount = $0 },
-            onPromotedInsightIDsChange: { canvasMode.promotedCanvasInsightIDs = $0 },
+            onPromotedInsightIDsChange: { promotedIDs in
+                canvasMode.promotedCanvasInsightIDs = promotedIDs
+                session.persistPromotedInsights(promotedIDs)
+                publishShellMenuState()
+            },
             savedConceptIDs: Set(collectedDefinitions.map(\.id)),
             onToggleSavedConcept: { concept in
                 setSavedConcept(concept, isSaved: !collectedDefinitions.contains { $0.id == concept.id })

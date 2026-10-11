@@ -86,6 +86,31 @@ enum GlobalInsightTreeUpdatePrompt {
     }
 }
 
+/// Resolves a completed background reconciliation against state that may have changed while
+/// NaturalLanguage was running. Tree edits win; newer library changes wait for another prompt.
+enum GlobalInsightTreeUpdateResolution {
+    struct Accepted {
+        let insights: [ConceptDefinition]
+        let acknowledgedLibraryIDs: Set<UUID>
+        let hasNewerLibraryChanges: Bool
+    }
+
+    static func accept(
+        existingTree: [ConceptDefinition],
+        currentTree: [ConceptDefinition],
+        incomingLibrary: [ConceptDefinition],
+        currentLibrary: [ConceptDefinition],
+        reconciledTree: [ConceptDefinition]
+    ) -> Accepted? {
+        guard currentTree == existingTree else { return nil }
+        return Accepted(
+            insights: reconciledTree,
+            acknowledgedLibraryIDs: Set(incomingLibrary.map(\.id)),
+            hasNewerLibraryChanges: currentLibrary != incomingLibrary
+        )
+    }
+}
+
 /// Which Insights the Global Insight Tree has promoted into their own Node Concept via Make Node.
 /// A per-conversation tree gets this for free through its own conversation snapshot
 /// (`InquiryConversation.promotedInsightIDs`); the Global tree has no equivalent owning snapshot,
