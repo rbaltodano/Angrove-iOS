@@ -280,6 +280,7 @@ struct ChatThreadColumn: View {
     @Environment(\.angroveModel) private var angroveModel
 
     @State private var responseViewLifetime = ConversationResponseViewLifetime()
+    @State private var pendingDockSubmission: Task<Void, Never>?
     @State private var animatedResponseIndices: Set<Int> = []
     @State private var composerReadyResponseIndices: Set<Int> = []
     @State private var pendingResponseIndices: Set<Int> = []
@@ -533,14 +534,16 @@ struct ChatThreadColumn: View {
         responseThinkingSummaryByIndex.removeValue(forKey: responseIndex)
         responseLiveThoughtByIndex.removeValue(forKey: responseIndex)
         responseGroundingSourcesByIndex.removeValue(forKey: responseIndex)
-        branchData.removeResponsePresentation(at: responseIndex)
+        var pendingBranch = branchData
+        pendingBranch.removeResponsePresentation(at: responseIndex)
+        if pendingBranch.activeChatBlocks.indices.contains(responseIndex) {
+            pendingBranch.activeChatBlocks[responseIndex] = .text("")
+        } else {
+            pendingBranch.activeChatBlocks.append(.text(""))
+        }
+        pendingBranch.showBottomInput = false
         withAnimation(.springRelaxed) {
-            if branchData.activeChatBlocks.indices.contains(responseIndex) {
-                branchData.activeChatBlocks[responseIndex] = .text("")
-            } else {
-                branchData.activeChatBlocks.append(.text(""))
-            }
-            branchData.showBottomInput = false
+            branchData = pendingBranch
         }
 
         // Persist the exact placeholder before the queue can finish on an unmounted page.
@@ -1796,11 +1799,21 @@ struct ChatThreadColumn: View {
             if focused { onTopInputFocused() }
         }
         // Dock arrow button fires externalSubmitTrigger → submit whichever input is active.
-        .onChange(of: externalSubmitTrigger) { _, _ in
-            if branchData.showBottomInput {
-                submitBottomQuestionIfNeeded()
-            } else {
-                submitTopQuestionIfNeeded()
+        .onChange(of: externalSubmitTrigger) { oldTrigger, newTrigger in
+            guard newTrigger > oldTrigger else { return }
+            let submittedBranchID = branchData.id
+            pendingDockSubmission?.cancel()
+            // .onChange runs during graph dispatch. Inserting the response here can make
+            // Observation flush a nested stack layout before that dispatch has finished.
+            pendingDockSubmission = Task { @MainActor in
+                await Task.yield()
+                guard !Task.isCancelled, responseViewLifetime.isVisible,
+                      branchData.id == submittedBranchID else { return }
+                if branchData.showBottomInput {
+                    submitBottomQuestionIfNeeded()
+                } else {
+                    submitTopQuestionIfNeeded()
+                }
             }
         }
         // Slash-command picker tapped → insert the command into the focused field.
@@ -1808,6 +1821,7 @@ struct ChatThreadColumn: View {
             insertCommandIntoActiveField()
         }
         .onDisappear {
+            pendingDockSubmission?.cancel()
             responseViewLifetime.isVisible = false
             // Navigating away removes the response renderer, so no reveal callback can arrive.
             // Release only the presentation gates; the shell-owned model task keeps running and

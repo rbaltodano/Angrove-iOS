@@ -149,7 +149,11 @@ final class ConversationSession {
                       updated.id == branchID,
                       let index = self.activeBranches.firstIndex(where: { $0.id == branchID })
                 else { return }
-                self.activeBranches[index] = updated
+                // Publish a complete snapshot rather than yielding the observed array's
+                // mutable buffer while SwiftUI can synchronously re-enter layout (iOS 27).
+                var branches = self.activeBranches
+                branches[index] = updated
+                self.activeBranches = branches
             }
         )
     }

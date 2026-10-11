@@ -1220,3 +1220,17 @@ PRUDENCE → PRUDENCE → prudence, GPU/GPU, same stock package/hash. Load 7.681
 **Angrove – Vision** before updating it. The normal interface was then launched without probe
 or vision flags for the owner's Photos test. Phone/UI timing claims remain limited to these
 synthetic checks; the prior 76 focused tests passed and the final phone build passed.
+
+### Owner Photos submit crash — October 11, 2026
+
+Ry crash `Angrove-iOS-2026-10-11-172555.ips` is an EXC_BAD_ACCESS in SwiftUICore stack layout,
+on the main thread during Observation's synchronous flush from `activeBranches.modify`.
+Caller: branch binding setter → ChatThreadColumn response-placeholder insertion → dock trigger
+onChange. It precedes native model generation; no LiteRT frame occurs on the crashed thread.
+Submission now yields beyond graph dispatch, cancels pending submission on departure, checks
+branch identity, and commits its placeholder atomically. The branch binding publishes a copied
+array snapshot rather than yielding the observed array's mutable buffer.
+Mounted real ChatThreadColumn regression tests submit a photo-bearing question through the dock
+trigger in light/dark small-phone layouts, verifying preserved attachments, one queued response,
+and its placeholder. Focused conversation tests passed; raw crash/tests are ignored evidence
+`C12-submit-fix-1`. Physical confirmation after reinstall remains required.

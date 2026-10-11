@@ -1,11 +1,85 @@
 import Foundation
+import Observation
+import UIKit
 import SwiftUI
 import Testing
 @testable import Angrove_iOS
 
 @MainActor
-@Suite("Conversation handoff and session")
+@Suite("Conversation handoff and session", .serialized)
 struct ConversationCleanupTests {
+    @Observable
+    final class SubmissionState {
+        let session = ConversationSession(loadSnapshot: { nil }, saveSnapshot: { _ in })
+        let queue = ModelTaskQueue()
+        var trigger = 0
+        var uploads: [UploadedFile] = []
+        var started = 0
+    }
+
+    private struct SubmissionPage: View {
+        let state: SubmissionState
+
+        var body: some View {
+            @Bindable var state = state
+            let branch = state.session.activeBranches[0]
+            ChatThreadColumn(
+                branchData: state.session.binding(for: branch),
+                branchAnchor: branch.id.uuidString,
+                targetSpawnY: .constant(0), uploadedFiles: $state.uploads,
+                showsPendingUploads: true, quotedConcept: nil,
+                targetSpawnResponseIndex: .constant(nil),
+                externalSubmitTrigger: state.trigger,
+                conversationTitlePolicy: .manual,
+                modelTasks: state.queue,
+                onSpawnYChange: { _, _ in }, onDeleteBranch: {},
+                onConversationTitleChange: { _ in }, onBottomInputFocused: {},
+                onQuoteHandled: {}, onResponseStarted: { state.started += 1 }
+            )
+            .environment(\.angroveModel, MockAngroveModel())
+        }
+    }
+
+    @Test("Dock submission publishes an image question and placeholder without nested layout",
+          arguments: [UIUserInterfaceStyle.light, .dark])
+    func mountedPhotoQuestionSubmission(style: UIUserInterfaceStyle) async throws {
+        let state = SubmissionState()
+        state.queue.setApplicationActive(false) // Keep the response queued while inspecting UI state.
+        var branch = state.session.activeBranches[0]
+        branch.topQuestionText = "What is in this image?"
+        state.session.activate(InquiryConversation(branches: [branch]))
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 16, height: 16)).image { context in
+            UIColor.red.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 16, height: 16))
+        }
+        state.uploads = [UploadedFile(name: "Photo", imageData: image.pngData(), rotationDegrees: 0)]
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 320, height: 800))
+        if let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first {
+            window.windowScene = scene
+        }
+        window.overrideUserInterfaceStyle = style
+        window.rootViewController = UIHostingController(rootView: SubmissionPage(state: state))
+        window.makeKeyAndVisible()
+        defer {
+            state.queue.cancelTasks { _ in true }
+            window.isHidden = true
+            window.rootViewController = nil
+        }
+        try await Task.sleep(for: .milliseconds(300))
+        state.trigger += 1
+        try await Task.sleep(for: .milliseconds(500))
+        window.layoutIfNeeded()
+        let submitted = try #require(state.session.activeBranches.first)
+        #expect(submitted.topQuestionSubmitted)
+        #expect(submitted.topQuestionText == "What is in this image?")
+        #expect(submitted.topQuestionUploads.count == 1)
+        #expect(submitted.activeChatBlocks == [.text("")])
+        #expect(!submitted.showBottomInput)
+        #expect(state.uploads.isEmpty)
+        #expect(state.started == 1)
+        #expect(state.queue.pendingCount == 1)
+    }
+
     @Test("Late reveal and editor callbacks cannot copy an answered thread into a new conversation")
     func stalePageBindingCannotOverwriteNewConversation() {
         var originBranch = ChatBranch(startingConcept: nil)
