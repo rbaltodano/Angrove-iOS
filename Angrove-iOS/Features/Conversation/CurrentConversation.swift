@@ -278,11 +278,10 @@ struct CurrentConversationView: View {
 
         // A corpus-scope abstention contains no claim to organize. In particular, do not let a
         // later "take a guess" follow-up turn turn missing evidence into a durable tree subject.
-        // General-knowledge conversation is intentionally transient too: it should remain a
-        // normal exchange, without turning a model-only answer into a durable subject.
+        // Model-only answers remain transient; corpus- and image-supported exchanges can seed.
         let plainResponse = InlineInsightMarkup.plainText(from: responseText)
         let isTreeCandidate = !LiteRTAngroveModel.isCorpusScopeAbstention(plainResponse)
-            && branch.responsePresentation(at: responseIndex)?.evidenceBasis != .generalKnowledge
+            && (branch.responsePresentation(at: responseIndex)?.evidenceBasis?.canSeedInsightTree ?? true)
 
         enqueueLocalInsightTreeSeedingTask(
             conversationID: conversationID,

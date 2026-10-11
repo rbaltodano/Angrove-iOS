@@ -471,13 +471,28 @@ enum ModelResponseUpdate {
 /// recovery paths that do not report a basis.
 nonisolated enum ResponseEvidenceBasis: String, Codable, Equatable {
     case corpusGrounded
+    case imageGrounded
     case generalKnowledge
     case sourceRequired
+
+    static func forResponse(hasCorpusReferences: Bool, hasImageInput: Bool) -> Self {
+        if hasCorpusReferences { return .corpusGrounded }
+        return hasImageInput ? .imageGrounded : .generalKnowledge
+    }
+
+    var canSeedInsightTree: Bool {
+        switch self {
+        case .corpusGrounded, .imageGrounded: true
+        case .generalKnowledge, .sourceRequired: false
+        }
+    }
 
     var disclosureTitle: String {
         switch self {
         case .corpusGrounded:
             "Corpus Grounded"
+        case .imageGrounded:
+            "Image Grounded"
         case .generalKnowledge:
             "General Knowledge"
         case .sourceRequired:
@@ -489,6 +504,8 @@ nonisolated enum ResponseEvidenceBasis: String, Codable, Equatable {
         switch self {
         case .corpusGrounded:
             "This answer uses passages retrieved from the texts on this device."
+        case .imageGrounded:
+            "This answer uses the uploaded images and the model’s general knowledge."
         case .generalKnowledge:
             "This answer uses the model’s general knowledge because no relevant passage was retrieved."
         case .sourceRequired:

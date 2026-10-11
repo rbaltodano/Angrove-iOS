@@ -144,10 +144,38 @@ struct LiteRTProductionRuntimeTests {
     func responseEvidenceBasisDisclosureTitles() {
         #expect(ResponseEvidenceBasis.generalKnowledge.disclosureTitle == "General Knowledge")
         #expect(ResponseEvidenceBasis.corpusGrounded.disclosureTitle == "Corpus Grounded")
+        #expect(ResponseEvidenceBasis.imageGrounded.disclosureTitle == "Image Grounded")
         #expect(ResponseEvidenceBasis.sourceRequired.disclosureTitle == "Source Required")
         #expect(ResponseEvidenceBasis.generalKnowledge.disclosureDescription.contains("general knowledge"))
         #expect(ResponseEvidenceBasis.corpusGrounded.disclosureDescription.contains("passages"))
+        #expect(ResponseEvidenceBasis.imageGrounded.disclosureDescription.contains("uploaded images"))
         #expect(ResponseEvidenceBasis.sourceRequired.disclosureDescription.contains("reliable passage"))
+    }
+
+    @Test("Photo answers without corpus passages remain eligible to seed the tree")
+    func imageEvidenceAllowsTreeSeeding() throws {
+        let basis = ResponseEvidenceBasis.forResponse(
+            hasCorpusReferences: false, hasImageInput: true
+        )
+        #expect(basis == .imageGrounded)
+        #expect(basis.canSeedInsightTree)
+        #expect(ResponseEvidenceBasis.forResponse(
+            hasCorpusReferences: true, hasImageInput: true
+        ) == .corpusGrounded)
+        let modelOnly = ResponseEvidenceBasis.forResponse(
+            hasCorpusReferences: false, hasImageInput: false
+        )
+        #expect(modelOnly == .generalKnowledge)
+        #expect(!modelOnly.canSeedInsightTree)
+        #expect(!ResponseEvidenceBasis.sourceRequired.canSeedInsightTree)
+
+        var branch = ChatBranch(startingConcept: nil)
+        branch.setResponsePresentation(ResponsePresentationMetadata(
+            responseIndex: 0, showsThinking: false, thinkingSummary: [], evidenceBasis: basis
+        ))
+        let reopened = try JSONDecoder().decode(ChatBranch.self, from: JSONEncoder().encode(branch))
+        #expect(reopened.responsePresentation(at: 0)?.evidenceBasis == .imageGrounded)
+        #expect(reopened.responsePresentation(at: 0)?.evidenceBasis?.canSeedInsightTree == true)
     }
 
     @Test("Evidence-required requests abstain when no passage is retrieved")

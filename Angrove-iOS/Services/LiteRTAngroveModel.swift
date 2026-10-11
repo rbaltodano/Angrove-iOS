@@ -350,9 +350,6 @@ struct LiteRTAngroveModel: AngroveModel {
             let responseReferences = requestedDefinitionTerm.map {
                 Self.definitionEvidence(for: $0, in: groundingReferences)
             } ?? groundingReferences
-            let evidenceBasis: ResponseEvidenceBasis = responseReferences.isEmpty
-                ? .generalKnowledge
-                : .corpusGrounded
             // Some passage always comes back, so "a passage was retrieved" is not evidence. Asked
             // which pope canonized Aquinas, retrieval returned notes on a canon of Constantinople,
             // and the model answered, labeled corpus-grounded, that no single pope had (seal-D5).
@@ -364,6 +361,12 @@ struct LiteRTAngroveModel: AngroveModel {
                     return false
                 }
             }
+            // Uploaded images supply evidence even when retrieval finds no corpus passage.
+            // Preserve that basis so a visual exchange remains eligible for a tree subject.
+            let evidenceBasis = ResponseEvidenceBasis.forResponse(
+                hasCorpusReferences: !responseReferences.isEmpty,
+                hasImageInput: hasImageInput
+            )
             guard hasEvidence || !Self.requiresCorpusEvidence(
                 latestQuestion, hasImageInput: hasImageInput
             ) else {
