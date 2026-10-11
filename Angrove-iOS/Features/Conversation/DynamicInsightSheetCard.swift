@@ -45,8 +45,7 @@ struct DynamicInsightSheetCard: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AngroveTheme.Colors.canvasSecondary)
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .background(AngroveTheme.Colors.canvasSecondary, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .stroke(AngroveTheme.Colors.brownBorder, lineWidth: 1)
@@ -73,7 +72,8 @@ struct DynamicInsightSheetCard: View {
             ResponseButtons(
                 isSaved: isSaved,
                 canQuote: true,
-                canFork: true,
+                canFork: false,
+                speechText: concept.map { CardSpeech.text(for: $0) },
                 tintColor: AngroveTheme.Colors.placeholderText,
                 saveTintColor: AngroveTheme.Colors.accentRed,
                 onSave: onToggleSaved,
@@ -98,6 +98,7 @@ struct DynamicInsightSheetCard: View {
                     isSaved: isClipped,
                     canQuote: true,
                     canFork: false,
+                    speechText: CardSpeech.text(for: concept),
                     quoteAccessibilityLabel: "Ask about passage",
                     tintColor: AngroveTheme.Colors.placeholderText,
                     saveTintColor: AngroveTheme.Colors.accentRed,
@@ -106,12 +107,11 @@ struct DynamicInsightSheetCard: View {
                 )
             }
             VStack(alignment: .leading, spacing: 8) {
-                Text("“\(concept.semanticDefinition)”")
-                    .paragraphFont()
-                    .lineSpacing(FlowLayout.rowSpacing)
-                    .italic()
-                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                    .fixedSize(horizontal: false, vertical: true)
+                CardSpeechText(
+                    text: concept.semanticDefinition,
+                    speechText: CardSpeech.text(for: concept),
+                    isItalic: true, isQuoted: true
+                )
 
                 if let attribution = concept.libraryAttribution {
                     Text(attribution)
@@ -129,17 +129,43 @@ struct DynamicInsightSheetCard: View {
 
 struct InsightDefinitionsContent: View {
     let definitions: [InsightDefinition]
+    var speechExpansionRequest = 0
+    var speechCollapseRequest = 0
+    var automaticallyCollapsesAfterSpeech = true
+    var onSpeechExpansionComplete: (() -> Void)? = nil
+
+    @State private var completedSpeechExpansions: [Int: Set<Int>] = [:]
+    @State private var completedRequests: Set<Int> = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            ForEach(definitions) { definition in
+            ForEach(Array(definitions.enumerated()), id: \.element.id) { index, definition in
                 InsightDefinitionEntry(
                     context: definition.context,
                     meaning: definition.meaning,
-                    showsDistinction: definitions.count > 1
+                    showsDistinction: definitions.count > 1,
+                    speechText: CardSpeech.text(for: definitions),
+                    wordStart: CardSpeech.wordStart(for: index, in: definitions),
+                    speechExpansionRequest: speechExpansionRequest,
+                    speechCollapseRequest: speechCollapseRequest,
+                    automaticallyCollapsesAfterSpeech: automaticallyCollapsesAfterSpeech,
+                    onSpeechExpansionComplete: {
+                        reportSpeechExpansionComplete(at: index, request: speechExpansionRequest)
+                    }
                 )
             }
         }
+    }
+
+    private func reportSpeechExpansionComplete(at index: Int, request: Int) {
+        guard request > 0, request == speechExpansionRequest else { return }
+        guard !completedRequests.contains(request) else { return }
+        var completedIndexes = completedSpeechExpansions[request] ?? []
+        completedIndexes.insert(index)
+        completedSpeechExpansions[request] = completedIndexes
+        guard completedIndexes.count == definitions.count else { return }
+        completedRequests.insert(request)
+        onSpeechExpansionComplete?()
     }
 }
 
@@ -147,22 +173,32 @@ private struct InsightDefinitionEntry: View {
     let context: String
     let meaning: String
     let showsDistinction: Bool
+    let speechText: String
+    let wordStart: Int
+    let speechExpansionRequest: Int
+    let speechCollapseRequest: Int
+    let automaticallyCollapsesAfterSpeech: Bool
+    let onSpeechExpansionComplete: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if showsDistinction && !context.isEmpty {
-                Text(
-                    "In regards to \(context)",
-                    comment: "Label describing the subject that gives an Insight definition its meaning."
+                CardSpeechText(
+                    text: "In regards to \(context)", speechText: speechText,
+                    wordStart: wordStart, color: AngroveTheme.Colors.headingText,
+                    isItalic: true, isBold: true
                 )
-                .paragraphFont()
-                .bold()
-                .italic()
-                .foregroundColor(AngroveTheme.Colors.headingText)
-                .fixedSize(horizontal: false, vertical: true)
             }
 
-            TruncatableParagraph(text: meaning)
+            TruncatableParagraph(
+                text: meaning, speechText: speechText,
+                speechWordStart: wordStart + (showsDistinction && !context.isEmpty
+                    ? CardSpeech.words(in: "In regards to \(context)").count : 0),
+                speechExpansionRequest: speechExpansionRequest,
+                speechCollapseRequest: speechCollapseRequest,
+                automaticallyCollapsesAfterSpeech: automaticallyCollapsesAfterSpeech,
+                onSpeechExpansionComplete: onSpeechExpansionComplete
+            )
         }
     }
 }

@@ -142,12 +142,19 @@ struct StudyToolCard: View {
 
 /// Docked cards, like the Study floor ring, grow 5% while a finger is on them.
 private struct GrowsWhileTouched: ViewModifier {
+    var speechText: String?
     @State private var isTouched = false
+    private var speech: ResponseSpeechPlayer { .shared }
+
+    private var isReadingCard: Bool {
+        guard let speechText else { return false }
+        return speech.activeText == speechText && speech.phase != .idle
+    }
 
     func body(content: Content) -> some View {
         content
-            .scaleEffect(isTouched ? 1.05 : 1)
-            .animation(.easeInOut(duration: 0.25), value: isTouched)
+            .scaleEffect(isTouched && !isReadingCard ? 1.05 : 1)
+            .animation(.easeInOut(duration: 0.25), value: isTouched && !isReadingCard)
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in if !isTouched { isTouched = true } }
@@ -157,8 +164,8 @@ private struct GrowsWhileTouched: ViewModifier {
 }
 
 extension View {
-    func growsWhileTouched() -> some View {
-        modifier(GrowsWhileTouched())
+    func growsWhileTouched(whileReading speechText: String? = nil) -> some View {
+        modifier(GrowsWhileTouched(speechText: speechText))
     }
 }
 

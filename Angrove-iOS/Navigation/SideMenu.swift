@@ -89,6 +89,7 @@ struct AngroveSideMenu: View, Equatable {
                                 icon: AppPage.home.sidebarIconName,
                                 title: "Home",
                                 isActive: activePage == .home,
+                                playbackPage: .home,
                                 isPresented: isPresented,
                                 delay: 0.20,
                                 action: onOpenHome
@@ -97,7 +98,7 @@ struct AngroveSideMenu: View, Equatable {
                                 icon: AppPage.library.sidebarIconName,
                                 title: "Library",
                                 isActive: activePage == .library,
-                                showsLibraryPlayback: true,
+                                playbackPage: .library,
                                 isPresented: isPresented,
                                 delay: 0.225,
                                 action: onOpenLibrary
@@ -107,6 +108,7 @@ struct AngroveSideMenu: View, Equatable {
                                 title: "Insights",
                                 badge: newInsightsCount,
                                 isActive: activePage == .insights,
+                                playbackPage: .insights,
                                 isPresented: isPresented,
                                 delay: 0.25,
                                 action: onOpenInsights
@@ -115,6 +117,7 @@ struct AngroveSideMenu: View, Equatable {
                                 icon: AppPage.openConversations.sidebarIconName,
                                 title: "Conversations",
                                 isActive: activePage == .openConversations,
+                                playbackPage: .openConversations,
                                 isPresented: isPresented,
                                 delay: 0.30,
                                 action: onOpenConversations
@@ -123,6 +126,7 @@ struct AngroveSideMenu: View, Equatable {
                                 icon: AppPage.studyTopics.sidebarIconName,
                                 title: "Study Topics",
                                 isActive: activePage == .studyTopics,
+                                playbackPage: .studyTopics,
                                 isPresented: isPresented,
                                 delay: 0.35,
                                 action: onOpenStudyTopics

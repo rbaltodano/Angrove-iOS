@@ -39,6 +39,8 @@ final class ResponseSpeechPlayer {
     private(set) var activeConversationID: UUID?
     /// The Library work being read, if the reading is a page of one.
     private(set) var activeLibraryWorkID: String?
+    /// Page that owns the current reading, for the sidebar playback marker.
+    private(set) var activeSidebarPage: AppPage?
     /// The displayed words of this reading, in order, for the Reading card's line of text.
     private(set) var readingWords: [SpokenUnit.Word] = []
     /// The title of the reading's conversation.
@@ -129,6 +131,7 @@ final class ResponseSpeechPlayer {
     @ObservationIgnored private var scrubOriginFrame = 0
     @ObservationIgnored private var pendingConversationID: UUID?
     @ObservationIgnored private var pendingLibraryWorkID: String?
+    @ObservationIgnored private var pendingSidebarPage: AppPage?
     @ObservationIgnored private var pendingLibraryIndex: LibraryListeningIndex?
     @ObservationIgnored private var libraryIndex: LibraryListeningIndex?
     @ObservationIgnored private var activeLibraryTitle = ""
@@ -176,6 +179,7 @@ final class ResponseSpeechPlayer {
             nowPlayingTitle = source.title
             pendingConversationID = source.conversationID
             pendingLibraryWorkID = source.libraryWorkID
+            pendingSidebarPage = source.page
             pendingLibraryIndex = source.libraryIndex
             speak(text, units: units.isEmpty ? [SpokenUnit(unhighlightedText: text)] : units)
         }
@@ -194,6 +198,7 @@ final class ResponseSpeechPlayer {
         nowPlayingTitle = source.title
         pendingConversationID = source.conversationID
         pendingLibraryWorkID = source.libraryWorkID
+        pendingSidebarPage = source.page
         pendingLibraryIndex = source.libraryIndex
         speak(text, units: remaining, firstWord: index)
     }
@@ -225,6 +230,7 @@ final class ResponseSpeechPlayer {
         firstWord = nil
         activeConversationID = nil
         activeLibraryWorkID = nil
+        activeSidebarPage = nil
         libraryIndex = nil
         activeLibraryTitle = ""
         readingWords = []
@@ -405,6 +411,7 @@ final class ResponseSpeechPlayer {
         activeText = text
         activeConversationID = pendingConversationID
         activeLibraryWorkID = pendingLibraryWorkID
+        activeSidebarPage = pendingSidebarPage
         libraryIndex = pendingLibraryIndex
         activeLibraryTitle = nowPlayingTitle
         readingWords = units.flatMap(\.words).filter(Self.isDisplayedInReader)

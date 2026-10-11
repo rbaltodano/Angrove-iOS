@@ -20,6 +20,7 @@ struct ContentView: View {
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     @State private var isStartupReady = false
+    @State private var isClearingAllAppData = false
     @State private var questionText: String = ""
     @State private var isAtBottom: Bool = false
     @FocusState private var isKeyboardVisible: Bool
@@ -353,7 +354,7 @@ struct ContentView: View {
 
         readCompletedResponseAloudIfNeeded(
             response,
-            source: SpeechSource(title: conversationTitle, conversationID: conversationID)
+            source: SpeechSource(title: conversationTitle, conversationID: conversationID, page: .conversation)
         )
 
         modelCompletionNotifications.post(
@@ -846,7 +847,10 @@ struct ContentView: View {
                     ConversationInsightMembershipStore.add(insightID: concept.id, to: conversationID)
                 }
             }
-            .onChange(of: collectedDefinitions) { _, newValue in handleCollectedDefinitionsChange(newValue) }
+            .onChange(of: collectedDefinitions) { _, newValue in
+                guard !isClearingAllAppData else { return }
+                handleCollectedDefinitionsChange(newValue)
+            }
     }
 
     private var shellBody: some View {
@@ -865,6 +869,7 @@ struct ContentView: View {
                         // loop on device. Model work itself is owned by the shell-level queue.
                         if displayedPage == .conversation {
                             conversationView
+                            .environment(\.speechSource, SpeechSource(page: .conversation))
                             .environment(\.isConversationPageDeparting, activePage != .conversation)
                             .transaction { transaction in
                                 if activePage != .conversation {
@@ -984,6 +989,9 @@ struct ContentView: View {
                                     onOpenMenu: presentGlobalSideMenu,
                                     onDetailVisibilityChange: { isSettingsDetailVisible = $0 },
                                     onClearInsightTree: clearInsightTree,
+                                    onDeleteAllConversations: deleteAllConversations,
+                                    onDeleteAllClippedPassages: { clippedPassages.removeAll() },
+                                    onDeleteAllAppData: deleteAllAppData,
                                     opensUserGuide: $opensSettingsUserGuide
                                 )
                             case .insights:
@@ -1055,6 +1063,7 @@ struct ContentView: View {
                                 )
                             }
                         }
+                        .environment(\.speechSource, SpeechSource(page: displayedPage))
                         .opacity(displayedPage == .conversation ? 0 : 1)
                         .allowsHitTesting(displayedPage != .conversation)
                         .accessibilityHidden(displayedPage == .conversation)
@@ -1280,9 +1289,11 @@ struct ContentView: View {
         }
         .onChange(of: sideMenuConversations) { _, _ in handleSideMenuConversationsChange() }
         .onChange(of: collectedDefinitions) { _, _ in
+            guard !isClearingAllAppData else { return }
             scheduleDailyQuestionRefreshIfNeeded()
         }
         .onChange(of: clippedPassages) { _, passages in
+            guard !isClearingAllAppData else { return }
             ClippedPassageStore.save(passages)
         }
     }
@@ -1398,6 +1409,11 @@ struct ContentView: View {
     private func scheduleDailyQuestionRefreshIfNeeded(
         minimumDelay: TimeInterval = 15
     ) {
+        guard !isClearingAllAppData else {
+            dailyQuestionRefreshTask?.cancel()
+            dailyQuestionRefreshTask = nil
+            return
+        }
         guard activePage != .conversation else {
             dailyQuestionRefreshTask?.cancel()
             dailyQuestionRefreshTask = nil
@@ -1431,6 +1447,7 @@ struct ContentView: View {
                 return
             }
             guard !Task.isCancelled,
+                  !isClearingAllAppData,
                   activePage != .conversation,
                   scenePhase == .active,
                   !modelTasks.isBusy else {
@@ -1630,6 +1647,63 @@ struct ContentView: View {
         InsightTreeReset.clearPersistedData()
     }
 
+    /// Removes every saved conversation and its per-conversation supporting records while
+    /// preserving the global Insight Library, clipped passages, and Study Topics.
+    private func deleteAllConversations() throws {
+        try InquiryPersistenceStore.deleteAllConversations()
+        let conversationIDs = Set(sideMenuConversations.map(\.id))
+        modelTasks.cancelTasks { task in
+            guard let conversationID = task.conversationID else { return false }
+            return conversationIDs.contains(conversationID)
+        }
+        for id in conversationIDs {
+            ConversationInsightMembershipStore.removeConversation(id)
+            LocalInsightTreeSeedStore.removeConversation(id)
+            GlossedTermStore.removeConversation(id)
+            FlaggedQuoteStore.removeConversation(id)
+        }
+
+        sideMenuConversations = []
+        sideMenuActiveConversationID = nil
+        sideMenuCurrentTitle = "New Conversation"
+    }
+
+    @MainActor
+    private func deleteAllAppData() async throws {
+        isClearingAllAppData = true
+        dailyQuestionRefreshTask?.cancel()
+        dailyQuestionRefreshTask = nil
+        modelTasks.cancelTasks { _ in true }
+        modelTasks.clearCompletedTasks()
+        ResponseSpeechPlayer.shared.stop()
+        ResponseSpeechPlayer.shared.setReadingCardCollapsed(false)
+        LibraryListeningStore.shared.clear()
+        StudyTopicStore.clearCache()
+
+        sideMenuConversations = []
+        sideMenuActiveConversationID = nil
+        sideMenuCurrentTitle = "New Conversation"
+        collectedDefinitions = []
+        globalTreeInsights = []
+        globalTreeAcknowledgedLibraryIDs = nil
+        globalInsightPromotedIDs = []
+        clippedPassages = []
+        questionOfTheDay = nil
+        homeLooseThread = nil
+        homeTodayInHistory = nil
+        homeGlossedTerm = nil
+        homeYourQuote = nil
+        libraryNavigationRequest = nil
+        globalInsightQuoteTarget = nil
+        globalInsightExistingConversationTarget = nil
+        libraryExistingConversationTarget = nil
+        isGlobalTreeUpdatePromptVisible = false
+        isGlobalTreeReconciling = false
+        suppressGlobalTreePromptUntilExternalModelCompletion = false
+
+        try await AppDataReset.clear()
+    }
+
     private func handleCollectedDefinitionsChange(_ definitions: [ConceptDefinition]) {
         InsightLibraryStore.save(definitions)
         guard activePage == .insights,
@@ -1639,6 +1713,7 @@ struct ContentView: View {
 
     private func handleSideMenuConversationsChange() {
         sideMenuRenderVersion &+= 1
+        guard !isClearingAllAppData else { return }
         scheduleDailyQuestionRefreshIfNeeded()
     }
 

@@ -240,6 +240,8 @@ struct ResponseButtons: View {
     var canQuote: Bool = false
     var canFork: Bool = true
     var copyText: String? = nil
+    /// Full card content to read, independent of copying or visible truncation.
+    var speechText: String? = nil
     var quoteAccessibilityLabel: String = "Quote"
     /// When set, overrides the default `responseButton` color for all icons.
     var tintColor: Color? = nil
@@ -248,7 +250,11 @@ struct ResponseButtons: View {
     var onSave: (() -> Void)? = nil
     var onCopy: (() -> Void)? = nil
     var onQuote: (() -> Void)? = nil
+    var onSpeak: (() -> Void)? = nil
     var onFork: (() -> Void)? = nil
+
+    @Environment(\.speechSource) private var speechSource
+    private var speech: ResponseSpeechPlayer { .shared }
 
     @State private var visibleActionCount = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -274,6 +280,10 @@ struct ResponseButtons: View {
             items.append(.fork)
         }
 
+        if onSpeak != nil || speechText.map({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) == true {
+            items.append(.speak)
+        }
+
         return items
     }
 
@@ -291,11 +301,11 @@ struct ResponseButtons: View {
                     animates: !reduceMotion
                 ))
                 .frame(width: 16, height: 16)
-                .accessibilityLabel(action == .quote ? quoteAccessibilityLabel : (action == .save(isSaved: true) ? "Remove bookmark" : "Bookmark"))
+                .accessibilityLabel(accessibilityLabel(for: action))
             }
         }
         .onAppear(perform: revealButtons)
-        .onChange(of: actions.count) { oldValue, newValue in
+        .onChange(of: actions.map(\.systemName)) { _, _ in
             revealButtons()
         }
     }
@@ -303,13 +313,36 @@ struct ResponseButtons: View {
     private func buttonIcon(for action: ResponseButtonAction) -> some View {
         Image(systemName: action.systemName)
             .font(.system(size: 16, weight: action.weight))
+            .symbolEffect(.variableColor.iterative, isActive: action == .speak && isSpeaking && !reduceMotion)
             .rotationEffect(action == .fork ? .degrees(90) : .degrees(0))
             .foregroundColor(iconColor(for: action))
             .frame(width: 16, height: 16)
     }
 
+    private var isSpeaking: Bool {
+        guard let speechText else { return false }
+        return speech.phase(for: speechText) != .idle
+    }
+
+    private func accessibilityLabel(for action: ResponseButtonAction) -> String {
+        switch action {
+        case .save(let isSaved):
+            return isSaved ? String(localized: "Remove bookmark") : String(localized: "Bookmark")
+        case .copy(let isCopied):
+            return isCopied ? String(localized: "Copied") : String(localized: "Copy")
+        case .quote:
+            return quoteAccessibilityLabel
+        case .fork:
+            return String(localized: "Branch")
+        case .speak:
+            return isSpeaking ? String(localized: "Stop reading") : String(localized: "Read card aloud")
+        }
+    }
+
     private func iconColor(for action: ResponseButtonAction) -> Color {
         switch action {
+        case .speak where isSpeaking:
+            return AngroveTheme.Colors.lightGreen
         case .save:
             return saveTintColor ?? tintColor ?? action.foregroundColor
         default:
@@ -338,6 +371,12 @@ struct ResponseButtons: View {
             onQuote?()
         case .fork:
             onFork?()
+        case .speak:
+            if let onSpeak {
+                onSpeak()
+            } else if let speechText {
+                speech.toggle(speechText, units: CardSpeech.units(for: speechText), source: speechSource)
+            }
         }
     }
 
@@ -364,6 +403,7 @@ private enum ResponseButtonAction: Equatable {
     case copy(isCopied: Bool)
     case quote
     case fork
+    case speak
 
     var systemName: String {
         switch self {
@@ -375,6 +415,8 @@ private enum ResponseButtonAction: Equatable {
             return "arrow.turn.down.right"
         case .fork:
             return "arrow.triangle.branch"
+        case .speak:
+            return "speaker.wave.2"
         }
     }
 

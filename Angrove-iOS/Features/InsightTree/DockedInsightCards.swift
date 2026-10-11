@@ -22,6 +22,14 @@ struct DockedInsightTreeCard: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var textRevealed = false
+    @State private var speechExpansionRequest = 0
+    @State private var speechCollapseRequest = 0
+    @State private var isPreparingSpeech = false
+    @State private var hidesActionsForSpeech = false
+
+    @Environment(\.speechSource) private var speechSource
+    private var speech: ResponseSpeechPlayer { .shared }
+    private var isReadingInsight: Bool { speech.phase(for: insight.definition) != .idle }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -35,32 +43,44 @@ struct DockedInsightTreeCard: View {
 
                 Spacer()
 
-                ResponseButtons(
-                    isSaved: isSaved,
-                    canCopy: true,
-                    canFork: true,
-                    copyText: insight.definition,
-                    tintColor: AngroveTheme.Colors.placeholderText,
-                    saveTintColor: isSaved ? AngroveTheme.Colors.accentRed : nil,
-                    onSave: onToggleSaved,
-                    onFork: { onFork?() }
-                )
+                Group {
+                    ResponseButtons(
+                        isSaved: isSaved,
+                        canCopy: true,
+                        canFork: false,
+                        copyText: definitionText,
+                        speechText: definitionText,
+                        tintColor: AngroveTheme.Colors.placeholderText,
+                        saveTintColor: isSaved ? AngroveTheme.Colors.accentRed : nil,
+                        onSave: onToggleSaved,
+                        onSpeak: requestSpeechPlayback,
+                        onFork: { onFork?() }
+                    )
 
-                if let onRemove {
-                    Button(action: onRemove) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(AngroveTheme.Colors.placeholderText)
+                    if let onRemove {
+                        Button(action: onRemove) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundColor(AngroveTheme.Colors.placeholderText)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Remove from conversation")
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Remove from conversation")
                 }
+                .opacity(hidesActionsForSpeech ? 0 : 1)
+                .allowsHitTesting(!hidesActionsForSpeech)
+                .accessibilityHidden(hidesActionsForSpeech)
+                .animation(.easeOut(duration: 0.2), value: hidesActionsForSpeech)
             }
 
-            let definitionText = insight.definition.isEmpty || insight.definition.lowercased() == insight.title.lowercased()
-                ? "This is an example of what an Insight Card will look like, the definition as relates to subject will be here"
-                : insight.definition
-            TruncatableParagraph(text: definitionText)
+            TruncatableParagraph(
+                text: definitionText,
+                speechText: definitionText,
+                speechExpansionRequest: speechExpansionRequest,
+                speechCollapseRequest: speechCollapseRequest,
+                automaticallyCollapsesAfterSpeech: false,
+                onSpeechExpansionComplete: startSpeechPlayback
+            )
                 .modifier(GlideFadeModifier(isActive: animateIn && !textRevealed))
 
             // Insight links grown one-by-one as Make Node reveals each child (on its haptic).
@@ -82,27 +102,61 @@ struct DockedInsightTreeCard: View {
                 textRevealed = true
             }
         }
+        .onChange(of: isReadingInsight) { _, isReading in
+            guard !isReading, !isPreparingSpeech, hidesActionsForSpeech else { return }
+            withAnimation(.easeOut(duration: 0.2)) { hidesActionsForSpeech = false }
+            // Let the action row and the paragraph's ellipsis return before folding the text.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
+                speechCollapseRequest += 1
+            }
+        }
         // Trim the bottom: the definition's .lineSpacing(12) leaves trailing space below the
         // last line, so a full 32 there reads as noticeably more space than the 32 up top.
-        .dockedCardChrome(bottomPadding: 20)
+        .dockedCardChrome(bottomPadding: 28, clipsContent: false)
+    }
+
+    private func requestSpeechPlayback() {
+        guard !isPreparingSpeech, !isReadingInsight else { return }
+        isPreparingSpeech = true
+        speechExpansionRequest += 1
+    }
+
+    private func startSpeechPlayback() {
+        guard isPreparingSpeech else { return }
+        hidesActionsForSpeech = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+            guard isPreparingSpeech else { return }
+            speech.toggle(
+                definitionText,
+                units: CardSpeech.units(for: definitionText),
+                source: speechSource
+            )
+            isPreparingSpeech = false
+        }
+    }
+
+    private var definitionText: String {
+        insight.definition.isEmpty || insight.definition.lowercased() == insight.title.lowercased()
+            ? "This is an example of what an Insight Card will look like, the definition as relates to subject will be here"
+            : insight.definition
     }
 }
 
 extension View {
-    /// The docked Insight card's chrome: padding, full width, fill, 36 pt continuous corners,
+    /// The docked Insight card's chrome: padding, full width, fill, 28 pt continuous corners,
     /// hairline border, and soft shadow. Shared so other docked cards match it exactly.
     /// `clipsContent` false lets content move past the card's edge (the Study tool card's
     /// sliding copy); the card itself looks the same.
     func dockedCardChrome(bottomPadding: CGFloat, clipsContent: Bool = true) -> some View {
         self
-            .padding(.horizontal, 32)
-            .padding(.top, 32)
+            .padding(.horizontal, 28)
+            .padding(.top, 28)
             .padding(.bottom, bottomPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(insightTreeInsightColor, in: RoundedRectangle(cornerRadius: 36, style: .continuous))
+            .background(insightTreeInsightColor, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
             .modifier(DockedCardClip(isEnabled: clipsContent))
             .overlay(
-                RoundedRectangle(cornerRadius: 36, style: .continuous)
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
                     .stroke(AngroveTheme.Colors.brownBorder, lineWidth: 1)
             )
             .cardGlow()
@@ -115,24 +169,26 @@ private struct DockedCardClip: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         if isEnabled {
-            content.clipShape(RoundedRectangle(cornerRadius: 36, style: .continuous))
+            content.clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         } else {
             content
         }
     }
 }
 
-/// A node concept's docked card. Renders identically to `DockedInsightTreeCard` (icon + title +
-/// action buttons + definition), then lists links to its child/member insights underneath.
+/// A node concept's docked card. Shows its title, action buttons, and definition,
+/// then lists links to its child/member insights underneath.
 struct DockedNodeTreeCard: View {
     let node: NodeModel
 
     var isSaved: Bool = false
+    var showsChildInsights: Bool = true
     var onSelectInsight: (InsightModel) -> Void
     var onToggleSaved: (() -> Void)? = nil
     var onFork: (() -> Void)? = nil
 
     @Environment(\.colorScheme) private var colorScheme
+    @State private var visibleInsightCount = 0
 
     /// Fallback body when a node carries no definition of its own (auto clustered concepts).
     private var summaryText: String {
@@ -151,8 +207,6 @@ struct DockedNodeTreeCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center, spacing: 8) {
-                DockedCardTextBubbleIcon(size: 12, delay: 0.18, color: AngroveTheme.Colors.darkGreen)
-
                 ConversationHeading(title: node.conceptLabel) { label in
                     Text(label)
                         .font(.custom("Figtree-Bold", size: 18))
@@ -165,8 +219,9 @@ struct DockedNodeTreeCard: View {
                 ResponseButtons(
                     isSaved: isSaved,
                     canCopy: true,
-                    canFork: onFork != nil,
+                    canFork: false,
                     copyText: bodyText,
+                    speechText: bodyText,
                     tintColor: AngroveTheme.Colors.placeholderText,
                     saveTintColor: AngroveTheme.Colors.accentRed,
                     onSave: onToggleSaved,
@@ -174,27 +229,44 @@ struct DockedNodeTreeCard: View {
                 )
             }
 
-            TruncatableParagraph(text: bodyText)
+            TruncatableParagraph(text: bodyText, speechText: bodyText)
 
             // Links to the concept's child / member insights.
-            if !node.insights.isEmpty {
+            if showsChildInsights && !node.insights.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
-                    ForEach(node.insights, id: \.id) { insight in
-                        DockedInsightLinkRow(insight: insight, onTap: onSelectInsight)
+                    ForEach(Array(node.insights.enumerated()), id: \.element.id) { index, insight in
+                        if index < visibleInsightCount {
+                            DockedInsightLinkRow(insight: insight, onTap: onSelectInsight)
+                                .transition(.opacity)
+                        }
                     }
                 }
                 .padding(.top, 4)
             }
         }
-        .padding(32)
+        .padding(28)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(insightTreeInsightColor)
-        .clipShape(RoundedRectangle(cornerRadius: 36, style: .continuous))
+        .background(insightTreeInsightColor, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 36, style: .continuous)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .stroke(AngroveTheme.Colors.brownBorder, lineWidth: 1)
         )
         .cardGlow()
+        .task(id: node.insights.map(\.id)) {
+            visibleInsightCount = 0
+            guard !node.insights.isEmpty else { return }
+            for count in 1...node.insights.count {
+                do {
+                    try await Task.sleep(for: .milliseconds(110))
+                    try Task.checkCancellation()
+                } catch {
+                    return
+                }
+                withAnimation(.easeOut(duration: 0.28)) {
+                    visibleInsightCount = count
+                }
+            }
+        }
     }
 }
 
@@ -251,8 +323,9 @@ struct DockedConceptCard: View {
                 ResponseButtons(
                     isSaved: isSaved,
                     canCopy: true,
-                    canFork: true,
+                    canFork: false,
                     copyText: concept.semanticDefinition,
+                    speechText: CardSpeech.text(for: concept),
                     tintColor: AngroveTheme.Colors.placeholderText,
                     saveTintColor: AngroveTheme.Colors.accentRed,
                     onSave: onToggleSaved,
@@ -263,10 +336,9 @@ struct DockedConceptCard: View {
                 definitions: concept.contextualDefinitions
             )
         }
-        .padding(24)
+        .padding(28)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(insightTreeInsightColor)
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .background(insightTreeInsightColor, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .stroke(AngroveTheme.Colors.brownBorder, lineWidth: 1)

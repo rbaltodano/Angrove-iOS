@@ -121,6 +121,23 @@ nonisolated struct InquirySnapshotFileStore {
         try write(snapshot, createsBackup: true)
     }
 
+    /// Permanently removes the live snapshot and recovery copies before writing an empty
+    /// snapshot. This is intentionally separate from `save`, which preserves rotating backups.
+    func deleteAllConversations() throws {
+        try eraseAll()
+        try write(InquiryPersistenceSnapshot(conversations: [], activeConversationID: nil), createsBackup: false)
+    }
+
+    /// Removes the live snapshot and all recovery copies without creating a replacement file.
+    func eraseAll() throws {
+        if fileManager.fileExists(atPath: rootDirectory.path) {
+            try fileManager.removeItem(at: rootDirectory)
+        }
+        let preferences = PrivatePreferences(defaults: defaults)
+        preferences.removeObject(forKey: Self.currentLegacyKey)
+        preferences.removeObject(forKey: Self.originalLegacyKey)
+    }
+
     /// A mounted page can save a snapshot captured before an offscreen job finished. Keep
     /// completed slots when that stale snapshot still contains the identical pending question.
     /// Imports use `write` directly; clear/delete change the branch or remove its blocks.
@@ -385,6 +402,14 @@ nonisolated enum InquiryPersistenceStore {
         shared.save(snapshot)
     }
 
+    static func deleteAllConversations() throws {
+        try shared.deleteAllConversations()
+    }
+
+    static func eraseAll() throws {
+        try shared.eraseAll()
+    }
+
     static func saveCompletedBranch(
         _ completedBranch: ChatBranch,
         conversationID: UUID
@@ -632,6 +657,36 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
             recordWrite(value)
             cacheLock.withLock { cached = value; didLoad = true; cacheRevision += 1 }
             return value
+        }
+    }
+
+    func deleteAllConversations() throws {
+        closePendingSave()
+        try queue.sync {
+            let empty = InquiryPersistenceSnapshot(conversations: [], activeConversationID: nil)
+            try requireStore().deleteAllConversations()
+            recordWrite(empty)
+            cacheLock.withLock {
+                cached = empty
+                didLoad = true
+                cacheRevision += 1
+                needsDeferredSave = false
+            }
+        }
+    }
+
+    func eraseAll() throws {
+        closePendingSave()
+        try queue.sync {
+            try requireStore().eraseAll()
+            persisted = nil
+            persistedIsKnown = true
+            cacheLock.withLock {
+                cached = nil
+                didLoad = true
+                cacheRevision += 1
+                needsDeferredSave = false
+            }
         }
     }
 

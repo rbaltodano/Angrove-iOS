@@ -1161,7 +1161,7 @@ struct CurrentConversationView: View {
 
                 // Horizontal branch pager
                 branchPager(in: geo)
-                    .environment(\.speechSource, SpeechSource(title: activeTitle, conversationID: session.activeConversationID))
+                    .environment(\.speechSource, SpeechSource(title: activeTitle, conversationID: session.activeConversationID, page: .conversation))
 
                 // Photo backgrounds carry their own scrim, so the canvas-colored fades are skipped.
                 if !(canvasMode.isTopicCanvasVisible ? insightTreeBackground : conversationBackground).isPhoto {
@@ -2098,6 +2098,8 @@ struct CurrentConversationView: View {
         definitionState.reset()
         modelTasksPopupState.reset()
         removeActiveConversationIfEmpty()
+        // A fresh conversation opens in its thread rather than inheriting the previous tree.
+        closeTopicCanvas()
         let pendingQuestion = request.question
         let pendingEyebrow = request.eyebrow
         let pendingPromptContext = request.promptContext

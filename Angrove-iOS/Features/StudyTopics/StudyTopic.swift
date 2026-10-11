@@ -47,6 +47,10 @@ enum StudyTopicStore {
         cachedTopics = topics
         PrivatePreferences.standard.setEncoded(topics, forKey: key)
     }
+
+    static func clearCache() {
+        cachedTopics = nil
+    }
 }
 
 /// Persists the last user-approved aggregate Insight Tree input for each Study Topic.

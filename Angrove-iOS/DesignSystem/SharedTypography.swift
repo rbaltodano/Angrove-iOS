@@ -108,7 +108,7 @@ enum AngroveTheme {
         static let floatingShadow = Color(
             light: 0x220F01,
             lightAlpha: 0.20,
-            dark: 0x220F01
+            dark: 0x181511
         )
         static let dropShadow = floatingShadow
         static let mediaShadow = dropShadow

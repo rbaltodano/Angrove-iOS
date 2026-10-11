@@ -17,6 +17,14 @@ import SwiftUI
 final class InsightTreeViewModel: ObservableObject {
     @Published private(set) var nodes: [NodeModel] = []
     @Published private(set) var edges: [EdgeModel] = []
+    /// Keep empty concepts as semantic anchors, but only show concepts with attached Insights.
+    /// This lets a saved subject return when a later Insight joins it without losing its identity.
+    var visibleNodes: [NodeModel] { nodes.filter { !$0.insights.isEmpty } }
+
+    var visibleEdges: [EdgeModel] {
+        let ids = Set(visibleNodes.map(\.id))
+        return edges.filter { ids.contains($0.fromNodeID) && ids.contains($0.toNodeID) }
+    }
     @Published private(set) var makeNodeChildIDs: Set<UUID> = []
     /// Child IDs whose generated title/definition have replaced their stable loading content.
     /// The canvas uses this to begin the three-stop reveal tour only after generation completes.
@@ -626,7 +634,7 @@ final class InsightTreeViewModel: ObservableObject {
             nodes.removeAll { $0.id == node.id }
             edges.removeAll { $0.fromNodeID == node.id || $0.toNodeID == node.id }
         }
-        scene.render(nodes: nodes, edges: edges, animated: true)
+        scene.render(nodes: visibleNodes, edges: visibleEdges, animated: true)
     }
 
     func selectNode(_ node: NodeModel) {
@@ -696,7 +704,7 @@ final class InsightTreeViewModel: ObservableObject {
                 self.edges.append(EdgeModel(id: UUID(), fromNodeID: from.id, toNodeID: suggestedNode.id, distance: 0.18, isSuggested: true, showSuggestButton: false))
                 self.edges.append(EdgeModel(id: UUID(), fromNodeID: suggestedNode.id, toNodeID: to.id, distance: 0.18, isSuggested: true, showSuggestButton: false))
             }
-            scene.render(nodes: nodes, edges: edges, animated: true)
+            scene.render(nodes: visibleNodes, edges: visibleEdges, animated: true)
         }
     }
 
@@ -817,7 +825,7 @@ final class InsightTreeViewModel: ObservableObject {
             nodes = nextNodes
             edges = nextEdges
         }
-        scene.render(nodes: nodes, edges: edges, animated: hasNew)
+        scene.render(nodes: visibleNodes, edges: visibleEdges, animated: hasNew)
         requestClusterLabels(for: nextNodes)
     }
 
@@ -861,10 +869,10 @@ final class InsightTreeViewModel: ObservableObject {
 
     /// Groups Insights around semantic subject Nodes in the on-device embedding space.
     /// `localSeedAnchors` (on-device Node-seed labels — see `setLocalSeedAnchors`) seed this
-    /// clustering as pre-existing, always-rendered clusters: an Insight within the same
+    /// clustering as pre-existing semantic anchors: an Insight within the same
     /// similarity threshold attaches under the seeded subject instead of spawning its own
-    /// cluster, and an anchor with zero attached Insights still renders as its own Node so the
-    /// seeded subject never just disappears once real Insights exist.
+    /// cluster. An anchor with zero attached Insights stays in the semantic graph but is hidden
+    /// from the canvas until it has members.
     /// Empty placeholders must never become model input such as ": ".
     private static func labelDescriptions(for insights: [InsightModel]) -> [String] {
         insights.compactMap { insight in
@@ -953,7 +961,7 @@ final class InsightTreeViewModel: ObservableObject {
                         selectedNode?.conceptLabel = label
                         selectedNode?.definition = nodes[index].definition
                     }
-                    scene.render(nodes: nodes, edges: edges, animated: false)
+                    scene.render(nodes: visibleNodes, edges: visibleEdges, animated: false)
                     // Keep the definition inside the same queue job and runtime lease.
                     try await generateClusterDefinition(for: nodeID, label: label)
                     // A named subject can now be compared with its neighbors for merging.
@@ -1860,7 +1868,7 @@ final class InsightTreeViewModel: ObservableObject {
             selectedNode = updated
         }
         guard changed else { return }
-        scene.render(nodes: nodes, edges: edges, animated: false)
+        scene.render(nodes: visibleNodes, edges: visibleEdges, animated: false)
         refreshEmbeddingsIfNeeded()
     }
 

@@ -81,6 +81,8 @@ struct InsightTreeCanvasPersistenceTests {
         tree.addPlacedMidpoint(concept: loading, at: .zero,
             sources: sources.map { MidpointSource(insightID: $0.id, isNode: false) })
         try await tree.replacePlacedMidpoint(id: loading.id, with: makeConcept(word: "Combined"))
+        #expect(tree.visibleNodes.map(\.id) == [loading.id])
+        #expect(tree.visibleEdges.isEmpty)
         let bookmarks = tree.automaticNodeBookmarks()
         #expect(bookmarks.contains { $0.id == loading.id })
         let removed = tree.removeBookmarkedNode(id: loading.id, deletingInsights: deleting)

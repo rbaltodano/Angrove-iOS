@@ -205,21 +205,35 @@ struct ModelControlsHost: View {
                 .transition(.opacity)
             }
         }
+        .transaction { transaction in
+            // Page navigation mounts its destination without animation to lay out the
+            // hidden content. The shared dock sits outside that content and must still
+            // animate its own entrance, exit, and button changes during the handoff.
+            transaction.disablesAnimations = false
+        }
     }
 
     private func hasVisibleContent(_ c: ModelControlsConfiguration) -> Bool {
-        c.buttons != nil || c.pillReplacement != nil || c.showsScrollToBottom
-            || c.contextCard?.isOpen == true || c.supplementalPopupIsOpen
+        hasPillButtons(c) || c.pillReplacement != nil || hasVisibleStackContent(c)
+    }
+
+    /// Cards and notifications can keep the stack mounted after its last pill button leaves.
+    private func hasVisibleStackContent(_ c: ModelControlsConfiguration) -> Bool {
+        c.showsScrollToBottom || c.contextCard?.isOpen == true || c.supplementalPopupIsOpen
             || c.modelTasksPopupState?.isOpen == true || c.confirmationTitle != nil
             || completionNotifications?.notifications.isEmpty == false
             || c.dockedCard != nil
-            || speech.showsReader
+            || (speech.showsReader && speech.isReadingCardOpen)
     }
 
     /// While something is read aloud every page carries the Reading speaker, even one with no other
     /// controls, unless the page's own buttons already include it.
     private func injectsSpeaker(_ c: ModelControlsConfiguration) -> Bool {
         speech.showsReader && !c.includesSpeakerControl && c.showsPillChrome && c.pillReplacement == nil
+    }
+
+    private func hasPillButtons(_ c: ModelControlsConfiguration) -> Bool {
+        c.buttons != nil || injectsSpeaker(c)
     }
 
     private func pillButtons(_ c: ModelControlsConfiguration) -> AnyView? {
@@ -277,7 +291,11 @@ struct ModelControlsHost: View {
                     .animation(.springLively, value: c.controlsUpdateKey)
                     .opacity(c.pillReplacement == nil ? 1 : 0)
                     .allowsHitTesting(c.pillReplacement == nil)
-                    .transition(.scale(scale: 0.4).combined(with: .opacity))
+                    // The host animates the whole dock when it becomes empty. If a card
+                    // keeps it mounted, animate the pill itself with that same motion.
+                    .transition(hasVisibleStackContent(c)
+                        ? (reduceMotion ? .opacity : .modelControlsDock)
+                        : .identity)
                 }
 
                 if let replacement = c.pillReplacement {
@@ -286,6 +304,12 @@ struct ModelControlsHost: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 }
             }
+            .animation(
+                reduceMotion
+                    ? .easeInOut(duration: 0.2)
+                    : (hasPillButtons(c) ? .springStandard : .modelControlsDockExit),
+                value: hasPillButtons(c)
+            )
         }
     }
 }

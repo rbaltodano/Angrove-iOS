@@ -10,7 +10,7 @@ struct SideMenuRow: View {
     let title: String
     var badge: Int = 0
     var isActive: Bool = false
-    var showsLibraryPlayback: Bool = false
+    var playbackPage: AppPage? = nil
     let isPresented: Bool
     let delay: TimeInterval
     var action: () -> Void
@@ -54,9 +54,9 @@ struct SideMenuRow: View {
                         .transition(.scale(scale: 0.75).combined(with: .opacity))
                 }
 
-                if showsLibraryPlayback {
+                if let playbackPage {
                     Spacer(minLength: 0)
-                    LibrarySpeakingIndicator()
+                    PageSpeakingIndicator(page: playbackPage)
                         .opacity(showsText ? 1 : 0)
                 }
             }
@@ -186,6 +186,28 @@ struct ConversationSpeakingIndicator: View {
 
     var body: some View {
         if speech.activeConversationID == conversationID, speech.phase != .idle {
+            Image(systemName: "speaker.wave.2.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(AngroveTheme.Colors.lightGreen)
+                .symbolEffect(.variableColor.iterative, isActive: speech.phase == .speaking && !speech.isPaused && !reduceMotion)
+                .accessibilityLabel("Reading aloud")
+        }
+    }
+}
+
+/// A speaker beside the sidebar page that owns the active reading.
+struct PageSpeakingIndicator: View {
+    let page: AppPage
+    private var speech = ResponseSpeechPlayer.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var isCurrentPage: Bool {
+        speech.activeSidebarPage == page
+            || (speech.activeSidebarPage == .conversation && page == .openConversations)
+    }
+
+    var body: some View {
+        if isCurrentPage, speech.phase != .idle {
             Image(systemName: "speaker.wave.2.fill")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(AngroveTheme.Colors.lightGreen)

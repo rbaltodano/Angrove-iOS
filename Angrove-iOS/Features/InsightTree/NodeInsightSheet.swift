@@ -69,8 +69,7 @@ struct InsightTreeInsightCard: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
+        .padding(28)
         .background(AngroveTheme.Colors.canvas)
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(

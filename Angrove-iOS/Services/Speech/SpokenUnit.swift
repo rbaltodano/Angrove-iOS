@@ -9,6 +9,8 @@ import Foundation
 struct SpeechSource {
     var title = ""
     var conversationID: UUID?
+    /// The page whose sidebar row should show active playback, when the source is page-owned.
+    var page: AppPage?
     /// Set when the reading is a Library page, so the Reading card can lead back to the work.
     var libraryWorkID: String?
     var libraryIndex: LibraryListeningIndex?

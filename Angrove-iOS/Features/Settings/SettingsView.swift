@@ -20,6 +20,9 @@ struct SettingsView: View {
     var onOpenMenu: () -> Void
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
     var onClearInsightTree: () -> Void = {}
+    var onDeleteAllConversations: () throws -> Void = {}
+    var onDeleteAllClippedPassages: () throws -> Void = {}
+    var onDeleteAllAppData: () async throws -> Void = {}
     /// Set by other pages (Home's Start Here card) to open the User Guide; cleared once handled.
     var opensUserGuide: Binding<Bool> = .constant(false)
 
@@ -55,6 +58,9 @@ struct SettingsView: View {
                         guideSavedTerms: $guideSavedTerms,
                         onReset: resetSettings,
                         onClearInsightTree: onClearInsightTree,
+                        onDeleteAllConversations: onDeleteAllConversations,
+                        onDeleteAllClippedPassages: onDeleteAllClippedPassages,
+                        onDeleteAllAppData: onDeleteAllAppData,
                         onSelectUserGuideTopic: { path.append(.userGuideTopic($0)) },
                         onSelectLicense: { path.append(.licenseText($0)) }
                     )
@@ -380,6 +386,9 @@ private struct SettingsDestinationView: View {
     @Binding var guideSavedTerms: [String]
     let onReset: () -> Void
     var onClearInsightTree: () -> Void = {}
+    var onDeleteAllConversations: () throws -> Void = {}
+    var onDeleteAllClippedPassages: () throws -> Void = {}
+    var onDeleteAllAppData: () async throws -> Void = {}
     var onSelectUserGuideTopic: (UserGuideTopic.ID) -> Void = { _ in }
     var onSelectLicense: (BundledLicense) -> Void = { _ in }
 
@@ -392,7 +401,12 @@ private struct SettingsDestinationView: View {
         case .notifications:
             NotificationSettingsView()
         case .privacyAndData:
-            PrivacyAndDataSettingsView(onClearInsightTree: onClearInsightTree)
+            PrivacyAndDataSettingsView(
+                onClearInsightTree: onClearInsightTree,
+                onDeleteAllConversations: onDeleteAllConversations,
+                onDeleteAllClippedPassages: onDeleteAllClippedPassages,
+                onDeleteAllAppData: onDeleteAllAppData
+            )
         case .personalization:
             PersonalizationSettingsView(userName: $userName)
         case .modelDownload:

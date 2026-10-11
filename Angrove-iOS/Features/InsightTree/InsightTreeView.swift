@@ -392,7 +392,7 @@ struct InsightTreeView: View {
                         }
                     )
                     .id(selectedInsight.id)
-                    .growsWhileTouched()
+                    .growsWhileTouched(whileReading: selectedInsight.definition)
                     .offset(y: dockedCardDragY)
                     .gesture(dockedCardDismissGesture)
                     .transition(.bottomDockCard)
@@ -404,6 +404,7 @@ struct InsightTreeView: View {
                     DockedNodeTreeCard(
                         node: currentNode,
                         isSaved: savedConceptIDs.contains(viewModel.bookmarkConcept(for: currentNode).id),
+                        showsChildInsights: studySubject == nil,
                         onSelectInsight: { insight in
                             focusedInsightID = insight.id
                             showInsightCard(insight)
@@ -488,8 +489,8 @@ struct InsightTreeView: View {
                 }
 
             InsightTreeCanvasView(
-                nodes: viewModel.nodes,
-                edges: viewModel.edges,
+                nodes: viewModel.visibleNodes,
+                edges: viewModel.visibleEdges,
                 restoreFocusedCameraRequest: restoreFocusedCameraRequest,
                 focusedInsightID: focusedInsightID,
                 focusedSearchNodeID: focusedNodeID,
@@ -600,7 +601,7 @@ struct InsightTreeView: View {
             // Study's gestures (including rotating the ring).
             .allowsHitTesting(studyBranchSource != nil || studySubject == nil || studiedNodeID != nil || studiedSelectionIDs != nil)
 
-            if viewModel.nodes.isEmpty {
+            if viewModel.visibleNodes.isEmpty {
                 // While the first build runs, an empty canvas only means "not ready yet".
                 if viewModel.hasPreparedTree {
                     EmptyInsightTreeView()
@@ -769,7 +770,21 @@ struct InsightTreeView: View {
                 dismissDockedInsight()
             }
         }
-        .onChange(of: viewModel.nodes) { _, _ in bookmarkAllNodeConcepts() }
+        .onChange(of: viewModel.nodes) { _, _ in
+            bookmarkAllNodeConcepts()
+            let visibleIDs = Set(viewModel.visibleNodes.map(\.id))
+            if let selectedNode, !visibleIDs.contains(selectedNode.id) {
+                dismissDockedInsight()
+            }
+            if let studiedNodeID, !visibleIDs.contains(studiedNodeID) {
+                exitStudy()
+            }
+            selectedCanvasTargets.removeAll { target in
+                if case .node(let id) = target { return !visibleIDs.contains(id) }
+                return false
+            }
+            refreshSearchResults(resetIndex: false)
+        }
         .onChange(of: promotedInsightIDs) { _, newValue in
             viewModel.updateInsights(insights, promotedInsightIDs: newValue)
         }
@@ -990,7 +1005,7 @@ struct InsightTreeView: View {
 
     private func restoreRequestedNodeSelection() {
         guard let restoreSelectedNodeID,
-              let node = viewModel.nodes.first(where: { $0.id == restoreSelectedNodeID }) else {
+              let node = viewModel.visibleNodes.first(where: { $0.id == restoreSelectedNodeID }) else {
             return
         }
         showNodeCard(node)
@@ -1002,6 +1017,9 @@ struct InsightTreeView: View {
     private func showInsightCard(_ insight: InsightModel, animateText: Bool = false, moveCamera: Bool = true) {
         // Navigating to any other insight ends the Make Node card growth.
         if insight.id != makeNodeParentInsightID { clearMakeNodeCardGrowth() }
+        if selectedInsight?.id != insight.id {
+            stopReadingAloud(for: selectedInsight)
+        }
         animateMidpointCardText = animateText
         // Keyboard is open — update the chip and ensure it's visible
         if questionBarKeyboardActive {
@@ -1122,6 +1140,8 @@ struct InsightTreeView: View {
     }
 
     private func showNodeCard(_ node: NodeModel) {
+        guard viewModel.visibleNodes.contains(where: { $0.id == node.id }) else { return }
+        stopReadingAloud(for: selectedInsight)
         clearMakeNodeCardGrowth()
         playDockedCardHaptic()
         onSelectionStateChange?(true)
@@ -1234,6 +1254,7 @@ struct InsightTreeView: View {
     private func dismissDockedInsight() {
         guard selectedInsight != nil || selectedNode != nil || hoveredConcept != nil else { return }
 
+        stopReadingAloud(for: selectedInsight)
         clearMakeNodeCardGrowth()
         playDockedCardHaptic()
         onSelectionStateChange?(false)
@@ -1255,6 +1276,7 @@ struct InsightTreeView: View {
     private func dismissDockedCard() {
         guard selectedInsight != nil || selectedNode != nil || hoveredConcept != nil else { return }
 
+        stopReadingAloud(for: selectedInsight)
         clearMakeNodeCardGrowth()
         playDockedCardHaptic()
         onSelectionStateChange?(false)
@@ -1272,6 +1294,7 @@ struct InsightTreeView: View {
     private func clearCanvasSelectionSilently() {
         guard selectedInsight != nil || selectedNode != nil || questionBarContextInsight != nil || hoveredConcept != nil else { return }
 
+        stopReadingAloud(for: selectedInsight)
         clearMakeNodeCardGrowth()
         onSelectionStateChange?(false)
         onInsightSelectionStateChange?(false)
@@ -1284,6 +1307,13 @@ struct InsightTreeView: View {
             hoveredConcept = nil
             questionBarContextInsight = nil
         }
+    }
+
+    private func stopReadingAloud(for insight: InsightModel?) {
+        guard let insight,
+              ResponseSpeechPlayer.shared.activeText == insight.definition,
+              ResponseSpeechPlayer.shared.phase != .idle else { return }
+        ResponseSpeechPlayer.shared.stop()
     }
 
     private func clearSelectedCanvasTargets() {
@@ -1343,7 +1373,7 @@ struct InsightTreeView: View {
                 return (.insight(insight.id), insight.title, score)
             }
 
-        let rankedNodes = viewModel.nodes.compactMap {
+        let rankedNodes = viewModel.visibleNodes.compactMap {
             node -> (target: CanvasSelectionTarget, title: String, score: Double)? in
             guard !viewModel.placedMidpointNodeIDs.contains(node.id),
                   let score = searchScore(

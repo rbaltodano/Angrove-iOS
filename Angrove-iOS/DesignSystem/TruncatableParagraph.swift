@@ -20,14 +20,25 @@ import UIKit
 /// deterministic and doesn't depend on SwiftUI's live layout/timing.
 struct TruncatableParagraph: View {
     let text: String
+    var speechText: String = ""
+    var speechWordStart = 0
+    var speechExpansionRequest = 0
+    var speechCollapseRequest = 0
+    var automaticallyCollapsesAfterSpeech = true
+    var onSpeechExpansionComplete: (() -> Void)? = nil
     var fontName: String = "Figtree-Regular"
     var fontSize: CGFloat = 14
     var lineSpacing: CGFloat = 12
+    var collapsedLineLimit: Int = 4
+    var isItalic = false
+    var isQuoted = false
     var color: Color = AngroveTheme.Colors.paragraphText
 
     @State private var isExpanded = false
     @State private var canExpand = false
     @State private var measuredWidth: CGFloat = 0
+
+    private var isReading: Bool { !speechText.isEmpty && ResponseSpeechPlayer.shared.activeText == speechText }
 
     private var uiFont: UIFont {
         UIFont(name: fontName, size: fontSize) ?? .systemFont(ofSize: fontSize)
@@ -35,24 +46,35 @@ struct TruncatableParagraph: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(text)
-                .font(.custom(fontName, size: fontSize))
-                .lineSpacing(lineSpacing)
-                .foregroundColor(color)
-                .lineLimit(isExpanded ? nil : 4)
-                .fixedSize(horizontal: false, vertical: true)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    guard canExpand else { return }
-                    toggleExpanded()
+            Group {
+                if isReading {
+                    CardSpeechText(
+                        text: text, speechText: speechText, wordStart: speechWordStart,
+                        fontName: fontName, fontSize: fontSize, color: color,
+                        isItalic: isItalic, isQuoted: isQuoted
+                    )
+                } else {
+                    Text(text)
+                        .font(.custom(fontName, size: fontSize))
+                        .lineSpacing(lineSpacing)
+                        .foregroundColor(color)
+                        .italic(isItalic)
+                        .lineLimit(isExpanded ? nil : collapsedLineLimit)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            guard canExpand else { return }
+                            toggleExpanded()
+                        }
                 }
-                .background(
-                    GeometryReader { geo in
-                        Color.clear
-                            .onAppear { updateCanExpand(width: geo.size.width) }
-                            .onChange(of: geo.size.width) { _, width in updateCanExpand(width: width) }
-                    }
-                )
+            }
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear { updateCanExpand(width: geo.size.width) }
+                        .onChange(of: geo.size.width) { _, width in updateCanExpand(width: width) }
+                }
+            )
 
             if canExpand {
                 Button(action: toggleExpanded) {
@@ -67,7 +89,31 @@ struct TruncatableParagraph: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .opacity(isReading ? 0 : 1)
+                .blur(radius: isReading ? 4 : 0)
+                .allowsHitTesting(!isReading)
+                .accessibilityHidden(isReading)
+                .animation(.easeOut(duration: 0.25), value: isReading)
             }
+        }
+        .animation(.springQuick, value: isReading)
+        .onChange(of: isReading) { _, reading in
+            // Playback always opens the entire definition, then restores its collapsed state.
+            if reading || automaticallyCollapsesAfterSpeech {
+                withAnimation(.springQuick) { isExpanded = reading }
+            }
+        }
+        .onChange(of: speechExpansionRequest) { _, request in
+            guard request > 0 else { return }
+            withAnimation(.springQuick, completionCriteria: .logicallyComplete) {
+                isExpanded = true
+            } completion: {
+                onSpeechExpansionComplete?()
+            }
+        }
+        .onChange(of: speechCollapseRequest) { _, request in
+            guard request > 0 else { return }
+            withAnimation(.springQuick) { isExpanded = false }
         }
         .onChange(of: text) { _, _ in updateCanExpand(width: measuredWidth) }
     }
@@ -90,6 +136,6 @@ struct TruncatableParagraph: View {
             context: nil
         ).height
         let estimatedLines = Int((boundingHeight / lineHeight).rounded(.up))
-        canExpand = estimatedLines > 4
+        canExpand = estimatedLines > collapsedLineLimit
     }
 }

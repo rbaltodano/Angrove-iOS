@@ -831,19 +831,28 @@ struct LiteRTAngroveModel: AngroveModel {
         )))
         </TASK:MAKE_NODE_CHILDREN>
         """
+        // The on-device checkpoint often returns one entry too many or too few, or repeats a
+        // title, when asked for 5–6 children. Keep the first `count` distinct, valid entries
+        // (dropping duplicates and the parent's own title) and retry once if that is still short.
+        let parentTitle = concept.word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return try await Self.reportingCancellation {
-            let raw = try await generateStructured(prompt)
-            let response: ChildrenPayload = try Self.decodeJSON(raw)
-            guard response.children.count == count else {
-                throw AngroveModelActionError.invalidResponse
+            for attempt in 0..<2 {
+                let raw = try await generateStructured(prompt)
+                guard let response = try? Self.decodeJSON(raw) as ChildrenPayload else {
+                    if attempt == 1 { throw AngroveModelActionError.invalidResponse }
+                    continue
+                }
+                var seen: Set<String> = [parentTitle]
+                var children: [ConceptDefinition] = []
+                for payload in response.children {
+                    guard let child = try? payload.validatedConcept() else { continue }
+                    let key = child.word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    guard seen.insert(key).inserted else { continue }
+                    children.append(child)
+                    if children.count == count { return children }
+                }
             }
-            let children = try response.children.map { try $0.validatedConcept() }
-            let titles = children.map { $0.word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-            guard Set(titles).count == count,
-                  !titles.contains(concept.word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()) else {
-                throw AngroveModelActionError.invalidResponse
-            }
-            return children
+            throw AngroveModelActionError.invalidResponse
         }
     }
 

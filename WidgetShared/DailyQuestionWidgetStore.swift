@@ -31,6 +31,7 @@ nonisolated enum DailyQuestionWidgetStore {
     /// Drops an unreadable shared question. The app writes a new one with the next daily question.
     static func discard(defaults: UserDefaults? = UserDefaults(suiteName: appGroup)) {
         defaults?.removeObject(forKey: key)
+        confirmedLock.withLock { confirmed = nil }
     }
 
     /// The stored ciphertext this process last wrote or found holding `text`. The app saves the

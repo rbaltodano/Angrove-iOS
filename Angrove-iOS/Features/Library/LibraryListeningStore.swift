@@ -113,4 +113,10 @@ final class LibraryListeningStore {
             try preferences.write(try JSONEncoder().encode(snapshot), key: Self.storageKey)
         } catch { PersonalDataProtection.report(error, duringWrite: true) }
     }
+
+    func clear() {
+        bookmarks.removeAll()
+        mostRecentWorkID = nil
+        preferences.removeObject(forKey: Self.storageKey)
+    }
 }

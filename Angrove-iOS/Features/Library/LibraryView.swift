@@ -1209,7 +1209,7 @@ private struct LibraryDocumentDetail: View {
     private func listen(document: LibraryDocument, outline: LibrarySection, fromWord word: Int? = nil) {
         let passages = document.passages.filter { outline.chunks.contains($0.chunkIndex) }
         let units = LibrarySpeech.units(for: passages, sourceID: work.id)
-        let source = SpeechSource(title: work.title, libraryWorkID: work.id, libraryIndex: document.listeningIndex)
+        let source = SpeechSource(title: work.title, page: .library, libraryWorkID: work.id, libraryIndex: document.listeningIndex)
         if let word {
             speech.read(speechKey(outline: outline), units: units, fromWord: word, source: source)
         } else if speech.activeText == speechKey(outline: outline), speech.phase != .idle {

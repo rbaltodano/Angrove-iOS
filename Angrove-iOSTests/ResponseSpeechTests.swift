@@ -4,6 +4,35 @@ import Testing
 
 @Suite("Response read-aloud")
 struct ResponseSpeechTests {
+    @Test("Card speech indices include only visible context headings")
+    @MainActor
+    func cardSpeechIndices() {
+        let definitions = [
+            InsightDefinition(context: "ethics", meaning: "Justice gives each their due."),
+            InsightDefinition(context: "", meaning: "A second meaning."),
+            InsightDefinition(context: "political philosophy", meaning: "A third meaning.")
+        ]
+        let text = CardSpeech.text(for: definitions)
+        let units = CardSpeech.units(for: text)
+        #expect(CardSpeech.wordStart(for: 1, in: definitions) == 9)
+        #expect(CardSpeech.wordStart(for: 2, in: definitions) == 12)
+        #expect(units.flatMap(\.words).map(\.index) == Array(0..<20))
+        #expect(CardSpeech.text(for: [definitions[0]]) == definitions[0].meaning)
+        #expect(CardSpeech.units(for: "  \n ").isEmpty)
+    }
+
+    @Test("Clipped card speech matches its full passage")
+    @MainActor
+    func clippedCardSpeech() {
+        let passage = ConceptDefinition(
+            word: "Passage", partOfSpeech: "", pronunciation: "",
+            meaning: "First line.\nSecond line.", example: "", isLibraryQuote: true
+        )
+        #expect(CardSpeech.text(for: passage) == passage.semanticDefinition)
+        #expect(CardSpeech.units(for: CardSpeech.text(for: passage)).flatMap(\.words).map(\.token)
+            == ["First", "line.", "Second", "line."])
+    }
+
     @Test("Speech text drops markup and expands Summa abbreviations")
     func normalizesResponseText() {
         let sentences = SpeechTextNormalizer.sentences(in: """

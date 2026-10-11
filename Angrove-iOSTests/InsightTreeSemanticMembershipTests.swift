@@ -5,6 +5,35 @@ import Testing
 @MainActor
 @Suite("Insight Tree semantic membership", .serialized)
 struct InsightTreeSemanticMembershipTests {
+    @Test("Empty seeded concepts disappear and return when an Insight attaches", arguments: [false, true])
+    func emptyConceptVisibility(global: Bool) async throws {
+        let provider = MembershipEmbeddingProvider()
+        let seed = LocalInsightTreeSeed(id: UUID(), label: "Moral Virtues", summary: "Moral habits",
+            embedding: [1, 0], embeddingVersion: provider.version, createdAt: Date())
+        let scope: UUID? = global ? nil : UUID()
+        let tree = InsightTreeViewModel(insights: [], embeddingProvider: provider,
+            localSeedAnchors: [seed], midpointStoreScope: scope)
+        await tree.prepareSemanticTree()
+        #expect(tree.nodes.contains { $0.id == seed.id })
+        #expect(tree.visibleNodes.isEmpty)
+        #expect(tree.visibleEdges.isEmpty)
+
+        let insight = concept()
+        tree.updateInsights([insight])
+        await tree.prepareSemanticTree()
+        #expect(tree.visibleNodes.map(\.id) == [seed.id])
+        tree.updateInsights([])
+        await tree.prepareSemanticTree()
+        #expect(tree.visibleNodes.isEmpty)
+        let reopened = InsightTreeViewModel(insights: [], embeddingProvider: provider,
+            localSeedAnchors: [seed], midpointStoreScope: scope)
+        await reopened.prepareSemanticTree()
+        #expect(reopened.visibleNodes.isEmpty)
+        reopened.updateInsights([insight])
+        await reopened.prepareSemanticTree()
+        #expect(reopened.visibleNodes.map(\.id) == [seed.id])
+    }
+
     private func concept() -> ConceptDefinition {
         ConceptDefinition(id: UUID(), word: "Virtue", partOfSpeech: "", pronunciation: "",
                           meaning: "Habits that perfect moral action.", example: "")

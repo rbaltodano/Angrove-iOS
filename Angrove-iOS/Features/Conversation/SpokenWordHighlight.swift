@@ -229,3 +229,112 @@ private struct SpokenWordLift: ViewModifier {
             }
     }
 }
+
+
+/// Keeps the card's visible words and the speech timeline on the same whitespace-token indices.
+enum CardSpeech {
+    static func words(in text: String) -> [String] {
+        text.split(whereSeparator: \.isWhitespace).map(String.init)
+    }
+
+    static func units(for text: String) -> [SpokenUnit] {
+        let words = words(in: text).enumerated().map { SpokenUnit.Word(index: $0.offset, token: $0.element) }
+        return words.isEmpty ? [] : [SpokenUnit(words: words)]
+    }
+
+    static func text(for concept: ConceptDefinition) -> String {
+        concept.isLibraryQuote ? concept.semanticDefinition : text(for: concept.contextualDefinitions)
+    }
+
+    static func heading(for definition: InsightDefinition, count: Int) -> String {
+        count > 1 && !definition.context.isEmpty ? "In regards to \(definition.context)" : ""
+    }
+
+    static func wordStart(for index: Int, in definitions: [InsightDefinition]) -> Int {
+        definitions.prefix(index).reduce(0) { offset, definition in
+            offset + words(in: heading(for: definition, count: definitions.count)).count
+                + words(in: definition.meaning).count
+        }
+    }
+
+    static func text(for definitions: [InsightDefinition]) -> String {
+        definitions.map { definition in
+            [heading(for: definition, count: definitions.count), definition.meaning]
+                .filter { !$0.isEmpty }.joined(separator: "\n")
+        }.joined(separator: "\n\n")
+    }
+}
+
+/// Uses the response's exact green wipe, glow, lift, and hold-to-scrub behavior.
+/// Reading displays every word so the cursor cannot disappear behind truncation.
+struct CardSpeechText: View {
+    let text: String
+    let speechText: String
+    var wordStart = 0
+    var fontName: String? = nil
+    var fontSize: CGFloat = 14
+    var color: Color = AngroveTheme.Colors.paragraphText
+    var isItalic = false
+    var isBold = false
+    var isQuoted = false
+    var lineLimit: Int? = nil
+
+    @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .serif
+    @AppStorage("aquinas.settings.conversationFontSize") private var responseSize: ConversationFontSizeOption = .medium
+    private var speech: ResponseSpeechPlayer { .shared }
+    private var isReading: Bool { !speechText.isEmpty && speech.activeText == speechText }
+
+    private var font: Font {
+        var result = fontName.map { Font.custom($0, size: fontSize) }
+            ?? responseFont.textFont(size: responseSize)
+        if isItalic { result = result.italic() }
+        if isBold { result = result.bold() }
+        return result
+    }
+
+    var body: some View {
+        Group {
+            if isReading {
+                readingText
+            } else {
+                Text(verbatim: isQuoted ? "“\(text)”" : text)
+                    .font(font)
+                    .lineSpacing(FlowLayout.rowSpacing)
+                    .foregroundColor(color)
+                    .lineLimit(lineLimit)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .animation(.springQuick, value: isReading)
+    }
+
+    private var readingText: some View {
+        let lines = text.components(separatedBy: .newlines)
+        let totalWords = CardSpeech.words(in: text).count
+        return VStack(alignment: .leading, spacing: FlowLayout.rowSpacing) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { lineIndex, line in
+                let start = CardSpeech.words(in: lines.prefix(lineIndex).joined(separator: "\n")).count
+                let words = CardSpeech.words(in: line)
+                if words.isEmpty {
+                    Color.clear.frame(height: FlowLayout.rowSpacing)
+                } else {
+                    FlowLayout(alignment: .leading) {
+                        ForEach(Array(words.enumerated()), id: \.offset) { index, word in
+                            let position = start + index
+                            let visible = (isQuoted && position == 0 ? "“" : "") + word
+                                + (isQuoted && position == totalWords - 1 ? "”" : "")
+                            let label = Text(verbatim: visible).font(font)
+                            label
+                                .foregroundColor(color)
+                                .spokenWordFill(index: wordStart + position, speechText: speechText, fill: label)
+                                .spokenWordLift(index: wordStart + position, speechText: speechText)
+                        }
+                    }
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(text)
+        .speechScrubbable(speechText: speechText)
+    }
+}

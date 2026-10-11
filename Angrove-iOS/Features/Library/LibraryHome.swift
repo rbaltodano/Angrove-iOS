@@ -617,6 +617,7 @@ private struct ClippedPassagesShelf: View {
                 }
                 .padding(.vertical, 1)
             }
+            .scrollClipDisabled()
             .contentMargins(.horizontal, 24, for: .scrollContent)
         }
     }
@@ -626,6 +627,15 @@ private struct ClippedPassageLibraryCard: View {
     let passage: ConceptDefinition
     let onRemove: () -> Void
     let onAsk: () -> Void
+
+    @State private var speechExpansionRequest = 0
+    @State private var speechCollapseRequest = 0
+    @State private var isPreparingSpeech = false
+    @State private var hidesActionsForSpeech = false
+    @Environment(\.speechSource) private var speechSource
+
+    private var speechText: String { CardSpeech.text(for: passage) }
+    private var isReadingPassage: Bool { ResponseSpeechPlayer.shared.phase(for: speechText) != .idle }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -641,19 +651,29 @@ private struct ClippedPassageLibraryCard: View {
                     isSaved: true,
                     canQuote: true,
                     canFork: false,
+                    speechText: speechText,
                     quoteAccessibilityLabel: "Ask about passage",
                     saveTintColor: AngroveTheme.Colors.accentRed,
                     onSave: onRemove,
-                    onQuote: onAsk
+                    onQuote: onAsk,
+                    onSpeak: requestSpeechPlayback
                 )
+                .opacity(hidesActionsForSpeech ? 0 : 1)
+                .allowsHitTesting(!hidesActionsForSpeech)
+                .accessibilityHidden(hidesActionsForSpeech)
+                .animation(.easeOut(duration: 0.2), value: hidesActionsForSpeech)
             }
-            Text("“\(passage.semanticDefinition)”")
-                .paragraphFont()
-                .lineSpacing(FlowLayout.rowSpacing)
-                .italic()
-                .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                .lineLimit(5)
-                .fixedSize(horizontal: false, vertical: true)
+            TruncatableParagraph(
+                text: passage.semanticDefinition,
+                speechText: speechText,
+                speechExpansionRequest: speechExpansionRequest,
+                speechCollapseRequest: speechCollapseRequest,
+                automaticallyCollapsesAfterSpeech: false,
+                onSpeechExpansionComplete: startSpeechPlayback,
+                collapsedLineLimit: 5,
+                isItalic: true,
+                isQuoted: true
+            )
             if let attribution = passage.libraryAttribution {
                 Text(attribution)
                     .paragraphFont()
@@ -664,11 +684,39 @@ private struct ClippedPassageLibraryCard: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
-        .padding(16)
-        .frame(width: 292, alignment: .leading)
+        .padding(28)
+        // Keep the same text width the card had before its padding grew from 16 to 28.
+        .frame(width: 316, alignment: .leading)
         .background(AngroveTheme.Colors.canvasSecondary)
-        .clipShape(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.smallCardRadius, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.smallCardRadius, style: .continuous).stroke(AngroveTheme.Colors.quietBorder, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).stroke(AngroveTheme.Colors.quietBorder, lineWidth: 1))
+        .onChange(of: isReadingPassage) { _, isReading in
+            guard !isReading, !isPreparingSpeech, hidesActionsForSpeech else { return }
+            withAnimation(.easeOut(duration: 0.2)) { hidesActionsForSpeech = false }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
+                speechCollapseRequest += 1
+            }
+        }
+    }
+
+    private func requestSpeechPlayback() {
+        guard !isPreparingSpeech, !isReadingPassage else { return }
+        isPreparingSpeech = true
+        speechExpansionRequest += 1
+    }
+
+    private func startSpeechPlayback() {
+        guard isPreparingSpeech else { return }
+        hidesActionsForSpeech = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+            guard isPreparingSpeech else { return }
+            ResponseSpeechPlayer.shared.toggle(
+                speechText,
+                units: CardSpeech.units(for: speechText),
+                source: speechSource
+            )
+            isPreparingSpeech = false
+        }
     }
 }
 

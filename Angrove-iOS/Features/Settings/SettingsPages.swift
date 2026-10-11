@@ -212,7 +212,15 @@ struct PrivacyAndDataSettingsView: View {
     @State private var pendingImport: PendingConversationImport?
     @State private var dataTransferError: String?
     @State private var showsClearInsightTreeConfirmation = false
+    @State private var showsDeleteAllConversationsConfirmation = false
+    @State private var showsDeleteAllClippedPassagesConfirmation = false
+    @State private var showsDeleteAllAppDataConfirmation = false
+    @State private var isDeletingAllAppData = false
+    @State private var didDeleteAllAppData = false
     var onClearInsightTree: () -> Void = {}
+    var onDeleteAllConversations: () throws -> Void = {}
+    var onDeleteAllClippedPassages: () throws -> Void = {}
+    var onDeleteAllAppData: () async throws -> Void = {}
 
     var body: some View {
         SettingsDetailScaffold(title: "Privacy & Data", intro: "Protect access to Angrove and manage the conversations and Insights stored on this device.") {
@@ -256,9 +264,46 @@ struct PrivacyAndDataSettingsView: View {
                     }
                     .buttonStyle(.plain)
 
-                    SettingsUnavailableActionRow(title: "Delete All Conversations", isDestructive: true)
-                    SettingsUnavailableActionRow(title: "Delete Memories", isDestructive: true)
-                    SettingsUnavailableActionRow(title: "Delete All App Data", isDestructive: true)
+                    Button(role: .destructive) {
+                        showsDeleteAllConversationsConfirmation = true
+                    } label: {
+                        Text("Delete All Conversations")
+                            .settingsText(.label)
+                            .foregroundStyle(AngroveTheme.Colors.accentRed)
+                            .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(role: .destructive) {
+                        showsDeleteAllClippedPassagesConfirmation = true
+                    } label: {
+                        Text("Delete all Clipped Passages")
+                            .settingsText(.label)
+                            .foregroundStyle(AngroveTheme.Colors.accentRed)
+                            .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(role: .destructive) {
+                        showsDeleteAllAppDataConfirmation = true
+                    } label: {
+                        HStack {
+                            Text("Delete All App Data")
+                                .settingsText(.label)
+                                .foregroundStyle(AngroveTheme.Colors.accentRed)
+                            Spacer()
+                            if isDeletingAllAppData { ProgressView() }
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isDeletingAllAppData)
+
+                    if didDeleteAllAppData {
+                        Text("App data deleted. Fully quit and reopen Angrove to finish resetting it.")
+                            .settingsText(.paragraph)
+                            .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                    }
                 }
             }
         }
@@ -271,6 +316,36 @@ struct PrivacyAndDataSettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This removes every saved Insight and the whole tree on this device. Conversations are kept. This can’t be undone. Fully quit and reopen Angrove afterward.")
+        }
+        .confirmationDialog(
+            "Delete All Conversations?",
+            isPresented: $showsDeleteAllConversationsConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete All Conversations", role: .destructive, action: confirmDeleteAllConversations)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This permanently removes all conversations and their conversation-specific history from this iPhone. Saved Insights, Clipped Passages, and Study Topics remain. This can’t be undone.")
+        }
+        .confirmationDialog(
+            "Delete all Clipped Passages?",
+            isPresented: $showsDeleteAllClippedPassagesConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete all Clipped Passages", role: .destructive, action: confirmDeleteAllClippedPassages)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This permanently removes every saved passage from Clipped Passages on this iPhone. Conversations and saved Insights remain. This can’t be undone.")
+        }
+        .confirmationDialog(
+            "Delete All App Data?",
+            isPresented: $showsDeleteAllAppDataConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete All App Data", role: .destructive, action: confirmDeleteAllAppData)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This permanently removes all conversations, saved Insights, Clipped Passages, Study Topics, reading progress, app settings, downloaded model files, and cached app data from this iPhone. The on-device model may need to be downloaded again. This can’t be undone. Fully quit and reopen Angrove afterward.")
         }
         .fileExporter(
             isPresented: $isExportingConversations,
@@ -305,7 +380,7 @@ struct PrivacyAndDataSettingsView: View {
             importConversations(from: result)
         }
         .alert(
-            "Couldn’t Transfer Conversations",
+            "Couldn’t Manage Data",
             isPresented: Binding(
                 get: { dataTransferError != nil },
                 set: { if !$0 { dataTransferError = nil } }
@@ -323,6 +398,30 @@ struct PrivacyAndDataSettingsView: View {
                 exportDocument = AngroveConversationDocument(data: try await InquiryPersistenceStore.exportDataAsync())
                 isExportingConversations = true
             } catch { dataTransferError = error.localizedDescription }
+        }
+    }
+
+    private func confirmDeleteAllConversations() {
+        do { try onDeleteAllConversations() }
+        catch { dataTransferError = error.localizedDescription }
+    }
+
+    private func confirmDeleteAllClippedPassages() {
+        do { try onDeleteAllClippedPassages() }
+        catch { dataTransferError = error.localizedDescription }
+    }
+
+    private func confirmDeleteAllAppData() {
+        guard !isDeletingAllAppData else { return }
+        isDeletingAllAppData = true
+        Task {
+            defer { isDeletingAllAppData = false }
+            do {
+                try await onDeleteAllAppData()
+                didDeleteAllAppData = true
+            } catch {
+                dataTransferError = error.localizedDescription
+            }
         }
     }
 

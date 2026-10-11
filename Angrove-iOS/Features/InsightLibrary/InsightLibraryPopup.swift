@@ -259,8 +259,16 @@ struct InsightLibraryCard: View {
     var onFork: () -> Void
     var onToggleSaved: () -> Void
     @State private var isConfirmingUnbookmark = false
+    @State private var speechExpansionRequest = 0
+    @State private var speechCollapseRequest = 0
+    @State private var isPreparingSpeech = false
+    @State private var hidesActionsForSpeech = false
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.speechSource) private var speechSource
+
+    private var speechText: String { CardSpeech.text(for: insight) }
+    private var isReadingInsight: Bool { ResponseSpeechPlayer.shared.phase(for: speechText) != .idle }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -281,24 +289,35 @@ struct InsightLibraryCard: View {
                 ResponseButtons(
                     isSaved: isSaved,
                     canQuote: true,
-                    canFork: !insight.isLibraryQuote,
+                    canFork: false,
+                    speechText: speechText,
                     quoteAccessibilityLabel: insight.isLibraryQuote ? "Ask about passage" : "Quote",
                     tintColor: AngroveTheme.Colors.placeholderText,
                     saveTintColor: AngroveTheme.Colors.accentRed,
                     onSave: handleSaveTapped,
                     onQuote: onQuote,
+                    onSpeak: requestSpeechPlayback,
                     onFork: onFork
                 )
+                .opacity(hidesActionsForSpeech ? 0 : 1)
+                .allowsHitTesting(!hidesActionsForSpeech)
+                .accessibilityHidden(hidesActionsForSpeech)
+                .animation(.easeOut(duration: 0.2), value: hidesActionsForSpeech)
             }
 
             if insight.isLibraryQuote {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("“\(insight.semanticDefinition)”")
-                        .paragraphFont()
-                        .lineSpacing(FlowLayout.rowSpacing)
-                        .italic()
-                        .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                        .fixedSize(horizontal: false, vertical: true)
+                    TruncatableParagraph(
+                        text: insight.semanticDefinition,
+                        speechText: speechText,
+                        speechExpansionRequest: speechExpansionRequest,
+                        speechCollapseRequest: speechCollapseRequest,
+                        automaticallyCollapsesAfterSpeech: false,
+                        onSpeechExpansionComplete: startSpeechPlayback,
+                        collapsedLineLimit: 5,
+                        isItalic: true,
+                        isQuoted: true
+                    )
                     if let attribution = insight.libraryAttribution {
                         Text(attribution)
                             .paragraphFont()
@@ -309,24 +328,36 @@ struct InsightLibraryCard: View {
                     }
                 }
             } else {
-                InsightDefinitionsContent(definitions: insight.contextualDefinitions)
+                InsightDefinitionsContent(
+                    definitions: insight.contextualDefinitions,
+                    speechExpansionRequest: speechExpansionRequest,
+                    speechCollapseRequest: speechCollapseRequest,
+                    automaticallyCollapsesAfterSpeech: false,
+                    onSpeechExpansionComplete: startSpeechPlayback
+                )
             }
         }
-        .padding(24)
+        .padding(28)
         .frame(maxWidth: maxWidth)
-        .background(AngroveTheme.Colors.canvasSecondary)
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .background(AngroveTheme.Colors.canvasSecondary, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .stroke(AngroveTheme.Colors.brownBorder, lineWidth: 1)
         )
         .shadow(
-            color: AngroveTheme.Colors.cardGlowBase
+            color: AngroveTheme.Colors.dropShadow
                 .opacity(shadowOpacity),
             radius: 24,
             x: 0,
             y: 16
         )
+        .onChange(of: isReadingInsight) { _, isReading in
+            guard !isReading, !isPreparingSpeech, hidesActionsForSpeech else { return }
+            withAnimation(.easeOut(duration: 0.2)) { hidesActionsForSpeech = false }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
+                speechCollapseRequest += 1
+            }
+        }
         .alert(insight.isLibraryQuote ? "Unclip passage?" : "Remove bookmark?", isPresented: $isConfirmingUnbookmark) {
             Button("Cancel", role: .cancel) {}
             Button("Remove", role: .destructive) {
@@ -344,6 +375,26 @@ struct InsightLibraryCard: View {
             isConfirmingUnbookmark = true
         } else {
             onToggleSaved()
+        }
+    }
+
+    private func requestSpeechPlayback() {
+        guard !isPreparingSpeech, !isReadingInsight else { return }
+        isPreparingSpeech = true
+        speechExpansionRequest += 1
+    }
+
+    private func startSpeechPlayback() {
+        guard isPreparingSpeech else { return }
+        hidesActionsForSpeech = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+            guard isPreparingSpeech else { return }
+            ResponseSpeechPlayer.shared.toggle(
+                speechText,
+                units: CardSpeech.units(for: speechText),
+                source: speechSource
+            )
+            isPreparingSpeech = false
         }
     }
 }
