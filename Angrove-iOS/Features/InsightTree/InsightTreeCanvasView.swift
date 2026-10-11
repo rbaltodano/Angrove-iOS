@@ -370,8 +370,10 @@ struct InsightTreeCanvasView: View {
             } ?? []
             let restFade = isInStudy ? 1 - studyProgress : 1
             let studyReady = isStudyRequested && isInStudy && studyProgress > 0.99
-            let labelOpacity = Self.labelOpacity(for: activeScale)
-            let nodeLabelOpacity = Self.nodeLabelOpacity(for: activeScale)
+            // Study has its own close camera, so labels never inherit the tree's zoomed-out fade.
+            let studyLabelFloor = isInStudy ? studyProgress : 0
+            let labelOpacity = max(Self.labelOpacity(for: activeScale), studyLabelFloor)
+            let nodeLabelOpacity = max(Self.nodeLabelOpacity(for: activeScale), studyLabelFloor)
             let layout = makeInsightLayout()
             let connectorRoutes = conceptConnectorRoutes(layout: layout, camera: camera, size: size)
             let studyChipTargets = studyReady ? studyTapTargets(layout: layout, camera: camera, size: size) : []

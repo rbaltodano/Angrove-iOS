@@ -35,6 +35,13 @@ extension InsightTreeCanvasView {
         if !isBranch { onGeneratingChange(true) }
         markUndiscovered(pending.map(\.id))
         if isBranch {
+            // The new Node Concept already has its final title; show it at once. A persisted
+            // tree otherwise defers new nodes until the whole batch is saved.
+            let childIDs = Set(pending.map(\.id))
+            let parentIDs = newNodes.filter { $0.insights.contains { childIDs.contains($0.id) } }.map(\.id)
+            withAnimation(.easeOut(duration: 0.22)) {
+                revealState.revealedNodeIDs.formUnion(parentIDs)
+            }
             splayBranchLoadingChildren(pending)
             return
         }
