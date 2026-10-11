@@ -135,7 +135,7 @@ The owner is handing this work to Codex. State as of commit `2776cc9` on `featur
 | C9 | Physical-device sustained gate | C8 | failed | Codex takeover | 2026-09-27 | M4-Ls failed cold-load and short-answer p95 gates; C9-M4Ls-2, early stop is decisive for nearest-rank p95 |
 | C10 | Promotion | C9 + owner approval | blocked | Claude Code + Codex takeover | 2026-09-27 | C9 failed; branch prework retained, no merge/PR. Existing phone E4B remains a temporary personal trial |
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
-| C12 | Optional: vision probe | C10 | in-progress | Codex / gemma-vision | 2026-10-11 | Owner explicitly requested native image input; current E4B integration is authoritative. GPU vision loads in simulator; recognition checks fail. Phone unavailable; normal/Release vision remains disabled. |
+| C12 | Optional: vision probe | C10 | in-progress | Codex / gemma-vision | 2026-10-11 | Owner explicitly requested native image input; current E4B integration is authoritative. Native GPU phone recognition and image-history follow-ups pass; phone vision enabled by default. Photos restored on main. Sustained/UI checks remain. |
 
 **Next action:** Claude reviews the [review handoff](Gemma4-E4B-Review-Handoff.md) and the frozen
 [P1 diagnostic plan](Gemma4-E4B-Post-C9-Diagnostics.md). P1 has no runs and the owner requested
@@ -1182,3 +1182,34 @@ The phone initially reports unavailable; implementation and simulator checks con
   image/follow-up, lifecycle and UI checks. `devicectl` reports the owner's phone unavailable.
   **Do not enable ordinary/Release vision from these simulator results.** The attachment wiring
   is reviewable, but native image recognition is not validated for normal use.
+
+### C12 native iPhone recognition — October 11, 2026
+
+The owner unlocked Ry, requested restoring Photos for testing, authorized landing on main, and
+waived the Home-count prerequisite. Before installation, a production backup nevertheless
+completed: `~/Developer/aquinas-backup-20261011-vision`, 60 persisted Application Support,
+Preferences, and Documents files / 1,527,766 bytes. Each file matches the device inventory size;
+SHA-256 manifest, valid plist/JSON or encrypted-envelope checks are recorded. Production app
+content was not removed. Caches were omitted.
+
+- Installed full-app disposable `com.ryanbaltodano.Aquinas-iOS.ModelProbe`, signed visible name
+  **Angrove – Vision** verified before installation. Separate derived data:
+  `build-output/gemma-vision-device`. Base name was read from canonical main's app configuration.
+  Stock package/hash and LiteRT-LM 0.14.0 unchanged. Build passed.
+- Device: base iPhone 17 Ry, iOS 27.0 / 24A5430a. Both decoder and vision use GPU, F32 activation
+  override, 4,096 context, greedy sampling, native thinking/MTP/audio off.
+- `C12-M4LsV-phone-1`: PRUDENCE image → **PRUDENCE**, retained-image follow-up → **prudence**.
+  Objective checks passed. Load 13.779 s; first generation 12.609 s; peak measured footprint
+  2,016,155,616 bytes after follow-up (28.9% of frozen operating cap). No new crash logs.
+- `C12-M4LsV-phone-2`: red/blue blocks → **red and blue**, retained-image follow-up → **red**.
+  Objective checks passed. Load 9.412 s; first generation 9.118 s; peak 1,914,705,816 bytes.
+  No new crash logs. Each run starts a fresh process and verifies termination afterward.
+- Raw reports, native stderr, launch configuration, build/install logs are immutable ignored
+  `LocalModels/e4b-eval/C12-M4LsV-phone-{1,2}`. The synthetic expected values are never in prompts.
+- Owner-authorized integration and Photos restoration landed on main, preserving seven unrelated
+  dirty files. Photos no longer depends on a launch flag. Native iPhone builds enable GPU vision
+  by default; simulator builds remain text-only by default because CPU-decoder recognition failed.
+  This supersedes the preceding unavailable-phone/default-disabled observations; historical C9
+  timing rejection remains unchanged. These vision checks do not establish C9 latency budgets.
+- Broader varied-photo, thermal, and interactive UI checks remain; the installed app is for the
+  owner's hands-on Photos test.

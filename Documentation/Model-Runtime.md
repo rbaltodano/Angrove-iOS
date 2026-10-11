@@ -86,16 +86,17 @@ Before device model experiments, back up the app's data. Do not use `devicectl` 
 
 ## Native image input — development validation
 
-The owner requested Gemma 4 E4B native image recognition on October 11, 2026.
-DEBUG builds enable the existing GPU vision encoder on the shared runtime with
-`--litert-enable-vision`. Release and ordinary launches remain text-only until the physical
-iPhone load/memory check passes. No second engine, cloud service, model download, or OCR-only
-substitute is involved. Photos and Camera appear in the attachment menu when vision is enabled;
-Camera also requires an available camera. Originals remain in encrypted attachment storage.
-Model input is orientation-corrected lossless PNG bounded to 1,536 pixels, and the context budget reserves
-280 tokens per image. Image-bearing requests can use the attached page as evidence without
-requiring it to exist in the bundled Library. Text-only launches retain the explicit unavailable
-image note and preserve follow-up text.
+The owner requested Gemma 4 E4B native image recognition on October 11, 2026. Native iPhone
+builds now enable the existing GPU vision encoder on the shared runtime by default, following
+successful phone recognition, image-history follow-up, and memory checks. Simulator builds stay
+text-only by default; DEBUG `--litert-enable-vision` remains available for diagnostics.
+No second engine, cloud service, model download, or OCR-only substitute is involved.
+Photos is always available in the conversation attachment menu. Camera appears when vision
+is enabled and a camera is available. Originals remain in encrypted attachment storage.
+Model input is orientation-corrected lossless PNG bounded to 1,536 pixels, and the context budget
+reserves 280 tokens per image. Image-bearing requests can use the attached page as evidence
+without requiring it to exist in the bundled Library. Text-only launches retain the explicit
+unavailable image note and preserve follow-up text.
 
 Run the production adapter probe with:
 
@@ -114,7 +115,10 @@ Results include image path/hash, effective vision backend, first/follow-up respo
 Simulator results do not establish phone memory, thermals, or sustained reliability.
 See C12 in the progress ledger for evidence and pending validation.
 
-Current result: the encoder and adapter load in the simulator, but recognition is unreliable.
-The final lossless color and word-transcription probes fail their objective checks. A package-
-default precision comparison also fails. Keep the normal and Release paths text-only; validate
-the phone's GPU-decoder/GPU-vision path before deciding whether runtime changes are required.
+Phone validation: `C12-M4LsV-phone-1` correctly transcribed PRUDENCE and followed up with
+prudence; `C12-M4LsV-phone-2` correctly identified red/blue and the left-hand red block.
+Both use the GPU decoder and GPU vision encoder on the base iPhone 17. Peak measured footprint
+was 2,016,155,616 bytes (28.9% of the frozen 6,970,472,776-byte operating cap). No new crash
+logs appeared. Simulator CPU-decoder recognition remains unreliable; those failures do not
+represent the tested native phone path. Sustained varied-photo, thermal, and UI checks remain
+broader validation work.

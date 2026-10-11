@@ -388,13 +388,17 @@ actor LiteRTAngroveRuntime: ModelRuntimeDriver {
         }
     }
 
-    // C12: exercise the existing E4B vision encoder on the shared engine. Keep release
-    // text-only until the physical-device load/memory check passes.
+    // The E4B encoder passed native recognition and follow-up checks on the base iPhone.
+    // Simulator CPU decoding remains text-only by default: its vision answers are unreliable.
     private static let visionBackend: Backend? = {
+#if targetEnvironment(simulator)
 #if DEBUG
         ProcessInfo.processInfo.arguments.contains("--litert-enable-vision") ? .gpu : nil
 #else
         nil
+#endif
+#else
+        .gpu
 #endif
     }()
     /// Whether image content may be sent to the engine. Without a vision executor LiteRT-LM
