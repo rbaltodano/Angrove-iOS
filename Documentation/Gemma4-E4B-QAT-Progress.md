@@ -1234,3 +1234,9 @@ Mounted real ChatThreadColumn regression tests submit a photo-bearing question t
 trigger in light/dark small-phone layouts, verifying preserved attachments, one queued response,
 and its placeholder. Focused conversation tests passed; raw crash/tests are ignored evidence
 `C12-submit-fix-1`. Physical confirmation after reinstall remains required.
+
+The fixed canonical-main build installed successfully under the regular **Angrove** name and
+production bundle ID (no container reset), then launched normally for the owner's retry.
+15 focused tests / 16 parameterized runs passed, zero failures; xcresult
+`Test-Angrove-iOS-2026.10.11_17-31-04--0400.xcresult`. The regular app now includes Photos and
+native vision; the older separate Vision installation is superseded for this retry.
