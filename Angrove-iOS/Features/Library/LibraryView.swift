@@ -724,6 +724,7 @@ struct LibraryView: View {
     var onSaveClippedPassage: (ConceptDefinition) -> Void = { _ in }
     @State private var catalog: LibraryCatalog?
     @State private var searchText = ""
+    @State private var dismissSearchFocusRequest = 0
     @State private var selectedWorkID: String?
     @State private var targetChunkIndex: Int?
     @State private var targetReaderChunkIndex: Int?
@@ -751,6 +752,7 @@ struct LibraryView: View {
                 catalog: catalog,
                 recentWorkIDs: LibraryRecents.decode(recentWorkIDsRaw),
                 searchText: $searchText,
+                dismissSearchFocusRequest: dismissSearchFocusRequest,
                 onOpenWork: { openWork(id: $0.id) },
                 onOpenPassage: { openWork(id: $0.workID, atChunk: $0.chunkIndex) },
                 onOpenReading: openReading,
@@ -898,6 +900,7 @@ struct LibraryView: View {
     }
 
     private func openScripture(_ target: LibraryTextFormatter.ScriptureTarget) {
+        dismissSearchFocusRequest += 1
         withAnimation(.springStandard) {
             targetChunkIndex = nil
             targetReaderChunkIndex = nil
@@ -909,6 +912,7 @@ struct LibraryView: View {
     }
 
     private func openWork(id: String, atChunk chunkIndex: Int? = nil) {
+        dismissSearchFocusRequest += 1
         withAnimation(.springStandard) {
             targetScripture = nil
             targetListeningWordIndex = chunkIndex == nil ? LibraryListeningStore.shared.bookmark(for: id)?.wordIndex : nil

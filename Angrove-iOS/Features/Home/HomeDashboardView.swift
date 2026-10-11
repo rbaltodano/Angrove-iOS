@@ -556,7 +556,7 @@ private struct HomeInsightBridgeSection: View {
                         .font(AngroveTheme.Typography.uiHeading)
                         .foregroundColor(AngroveTheme.Colors.primaryReadable)
 
-                    Text("These insights might be worth connecting in your Insight Tree. Who knows what you'll learn")
+                    Text("These insights might be worth connecting in your Insight Tree. Who knows what you'll learn.")
                         .paragraphFont()
                         .foregroundColor(AngroveTheme.Colors.paragraphText)
                         .lineSpacing(7)

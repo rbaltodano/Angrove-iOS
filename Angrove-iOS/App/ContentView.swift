@@ -78,7 +78,24 @@ struct ContentView: View {
     /// Consumed requests stay consumed when the conversation page is recreated.
     @State private var newConversationRequests = NewConversationRequests()
     @State private var deletedConversationID: UUID? = nil
-    @State private var colorSchemeOverride: ColorScheme? = nil
+    @AppStorage(SettingsStorageKey.colorScheme) private var colorSchemeSelection = "system"
+    private var colorSchemeOverride: ColorScheme? {
+        switch colorSchemeSelection {
+        case "light": .light
+        case "dark": .dark
+        default: nil
+        }
+    }
+    private var colorSchemeOverrideBinding: Binding<ColorScheme?> {
+        Binding(
+            get: { colorSchemeOverride },
+            set: { colorSchemeSelection = switch $0 {
+                case .light: "light"
+                case .dark: "dark"
+                default: "system"
+            } }
+        )
+    }
     @AppStorage(SettingsStorageKey.conversationBackground) private var conversationBackground: CanvasBackgroundOption = .system
     @AppStorage(SettingsStorageKey.insightTreeBackground) private var insightTreeBackground: CanvasBackgroundOption = .system
     @State private var requestedForkConcept: ConceptDefinition? = nil
@@ -977,7 +994,7 @@ struct ContentView: View {
                                 )
                             case .settings:
                                 SettingsView(
-                                    colorSchemeOverride: $colorSchemeOverride,
+                                    colorSchemeOverride: colorSchemeOverrideBinding,
                                     userName: $userName,
                                     customInstructions: $customInstructions,
                                     conversationFontSize: $conversationFontSize,

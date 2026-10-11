@@ -2152,7 +2152,7 @@ private struct EmptyInsightTreeView: View {
         AngroveEmptyState(
             systemImage: "brain.head.profile",
             title: "Insights will gather here",
-            message: "Save insights from conversations to begin forming Theo's map of connected ideas."
+            message: "Save insights from conversations to begin connecting ideas."
         )
     }
 }

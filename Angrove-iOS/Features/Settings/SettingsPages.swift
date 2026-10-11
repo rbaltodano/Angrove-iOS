@@ -277,7 +277,7 @@ struct PrivacyAndDataSettingsView: View {
                     Button(role: .destructive) {
                         showsDeleteAllClippedPassagesConfirmation = true
                     } label: {
-                        Text("Delete all Clipped Passages")
+                        Text("Delete All Clipped Passages")
                             .settingsText(.label)
                             .foregroundStyle(AngroveTheme.Colors.accentRed)
                             .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
@@ -328,11 +328,11 @@ struct PrivacyAndDataSettingsView: View {
             Text("This permanently removes all conversations and their conversation-specific history from this iPhone. Saved Insights, Clipped Passages, and Study Topics remain. This can’t be undone.")
         }
         .confirmationDialog(
-            "Delete all Clipped Passages?",
+            "Delete All Clipped Passages?",
             isPresented: $showsDeleteAllClippedPassagesConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Delete all Clipped Passages", role: .destructive, action: confirmDeleteAllClippedPassages)
+            Button("Delete All Clipped Passages", role: .destructive, action: confirmDeleteAllClippedPassages)
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This permanently removes every saved passage from Clipped Passages on this iPhone. Conversations and saved Insights remain. This can’t be undone.")

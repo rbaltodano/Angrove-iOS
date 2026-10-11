@@ -46,22 +46,6 @@ struct StudyBranchDockControls: View {
         let fontSize: CGFloat = compact ? 13 : 14
         return HStack(spacing: Layout.interPillSpacing) {
             HStack(spacing: compact ? 10 : 14) {
-                Button(action: increment) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 13, weight: .medium))
-                        .frame(width: 14, height: 24)
-                }
-                .buttonStyle(.plain)
-                .contentShape(Rectangle().inset(by: -15))
-                .disabled(isBusy || count >= 6)
-                .opacity(count >= 6 ? 0.4 : 1)
-                .accessibilityLabel("Add an Insight")
-
-                Text("\(count)", comment: "Number of Insights to create.")
-                    .font(.custom("Figtree-Bold", size: fontSize, relativeTo: .subheadline))
-                Text("New Insights")
-                    .font(.custom("Figtree-SemiBold", size: fontSize, relativeTo: .subheadline))
-
                 Button(action: decrement) {
                     Image(systemName: "minus")
                         .font(.system(size: 13, weight: .medium))
@@ -72,6 +56,22 @@ struct StudyBranchDockControls: View {
                 .disabled(isBusy || count <= 2)
                 .opacity(count <= 2 ? 0.4 : 1)
                 .accessibilityLabel("Remove an Insight")
+
+                Text("\(count)", comment: "Number of Insights to create.")
+                    .font(.custom("Figtree-Bold", size: fontSize, relativeTo: .subheadline))
+                Text("New Insights")
+                    .font(.custom("Figtree-SemiBold", size: fontSize, relativeTo: .subheadline))
+
+                Button(action: increment) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 13, weight: .medium))
+                        .frame(width: 14, height: 24)
+                }
+                .buttonStyle(.plain)
+                .contentShape(Rectangle().inset(by: -15))
+                .disabled(isBusy || count >= 6)
+                .opacity(count >= 6 ? 0.4 : 1)
+                .accessibilityLabel("Add an Insight")
             }
             .foregroundStyle(AngroveTheme.Colors.paragraphText.opacity(0.75))
             .padding(.horizontal, compact ? 14 : 32)

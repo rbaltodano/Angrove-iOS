@@ -316,6 +316,7 @@ struct LibraryHomeView: View {
     let catalog: LibraryCatalog?
     let recentWorkIDs: [String]
     @Binding var searchText: String
+    var dismissSearchFocusRequest = 0
     let onOpenWork: (LibraryWork) -> Void
     let onOpenPassage: (LibraryFeaturedPassage) -> Void
     /// Opens the work being read aloud at the page being read.
@@ -332,6 +333,7 @@ struct LibraryHomeView: View {
         catalog: LibraryCatalog?,
         recentWorkIDs: [String],
         searchText: Binding<String>,
+        dismissSearchFocusRequest: Int = 0,
         onOpenWork: @escaping (LibraryWork) -> Void,
         onOpenPassage: @escaping (LibraryFeaturedPassage) -> Void,
         onOpenReading: @escaping (LibraryWork) -> Void = { _ in },
@@ -344,6 +346,7 @@ struct LibraryHomeView: View {
         self.catalog = catalog
         self.recentWorkIDs = recentWorkIDs
         _searchText = searchText
+        self.dismissSearchFocusRequest = dismissSearchFocusRequest
         self.onOpenWork = onOpenWork
         self.onOpenPassage = onOpenPassage
         self.onOpenReading = onOpenReading
@@ -369,7 +372,11 @@ struct LibraryHomeView: View {
                         .padding(.top, 24)
                         .padding(.horizontal, 24)
 
-                    StudyTopicsSearchField(searchText: $searchText, prompt: Text("Search titles or subjects"))
+                    StudyTopicsSearchField(
+                        searchText: $searchText,
+                        prompt: Text("Search titles or subjects"),
+                        dismissFocusRequest: dismissSearchFocusRequest
+                    )
                         .padding(.top, 28)
                         .padding(.horizontal, 24)
 

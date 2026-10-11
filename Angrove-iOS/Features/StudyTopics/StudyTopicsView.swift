@@ -450,7 +450,7 @@ struct StudyTopicsView: View {
 
                     StudyTopicsSearchField(
                         searchText: $searchText,
-                        prompt: Text("Search Study Topcis")
+                        prompt: Text("Search Study Topics")
                     )
                         .padding(.top, 28)
 
@@ -821,6 +821,7 @@ struct StudyTopicsView: View {
 struct StudyTopicsSearchField: View {
     @Binding var searchText: String
     var prompt: Text = Text("Search")
+    var dismissFocusRequest = 0
     @FocusState private var isFocused: Bool
 
     var body: some View {
@@ -837,6 +838,7 @@ struct StudyTopicsSearchField: View {
                 .submitLabel(.search)
                 .focused($isFocused)
                 .onSubmit { isFocused = false }
+                .onChange(of: dismissFocusRequest) { _, _ in isFocused = false }
         }
         .padding(.horizontal, 20)
         .frame(height: 52)
