@@ -61,6 +61,11 @@ Branch pages use bindings resolved by conversation and branch IDs. Writes from a
 (including delayed response reveals and editor blur) cannot replace a new conversation's branch
 or a different branch at the same array position.
 
+Photo-strip screen bounds are held in non-observed `AttachmentScrollRegions` references.
+Scrolling updates gesture hit testing directly without invalidating the conversation or shell.
+The canvas and side-menu swipe handlers read the latest bounds when a gesture starts, so a
+horizontal drag on an attachment strip remains reserved for the strip after vertical scrolling.
+
 
 Automatic conversation naming shares the first answer's tree-update job. Once seed processing
 finishes, `AngroveModel.conversationTitle(for:)` names the initial question. `ConversationSession`
@@ -77,7 +82,8 @@ a matching Node label does not hide the saved chip.
 Every Insight Tree is built on-device. The global Insight Library canvas is an in-memory semantic
 experience. The conversation tree asks the local model for each turn's subject
 (`insightTreeSeedCandidate`), stores accepted subjects in `LocalInsightTreeSeedStore`, and clusters
-saved Insights around them with the bundled MiniLM `EmbeddingProvider`. `NLEmbeddingProvider` is a
+saved Insights around them with the bundled MiniLM `EmbeddingProvider`. Response seeds remain
+visible before any Insight is bookmarked; empty global anchors remain hidden. `NLEmbeddingProvider` is a
 degraded last resort only when the MiniLM assets fail to load.
 
 Both canvases pass the app's shared `ModelTaskQueue` into `InsightTreeViewModel`. Cluster and

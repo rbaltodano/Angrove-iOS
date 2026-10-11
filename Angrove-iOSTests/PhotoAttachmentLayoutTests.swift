@@ -22,6 +22,54 @@ struct PhotoAttachmentLayoutTests {
         }
     }
 
+    private final class RenderCount { var value = 0 }
+
+    private struct ScrollingSample: View {
+        let regions: AttachmentScrollRegions
+        let renders: RenderCount
+
+        var body: some View {
+            let _ = renders.value += 1
+            ScrollView(.vertical) {
+                VStack {
+                    UploadedFileStrip(files: [UploadedFile(
+                        name: "First-question photo", imageData: nil, rotationDegrees: 0
+                    )])
+                    Color.clear.frame(height: 1_200)
+                }
+            }
+            .onPreferenceChange(AttachmentScrollBoundsKey.self) { regions.update($0) }
+            .background {
+                RightEdgeCanvasSwipeTrigger(excludedScrollRegions: regions) { }
+            }
+        }
+    }
+
+    @Test("Scrolling a first-question photo updates gesture exclusions without rebuilding its host",
+          arguments: [UIUserInterfaceStyle.light, .dark])
+    func photoScrollDoesNotInvalidateHost(style: UIUserInterfaceStyle) async throws {
+        let regions = AttachmentScrollRegions()
+        let renders = RenderCount()
+        let window = host(root: ScrollingSample(regions: regions, renders: renders), style: style)
+        defer { window.isHidden = true }
+        try await Task.sleep(for: .milliseconds(250))
+        let before = try #require(regions.frames.first)
+        let canvas = try #require(descendants(window).compactMap { $0 as? CanvasSwipeView }.first)
+        let scroll = try #require(descendants(window).compactMap { $0 as? UIScrollView }.first {
+            $0.contentSize.height > $0.bounds.height
+        })
+        let originalPoint = CGPoint(x: before.midX, y: before.maxY - 5)
+        #expect(!canvas.acceptsSwipe(at: originalPoint))
+        let initialRenders = renders.value
+        scroll.setContentOffset(CGPoint(x: 0, y: 50), animated: false)
+        try await Task.sleep(for: .milliseconds(250))
+        let after = try #require(regions.frames.first)
+        #expect(after.minY < before.minY - 40)
+        #expect(renders.value == initialRenders)
+        #expect(canvas.acceptsSwipe(at: originalPoint))
+        #expect(!canvas.acceptsSwipe(at: CGPoint(x: after.midX, y: after.midY)))
+    }
+
     @Test("Multiple attachments overflow into a protected horizontal scroll region",
           arguments: [UIUserInterfaceStyle.light, .dark])
     func multiplePhotosScroll(style: UIUserInterfaceStyle) async throws {
@@ -71,6 +119,10 @@ struct PhotoAttachmentLayoutTests {
     }
 
     private func host(files: [UploadedFile], bounds: Bounds, style: UIUserInterfaceStyle) -> UIWindow {
+        host(root: Sample(files: files, bounds: bounds), style: style)
+    }
+
+    private func host<Content: View>(root: Content, style: UIUserInterfaceStyle) -> UIWindow {
         let window: UIWindow
         if let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first {
             window = UIWindow(windowScene: scene)
@@ -79,7 +131,7 @@ struct PhotoAttachmentLayoutTests {
         }
         window.frame = CGRect(x: 0, y: 0, width: 320, height: 640)
         window.overrideUserInterfaceStyle = style
-        let controller = UIHostingController(rootView: Sample(files: files, bounds: bounds))
+        let controller = UIHostingController(rootView: root)
         window.rootViewController = controller
         window.makeKeyAndVisible()
         controller.view.frame = window.bounds

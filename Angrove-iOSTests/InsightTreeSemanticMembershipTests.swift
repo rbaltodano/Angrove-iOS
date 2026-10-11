@@ -5,7 +5,7 @@ import Testing
 @MainActor
 @Suite("Insight Tree semantic membership", .serialized)
 struct InsightTreeSemanticMembershipTests {
-    @Test("Empty seeded concepts disappear and return when an Insight attaches", arguments: [false, true])
+    @Test("Conversation seeds stay visible before bookmarking; global empty anchors stay hidden", arguments: [false, true])
     func emptyConceptVisibility(global: Bool) async throws {
         let provider = MembershipEmbeddingProvider()
         let seed = LocalInsightTreeSeed(id: UUID(), label: "Moral Virtues", summary: "Moral habits",
@@ -15,7 +15,7 @@ struct InsightTreeSemanticMembershipTests {
             localSeedAnchors: [seed], midpointStoreScope: scope)
         await tree.prepareSemanticTree()
         #expect(tree.nodes.contains { $0.id == seed.id })
-        #expect(tree.visibleNodes.isEmpty)
+        #expect(tree.visibleNodes.map(\.id) == (global ? [] : [seed.id]))
         #expect(tree.visibleEdges.isEmpty)
 
         let insight = concept()
@@ -24,14 +24,43 @@ struct InsightTreeSemanticMembershipTests {
         #expect(tree.visibleNodes.map(\.id) == [seed.id])
         tree.updateInsights([])
         await tree.prepareSemanticTree()
-        #expect(tree.visibleNodes.isEmpty)
+        #expect(tree.visibleNodes.map(\.id) == (global ? [] : [seed.id]))
         let reopened = InsightTreeViewModel(insights: [], embeddingProvider: provider,
             localSeedAnchors: [seed], midpointStoreScope: scope)
         await reopened.prepareSemanticTree()
-        #expect(reopened.visibleNodes.isEmpty)
+        #expect(reopened.visibleNodes.map(\.id) == (global ? [] : [seed.id]))
         reopened.updateInsights([insight])
         await reopened.prepareSemanticTree()
         #expect(reopened.visibleNodes.map(\.id) == [seed.id])
+    }
+
+    @Test("A later unrelated response seed adds a visible connected subject without saved Insights")
+    func responseSeedsGrowWithoutBookmarks() async {
+        let provider = MembershipEmbeddingProvider()
+        let scope = UUID()
+        let seeds = [
+            LocalInsightTreeSeed(id: UUID(), label: "Moral Virtues", summary: "Moral habits",
+                embedding: [1, 0], embeddingVersion: provider.version, createdAt: Date()),
+            LocalInsightTreeSeed(id: UUID(), label: "Ancient History", summary: "Past civilizations",
+                embedding: [0, 1], embeddingVersion: provider.version, createdAt: Date())
+        ]
+        let tree = InsightTreeViewModel(insights: [], embeddingProvider: provider,
+            localSeedAnchors: [seeds[0]], midpointStoreScope: scope)
+        await tree.prepareSemanticTree()
+        #expect(tree.visibleNodes.map(\.id) == [seeds[0].id])
+        tree.setLocalSeedAnchors(seeds)
+        await tree.prepareSemanticTree()
+        #expect(Set(tree.visibleNodes.map(\.id)) == Set(seeds.map(\.id)))
+        #expect(tree.visibleEdges.count == 1)
+        #expect(tree.visibleNodes.allSatisfy { $0.insights.isEmpty })
+
+        let reopened = InsightTreeViewModel(insights: [], embeddingProvider: provider,
+            localSeedAnchors: seeds, midpointStoreScope: scope)
+        await reopened.prepareSemanticTree()
+        #expect(Set(reopened.visibleNodes.map(\.id)) == Set(seeds.map(\.id)))
+        #expect(reopened.visibleEdges.count == 1)
+        _ = reopened.removeBookmarkedNode(id: seeds[1].id, deletingInsights: false)
+        #expect(!reopened.visibleNodes.contains { $0.id == seeds[1].id })
     }
 
     private func concept() -> ConceptDefinition {

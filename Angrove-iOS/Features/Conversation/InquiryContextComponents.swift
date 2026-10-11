@@ -287,3 +287,16 @@ extension View {
         }
     }
 }
+
+/// Gesture hit testing needs current screen coordinates, but those coordinates are not
+/// presentation state. Updating them while scrolling must not invalidate the thread or shell.
+@MainActor
+final class AttachmentScrollRegions {
+    private(set) var frames: [CGRect] = []
+
+    func update(_ frames: [CGRect]) { self.frames = frames }
+
+    func contains(_ point: CGPoint) -> Bool {
+        AttachmentScrollBoundsKey.contains(point, in: frames)
+    }
+}

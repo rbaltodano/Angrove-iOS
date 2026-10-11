@@ -16,7 +16,7 @@ private struct SideMenuDragPresentation: ViewModifier {
     let onDismiss: () -> Void
     let menu: AnyView
 
-    @State private var attachmentScrollBounds: [CGRect] = []
+    @State private var attachmentScrollRegions = AttachmentScrollRegions()
     @State private var dragOffset: CGFloat = 0
     @State private var isDragging = false
     @State private var hasFiredOpenHaptic = false
@@ -24,7 +24,7 @@ private struct SideMenuDragPresentation: ViewModifier {
     func body(content: Content) -> some View {
         ZStack(alignment: .top) {
             content
-                .onPreferenceChange(AttachmentScrollBoundsKey.self) { attachmentScrollBounds = $0 }
+                .onPreferenceChange(AttachmentScrollBoundsKey.self) { attachmentScrollRegions.update($0) }
                 .simultaneousGesture(dragGesture)
 
             let progress = isPresented ? 1.0 : min(1.0, Double(dragOffset / 345))
@@ -47,7 +47,7 @@ private struct SideMenuDragPresentation: ViewModifier {
     private var dragGesture: some Gesture {
         DragGesture(minimumDistance: 10, coordinateSpace: .global)
             .onChanged { value in
-                guard !AttachmentScrollBoundsKey.contains(value.startLocation, in: attachmentScrollBounds),
+                guard !attachmentScrollRegions.contains(value.startLocation),
                       !ResponseSpeechPlayer.shared.isScrubbing,
                       !isPresented, !isBlocked,
                       !(activePage == .studyTopics && isStudyTopicDetailVisible),

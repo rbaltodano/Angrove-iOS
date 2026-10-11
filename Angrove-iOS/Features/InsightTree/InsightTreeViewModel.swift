@@ -17,14 +17,17 @@ import SwiftUI
 final class InsightTreeViewModel: ObservableObject {
     @Published private(set) var nodes: [NodeModel] = []
     @Published private(set) var edges: [EdgeModel] = []
-    /// Keep unconnected empty concepts as semantic anchors. A Branch may move its parent's
-    /// only Insight into a new Node Concept; the now-empty parent and its edge must stay visible.
+    /// Conversation response seeds represent completed exchanges before any Insight is saved.
+    /// Other empty concepts remain semantic anchors, except connected parents retained by Branch.
     var visibleNodes: [NodeModel] {
         let occupiedIDs = Set(nodes.filter { !$0.insights.isEmpty }.map(\.id))
         let connectedIDs = Set(edges.filter {
             occupiedIDs.contains($0.fromNodeID) || occupiedIDs.contains($0.toNodeID)
         }.flatMap { [$0.fromNodeID, $0.toNodeID] })
-        return nodes.filter { occupiedIDs.contains($0.id) || connectedIDs.contains($0.id) }
+        let responseSeedIDs = midpointStoreScope == nil ? Set<UUID>() : Set(localSeedAnchors.map(\.id))
+        return nodes.filter {
+            occupiedIDs.contains($0.id) || connectedIDs.contains($0.id) || responseSeedIDs.contains($0.id)
+        }
     }
 
     var visibleEdges: [EdgeModel] {
@@ -877,8 +880,8 @@ final class InsightTreeViewModel: ObservableObject {
     /// `localSeedAnchors` (on-device Node-seed labels — see `setLocalSeedAnchors`) seed this
     /// clustering as pre-existing semantic anchors: an Insight within the same
     /// similarity threshold attaches under the seeded subject instead of spawning its own
-    /// cluster. An anchor with zero attached Insights stays in the semantic graph but is hidden
-    /// from the canvas until it has members.
+    /// cluster. Conversation response seeds remain visible without attached Insights; other
+    /// unconnected empty anchors stay hidden until they have members.
     /// Empty placeholders must never become model input such as ": ".
     private static func labelDescriptions(for insights: [InsightModel]) -> [String] {
         insights.compactMap { insight in

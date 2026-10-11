@@ -8,7 +8,7 @@ import UIKit
 
 final class CanvasSwipeView: UIView {
     var onTriggered: (() -> Void)?
-    var excludedScrollBounds: [CGRect] = []
+    var excludedScrollRegions: AttachmentScrollRegions?
     fileprivate var windowPan: UIPanGestureRecognizer?
     /// A drag that scrubs read-aloud playback is not a swipe, even if it ends after the scrub does.
     private var isSuppressed = false
@@ -44,8 +44,12 @@ final class CanvasSwipeView: UIView {
 }
 
 extension CanvasSwipeView: UIGestureRecognizerDelegate {
+    func acceptsSwipe(at point: CGPoint) -> Bool {
+        excludedScrollRegions?.contains(point) != true
+    }
+
     func gestureRecognizer(_ gr: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        !AttachmentScrollBoundsKey.contains(touch.location(in: nil), in: excludedScrollBounds)
+        acceptsSwipe(at: touch.location(in: nil))
     }
 
     func gestureRecognizer(_ gr: UIGestureRecognizer,
@@ -55,18 +59,18 @@ extension CanvasSwipeView: UIGestureRecognizerDelegate {
 }
 
 struct RightEdgeCanvasSwipeTrigger: UIViewRepresentable {
-    var excludedScrollBounds: [CGRect] = []
+    var excludedScrollRegions: AttachmentScrollRegions? = nil
     var onTriggered: () -> Void
     func makeUIView(context: Context) -> CanvasSwipeView {
         let v = CanvasSwipeView()
         v.backgroundColor = .clear
         v.onTriggered = onTriggered
-        v.excludedScrollBounds = excludedScrollBounds
+        v.excludedScrollRegions = excludedScrollRegions
         return v
     }
     func updateUIView(_ uiView: CanvasSwipeView, context: Context) {
         uiView.onTriggered = onTriggered
-        uiView.excludedScrollBounds = excludedScrollBounds
+        uiView.excludedScrollRegions = excludedScrollRegions
     }
     static func dismantleUIView(_ uiView: CanvasSwipeView, coordinator: ()) {
         uiView.windowPan?.view?.removeGestureRecognizer(uiView.windowPan!)
