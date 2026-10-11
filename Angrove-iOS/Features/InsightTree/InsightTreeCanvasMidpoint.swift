@@ -15,11 +15,10 @@ extension InsightTreeCanvasView {
         in newNodes: [NodeModel],
         size: CGSize
     ) {
-        if studyBranchSource != nil {
-            revealState.revealedInsightIDs.formUnion(children.map(\.id))
-            return
-        }
         guard revealState.pendingMakeNodeChildren.isEmpty else { return }
+        // Branch runs inside Study: the camera stays on the new Node Concept, so none of the
+        // tour framing below applies.
+        let isBranch = studyBranchSource != nil
         let pending = children
             .sorted { $0.orbitIndex < $1.orbitIndex }
             .map {
@@ -32,8 +31,12 @@ extension InsightTreeCanvasView {
             revealState.loadingInsightIDs.insert(child.id)
             revealState.unsplayedInsightIDs.insert(child.id)
         }
-        onGeneratingChange(true)
+        if !isBranch { onGeneratingChange(true) }
         markUndiscovered(pending.map(\.id))
+        if isBranch {
+            splayBranchLoadingChildren(pending)
+            return
+        }
 
         // Frame the promoted Node Concept and all three loading children before touring them.
         onRequestDismissHover()
@@ -74,6 +77,27 @@ extension InsightTreeCanvasView {
         scheduleMakeNodeRevealIfReady(in: size)
     }
 
+    /// Branch's loading children enter the studied Node Concept one after another, each a
+    /// flashing icon with its connector drawing out of the Node Concept.
+    private func splayBranchLoadingChildren(_ children: [InsightTreeRevealState.PendingMakeNodeChild]) {
+        for child in children {
+            let delay = 0.25 + Double(child.orbitIndex) * 0.18
+            Task {
+                try? await Task.sleep(for: .seconds(delay))
+                await MainActor.run {
+                    if SettingsHaptics.isEnabled {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred(intensity: 0.8)
+                    }
+                    withAnimation(.springBouncy) {
+                        _ = revealState.unsplayedInsightIDs.remove(child.id)
+                    }
+                    growConnectors([child.id])
+                }
+            }
+        }
+        scheduleMakeNodeRevealIfReady(in: lastCanvasSize)
+    }
+
     /// Starts the existing three-stop camera tour only when all child titles and definitions have
     /// replaced their loading content. The former 3.5-second simulated dwell remains a minimum.
     func scheduleMakeNodeRevealIfReady(in size: CGSize) {
@@ -85,7 +109,9 @@ extension InsightTreeCanvasView {
         let startedAt = revealState.makeNodeLoadingStartedAt
             ?? Date().timeIntervalSinceReferenceDate
         let elapsed = Date().timeIntervalSinceReferenceDate - startedAt
-        let remainingDelay = max(3.5 - elapsed, 0)
+        let isBranch = studyBranchSource != nil
+        // Let Branch's last connector finish drawing before the first title appears.
+        let remainingDelay = max((isBranch ? 1.2 + Double(children.count) * 0.18 : 3.5) - elapsed, 0)
 
         revealState.makeNodeRevealTask = Task {
             try? await Task.sleep(for: .seconds(remainingDelay))
@@ -93,7 +119,7 @@ extension InsightTreeCanvasView {
             for (index, child) in children.enumerated() {
                 guard !Task.isCancelled else { return }
                 await MainActor.run {
-                    if let position = worldPosition(forInsightID: child.id) {
+                    if !isBranch, let position = worldPosition(forInsightID: child.id) {
                         // The first stop restores the default zoom while panning; later stops
                         // retain it, matching the existing Make Node choreography.
                         focusInsight(
@@ -103,10 +129,10 @@ extension InsightTreeCanvasView {
                         )
                     }
                 }
-                try? await Task.sleep(for: .milliseconds(900))
+                try? await Task.sleep(for: .milliseconds(isBranch ? 0 : 900))
                 guard !Task.isCancelled else { return }
                 await MainActor.run {
-                    if let position = worldPosition(forInsightID: child.id) {
+                    if !isBranch, let position = worldPosition(forInsightID: child.id) {
                         rippleTrigger = RippleTrigger(
                             worldOrigin: position,
                             startTime: Date().timeIntervalSinceReferenceDate,
@@ -115,20 +141,26 @@ extension InsightTreeCanvasView {
                         )
                     }
                     playGeneratedHaptics()
-                    onMakeNodeChildRevealed(child.id)
+                    if !isBranch { onMakeNodeChildRevealed(child.id) }
                     withAnimation(.easeOut(duration: 0.32)) {
                         revealState.loadingInsightIDs.remove(child.id)
                         revealState.revealedInsightIDs.insert(child.id)
                     }
                 }
-                try? await Task.sleep(for: .milliseconds(700))
+                try? await Task.sleep(for: .milliseconds(isBranch ? 420 : 700))
             }
             guard !Task.isCancelled else { return }
             await MainActor.run {
                 revealState.pendingMakeNodeChildren = []
                 revealState.makeNodeLoadingStartedAt = nil
                 revealState.makeNodeRevealTask = nil
-                onGeneratingChange(false)
+                if isBranch {
+                    revealState.completeBranch(childIDs: Set(children.map(\.id)),
+                        nodeIDs: Set(nodes.map(\.id)), graphEdgeIDs: Set(displayGraphEdges().map(\.id)))
+                    onStudyBranchFinished()
+                } else {
+                    onGeneratingChange(false)
+                }
             }
         }
     }

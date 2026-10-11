@@ -86,7 +86,7 @@ struct StudyBranchPreviewView: View {
                 onCanvasMoved: {},
                 onSuggestConnection: { _ in },
                 onDismissSuggestedNode: { _ in },
-                studyNodeID: finished ? branchNodeID : parentID,
+                studyNodeID: promoted ? branchNodeID : parentID,
                 studySlot: CGRect(x: geometry.size.width / 2 - 150,
                     y: geometry.size.height / 2 - 150, width: 300, height: 300),
                 studyBranchSource: finished ? nil : source,

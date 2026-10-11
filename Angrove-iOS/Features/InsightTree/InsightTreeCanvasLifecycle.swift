@@ -293,7 +293,7 @@ extension InsightTreeCanvasView {
                 scheduleMidpointReveal(generatedID, in: size)
             }
             .onChange(of: generatedMakeNodeChildIDs) { _, ids in
-                if studyBranchSource != nil || revealState.pendingMakeNodeChildren.isEmpty {
+                if revealState.pendingMakeNodeChildren.isEmpty {
                     revealState.revealedInsightIDs.formUnion(ids)
                 } else {
                     scheduleMakeNodeRevealIfReady(in: size)

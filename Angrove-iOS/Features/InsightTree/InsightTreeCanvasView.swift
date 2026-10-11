@@ -391,14 +391,14 @@ struct InsightTreeCanvasView: View {
                 // Expanding it independently into the safe area shifts ripple origins away
                 // from the focused chip even though both use the same camera transform.
                 .frame(width: size.width, height: size.height)
-                .opacity(hasAppeared && studyBranchSource == nil ? restFade : 0)
+                .opacity(hasAppeared ? restFade : 0)
                 .animation(.easeOut(duration: 0.6), value: hasAppeared)
 
                 // In Study the grid tips up into a floor under the ring, moving with the node.
                 if let studyFraming, let studyOrbit = camera.orbit {
                     StudyFloorGrid(framing: studyFraming, camera: studyOrbit)
                         .frame(width: size.width, height: size.height)
-                        .opacity(studyBranchSource == nil ? studyProgress : 0)
+                        .opacity(studyProgress)
                 }
 
                 ZStack {
@@ -450,43 +450,10 @@ struct InsightTreeCanvasView: View {
                         }
                     }
                 }
-                .opacity(isMidpointMode || studyBranchSource != nil ? 0 : 1)
-                .animation(.easeInOut(duration: 0.3), value: studyBranchSource?.id)
+                .opacity(isMidpointMode ? 0 : 1)
                 // In Study only the Study gestures below respond.
                 .allowsHitTesting(!isMidpointMode && !isInStudy)
                 .animation(.easeInOut(duration: 0.3), value: isMidpointMode)
-
-                if let source = studyBranchSource {
-                    let children = nodes.first(where: { $0.id == studyBranchNodeID })?.insights ?? []
-                    let ready = studyBranchIsPromoted && !children.isEmpty
-                        && Set(children.map(\.id)).isSubset(of: generatedMakeNodeChildIDs)
-                    StudyBranchScene(
-                        sourceTitle: source.title,
-                        initialPosition: layout.placements[source.id].map {
-                            insightProjection($0, camera: camera, size: size).position
-                        } ?? CGPoint(x: size.width / 2, y: size.height / 2),
-                        isPromoted: studyBranchIsPromoted,
-                        children: children,
-                        isReady: ready,
-                        childOffsets: Dictionary(uniqueKeysWithValues: children.enumerated().map { index, child in
-                            let angle = chipAngles[child.id]?.angle ?? baseChipAngle(index: index, count: children.count)
-                            let radius = bondLength(forInsightID: child.id)
-                            return (child.id, CGPoint(x: cos(angle) * radius, y: sin(angle) * radius))
-                        }),
-                        onFinished: {
-                            revealState.completeBranch(childIDs: Set(children.map(\.id)),
-                                nodeIDs: Set(nodes.map(\.id)), graphEdgeIDs: Set(displayGraphEdges().map(\.id)))
-                            completedBranchNodeID = studyBranchNodeID
-                            onStudyBranchFinished()
-                        },
-                        onInsightTapped: { insight in
-                            markDiscovered(insight.id)
-                            onInsightTapped(insight)
-                        }
-                    )
-                    .id(source.id)
-                    .transition(.opacity)
-                }
 
                 if isMidpointMode {
                     midpointOverlay(layout: layout, camera: camera, size: size, labelOpacity: labelOpacity)

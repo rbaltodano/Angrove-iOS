@@ -158,6 +158,8 @@ struct InsightTreeView: View {
     @State private var studyBranchBusy = false
     @State private var studyBranchSessionID = UUID()
     @State private var studyBranchTask: Task<Void, Never>?
+    /// Study's subject before Branch moved it onto the new Node Concept, for failure rollback.
+    @State private var studySubjectBeforeBranch: StudySubject?
 
     /// Branch is the only launch tool; ignore any previously saved prototype selection.
     private let studyTool: StudyTool = .branch
@@ -576,6 +578,7 @@ struct InsightTreeView: View {
                     studyBranchBusy = false
                     onMidpointGeneratingChange?(false)
                     setStudyToolsOpen(false)
+                    studySubjectBeforeBranch = nil
                     if let source = studyBranchSource,
                        let node = viewModel.nodes.first(where: { $0.id == viewModel.promotedNodeID(for: source.id) }) {
                         withAnimation(.easeInOut(duration: 0.3)) {
@@ -771,6 +774,7 @@ struct InsightTreeView: View {
             }
         }
         .onChange(of: viewModel.nodes) { _, _ in
+            if studyBranchIsPromoted, let sourceID = studyBranchSource?.id { focusBranchedNode(for: sourceID) }
             bookmarkAllNodeConcepts()
             let visibleIDs = Set(viewModel.visibleNodes.map(\.id))
             if let selectedNode, !visibleIDs.contains(selectedNode.id) {
@@ -1112,6 +1116,7 @@ struct InsightTreeView: View {
     private func exitStudy() {
         guard studySubject != nil, !isExitingStudy else { return }
         studyBranchSource = nil
+        studySubjectBeforeBranch = nil
         studyBranchSessionID = UUID()
         studyBranchBusy = false
         onMidpointGeneratingChange?(false)
@@ -1587,6 +1592,7 @@ struct InsightTreeView: View {
             hasReservedPromotion = true
             viewModel.reserveMakeNodeGeneration(for: sourceID, branchCount: count)
             onPromotedInsightIDsChange?(promotedInsightIDs.contains(sourceID) ? promotedInsightIDs : promotedInsightIDs + [sourceID])
+            focusBranchedNode(for: sourceID)
         }
         let rollback = {
             if hasReservedPromotion {
@@ -1595,6 +1601,10 @@ struct InsightTreeView: View {
                 onPromotedInsightIDsChange?(promotedInsightIDs.filter { $0 != sourceID })
             }
             if studyBranchSessionID == sessionID, studyBranchSource?.id == sourceID {
+                if let saved = studySubjectBeforeBranch {
+                    studySubject = saved
+                    studySubjectBeforeBranch = nil
+                }
                 studyBranchIsPromoted = false
                 studyBranchBusy = false
                 onMidpointGeneratingChange?(false)
@@ -1620,6 +1630,17 @@ struct InsightTreeView: View {
             begin()
             studyBranchTask = Task { await generate() }
         }
+    }
+
+    /// Branch keeps Study open: once the promoted Node Concept exists, Study moves onto it so
+    /// the rest of the old node falls away while its new Insights load.
+    private func focusBranchedNode(for sourceID: UUID) {
+        guard studyBranchSource?.id == sourceID, studyBranchIsPromoted,
+              case .node(let current, _)? = studySubject,
+              let node = viewModel.nodes.first(where: { $0.id == viewModel.promotedNodeID(for: sourceID) }),
+              node.id != current.id else { return }
+        studySubjectBeforeBranch = studySubject
+        withAnimation(.easeInOut(duration: 0.3)) { studySubject = .node(node) }
     }
 
     private func promoteHoveredInsightToConcept() {
