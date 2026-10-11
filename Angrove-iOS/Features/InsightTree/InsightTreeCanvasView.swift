@@ -369,7 +369,7 @@ struct InsightTreeCanvasView: View {
                 studyRingCamera.map { framing.ringDashes(camera: $0, yaw: studyYaw * studyProgress) }
             } ?? []
             let restFade = isInStudy ? 1 - studyProgress : 1
-            let studyReady = isStudyRequested && isInStudy && studyProgress > 0.99 && studyBranchSource == nil
+            let studyReady = isStudyRequested && isInStudy && studyProgress > 0.99
             let labelOpacity = Self.labelOpacity(for: activeScale)
             let nodeLabelOpacity = Self.nodeLabelOpacity(for: activeScale)
             let layout = makeInsightLayout()

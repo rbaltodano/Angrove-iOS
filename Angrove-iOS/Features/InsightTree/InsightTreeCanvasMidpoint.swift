@@ -25,6 +25,7 @@ extension InsightTreeCanvasView {
                 InsightTreeRevealState.PendingMakeNodeChild(id: $0.id, orbitIndex: $0.orbitIndex)
             }
         revealState.pendingMakeNodeChildren = pending
+        revealState.pendingMakeNodeIsBranch = isBranch
         revealState.makeNodeLoadingStartedAt = Date().timeIntervalSinceReferenceDate
 
         for child in pending {
@@ -109,7 +110,7 @@ extension InsightTreeCanvasView {
         let startedAt = revealState.makeNodeLoadingStartedAt
             ?? Date().timeIntervalSinceReferenceDate
         let elapsed = Date().timeIntervalSinceReferenceDate - startedAt
-        let isBranch = studyBranchSource != nil
+        let isBranch = revealState.pendingMakeNodeIsBranch
         // Let Branch's last connector finish drawing before the first title appears.
         let remainingDelay = max((isBranch ? 1.2 + Double(children.count) * 0.18 : 3.5) - elapsed, 0)
 
@@ -154,10 +155,12 @@ extension InsightTreeCanvasView {
                 revealState.pendingMakeNodeChildren = []
                 revealState.makeNodeLoadingStartedAt = nil
                 revealState.makeNodeRevealTask = nil
+                revealState.pendingMakeNodeIsBranch = false
                 if isBranch {
                     revealState.completeBranch(childIDs: Set(children.map(\.id)),
                         nodeIDs: Set(nodes.map(\.id)), graphEdgeIDs: Set(displayGraphEdges().map(\.id)))
-                    onStudyBranchFinished()
+                    // Left Study mid-load: the titles still arrive in place, without Study's handoff.
+                    if studyBranchSource != nil { onStudyBranchFinished() }
                 } else {
                     onGeneratingChange(false)
                 }

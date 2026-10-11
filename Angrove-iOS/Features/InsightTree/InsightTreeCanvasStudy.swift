@@ -483,7 +483,9 @@ extension InsightTreeCanvasView {
             studied = studySelectionMembers.compactMap { layout.placements[$0]?.insight }
         }
         return studied.compactMap { insight in
-            guard let placement = layout.placements[insight.id], !placement.isPinnedAtNode else { return nil }
+            // A loading Branch child has no title or definition to hover yet.
+            guard let placement = layout.placements[insight.id], !placement.isPinnedAtNode,
+                  !revealState.loadingInsightIDs.contains(insight.id) else { return nil }
             let projection = insightProjection(placement, camera: camera, size: size)
             let chip = insightCollisionSize(for: insight)
             let scale = chipScale(nodeID: placement.nodeID, magnification: projection.scale)

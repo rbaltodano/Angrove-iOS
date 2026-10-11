@@ -26,6 +26,9 @@ final class InsightTreeRevealState {
     @ObservationIgnored var makeNodeRevealTask: Task<Void, Never>? = nil
     var makeNodeLoadingStartedAt: TimeInterval?
     var pendingMakeNodeChildren: [PendingMakeNodeChild] = []
+    /// The pending children came from Study's Branch, which never tours the camera, even if
+    /// the person leaves Study before they finish loading.
+    var pendingMakeNodeIsBranch = false
     /// Membership baselines for persisted topology mutations.
     var confirmedPersistedInsightIDs: Set<UUID> = []
     var confirmedPersistedNodeIDs: Set<UUID> = []
