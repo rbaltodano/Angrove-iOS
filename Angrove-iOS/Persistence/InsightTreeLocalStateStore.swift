@@ -130,3 +130,18 @@ nonisolated enum InsightTreeLocalStateStore {
         )
     }
 }
+
+/// Only the identity is retained; reopening resolves the current content and position.
+nonisolated enum InsightTreeHoverStore {
+    static func key(scope: UUID?) -> String {
+        "aquinas.insight-tree.last-hover.v1.\(scope?.uuidString ?? "global")"
+    }
+
+    static func load(scope: UUID?) -> CanvasSelectionTarget? {
+        InsightTreeLocalStateStore.load(CanvasSelectionTarget.self, key: key(scope: scope))
+    }
+
+    static func save(_ target: CanvasSelectionTarget, scope: UUID?) {
+        InsightTreeLocalStateStore.save(target, key: key(scope: scope))
+    }
+}

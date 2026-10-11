@@ -41,6 +41,8 @@ struct InsightTreeCanvasView: View {
     var nodeDepths: [UUID: Double] = [:]
     /// Global Insights renders every member in each cluster. Conversation trees remain compact.
     var showsAllClusterInsights: Bool = false
+    /// Do not frame the whole tree while its saved hover waits for an asynchronous snapshot.
+    var isRestoringHover: Bool = false
     /// Conversation trees begin with an in-memory build and apply their on-device seeds
     /// asynchronously. Their entrance must wait for that seeded snapshot.
     var defersEntranceUntilPersistedTree: Bool = false
@@ -514,6 +516,14 @@ struct InsightTreeCanvasView: View {
                       let focusTarget = simPosition(of: newValue) else { return }
 
                 focusHoveredTarget(at: focusTarget, in: size)
+            }
+            .onChange(of: isRestoringHover) { _, restoring in
+                if !restoring {
+                    if !focusCurrentHover(in: size) { keepTreeInView(in: size) }
+                }
+            }
+            .onChange(of: nodes.map(\.id)) { _, _ in
+                if isHoveringTarget { focusCurrentHover(in: size) }
             }
             canvasRequestObservers(canvasLifecycleObservers(canvas, size: size), size: size)
         }

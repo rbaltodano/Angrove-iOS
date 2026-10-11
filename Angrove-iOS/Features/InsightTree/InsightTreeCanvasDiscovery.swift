@@ -116,6 +116,10 @@ extension InsightTreeCanvasView {
             insightIDs: Set(newInsights.map(\.id)),
             nodeIDs: newNodeIDs
         )
+        if !animated && (isRestoringHover || isHoveringTarget) {
+            revealAllCurrentContent()
+            return
+        }
         revealState.entranceTask = Task {
             // Let the node/body reconciliation from this same snapshot reach the canvas first.
             await Task.yield()
@@ -145,6 +149,7 @@ extension InsightTreeCanvasView {
 
     /// If no node lands on screen under the current camera, frame the whole tree.
     func keepTreeInView(in size: CGSize) {
+        guard !isRestoringHover, !isHoveringTarget else { return }
         let positions = nodes.map { simPosition(of: $0.id) ?? $0.position }
             .filter { $0.x.isFinite && $0.y.isFinite }
         guard !positions.isEmpty, size.width > 0, size.height > 0 else { return }
@@ -162,6 +167,21 @@ extension InsightTreeCanvasView {
         } else {
             zoomToFit(worldPositions: positions, in: size)
         }
+    }
+
+    /// Reappearing canvases can retain the same focus ID, so an onChange alone cannot restore it.
+    @discardableResult
+    func focusCurrentHover(in size: CGSize) -> Bool {
+        guard !isRestoringHover, isHoveringTarget else { return false }
+        if let id = focusedInsightID, let position = insightFocusTarget(for: id) {
+            focusHoveredTarget(at: position, elevation: insightElevation(forInsightID: id), in: size)
+            return true
+        }
+        if let id = focusedSearchNodeID ?? pulsingNodeID, let position = simPosition(of: id) {
+            focusHoveredTarget(at: position, in: size)
+            return true
+        }
+        return false
     }
 
     /// Camera/reveal sequence for one fully loaded persisted mutation. Node Concepts participate

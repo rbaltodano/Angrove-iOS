@@ -41,6 +41,17 @@ nonisolated enum LibraryTextFormatter {
     /// Ordered cleanup rules; each pattern is compiled once.
     private static let cleanupRules: [(NSRegularExpression, String)] = [
         (regex("[\\u200B-\\u200D\\uFEFF]"), ""),
+        // Plain-text export dividers, including those attached to Summa headings and prose.
+        (regex("_{3,}"), " "),
+        // Standalone scan/export debris. Do not strip punctuation from real sentences or notes.
+        (regex("(?m)^\\s*[_*\\\\^{}<>«»■=~|/•.\\-–—\\s]+\\s*$"), ""),
+        (regex("(?m)^\\s*= {0,1}=+\\s*(.*?)\\s*=+\\s*$"), "$1"),
+        // New Advent exports put their navigation and alphabet in separate paragraphs.
+        (regex("(?m)^\\s*Home Encyclopedia Summa Fathers Bible Library\\s*$"), ""),
+        (regex("(?m)^\\s*A B C D E F G H I J K L M N O P Q R S T U V W X Y Z\\s*$"), ""),
+        (regex("(?m)^\\s*(?:Search:|Submit Search|NEW ADVENT: Home)\\s*$"), ""),
+        // Wikisource metadata is navigation, not part of the edition.
+        (regex("(?m)^\\s*(?:related portals:|sister projects:|information about this edition|For other English-language translations of this work, see ).*$"), ""),
         // Bible chapter tags ("[JHN01]") and Wikisource paths ("[The Prince (Marriott)/Chapter 1]").
         (regex("\\[[0-9A-Z]{3}\\d{2,3}\\]"), ""),
         (regex("\\[[^\\]\\[]{1,120}/[^\\]\\[]{1,120}\\]"), ""),
@@ -90,6 +101,12 @@ nonisolated enum LibraryTextFormatter {
             )
         }
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Filter before ForEach so removed chrome contributes no paragraph spacing. Keep original
+    /// passage identities and indices for bookmarks, speech, and retrieval-to-reader navigation.
+    static func readablePassages(_ passages: [LibraryPassage]) -> [LibraryPassage] {
+        passages.filter { !cleaned($0.text).isEmpty }
     }
 
     // MARK: - Styling

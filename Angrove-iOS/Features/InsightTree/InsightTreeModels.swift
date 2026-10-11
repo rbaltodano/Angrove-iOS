@@ -164,7 +164,7 @@ nonisolated func insightOrbitRadius(longestTitleChars: Int, count: Int, isSugges
     return max(base, required)
 }
 
-enum CanvasSelectionTarget: Equatable {
+nonisolated enum CanvasSelectionTarget: Equatable, Codable, Sendable {
     case node(UUID)
     case insight(UUID)
 }

@@ -1331,7 +1331,7 @@ private struct LibraryTextSection: View {
             .frame(maxWidth: .infinity)
 
             LazyVStack(alignment: .leading, spacing: 20) {
-                ForEach(passages) { passage in
+                ForEach(LibraryTextFormatter.readablePassages(passages)) { passage in
                     VStack(alignment: .leading, spacing: 8) {
                     if let bookmark = LibraryListeningStore.shared.bookmark(for: sourceID),
                        bookmark.progress < 1, bookmark.readerChunkIndex == passage.chunkIndex,

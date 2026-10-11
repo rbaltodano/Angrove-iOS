@@ -5,6 +5,50 @@ import Testing
 
 @Suite("Library reader text cleanup")
 struct LibraryTextFormatterTests {
+    @Test("Export dividers disappear without losing book headings or prose")
+    func stripsExportDividers() {
+        #expect(LibraryTextFormatter.cleaned("FIRST PART (FP: QQ 1-119) __________________________________________________________________") == "FIRST PART (FP: QQ 1-119)")
+        #expect(LibraryTextFormatter.cleaned("___ Whether it is necessary? ___") == "Whether it is necessary?")
+        #expect(LibraryTextFormatter.cleaned("The reply is clear. ___ Next question.") == "The reply is clear. Next question.")
+        #expect(LibraryTextFormatter.cleaned("===1===") == "1")
+        for debris in ["_", "* * *", "\\", "^", "}", "«", "■", "— — —"] {
+            #expect(LibraryTextFormatter.cleaned(debris).isEmpty)
+        }
+    }
+
+    @Test("Separate website navigation paragraphs disappear")
+    func stripsStandaloneNavigation() {
+        for navigation in [
+            "Home Encyclopedia Summa Fathers Bible Library",
+            "A B C D E F G H I J K L M N O P Q R S T U V W X Y Z",
+            "Search:", "Submit Search", "NEW ADVENT: Home",
+            "sister projects: Wikipedia article", "related portals: Calvinism",
+            "information about this edition",
+            "For other English-language translations of this work, see Categories.",
+        ] {
+            #expect(LibraryTextFormatter.cleaned(navigation).isEmpty)
+        }
+        #expect(LibraryTextFormatter.cleaned("Home is where the story begins.") == "Home is where the story begins.")
+    }
+
+    @Test("Real opening punctuation, verse numbers, and footnotes survive")
+    func preservesBookText() {
+        for text in ["“In the beginning.”", "'Gainst Venus and Minerva,", "(1) Whether it is necessary?", "1 In the beginning", "†1:1“Christ” means “Anointed One”.", "— The First Book, Entitled Clio", "∴ the conclusion follows."] {
+            #expect(LibraryTextFormatter.cleaned(text) == text)
+        }
+    }
+
+    @Test("Hidden debris leaves original reader identities and positions intact")
+    func filtersEmptyReaderParagraphs() {
+        let passages = ["___", "FIRST PART ___", "A B C D E F G H I J K L M N O P Q R S T U V W X Y Z", "Objection 1: It seems…"].enumerated().map {
+            LibraryPassage(text: $0.element, title: "Book", sourceId: "summa-theologica", chunkIndex: $0.offset)
+        }
+        let visible = LibraryTextFormatter.readablePassages(passages)
+        #expect(visible.map(\.chunkIndex) == [1, 3])
+        #expect(visible.map(\.id) == [passages[1].id, passages[3].id])
+        #expect(visible[0].text == passages[1].text)
+    }
+
     @Test("Corpus markup, URLs, and footnote markers are removed")
     func stripsCorpusLitter() {
         let text = "[The Prince (Marriott)/Chapter 1] Dedication declared[1] to be good. "

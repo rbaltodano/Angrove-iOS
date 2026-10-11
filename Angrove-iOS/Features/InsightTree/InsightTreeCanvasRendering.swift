@@ -97,7 +97,8 @@ extension InsightTreeCanvasView {
                 let end = camera.worldToScreen(placedWorld, in: size)
                 ForEach(Array(sources.enumerated()), id: \.offset) { _, source in
                     if let start = midpointSourceScreenPosition(source, layout: layout, camera: camera, size: size) {
-                        FadedCanvasLine(start: start, end: end, canvasSize: size, color: AngroveTheme.Colors.divider.opacity(0.9))
+                        InsightConnectorLine(start: start, end: end, canvasSize: size,
+                                             color: AngroveTheme.Colors.divider.opacity(source.isNode ? 0.9 : 0.55))
                             .frame(width: size.width, height: size.height)
                             .allowsHitTesting(false)
                             .opacity(hasSelection ? 0.5 : 1.0)
@@ -122,8 +123,6 @@ extension InsightTreeCanvasView {
                     let transfer = revealState.transfers[insight.id]
                     let presentation = MidpointTransferPresentation(progress: revealState.transferProgress)
                     let growth = transfer == nil ? CGFloat(1) : presentation.connectorGrowth
-                    let end = CGPoint(x: start.x + (chipEnd.x - start.x) * growth,
-                                      y: start.y + (chipEnd.y - start.y) * growth)
                     if let transfer {
                         let oldStart = camera.worldToScreen(transfer.oldParent, in: size)
                         let oldEnd = camera.project(transfer.world, elevation: transfer.elevation, in: size).position
@@ -141,11 +140,12 @@ extension InsightTreeCanvasView {
                         : AngroveTheme.Colors.divider.opacity(baseOpacity)
                     InsightConnectorLine(
                         start: start,
-                        end: end,
+                        end: chipEnd,
                         canvasSize: size,
                         color: lineColor.opacity((hasSelection ? 0.5 : 1.0)
                             * studyOpacity(forInsightID: insight.id, nodeID: node.id)),
-                        grows: revealState.growingConnectorIDs.contains(insight.id)
+                        grows: revealState.growingConnectorIDs.contains(insight.id),
+                        revealProgress: growth
                     )
                         .frame(width: size.width, height: size.height)
                         .allowsHitTesting(false)

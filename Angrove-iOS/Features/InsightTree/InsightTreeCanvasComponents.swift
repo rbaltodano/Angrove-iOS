@@ -85,14 +85,18 @@ struct InsightConnectorLine: View {
     var end: CGPoint
     var canvasSize: CGSize
     var color: Color
+    /// Reveal along the full connector so a Midpoint transfer retains the resting line's fade.
+    var revealProgress: CGFloat
     /// A new Insight's connector draws itself out from the Node Concept to the chip.
     @State private var drawn: CGFloat
 
-    init(start: CGPoint, end: CGPoint, canvasSize: CGSize, color: Color, grows: Bool = false) {
+    init(start: CGPoint, end: CGPoint, canvasSize: CGSize, color: Color, grows: Bool = false,
+         revealProgress: CGFloat = 1) {
         self.start = start
         self.end = end
         self.canvasSize = canvasSize
         self.color = color
+        self.revealProgress = revealProgress
         _drawn = State(initialValue: grows ? 0 : 1)
     }
 
@@ -100,7 +104,8 @@ struct InsightConnectorLine: View {
     static let growAnimation = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.55)
 
     var body: some View {
-        FadedCanvasLine(start: start, end: end, canvasSize: canvasSize, color: color, drawn: drawn)
+        FadedCanvasLine(start: start, end: end, canvasSize: canvasSize, color: color,
+                        drawn: drawn * revealProgress)
             .onAppear {
                 guard drawn < 1 else { return }
                 withAnimation(Self.growAnimation) { drawn = 1 }

@@ -17,7 +17,7 @@ extension InsightTreeCanvasView {
                     hasAppeared = true
                     revealState.previousBondLengths = insightBondLengths
                     reconcileBodies()   // seed live physics bodies + start the tick
-                    keepTreeInView(in: size)
+                    if !focusCurrentHover(in: size) { keepTreeInView(in: size) }
                     undiscoveredInsightIDs = loadUndiscoveredInsightIDs()
                     undiscoveredNodeIDs = loadUndiscoveredNodeIDs()
                     revealState.revealedNodeIDs = Set(nodes.map(\.id))
@@ -40,7 +40,8 @@ extension InsightTreeCanvasView {
                         markUndiscovered(newInsights.map(\.id))   // new since last open → blue dot
                         reportUndiscoveredInsightCount()
                         saveAllInsightIDsAsSeen()
-                        if !newInsights.isEmpty {
+                        if isRestoringHover || isHoveringTarget { revealAllCurrentContent() }
+                        if !newInsights.isEmpty && !isRestoringHover && !isHoveringTarget {
                             revealState.entranceTask = Task {
                                 await runEntranceSequence(newInsights: newInsights, in: size)
                             }
@@ -154,6 +155,18 @@ extension InsightTreeCanvasView {
                         ($0.id, Set($0.insights.map(\.id)))
                     })
                 )
+                if isRestoringHover && !defersEntranceUntilPersistedTree {
+                    // Async preparation on reopen establishes a baseline, rather than touring
+                    // away from the remembered hover. Newly added items retain their blue dots.
+                    markUndiscovered(Array(addedLiveInsightIDs))
+                    markNodesUndiscovered(Array(addedLiveNodeIDs))
+                    revealAllCurrentContent(in: newNodes)
+                    revealState.observedLiveInsightIDs = currentInsightIDs
+                    revealState.observedLiveNodeIDs = currentNodeIDs
+                    saveAllInsightIDsAsSeen()
+                    reportUndiscoveredInsightCount()
+                    return
+                }
                 if !defersEntranceUntilPersistedTree {
                     // Semantic preparation can populate an initially empty global canvas.
                     // Restore already presented chips and connectors without another entrance.

@@ -102,8 +102,10 @@ struct AnimatedDotGridBackground: View, Animatable {
                 let startX = phaseX - screenSpacing
                 let startY = phaseY - screenSpacing
 
-                let col = min(Int((size.width  / screenSpacing).rounded(.up)) + 2, 120)
-                let row = min(Int((size.height / screenSpacing).rounded(.up)) + 2, 120)
+                // Cover the viewport at every camera scale. A fixed row/column cap cuts the
+                // field off partway down the page when zooming out makes the spacing smaller.
+                let col = Int((size.width / screenSpacing).rounded(.up)) + 2
+                let row = Int((size.height / screenSpacing).rounded(.up)) + 2
 
                 let baseRippleDuration = 2.4
 
