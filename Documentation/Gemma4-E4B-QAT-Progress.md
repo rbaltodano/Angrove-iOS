@@ -135,7 +135,7 @@ The owner is handing this work to Codex. State as of commit `2776cc9` on `featur
 | C9 | Physical-device sustained gate | C8 | failed | Codex takeover | 2026-09-27 | M4-Ls failed cold-load and short-answer p95 gates; C9-M4Ls-2, early stop is decisive for nearest-rank p95 |
 | C10 | Promotion | C9 + owner approval | blocked | Claude Code + Codex takeover | 2026-09-27 | C9 failed; branch prework retained, no merge/PR. Existing phone E4B remains a temporary personal trial |
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
-| C12 | Optional: vision probe | C10 | todo | | | |
+| C12 | Optional: vision probe | C10 | in-progress | Codex / gemma-vision | 2026-10-11 | Owner explicitly requested native image input; current E4B integration is authoritative. Initial DEBUG probe before default enablement. |
 
 **Next action:** Claude reviews the [review handoff](Gemma4-E4B-Review-Handoff.md) and the frozen
 [P1 diagnostic plan](Gemma4-E4B-Post-C9-Diagnostics.md). P1 has no runs and the owner requested
@@ -1124,3 +1124,15 @@ cold phone trial exceeded both the 12-second load and 4-second one-sentence answ
 Main remains B0. No PR or merge. P1 is frozen but has no model runs; no later gate is claimed.
 The owner requested a stopping point for Claude's review. Keep the earlier C8 CPU quality
 result as evidence, but it does not override this physical-device gate.
+
+## October 11, 2026 — Native image input (owner-directed C12)
+
+The owner explicitly requested hooking up Gemma 4 E4B native image recognition. This extends
+the original text-only scope; it does not rerun or erase the historical C9 result. Worktree
+`Aquinas-iOS-gemma-vision`, branch `feature/gemma-vision`, base `53faec8`. Main's unrelated dirty
+Home, Insight Tree, Library, Study Topics, speech, tests, and architecture files are excluded.
+The current `Model-Runtime.md` and manifest select stock E4B despite the older status board.
+Initial configuration: unchanged package and LiteRT-LM 0.14.0, 4,096-token context, F32 GPU
+decoder, GPU vision behind DEBUG `--litert-enable-vision`, greedy decoding, audio/MTP off.
+A successful physical-device vision/memory check is required before enabling vision by default.
+The phone initially reports unavailable; implementation and simulator checks continue.
