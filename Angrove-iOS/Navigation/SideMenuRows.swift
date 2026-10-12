@@ -38,6 +38,7 @@ struct SideMenuRow: View {
 
                 Text(title)
                     .paragraphFont()
+                    .fontWeight(.bold)
                     .lineSpacing(7)
                     .foregroundColor(AngroveTheme.Colors.paragraphText)
                     .opacity(showsText ? 1 : 0)
@@ -254,6 +255,7 @@ struct ConversationMenuRow: View {
                 }
                 Text(conversation.title)
                     .paragraphFont()
+                    .fontWeight(.bold)
                     .lineSpacing(7)
                     .foregroundColor(AngroveTheme.Colors.paragraphText)
                     .lineLimit(1)
@@ -404,6 +406,7 @@ struct StudyTopicMenuRow: View {
 
                 Text(displayTitle)
                     .paragraphFont()
+                    .fontWeight(.bold)
                     .lineSpacing(7)
                     .foregroundColor(AngroveTheme.Colors.paragraphText)
                     .lineLimit(1)
@@ -535,6 +538,7 @@ private struct TopicConversationRow: View {
                     .sfSymbolDrawOn(delay: Double(index) * 0.15 + 0.05)
                 Text(conversation.title.isEmpty ? "Untitled" : conversation.title)
                     .paragraphFont()
+                    .fontWeight(.bold)
                     .foregroundColor(AngroveTheme.Colors.paragraphText)
                     .lineLimit(1)
                     .truncationMode(.tail)

@@ -131,6 +131,18 @@ extension InsightTreeCanvasView {
                 occupiedAngles.append(seed)
             }
         }
+        // Restored trees may never run physics when no labels overlap. Regularize their
+        // bond geometry during reconciliation too, so a saved uneven layout cannot stay frozen.
+        for node in nodes where !placedMidpointNodeIDs.contains(node.id) {
+            let members = canvasInsights(for: node).compactMap { insight in
+                nextAngles[insight.id].map { InsightClusterSpatialLayout.Member(id: insight.id, azimuth: $0.angle) }
+            }
+            let pinned = members.filter { pinnedChipAngleIDs.contains($0.id) || $0.id == draggingChipID }
+            let free = members.filter { !pinnedChipAngleIDs.contains($0.id) && $0.id != draggingChipID }
+            let targets = InsightClusterSpatialLayout.azimuthTargets(free,
+                fixedAngles: connectedNodeBondAngles(for: node.id) + pinned.map(\.azimuth))
+            for (id, angle) in targets { nextAngles[id] = ChipAngle(angle: angle) }
+        }
         chipAngles = nextAngles
 
         // Seed elevation angles here too, not only in the sim: opening a tree freezes the sim, so
@@ -171,19 +183,29 @@ extension InsightTreeCanvasView {
     /// Opening a clear saved tree stays still; a crowded one gets a bounded cleanup pass.
     private func hasVisibleClusterContact() -> Bool {
         let layout = makeInsightLayout()
+        let camera = InsightTreeCamera(scale: activeScale, offset: activeOffset)
+        let viewportSize = CGSize(width: max(lastCanvasSize.width, 1), height: max(lastCanvasSize.height, 1))
         var footprints: [InsightTreeCrowdingSpacing.Footprint] = []
         for node in layout.nodes {
             let width = min(max(CGFloat(node.conceptLabel.count) * 9, 80), 180)
-            footprints.append(.init(nodeID: node.id, rectangle: CGRect(x: node.position.x - width / 2,
-                y: node.position.y - 50, width: width, height: 100)))
+            let projection = camera.project(node.position, in: viewportSize)
+            let scale = depthScale(node.id) * projection.scale
+            footprints.append(.init(nodeID: node.id, rectangle: CGRect(
+                x: projection.position.x - width * scale / 2,
+                y: projection.position.y - 50 * scale,
+                width: width * scale,
+                height: 100 * scale
+            )))
             for insight in layout.insightsByNode[node.id] ?? [] {
                 guard let placement = layout.placements[insight.id] else { continue }
                 let size = insightCollisionSize(for: insight)
+                let projection = camera.project(placement.world, elevation: placement.elevation, in: viewportSize)
+                let scale = depthScale(node.id) * projection.scale
                 footprints.append(.init(nodeID: node.id, rectangle: CGRect(
-                    x: placement.world.x - size.width / 2 - Self.insightCollisionPadding / 2,
-                    y: placement.world.y - size.height / 2 - Self.insightCollisionPadding / 2,
-                    width: size.width + Self.insightCollisionPadding,
-                    height: size.height + Self.insightCollisionPadding)))
+                    x: projection.position.x - size.width * scale / 2 - Self.insightCollisionPadding / 2,
+                    y: projection.position.y - size.height * scale / 2 - Self.insightCollisionPadding / 2,
+                    width: size.width * scale + Self.insightCollisionPadding,
+                    height: size.height * scale + Self.insightCollisionPadding)))
             }
         }
         return InsightTreeCrowdingSpacing.hasCrossClusterCollision(footprints)
@@ -220,6 +242,7 @@ extension InsightTreeCanvasView {
             let angle: Double
             let radius: CGFloat
             let pos: CGPoint
+            let elevation: CGFloat
             let halfWidth: CGFloat
             let halfHeight: CGFloat
         }
@@ -236,6 +259,7 @@ extension InsightTreeCanvasView {
                         angle: 0,
                         radius: 0,
                         pos: body.pos,
+                        elevation: 0,
                         halfWidth: size.width / 2,
                         halfHeight: size.height / 2
                     )
@@ -268,6 +292,7 @@ extension InsightTreeCanvasView {
                         angle: theta,
                         radius: radius,
                         pos: pos,
+                        elevation: insightElevation(forInsightID: insight.id),
                         halfWidth: size.width / 2,
                         halfHeight: size.height / 2
                     )
@@ -308,11 +333,34 @@ extension InsightTreeCanvasView {
                 dy: current.dy + force.dy
             )
         }
-        let chipRectangles = chipInfos.map {
-            CGRect(x: $0.pos.x - $0.halfWidth - Self.insightCollisionPadding / 2,
-                   y: $0.pos.y - $0.halfHeight - Self.insightCollisionPadding / 2,
-                   width: $0.halfWidth * 2 + Self.insightCollisionPadding,
-                   height: $0.halfHeight * 2 + Self.insightCollisionPadding)
+        let collisionCamera = InsightTreeCamera(scale: activeScale, offset: activeOffset)
+        let collisionSize = CGSize(width: max(lastCanvasSize.width, 1), height: max(lastCanvasSize.height, 1))
+        let chipProjections = chipInfos.map {
+            collisionCamera.project($0.pos, elevation: $0.elevation, in: collisionSize)
+        }
+        // Use the labels' rendered screen footprints. World-plane checks miss chips on opposing
+        // elevation branches: they can be separated in XY while their projected labels overlap.
+        let chipRectangles = chipInfos.indices.map { index -> CGRect in
+            let chip = chipInfos[index]
+            let projection = chipProjections[index]
+            let renderScale = depthScale(chip.nodeID) * projection.scale
+            return CGRect(
+                x: projection.position.x - chip.halfWidth * renderScale - Self.insightCollisionPadding / 2,
+                y: projection.position.y - chip.halfHeight * renderScale - Self.insightCollisionPadding / 2,
+                width: chip.halfWidth * 2 * renderScale + Self.insightCollisionPadding,
+                height: chip.halfHeight * 2 * renderScale + Self.insightCollisionPadding
+            )
+        }
+        func worldDisplacement(for chipIndex: Int, screenDelta: CGVector) -> CGVector {
+            let chip = chipInfos[chipIndex]
+            let center = chipProjections[chipIndex].position
+            let start = collisionCamera.screenToWorld(center, elevation: chip.elevation, in: collisionSize)
+            let end = collisionCamera.screenToWorld(
+                CGPoint(x: center.x + screenDelta.dx, y: center.y + screenDelta.dy),
+                elevation: chip.elevation,
+                in: collisionSize
+            )
+            return CGVector(dx: end.x - start.x, dy: end.y - start.y)
         }
         for pair in SpatialCollisionIndex.pairs(for: chipRectangles) {
             do {
@@ -320,48 +368,59 @@ extension InsightTreeCanvasView {
                 let second = chipInfos[pair.second]
                 let isSameNode = first.nodeID == second.nodeID
 
-                let dx = first.pos.x - second.pos.x
-                let dy = first.pos.y - second.pos.y
-                let overlapX = first.halfWidth + second.halfWidth
-                    + Self.insightCollisionPadding - abs(dx)
-                let overlapY = first.halfHeight + second.halfHeight
-                    + Self.insightCollisionPadding - abs(dy)
+                let firstRect = chipRectangles[pair.first]
+                let secondRect = chipRectangles[pair.second]
+                let overlapX = min(firstRect.maxX, secondRect.maxX) - max(firstRect.minX, secondRect.minX)
+                let overlapY = min(firstRect.maxY, secondRect.maxY) - max(firstRect.minY, secondRect.minY)
                 guard overlapX > 0, overlapY > 0 else { continue }
 
                 let firstSortsBeforeSecond = first.id.uuidString < second.id.uuidString
-                let xDirection: CGFloat = abs(dx) > 0.5
-                    ? (dx >= 0 ? 1 : -1)
+                let screenDX = chipProjections[pair.first].position.x - chipProjections[pair.second].position.x
+                let screenDY = chipProjections[pair.first].position.y - chipProjections[pair.second].position.y
+                let xDirection: CGFloat = abs(screenDX) > 0.5
+                    ? (screenDX >= 0 ? 1 : -1)
                     : (firstSortsBeforeSecond ? -1 : 1)
-                let yDirection: CGFloat = abs(dy) > 0.5
-                    ? (dy >= 0 ? 1 : -1)
+                let yDirection: CGFloat = abs(screenDY) > 0.5
+                    ? (screenDY >= 0 ? 1 : -1)
                     : (firstSortsBeforeSecond ? 1 : -1)
-                let separation: CGVector = overlapX < overlapY
+                let screenSeparation: CGVector = overlapX < overlapY
                     ? CGVector(dx: xDirection * overlapX, dy: 0)
                     : CGVector(dx: 0, dy: yDirection * overlapY)
-                let separationLength = max(hypot(separation.dx, separation.dy), 1)
-                let unitX = separation.dx / separationLength
-                let unitY = separation.dy / separationLength
+                let firstSeparation = worldDisplacement(for: pair.first, screenDelta: screenSeparation)
+                let secondSeparation = worldDisplacement(
+                    for: pair.second,
+                    screenDelta: CGVector(dx: -screenSeparation.dx, dy: -screenSeparation.dy)
+                )
+                let firstLength = max(hypot(firstSeparation.dx, firstSeparation.dy), 1)
+                let secondLength = max(hypot(secondSeparation.dx, secondSeparation.dy), 1)
+                let firstUnitX = firstSeparation.dx / firstLength
+                let firstUnitY = firstSeparation.dy / firstLength
+                let secondUnitX = secondSeparation.dx / secondLength
+                let secondUnitY = secondSeparation.dy / secondLength
                 let force = CGVector(
-                    dx: separation.dx * Self.bubblePushK,
-                    dy: separation.dy * Self.bubblePushK
+                    dx: firstSeparation.dx * Self.bubblePushK,
+                    dy: firstSeparation.dy * Self.bubblePushK
                 )
                 if !isSameNode {
                     addCrossNodeForce(force, to: first.nodeID)
-                    addCrossNodeForce(CGVector(dx: -force.dx, dy: -force.dy), to: second.nodeID)
+                    addCrossNodeForce(CGVector(
+                        dx: secondSeparation.dx * Self.bubblePushK,
+                        dy: secondSeparation.dy * Self.bubblePushK
+                    ), to: second.nodeID)
                 }
 
                 let normalizedDepth = Double(min(min(overlapX, overlapY) / 48, 2))
                 if first.radius > 1 {
                     let tangentX = CGFloat(-sin(first.angle))
                     let tangentY = CGFloat(cos(first.angle))
-                    let tangentialContact = Double(unitX * tangentX + unitY * tangentY)
+                    let tangentialContact = Double(firstUnitX * tangentX + firstUnitY * tangentY)
                     chipTorque[first.id, default: 0] +=
                         tangentialContact * normalizedDepth * Self.crossNodeChipTorqueK
                 }
                 if second.radius > 1 {
                     let tangentX = CGFloat(-sin(second.angle))
                     let tangentY = CGFloat(cos(second.angle))
-                    let tangentialContact = Double(-unitX * tangentX - unitY * tangentY)
+                    let tangentialContact = Double(secondUnitX * tangentX + secondUnitY * tangentY)
                     chipTorque[second.id, default: 0] +=
                         tangentialContact * normalizedDepth * Self.crossNodeChipTorqueK
                 }
@@ -373,8 +432,14 @@ extension InsightTreeCanvasView {
         let conceptFootprints = entries.compactMap { entry -> InsightTreeCrowdingSpacing.Footprint? in
             guard let node = nodeByID[entry.0], !placedMidpointNodeIDs.contains(node.id) else { return nil }
             let width = min(max(CGFloat(node.conceptLabel.count) * 9, 80), 180)
-            return .init(nodeID: node.id, rectangle: CGRect(x: entry.1.pos.x - width / 2,
-                y: entry.1.pos.y - 50, width: width, height: 100))
+            let projection = collisionCamera.project(entry.1.pos, in: collisionSize)
+            let scale = depthScale(node.id) * projection.scale
+            return .init(nodeID: node.id, rectangle: CGRect(
+                x: projection.position.x - width * scale / 2,
+                y: projection.position.y - 50 * scale,
+                width: width * scale,
+                height: 100 * scale
+            ))
         }
         let footprints = zip(chipInfos, chipRectangles).map {
             InsightTreeCrowdingSpacing.Footprint(nodeID: $0.0.nodeID, rectangle: $0.1)
@@ -450,15 +515,23 @@ extension InsightTreeCanvasView {
         // Chip-angle spread: Insight bonds and fixed Node lines repel with equal domain weight,
         // maximizing separation across every bond connected to the parent Node Concept.
         for (_, bonds) in bondsByNode where bonds.count > 1 {
+            var free: [InsightClusterSpatialLayout.Member] = []
+            var fixed: [Double] = []
+            for bond in bonds {
+                if case .insight(let id) = bond.kind,
+                   !pinnedChipAngleIDs.contains(id), id != draggingChipID {
+                    free.append(.init(id: id, azimuth: bond.angle))
+                } else { fixed.append(bond.angle) }
+            }
+            let targets = InsightClusterSpatialLayout.azimuthTargets(free, fixedAngles: fixed)
             for ii in bonds.indices {
                 guard case .insight(let id) = bonds[ii].kind else { continue }
                 let bi = bonds[ii]
-                var torque = 0.0
+                // A target spring vanishes at the maximized angle instead of continuing to
+                // push across the ±π boundary after opposite bonds have reached equilibrium.
+                var torque = Self.bondDomainK * wrapAngle((targets[id] ?? bi.angle) - bi.angle)
                 for jj in bonds.indices where jj != ii {
-                    var dθ = wrapAngle(bi.angle - bonds[jj].angle)
-                    if abs(dθ) < 1e-4 { dθ = .random(in: -0.05...0.05) }
-                    torque += Self.bondDomainK * (dθ >= 0 ? 1 : -1)
-                        / (abs(dθ) + Self.chipAngleEps)
+                    let dθ = wrapAngle(bi.angle - bonds[jj].angle)
 
                     // Extra push once two Insight labels' angular gap is tighter than their real
                     // widths need at this orbit radius — the uniform spread above doesn't know
@@ -480,10 +553,7 @@ extension InsightTreeCanvasView {
                 chipTorque[id, default: 0] += torque
             }
         }
-        // Cooling factor (simulated annealing). The angular repulsion never vanishes at
-        // equilibrium, so leaving motion uncooled makes bonds oscillate around the ±π boundary —
-        // visible as jitter that only stops when the frame budget expires. Scaling every frame's
-        // displacement by `alpha` (which decays to 0) lets the layout converge and freeze smoothly.
+        // Cool collision corrections and target springs so the layout settles smoothly.
         let cool = alpha
         let coolCG = CGFloat(alpha)
 

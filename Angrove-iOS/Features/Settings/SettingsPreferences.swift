@@ -89,10 +89,10 @@ enum SettingsStorageKey {
 
 /// Read-aloud preferences, read from outside the Settings views.
 enum AudioSettings {
-    /// On by default: an answer that finishes while the reader is on another page is read aloud.
+    /// Off by default: answers that finish while the reader is on another page stay silent.
     static var readsAnswersElsewhere: Bool {
         let defaults = PrivatePreferences.standard
-        guard defaults.object(forKey: SettingsStorageKey.readAnswersElsewhere) != nil else { return true }
+        guard defaults.object(forKey: SettingsStorageKey.readAnswersElsewhere) != nil else { return false }
         return defaults.bool(forKey: SettingsStorageKey.readAnswersElsewhere)
     }
 

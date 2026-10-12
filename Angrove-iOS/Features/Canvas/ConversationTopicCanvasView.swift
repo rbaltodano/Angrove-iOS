@@ -547,10 +547,10 @@ struct ConversationTopicCanvasView: View {
                                     HStack(spacing: 6) {
                                         Image(systemName: "text.bubble.fill")
                                             .font(.system(size: 14, weight: .semibold))
-                                            .foregroundColor(AngroveTheme.Colors.darkGreen)
+                                            .foregroundColor(AngroveTheme.Colors.lightGreen)
                                         Text(label)
                                             .font(.figtreeHeading2)
-                                            .foregroundColor(AngroveTheme.Colors.darkGreen)
+                                            .foregroundColor(AngroveTheme.Colors.lightGreen)
                                             .lineLimit(1)
                                     }
                                     TravelingPulseLine(width: 48, progress: progress)

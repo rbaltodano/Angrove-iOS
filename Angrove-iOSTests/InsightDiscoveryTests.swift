@@ -39,6 +39,26 @@ struct InsightDiscoveryTests {
         }
     }
 
+    @Test("Accepting topics already presented in another tree still tours their global additions")
+    func acceptedAdditionsOverrideSharedHistory() throws {
+        try withPreferences { preferences in
+            let insight = UUID(), node = UUID(), existing = UUID()
+            InsightDiscoveryStore.markPresented(insightIDs: [insight, existing], nodeIDs: [node], preferences: preferences)
+            #expect(InsightDiscoveryStore.newInsightIDs(
+                in: [existing, insight], excluding: [existing], acceptedIDs: [insight], preferences: preferences
+            ) == [insight])
+            #expect(InsightDiscoveryStore.newNodeIDs(
+                in: [node], acceptedIDs: [node], preferences: preferences
+            ) == [node])
+            // A second semantic snapshot during the same update cannot replay the tour.
+            #expect(InsightDiscoveryStore.newNodeIDs(
+                in: [node], excluding: [node], acceptedIDs: [node], preferences: preferences
+            ).isEmpty)
+            // A fresh view has no accepted additions, so reopening preserves the camera.
+            #expect(InsightDiscoveryStore.newNodeIDs(in: [node], preferences: preferences).isEmpty)
+        }
+    }
+
     @Test("Leaving during an entrance cannot replay it; unopened cards keep their dot")
     func presentationSurvivesCancellation() throws {
         try withPreferences { preferences in

@@ -275,7 +275,7 @@ struct InsightLibraryCard: View {
             HStack(alignment: .center, spacing: 8) {
                 Image(systemName: insight.isLibraryQuote ? "books.vertical" : "text.bubble.fill")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(AngroveTheme.Colors.darkGreen)
+                    .foregroundColor(AngroveTheme.Colors.lightGreen)
                     .sfSymbolDrawOn()
 
                 Text(insight.isLibraryQuote ? insight.word : insight.word.capitalized)
@@ -484,7 +484,7 @@ private struct InsightLibraryEmptyState: View {
         VStack(spacing: 16) {
             Image(systemName: symbol)
                 .font(.system(size: 28, weight: .semibold))
-                .foregroundColor(AngroveTheme.Colors.darkGreen)
+                .foregroundColor(AngroveTheme.Colors.lightGreen)
                 .sfSymbolDrawOn()
 
             Text(title)

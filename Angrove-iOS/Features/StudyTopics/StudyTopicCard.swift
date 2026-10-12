@@ -5,6 +5,58 @@
 
 import SwiftUI
 
+struct StudyTopicCardHeader<Trailing: View>: View {
+    let title: String
+    let description: String
+    var isPressed = false
+    let trailing: Trailing
+
+    init(
+        title: String,
+        description: String,
+        isPressed: Bool = false,
+        @ViewBuilder trailing: () -> Trailing
+    ) {
+        self.title = title
+        self.description = description
+        self.isPressed = isPressed
+        self.trailing = trailing()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 12) {
+                HStack(spacing: 8) {
+                    Image(systemName: "square.stack")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(AngroveTheme.Colors.lightGreen)
+
+                    Text(title)
+                        .font(.custom("Figtree-Bold", size: 18))
+                        .foregroundColor(AngroveTheme.Colors.lightGreen)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .scaleEffect(isPressed ? 1.02 : 1, anchor: .leading)
+
+                Spacer(minLength: 8)
+                trailing
+            }
+
+            if !description.isEmpty {
+                Text(description)
+                    .font(.custom("Figtree-Regular", size: 14))
+                    .foregroundColor(AngroveTheme.Colors.paragraphText)
+                    .settingsTextReveal()
+                    .lineSpacing(4)
+                    .lineLimit(3)
+                    .truncationMode(.tail)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
 struct StudyTopicCard: View {
     let topic: StudyTopic
     let subItems: [InquiryConversation]
@@ -26,50 +78,26 @@ struct StudyTopicCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
 
-            // Header: title + options button
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .center, spacing: 12) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "square.stack")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(AngroveTheme.Colors.lightGreen)
-
-                        Text(displayTitle)
-                            .font(.custom("Figtree-Bold", size: 18))
-                            .foregroundColor(AngroveTheme.Colors.lightGreen)
-                            .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .scaleEffect(isShowingLongPressFeedback ? 1.02 : 1, anchor: .leading)
-
-                    Spacer(minLength: 8)
-
-                    Menu {
-                        Button("Rename", systemImage: "pencil.line") { onRename() }
-                        Divider()
-                        Button("Delete", systemImage: "trash", role: .destructive) { onDelete() }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(AngroveTheme.Colors.paragraphText)
-                            .frame(width: 22, height: 22)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(11)
-                    .contentShape(Rectangle())
-                    .padding(-11)
-                    .accessibilityLabel("Topic options")
-                }
-
-                if !displayDescription.isEmpty {
-                    Text(displayDescription)
-                        .font(.custom("Figtree-Regular", size: 14))
+            StudyTopicCardHeader(
+                title: displayTitle,
+                description: displayDescription,
+                isPressed: isShowingLongPressFeedback
+            ) {
+                Menu {
+                    Button("Rename", systemImage: "pencil.line") { onRename() }
+                    Divider()
+                    Button("Delete", systemImage: "trash", role: .destructive) { onDelete() }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 13, weight: .bold))
                         .foregroundColor(AngroveTheme.Colors.paragraphText)
-                        .lineSpacing(4)
-                        .lineLimit(3)
-                        .truncationMode(.tail)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(width: 22, height: 22)
                 }
+                .buttonStyle(.plain)
+                .padding(11)
+                .contentShape(Rectangle())
+                .padding(-11)
+                .accessibilityLabel("Topic options")
             }
 
             // Sub-items: branch / question titles
@@ -108,7 +136,7 @@ struct StudyTopicCard: View {
                 }
             }
         }
-        .padding(24)
+        .padding(28)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(AngroveTheme.Colors.canvasSecondary)
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))

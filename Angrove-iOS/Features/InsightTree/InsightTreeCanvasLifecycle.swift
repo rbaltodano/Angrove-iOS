@@ -146,11 +146,13 @@ extension InsightTreeCanvasView {
                 let currentNodeIDs = Set(newNodes.map(\.id))
                 let addedLiveInsightIDs = InsightDiscoveryStore.newInsightIDs(
                     in: currentInsightIDs,
-                    excluding: revealState.observedLiveInsightIDs
+                    excluding: revealState.observedLiveInsightIDs,
+                    acceptedIDs: acceptedEntranceIDs
                 )
                 let addedLiveNodeIDs = InsightDiscoveryStore.newNodeIDs(
                     in: currentNodeIDs,
                     excluding: revealState.observedLiveNodeIDs,
+                    acceptedIDs: acceptedEntranceIDs,
                     memberInsightIDs: Dictionary(uniqueKeysWithValues: newNodes.map {
                         ($0.id, Set($0.insights.map(\.id)))
                     })

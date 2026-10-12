@@ -41,6 +41,9 @@ struct InsightTreeCanvasView: View {
     var nodeDepths: [UUID: Double] = [:]
     /// Global Insights renders every member in each cluster. Conversation trees remain compact.
     var showsAllClusterInsights: Bool = false
+    /// Additions accepted while this canvas is mounted receive a tour even if another tree
+    /// already presented them. Empty on reopening so saved trees do not replay their tour.
+    var acceptedEntranceIDs: Set<UUID> = []
     /// Do not frame the whole tree while its saved hover waits for an asynchronous snapshot.
     var isRestoringHover: Bool = false
     /// Conversation trees begin with an in-memory build and apply their on-device seeds

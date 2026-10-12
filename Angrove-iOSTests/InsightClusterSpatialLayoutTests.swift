@@ -19,6 +19,48 @@ struct InsightClusterSpatialLayoutTests {
         }
     }
 
+    @Test("Free bonds maximize their minimum angle instead of freezing unevenly")
+    func freeBondsSpreadEvenly() {
+        for count in 2...8 {
+            let ring = members((0..<count).map { Double($0) * 0.07 })
+            let targets = Layout.azimuthTargets(ring)
+            let angles = targets.values.map { atan2(sin($0), cos($0)) }.sorted()
+            for index in angles.indices {
+                let next = index + 1 < count ? angles[index + 1] : angles[0] + 2 * .pi
+                #expect(abs(next - angles[index] - 2 * .pi / Double(count)) < 1e-8)
+            }
+            let settled = ring.map { Layout.Member(id: $0.id, azimuth: targets[$0.id]!) }
+            let again = Layout.azimuthTargets(settled)
+            for member in settled { #expect(abs(again[member.id]! - member.azimuth) < 1e-8) }
+        }
+    }
+
+    @Test("One fixed bond and two free bonds form 120 degree angles")
+    func threeBondGeometry() {
+        let targets = Layout.azimuthTargets(members([0.1, 0.4]), fixedAngles: [0])
+        let angles = targets.values.map { angle in
+            angle < 0 ? angle + 2 * .pi : angle
+        }.sorted()
+        #expect(abs(angles[0] - 2 * .pi / 3) < 1e-8)
+        #expect(abs(angles[1] - 4 * .pi / 3) < 1e-8)
+    }
+
+    @Test("Opposite fixed connections put free bonds in opposite open arcs")
+    func fourBondGeometry() {
+        let targets = Layout.azimuthTargets(members([0.2, 0.3]), fixedAngles: [0, .pi])
+        let angles = targets.values.map { atan2(sin($0), cos($0)) }.sorted()
+        #expect(abs(angles[0] + .pi / 2) < 1e-8)
+        #expect(abs(angles[1] - .pi / 2) < 1e-8)
+    }
+
+    @Test("A pinned bond constrains placement without being moved by the solver")
+    func pinnedAndEmptyGeometry() {
+        let ring = members([0.1])
+        let targets = Layout.azimuthTargets(ring, fixedAngles: [0])
+        #expect(abs(abs(targets[ring[0].id]!) - .pi) < 1e-8)
+        #expect(Layout.azimuthTargets([], fixedAngles: [0]).isEmpty)
+    }
+
     private func members(_ azimuths: [Double]) -> [Layout.Member] {
         azimuths.map { Layout.Member(id: UUID(), azimuth: $0) }
     }

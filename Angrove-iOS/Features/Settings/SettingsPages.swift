@@ -571,7 +571,7 @@ struct AudioSettingsView: View {
     @AppStorage(SettingsStorageKey.autoReadResponses)
     private var readsAutomatically = false
     @AppStorage(SettingsStorageKey.readAnswersElsewhere)
-    private var readsAnswersElsewhere = true
+    private var readsAnswersElsewhere = false
     @AppStorage(SettingsStorageKey.playAudioInBackground)
     private var playsInBackground = false
     @AppStorage(SettingsStorageKey.showReaderInControls)

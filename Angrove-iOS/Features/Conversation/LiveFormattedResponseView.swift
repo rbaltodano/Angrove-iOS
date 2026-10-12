@@ -338,7 +338,7 @@ private struct StableAnnotatedTokenLabel: View {
                     Text(trailingPunctuation)
                 }
                 .font(font)
-                .foregroundColor(AngroveTheme.Colors.secondaryMuted)
+                .foregroundColor(AngroveTheme.Colors.lightGreen)
                 .modifier(
                     ThinkingShimmer(
                         isActive: true,
@@ -349,11 +349,11 @@ private struct StableAnnotatedTokenLabel: View {
                 HStack(spacing: 0) {
                     Text(leadingPunctuation)
                         .font(font)
-                        .foregroundColor(AngroveTheme.Colors.secondaryMuted)
+                        .foregroundColor(AngroveTheme.Colors.lightGreen)
                     AnimatedInsightUnderlineText(
                         text: word,
                         font: font,
-                        color: AngroveTheme.Colors.secondaryMuted,
+                        color: AngroveTheme.Colors.lightGreen,
                         isVisible: isVisible,
                         animationDelay: animationDelay,
                         underlineOpacity: 1
@@ -365,7 +365,7 @@ private struct StableAnnotatedTokenLabel: View {
                     )
                     Text(trailingPunctuation)
                         .font(font)
-                        .foregroundColor(AngroveTheme.Colors.secondaryMuted)
+                        .foregroundColor(AngroveTheme.Colors.lightGreen)
                 }
             }
             }

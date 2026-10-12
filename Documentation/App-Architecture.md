@@ -10,6 +10,9 @@ a page advances the bookmark to the next paragraph, or the end of the edition. A
 `LibraryListeningIndex`, built alongside the document off the main actor, translates sparse
 paragraph/word IDs into progress across the whole edition. Library navigation carries the saved
 word and an explicit start-listening intent; opening a bookmark alone never starts audio.
+The read-aloud player creates its audio output graph and activates its session only when an
+explicit reading starts. Launching or returning to the app while idle leaves other apps' music
+playing. Stop deactivates the session only when the player owns an activation.
 
 ## Composition and ownership
 

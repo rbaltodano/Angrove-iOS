@@ -110,7 +110,7 @@ struct InsightTreeView: View {
     @State private var restoreFocusedCameraRequest: Int = 0
     @State private var focusedInsightID: UUID?
     @State private var focusedNodeID: UUID?
-    @State private var pendingHoverRestoration: CanvasSelectionTarget?
+    @State private var acceptedEntranceIDs: Set<UUID> = []
     @State private var undoInsight: ConceptDefinition? = nil
     @State private var undoTask: Task<Void, Never>? = nil
     @State private var pendingRemoveInsight: InsightModel? = nil
@@ -226,7 +226,6 @@ struct InsightTreeView: View {
     ) {
         self.insights              = insights
         self.conversationID        = conversationID
-        _pendingHoverRestoration = State(initialValue: InsightTreeHoverStore.load(scope: conversationID))
         self.model                 = model
         self.embeddingProvider     = embeddingProvider
         self.selectionRequest      = selectionRequest
@@ -511,7 +510,7 @@ struct InsightTreeView: View {
                 layoutTargets: viewModel.layoutTargets,
                 nodeDepths: viewModel.nodeDepths,
                 showsAllClusterInsights: conversationID == nil,
-                isRestoringHover: pendingHoverRestoration != nil,
+                acceptedEntranceIDs: acceptedEntranceIDs,
                 defersEntranceUntilPersistedTree: conversationID != nil,
                 persistedTreePresentationRevision: persistedTreePresentationRevision,
                 animatedPersistedTreePresentationRevision:
@@ -533,7 +532,6 @@ struct InsightTreeView: View {
                     showInsightCard(insight)
                 },
                 onCanvasMoved: {
-                    pendingHoverRestoration = nil
                     dismissDockedInsight()
                 },
                 onSuggestConnection: { edge in
@@ -769,6 +767,15 @@ struct InsightTreeView: View {
     private func treeContentObservers<Content: View>(_ content: Content) -> some View {
         content
         .onChange(of: insights) { oldValue, newValue in
+            if conversationID == nil {
+                let addedIDs = Set(newValue.map(\.id)).subtracting(oldValue.map(\.id))
+                acceptedEntranceIDs.formUnion(addedIDs)
+                // A promoted Node's bookmark uses its source Insight ID, while its imported
+                // anchor retains the Node ID. Both identities belong to this accepted update.
+                acceptedEntranceIDs.formUnion(addedIDs.compactMap {
+                    InsightTreeViewModel.nodeBookmarkReference(for: $0, preferredScope: nil)?.seed?.id
+                })
+            }
             viewModel.updateInsights(newValue, promotedInsightIDs: promotedInsightIDs)
             enqueuePersistedTreeLoad(animateChanges: true)
             restoreRequestedInsightSelection()
@@ -792,7 +799,6 @@ struct InsightTreeView: View {
                 return false
             }
             refreshSearchResults(resetIndex: false)
-            restoreRememberedHover()
         }
         .onChange(of: promotedInsightIDs) { _, newValue in
             viewModel.updateInsights(insights, promotedInsightIDs: newValue)
@@ -904,9 +910,9 @@ struct InsightTreeView: View {
             highlightInsightPair()
         }
         .onAppear {
-            if highlightedInsightPair != nil || restoreSelectedInsightID != nil || restoreSelectedNodeID != nil {
-                pendingHoverRestoration = nil
-            }
+            focusedInsightID = nil
+            focusedNodeID = nil
+            clearCanvasSelectionSilently()
             if highlightedInsightPair != nil {
                 highlightInsightPair()
             }
@@ -920,7 +926,6 @@ struct InsightTreeView: View {
             if conversationID == nil {
                 await viewModel.waitForSettledTree()
                 guard !Task.isCancelled else { return }
-                restoreRememberedHover(treeIsReady: true)
             }
         }
         .onChange(of: persistedTreeRefreshRequest) { _, _ in
@@ -931,8 +936,6 @@ struct InsightTreeView: View {
             enqueuePersistedTreeLoad(animateChanges: true)
         }
         .onDisappear {
-            // A retained page needs the same restoration path as a freshly recreated page.
-            pendingHoverRestoration = InsightTreeHoverStore.load(scope: conversationID)
             studyBranchSessionID = UUID()
             studyBranchTask?.cancel()
             if studyBranchBusy { onMidpointGeneratingChange?(false) }
@@ -1022,35 +1025,6 @@ struct InsightTreeView: View {
         showInsightCard(insight)
     }
 
-    private func restoreRememberedHover(treeIsReady: Bool = false) {
-        guard let target = pendingHoverRestoration,
-              treeIsReady || (conversationID != nil && persistedTreePresentationRevision > 0) else { return }
-        switch target {
-        case .insight(let id):
-            if let insight = viewModel.visibleNodes.lazy.flatMap(\.insights).first(where: { $0.id == id }) {
-                focusedInsightID = nil
-                showInsightCard(insight)
-                return
-            }
-        case .node(let id):
-            if let node = viewModel.visibleNodes.first(where: { $0.id == id }) {
-                focusedInsightID = nil
-                focusedNodeID = nil
-                showNodeCard(node)
-                focusedNodeID = id
-                return
-            }
-        }
-        // A deleted target must not keep the camera waiting forever. An intermediate load
-        // cannot invalidate a saved target that may still arrive with the completed snapshot.
-        if treeIsReady { pendingHoverRestoration = nil }
-    }
-
-    private func rememberHover(_ target: CanvasSelectionTarget) {
-        pendingHoverRestoration = nil
-        InsightTreeHoverStore.save(target, scope: conversationID)
-    }
-
     private func restoreRequestedNodeSelection() {
         guard let restoreSelectedNodeID,
               let node = viewModel.visibleNodes.first(where: { $0.id == restoreSelectedNodeID }) else {
@@ -1063,7 +1037,6 @@ struct InsightTreeView: View {
     }
 
     private func showInsightCard(_ insight: InsightModel, animateText: Bool = false, moveCamera: Bool = true) {
-        rememberHover(.insight(insight.id))
         // Navigating to any other insight ends the Make Node card growth.
         if insight.id != makeNodeParentInsightID { clearMakeNodeCardGrowth() }
         if selectedInsight?.id != insight.id {
@@ -1191,7 +1164,6 @@ struct InsightTreeView: View {
 
     private func showNodeCard(_ node: NodeModel) {
         guard viewModel.visibleNodes.contains(where: { $0.id == node.id }) else { return }
-        rememberHover(.node(node.id))
         stopReadingAloud(for: selectedInsight)
         clearMakeNodeCardGrowth()
         playDockedCardHaptic()
@@ -2104,7 +2076,6 @@ struct InsightTreeView: View {
         await viewModel.waitForSettledTree()
         guard loadGeneration == persistedTreeLoadGeneration else { return }
         persistedTreePresentationRevision += 1
-        restoreRememberedHover(treeIsReady: true)
         if animateChanges {
             animatedPersistedTreePresentationRevision = persistedTreePresentationRevision
         }

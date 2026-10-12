@@ -96,6 +96,17 @@ struct StudyTopicInsightTreeTests {
         #expect(snapshot.map(\.word) == ["charity", "Grace"])
     }
 
+    @Test("Topic refresh detects changed definitions with stable IDs and ignores ordering")
+    func refreshComparesContent() {
+        let grace = concept("Grace"), justice = concept("Justice")
+        let revisedGrace = ConceptDefinition(id: grace.id, word: grace.word, partOfSpeech: "noun",
+            pronunciation: "", meaning: "A revised definition.", example: "")
+        #expect(!StudyTopicInsightTreeBuilder.needsUpdate(accepted: [justice, grace], incoming: [grace, justice]))
+        #expect(StudyTopicInsightTreeBuilder.needsUpdate(accepted: [grace], incoming: [revisedGrace]))
+        #expect(StudyTopicInsightTreeBuilder.needsUpdate(accepted: [], incoming: [grace]))
+        #expect(StudyTopicInsightTreeBuilder.needsUpdate(accepted: [grace], incoming: []))
+    }
+
     private func concept(_ word: String) -> ConceptDefinition {
         ConceptDefinition(
             word: word,

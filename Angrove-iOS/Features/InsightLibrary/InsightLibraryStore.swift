@@ -77,6 +77,17 @@ enum GlobalInsightTreeUpdatePrompt {
         treeNeedsUpdate && acknowledgedLibraryIDs != libraryIDs
     }
 
+    /// Count only saved Insights still awaiting review. Reconciliation can represent an
+    /// accepted bookmark under another ID, and declining also answers the update prompt.
+    /// Neither should leave a badge whose corresponding update can no longer be offered.
+    nonisolated static func pendingInsightIDs(
+        libraryIDs: Set<UUID>,
+        seenInsightIDs: Set<UUID>,
+        acknowledgedLibraryIDs: Set<UUID>?
+    ) -> Set<UUID> {
+        libraryIDs.subtracting(seenInsightIDs.union(acknowledgedLibraryIDs ?? []))
+    }
+
     static func loadAcknowledgedLibraryIDs() -> Set<UUID>? {
         InsightTreeLocalStateStore.load(Set<UUID>.self, key: storeKey)
     }
@@ -105,7 +116,7 @@ enum GlobalInsightTreeUpdateResolution {
         guard currentTree == existingTree else { return nil }
         return Accepted(
             insights: reconciledTree,
-            acknowledgedLibraryIDs: Set(incomingLibrary.map(\.id)),
+            acknowledgedLibraryIDs: Set(incomingLibrary.uniquedByWord().map(\.id)),
             hasNewerLibraryChanges: currentLibrary != incomingLibrary
         )
     }

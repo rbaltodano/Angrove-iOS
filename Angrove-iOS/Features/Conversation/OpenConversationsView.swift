@@ -66,16 +66,17 @@ struct OpenConversationsView: View {
                     // Spacer so the title doesn't sit under the sticky button.
                     Color.clear.frame(height: 72)
 
-                    VStack(alignment: .center, spacing: 8) {
-                        Text(todayString())
-                            .font(AngroveTheme.Typography.uiLabel)
-                            .foregroundColor(AngroveTheme.Colors.lightGreen)
+                    VStack(alignment: .leading, spacing: 8) {
+                        SettingsDetailHeading(title: "Conversations")
 
-                        Text("Open Conversations")
-                            .font(.custom("LibreBaskerville-Regular", size: 30))
-                            .foregroundColor(AngroveTheme.Colors.primaryReadable)
+                        Text("Return to an inquiry, continue a thought, or start a new conversation.")
+                            .paragraphFont()
+                            .settingsTextReveal()
+                            .lineSpacing(FlowLayout.rowSpacing)
+                            .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                            .padding(.top, 8)
                     }
-                    .frame(maxWidth: .infinity, alignment: .center)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 28)
 
                     OpenConversationsSearchField(searchText: $searchText)
@@ -672,8 +673,7 @@ struct OpenConversationCard: View {
                 .padding(.top, 2)
             }
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 24)
+        .padding(28)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(AngroveTheme.Colors.canvasSecondary)
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))

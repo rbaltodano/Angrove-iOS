@@ -332,6 +332,7 @@ extension InsightTreeCanvasView {
         if let insightID = studyInitialHoverInsightID, studyTreeOffsets[insightID] != nil {
             studyPivotID = insightID
             studyPivotBlend = 0
+            animateStudyPivot(to: 1)
         }
         animateStudyProgress(to: 1, duration: 0.8)
     }

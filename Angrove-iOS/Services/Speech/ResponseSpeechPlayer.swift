@@ -138,8 +138,11 @@ final class ResponseSpeechPlayer {
     @ObservationIgnored private var lastListeningCheckpoint = Date.distantPast
     @ObservationIgnored private var lastNowPlayingUpdate = Date.distantPast
 
-    @ObservationIgnored private let audioEngine = AVAudioEngine()
-    @ObservationIgnored private let playerNode = AVAudioPlayerNode()
+    // The shell observes this singleton at launch. Connecting the engine's main mixer opens
+    // its output, so create the playback graph only after an explicit read-aloud request.
+    @ObservationIgnored private var audioEngine: AVAudioEngine?
+    @ObservationIgnored private var playerNode: AVAudioPlayerNode?
+    @ObservationIgnored private var ownsAudioSession = false
     @ObservationIgnored private let sampleRate = ParadeeSpeechEngine.sampleRate
     @ObservationIgnored private let format = AVAudioFormat(
         standardFormatWithSampleRate: ParadeeSpeechEngine.sampleRate, channels: 1
@@ -147,8 +150,6 @@ final class ResponseSpeechPlayer {
     @ObservationIgnored private let logger = Logger(subsystem: "com.ryanbaltodano.Aquinas-iOS", category: "Speech")
 
     private init() {
-        audioEngine.attach(playerNode)
-        audioEngine.connect(playerNode, to: audioEngine.mainMixerNode, format: format)
         let center = NotificationCenter.default
         center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
             guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
@@ -213,8 +214,8 @@ final class ResponseSpeechPlayer {
         ticker = nil
         pauseTimeout?.cancel()
         pauseTimeout = nil
-        playerNode.stop()
-        audioEngine.stop()
+        playerNode?.stop()
+        audioEngine?.stop()
         parts = []
         unitParts = []
         pendingWords = []
@@ -239,7 +240,10 @@ final class ResponseSpeechPlayer {
         isPaused = false
         phase = .idle
         SpeechNowPlaying.shared.clear()
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        if ownsAudioSession {
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            ownsAudioSession = false
+        }
     }
 
     // MARK: - Position
@@ -270,7 +274,7 @@ final class ResponseSpeechPlayer {
 
     private var currentFrame: Int {
         if isScrubbing { return scrubFrame }
-        guard let nodeTime = playerNode.lastRenderTime, nodeTime.isSampleTimeValid,
+        guard let playerNode, let nodeTime = playerNode.lastRenderTime, nodeTime.isSampleTimeValid,
               let playerTime = playerNode.playerTime(forNodeTime: nodeTime) else { return lastFrame }
         let played = Int(Double(playerTime.sampleTime) * sampleRate / max(playerTime.sampleRate, 1))
         lastFrame = min(max(baseFrame + played, 0), synthesizedFrames)
@@ -298,7 +302,7 @@ final class ResponseSpeechPlayer {
         guard phase == .speaking, !isScrubbing else { return }
         scrubFrame = currentFrame
         scrubOriginFrame = scrubFrame
-        playerNode.pause()
+        playerNode?.pause()
         isScrubbing = true
         refreshNowPlaying()
     }
@@ -308,7 +312,7 @@ final class ResponseSpeechPlayer {
     func pause() {
         guard phase == .speaking, !isPaused else { return }
         isPaused = true
-        if !isScrubbing { playerNode.pause() }
+        if !isScrubbing { playerNode?.pause() }
         refreshActiveWord()
         saveListeningPosition()
         refreshNowPlaying()
@@ -326,7 +330,7 @@ final class ResponseSpeechPlayer {
         isPaused = false
         pauseTimeout?.cancel()
         pauseTimeout = nil
-        if !isScrubbing { playerNode.play() }
+        if !isScrubbing { playerNode?.play() }
         refreshNowPlaying()
     }
 
@@ -389,7 +393,7 @@ final class ResponseSpeechPlayer {
     private func seek(to frame: Int) {
         generation += 1
         let gen = generation
-        playerNode.stop()
+        playerNode?.stop()
         baseFrame = frame
         lastFrame = frame
         pendingBuffers = 0
@@ -399,7 +403,7 @@ final class ResponseSpeechPlayer {
             enqueue(Array(parts[index].samples.dropFirst(offset)), generation: gen)
         }
         scheduledParts = synthesizedParts
-        if !isPaused { playerNode.play() }
+        if !isPaused { playerNode?.play() }
         finishIfDone()
     }
 
@@ -433,14 +437,7 @@ final class ResponseSpeechPlayer {
             try await prepare(units, engine: engine)
             try Task.checkCancellation()
 
-            let session = AVAudioSession.sharedInstance()
-            // Ducking marks audio as transient, like a navigation prompt, which keeps it off the Lock
-            // Screen. With background playback on, the reading behaves like a podcast instead.
-            let options: AVAudioSession.CategoryOptions = AudioSettings.playsInBackground ? [] : [.duckOthers]
-            try session.setCategory(.playback, mode: .spokenAudio, options: options)
-            try session.setActive(true)
-            try audioEngine.start()
-            playerNode.play()
+            try startAudioPlayback()
             startTicker(id)
 
             for index in parts.indices {
@@ -468,6 +465,27 @@ final class ResponseSpeechPlayer {
             logger.error("Speech failed: \(error.localizedDescription, privacy: .public)")
             if runID == id { stop() }
         }
+    }
+
+    private func startAudioPlayback() throws {
+        let session = AVAudioSession.sharedInstance()
+        // Ducking marks audio as transient, like a navigation prompt, which keeps it off the Lock
+        // Screen. With background playback on, the reading behaves like a podcast instead.
+        let options: AVAudioSession.CategoryOptions = AudioSettings.playsInBackground ? [] : [.duckOthers]
+        try session.setCategory(.playback, mode: .spokenAudio, options: options)
+        try session.setActive(true)
+        ownsAudioSession = true
+
+        let engine = audioEngine ?? AVAudioEngine()
+        let node = playerNode ?? AVAudioPlayerNode()
+        if audioEngine == nil {
+            engine.attach(node)
+            engine.connect(node, to: engine.mainMixerNode, format: format)
+            audioEngine = engine
+            playerNode = node
+        }
+        try engine.start()
+        node.play()
     }
 
     /// Phonemizes every unit up front and lays out which parts of the audio each displayed word
@@ -549,7 +567,7 @@ final class ResponseSpeechPlayer {
     private func enqueue(_ samples: [Float], generation gen: Int) {
         guard let buffer = makeBuffer(samples) else { return }
         pendingBuffers += 1
-        playerNode.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { _ in
+        playerNode?.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { _ in
             Task { @MainActor [weak self] in self?.bufferFinished(gen) }
         }
     }

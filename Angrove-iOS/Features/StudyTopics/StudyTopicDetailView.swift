@@ -13,6 +13,9 @@ struct StudyTopicDetailView: View {
     @Binding var savedInsights: [ConceptDefinition]
     let treeInsights: [ConceptDefinition]
     let restoredTreeInsightID: UUID?
+    let treeUpdateConfirmationTitle: String?
+    let onConfirmTreeUpdate: () -> Void
+    let onDeclineTreeUpdate: () -> Void
     @Binding var isExistingConversationPickerOpen: Bool
     var onUpdateTopic: (StudyTopic) -> Void
     var onTopicTouched: () -> Void
@@ -67,6 +70,9 @@ struct StudyTopicDetailView: View {
         savedInsights: Binding<[ConceptDefinition]>,
         treeInsights: [ConceptDefinition],
         restoredTreeInsightID: UUID?,
+        treeUpdateConfirmationTitle: String? = nil,
+        onConfirmTreeUpdate: @escaping () -> Void = {},
+        onDeclineTreeUpdate: @escaping () -> Void = {},
         isExistingConversationPickerOpen: Binding<Bool>,
         canvasMode: CanvasModeModel,
         modelTasks: ModelTaskQueue,
@@ -101,6 +107,9 @@ struct StudyTopicDetailView: View {
         self._savedInsights = savedInsights
         self.treeInsights = treeInsights
         self.restoredTreeInsightID = restoredTreeInsightID
+        self.treeUpdateConfirmationTitle = treeUpdateConfirmationTitle
+        self.onConfirmTreeUpdate = onConfirmTreeUpdate
+        self.onDeclineTreeUpdate = onDeclineTreeUpdate
         self._isExistingConversationPickerOpen = isExistingConversationPickerOpen
         self.canvasMode = canvasMode
         self.modelTasks = modelTasks
@@ -156,6 +165,7 @@ struct StudyTopicDetailView: View {
                                     isFocused: $isTitleFocused,
                                     lineSpacing: 18
                                 )
+                                .id(topic.id)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .onChange(of: titleDraft) { _, _ in persistDrafts() }
 
@@ -184,13 +194,12 @@ struct StudyTopicDetailView: View {
                                 placeholderTextField(
                                     placeholder: "Briefly describe the topic of this study",
                                     text: $descriptionDraft,
-                                    font: .custom("Figtree-Regular", size: 14),
                                     color: AngroveTheme.Colors.paragraphText,
                                     emptyOpacity: 0.5,
-                                    lineLimit: 1...4,
-                                    lineSpacing: 7
+                                    lineLimit: 1...4
                                 )
                                 .onChange(of: descriptionDraft) { _, _ in persistDrafts() }
+                                .settingsTextReveal()
 
                                 StudyTopicsSearchField(
                                     searchText: $topicSearchText,
@@ -465,18 +474,16 @@ struct StudyTopicDetailView: View {
     private func placeholderTextField(
         placeholder: String,
         text: Binding<String>,
-        font: Font,
         color: Color,
         emptyOpacity: Double,
         lineLimit: ClosedRange<Int>,
-        lineSpacing: CGFloat = 0,
         minimumHeight: CGFloat? = nil,
         focusBinding: FocusState<Bool>.Binding? = nil
     ) -> some View {
         ZStack(alignment: .topLeading) {
             Text(text.wrappedValue.isEmpty ? placeholder : text.wrappedValue)
-                .font(font)
-                .lineSpacing(lineSpacing)
+                .paragraphFont()
+                .lineSpacing(FlowLayout.rowSpacing)
                 .lineLimit(lineLimit)
                 .fixedSize(horizontal: false, vertical: true)
                 .hidden()
@@ -484,8 +491,8 @@ struct StudyTopicDetailView: View {
 
             if text.wrappedValue.isEmpty {
                 Text(placeholder)
-                    .font(font)
-                    .lineSpacing(lineSpacing)
+                    .paragraphFont()
+                    .lineSpacing(FlowLayout.rowSpacing)
                     .foregroundColor(color.opacity(emptyOpacity))
                     .fixedSize(horizontal: false, vertical: true)
                     .allowsHitTesting(false)
@@ -493,10 +500,10 @@ struct StudyTopicDetailView: View {
 
             if let focusBinding {
                 TextField("", text: text, axis: .vertical)
-                    .font(font)
+                    .paragraphFont()
+                    .lineSpacing(FlowLayout.rowSpacing)
                     .foregroundColor(color)
                     .tint(AngroveTheme.Colors.secondaryMuted)
-                    .lineSpacing(lineSpacing)
                     .lineLimit(lineLimit)
                     .scrollDisabled(true)
                     .fixedSize(horizontal: false, vertical: true)
@@ -511,10 +518,10 @@ struct StudyTopicDetailView: View {
                     }
             } else {
                 TextField("", text: text, axis: .vertical)
-                    .font(font)
+                    .paragraphFont()
+                    .lineSpacing(FlowLayout.rowSpacing)
                     .foregroundColor(color)
                     .tint(AngroveTheme.Colors.secondaryMuted)
-                    .lineSpacing(lineSpacing)
                     .lineLimit(lineLimit)
                     .scrollDisabled(true)
                     .fixedSize(horizontal: false, vertical: true)
@@ -738,6 +745,9 @@ struct StudyTopicDetailView: View {
             isCanvasInsightLoading: canvasMode.isCanvasInsightGenerating,
             modelTasks: modelTasks,
             modelTasksPopupState: modelTasksPopupState,
+            confirmationTitle: treeUpdateConfirmationTitle,
+            onConfirm: onConfirmTreeUpdate,
+            onDecline: onDeclineTreeUpdate,
             onMidpointCenter: { canvasMode.canvasMidpointCenterRequest += 1 },
             onMidpointPlace: { canvasMode.canvasMidpointPlaceRequest += 1 },
             onClearCanvasSelection: { canvasMode.canvasClearSelectionRequest += 1 },
@@ -757,8 +767,8 @@ private struct StudyTopicFilesSection: View {
     let files: [UploadedFile]
     var onRemove: (UploadedFile) -> Void
 
-    /// Matches the UploadedFileThumbnail outer frame (76px image + 5px padding each side).
-    private let thumbnailWidth: CGFloat = 86
+    /// Allows room for the uploaded image's 150pt maximum width plus its outer border.
+    private let thumbnailWidth: CGFloat = 160
     /// Width of the edge fade overlays. Leading padding is doubled so the first
     /// item sits fully past the gradient before scrolling begins.
     private let fadeWidth: CGFloat = 32
@@ -854,6 +864,7 @@ private struct StudyTopicTitleTextView: View {
             }
         }
         .frame(minHeight: measuredHeight, alignment: .topLeading)
+        .settingsTextReveal()
     }
 }
 

@@ -40,6 +40,7 @@ struct SideMenuStudyTopicPickerSheet: View {
 
                 Text(conversation.title)
                     .paragraphFont()
+                    .fontWeight(.bold)
                     .foregroundColor(AngroveTheme.Colors.paragraphText.opacity(0.5))
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -53,12 +54,14 @@ struct SideMenuStudyTopicPickerSheet: View {
                     // No topics exist at all — the dashed "Add New Study Topic" button below covers it.
                     Text("No study topics yet.")
                         .paragraphFont()
+                        .fontWeight(.bold)
                         .foregroundColor(AngroveTheme.Colors.paragraphText.opacity(0.5))
                         .frame(maxWidth: .infinity)
                         .padding(.top, 48)
                 } else if filteredTopics.isEmpty {
                     Text("No matching study topics.")
                         .paragraphFont()
+                        .fontWeight(.bold)
                         .foregroundColor(AngroveTheme.Colors.paragraphText.opacity(0.5))
                         .frame(maxWidth: .infinity)
                         .padding(.top, 48)
@@ -82,6 +85,7 @@ struct SideMenuStudyTopicPickerSheet: View {
                             .sfSymbolDrawOn()
                         Text("Add New Study Topic")
                             .paragraphFont()
+                            .fontWeight(.bold)
                     }
                     .foregroundColor(AngroveTheme.Colors.paragraphText.opacity(0.5))
                     .frame(maxWidth: .infinity)
@@ -154,42 +158,28 @@ private struct SideMenuStudyTopicPickerCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(displayTitle)
-                .font(.custom("LibreBaskerville-Regular", size: 18))
-                .foregroundColor(AngroveTheme.Colors.primaryReadable)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if !displayDescription.isEmpty {
-                Text(displayDescription)
-                    .paragraphFont()
-                    .foregroundColor(AngroveTheme.Colors.paragraphText.opacity(0.75))
-                    .lineSpacing(4)
-                    .lineLimit(3)
-                    .truncationMode(.tail)
-                    .fixedSize(horizontal: false, vertical: true)
+        StudyTopicCardHeader(title: displayTitle, description: displayDescription) {
+            Group {
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(AngroveTheme.Colors.lightGreen)
+                } else {
+                    Color.clear
+                }
             }
+            .frame(width: 22, height: 22)
+            .accessibilityHidden(true)
         }
-        .padding(24)
+        .padding(28)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AngroveTheme.Colors.componentBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(AngroveTheme.Colors.canvasSecondary)
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .stroke(isSelected ? AngroveTheme.Colors.lightGreen : AngroveTheme.Colors.controlBorder, lineWidth: isSelected ? 2 : 1)
         )
-        .overlay(alignment: .topTrailing) {
-            if isSelected {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(AngroveTheme.Colors.lightGreen)
-                    .background(AngroveTheme.Colors.componentBackground, in: Circle())
-                    .padding(12)
-                    .transition(.scale(scale: 0.5).combined(with: .opacity))
-            }
-        }
-        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .onTapGesture(perform: onSelect)
     }
 }

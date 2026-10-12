@@ -213,7 +213,7 @@ struct UploadedFileThumbnail: View {
             return CGSize(width: 76, height: 92)
         }
 
-        let scale = min(76 / image.size.width, 92 / image.size.height)
+        let scale = min(150 / image.size.width, 92 / image.size.height)
         return CGSize(width: image.size.width * scale, height: image.size.height * scale)
     }
 

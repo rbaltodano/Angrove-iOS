@@ -37,9 +37,6 @@ struct ContentView: View {
     @State private var globalTreeAcknowledgedLibraryIDs: Set<UUID>? =
         GlobalInsightTreeUpdatePrompt.loadAcknowledgedLibraryIDs()
     @State private var isGlobalTreeReconciling: Bool = false
-    /// After accepting an update, Global Insights stays quiet until model work originating on a
-    /// different page completes. Global-page actions must not repeatedly re-offer the same sync.
-    @State private var suppressGlobalTreePromptUntilExternalModelCompletion: Bool = false
     @State private var activePage: AppPage = .home
     @State private var globalTreeSeenInsightIDs: Set<UUID> = InsightDiscoveryStore.loadGlobalTreeSeenInsightIDs()
     @State private var displayedPage: AppPage = .home
@@ -207,16 +204,23 @@ struct ContentView: View {
             : canvasColor
     }
 
-    /// Saved Insights not yet seen in the Global Insights tree (see `markGlobalTreeInsightsSeen`).
+    /// Saved Insights awaiting review in the Global tree, excluding updates already answered.
     private var newInsightsCount: Int {
-        collectedDefinitions.filter { !globalTreeSeenInsightIDs.contains($0.id) }.count
+        GlobalInsightTreeUpdatePrompt.pendingInsightIDs(
+            libraryIDs: globalTreeLibraryIDs,
+            seenInsightIDs: globalTreeSeenInsightIDs,
+            acknowledgedLibraryIDs: globalTreeAcknowledgedLibraryIDs
+        ).count
     }
 
-    /// Insights the Global tree shows count as seen while its page is open. Pending saves stay
-    /// counted until the tree is updated to include them.
+    /// Opening Global Insights records its shown and already-reviewed bookmark IDs. Pending
+    /// saves stay counted until the corresponding update is answered.
     private func markGlobalTreeInsightsSeen() {
         guard activePage == .insights else { return }
+        // Accepted near-duplicates may keep the tree's older canonical ID. The source
+        // library IDs are represented by that reconciliation even when they are not chips.
         let shown = Set(globalTreeInsights.map(\.id))
+            .union((globalTreeAcknowledgedLibraryIDs ?? []).intersection(globalTreeLibraryIDs))
         guard !shown.isSubset(of: globalTreeSeenInsightIDs) else { return }
         globalTreeSeenInsightIDs.formUnion(shown)
         InsightDiscoveryStore.saveGlobalTreeSeenInsightIDs(globalTreeSeenInsightIDs)
@@ -1658,6 +1662,7 @@ struct ContentView: View {
     private func clearInsightTree() {
         isGlobalTreeUpdatePromptVisible = false
         globalTreeAcknowledgedLibraryIDs = nil
+        globalTreeSeenInsightIDs = []
         globalInsightPromotedIDs = []
         globalTreeInsights = []
         collectedDefinitions = []
@@ -1703,6 +1708,7 @@ struct ContentView: View {
         collectedDefinitions = []
         globalTreeInsights = []
         globalTreeAcknowledgedLibraryIDs = nil
+        globalTreeSeenInsightIDs = []
         globalInsightPromotedIDs = []
         clippedPassages = []
         questionOfTheDay = nil
@@ -1716,15 +1722,13 @@ struct ContentView: View {
         libraryExistingConversationTarget = nil
         isGlobalTreeUpdatePromptVisible = false
         isGlobalTreeReconciling = false
-        suppressGlobalTreePromptUntilExternalModelCompletion = false
 
         try await AppDataReset.clear()
     }
 
     private func handleCollectedDefinitionsChange(_ definitions: [ConceptDefinition]) {
         InsightLibraryStore.save(definitions)
-        guard activePage == .insights,
-              !suppressGlobalTreePromptUntilExternalModelCompletion else { return }
+        guard activePage == .insights else { return }
         refreshGlobalInsightTreeUpdatePrompt()
     }
 
@@ -1737,7 +1741,6 @@ struct ContentView: View {
     private func handleCompletedModelTask(_ task: ModelTaskSnapshot) {
         postConversationCompletionNotificationIfNeeded(for: task)
         guard task.originPage != .insights else { return }
-        suppressGlobalTreePromptUntilExternalModelCompletion = false
         guard activePage == .insights else { return }
         refreshGlobalInsightTreeUpdatePrompt()
     }
@@ -1842,21 +1845,24 @@ struct ContentView: View {
     }
 
     private var globalTreeLibraryIDs: Set<UUID> {
-        Set(collectedDefinitions.map(\.id))
+        Set(collectedDefinitions.uniquedByWord().map(\.id))
     }
 
     /// Offers the update only when the saved Insights changed since the prompt was last
     /// answered, so reopening Global Insights doesn't ask again about the same library.
     private func refreshGlobalInsightTreeUpdatePrompt() {
+        guard !isGlobalTreeReconciling else {
+            isGlobalTreeUpdatePromptVisible = false
+            return
+        }
         let needsUpdate = globalTreeNeedsUpdate
         // The tree already matches the library, so there is nothing left to ask about.
         if !needsUpdate { acknowledgeGlobalTreeLibrary(globalTreeLibraryIDs) }
-        isGlobalTreeUpdatePromptVisible = !suppressGlobalTreePromptUntilExternalModelCompletion
-            && GlobalInsightTreeUpdatePrompt.shouldOffer(
-                libraryIDs: globalTreeLibraryIDs,
-                acknowledgedLibraryIDs: globalTreeAcknowledgedLibraryIDs,
-                treeNeedsUpdate: needsUpdate
-            )
+        isGlobalTreeUpdatePromptVisible = GlobalInsightTreeUpdatePrompt.shouldOffer(
+            libraryIDs: globalTreeLibraryIDs,
+            acknowledgedLibraryIDs: globalTreeAcknowledgedLibraryIDs,
+            treeNeedsUpdate: needsUpdate
+        )
     }
 
     private func acknowledgeGlobalTreeLibrary(_ ids: Set<UUID>) {
@@ -1881,7 +1887,6 @@ struct ContentView: View {
         // outside the main actor so the canvas remains responsive to panning and zooming.
         withAnimation(.springStandard) {
             isGlobalTreeUpdatePromptVisible = false
-            suppressGlobalTreePromptUntilExternalModelCompletion = true
             isGlobalTreeReconciling = true
         }
 
@@ -1901,7 +1906,6 @@ struct ContentView: View {
                 reconciledTree: reconciledInsights
             ) else {
                 isGlobalTreeReconciling = false
-                suppressGlobalTreePromptUntilExternalModelCompletion = false
                 refreshGlobalInsightTreeUpdatePrompt()
                 return
             }
@@ -1913,7 +1917,6 @@ struct ContentView: View {
             GlobalInsightTreeStore.save(update.insights)
             acknowledgeGlobalTreeLibrary(update.acknowledgedLibraryIDs)
             if update.hasNewerLibraryChanges {
-                suppressGlobalTreePromptUntilExternalModelCompletion = false
                 refreshGlobalInsightTreeUpdatePrompt()
             }
             globalInsightsContextCardState.reset()

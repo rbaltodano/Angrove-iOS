@@ -262,7 +262,7 @@ struct HomeDashboardView: View {
                 .backgroundPreferenceValue(HomeCalendarBoundsKey.self) { anchor in
                     if let anchor, !usesLandscapeLayout {
                         GeometryReader { proxy in
-                            HomeVineWind(side: .left, parallax: vineParallax, depth: 0.22, delay: 0.15, returnDelay: 0.05)
+                            HomeVineWind(side: .left, parallax: vineParallax, depth: 0.055, delay: 0.15, returnDelay: 0.05)
                                 .offset(y: proxy[anchor].maxY + 132)
                         }
                     }
@@ -365,6 +365,42 @@ struct HomeFigmaOpeningSection: View {
     var listeningWork: LibraryWork? = nil
     var onOpenListeningWork: (LibraryWork) -> Void = { _ in }
 
+    private var animatedGreetingHeading: some View {
+        let greetingWords = "\(greeting),".split(separator: " ")
+        let nameWords = userName.split(separator: " ")
+        var headingText = Text(verbatim: "")
+
+        for (index, word) in greetingWords.enumerated() {
+            headingText = headingText
+                + Text(verbatim: index == 0 ? "" : "\n")
+                + Text(verbatim: String(word))
+                    .font(AngroveTheme.Typography.titleHome)
+                    .foregroundColor(AngroveTheme.Colors.primaryReadable)
+                    .customAttribute(SettingsRevealWord(index: index))
+        }
+
+        for (index, word) in nameWords.enumerated() {
+            headingText = headingText
+                + Text(verbatim: index == 0 ? "\n" : " ")
+                + Text(verbatim: String(word))
+                    .font(.custom("LibreBaskerville-Italic", size: 40))
+                    .foregroundColor(AngroveTheme.Colors.lightGreen)
+                    .customAttribute(SettingsRevealWord(index: greetingWords.count + index))
+        }
+
+        let fullTitle = ([String](greetingWords.map(String.init)) + nameWords.map(String.init)).joined(separator: " ")
+        return SettingsAnimatedHeading(
+            text: headingText,
+            wordCount: greetingWords.count + nameWords.count,
+            accessibilityLabel: fullTitle,
+            visibilityThreshold: 0.01
+        )
+        .multilineTextAlignment(.leading)
+        .lineSpacing(0)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     var body: some View {
         VStack(alignment: .center, spacing: usesLandscapeLayout ? 36 : 84) {
             VStack(alignment: .center, spacing: 48) {
@@ -374,21 +410,9 @@ struct HomeFigmaOpeningSection: View {
                             .font(AngroveTheme.Typography.uiLabel)
                             .foregroundColor(AngroveTheme.Colors.lightGreen)
 
-                        VStack(alignment: .leading, spacing: 0) {
-                            // One word per line ("Good" / "Morning," / name), so even
-                            // "Afternoon," keeps the full 40pt on a 402pt phone.
-                            ForEach(Array("\(greeting),".split(separator: " ").enumerated()), id: \.offset) { _, word in
-                                Text(word)
-                                    .font(AngroveTheme.Typography.titleHome)
-                            }
-
-                            Text(userName)
-                                .font(.custom("LibreBaskerville-Italic", size: 40))
-                        }
-                        .foregroundColor(AngroveTheme.Colors.primaryReadable)
+                        animatedGreetingHeading
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .transition(.opacity)
                 }
 
                 HomeFigmaUsageAndStats(
@@ -469,13 +493,17 @@ private struct HomeFigmaQuestionCard: View {
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("QUESTION OF THE DAY:")
-                    .font(AngroveTheme.Typography.uiLabel)
-                    .foregroundColor(AngroveTheme.Colors.lightGreen)
+                SettingsAnimatedHeading(
+                    title: "QUESTION OF THE DAY:",
+                    font: AngroveTheme.Typography.uiLabel,
+                    color: AngroveTheme.Colors.lightGreen
+                )
 
-                Text("\"\(question)\"")
-                    .font(.custom("LibreBaskerville-Regular", size: 18))
-                    .foregroundColor(AngroveTheme.Colors.primaryReadable)
+                SettingsAnimatedHeading(
+                    title: "“\(question)”",
+                    font: .custom("LibreBaskerville-Regular", size: 18),
+                    color: AngroveTheme.Colors.primaryReadable
+                )
                     .lineSpacing(7)
             }
             .padding(28)
@@ -734,13 +762,17 @@ private struct HomeTodayInHistorySection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("TODAY IN HISTORY")
-                    .font(AngroveTheme.Typography.uiLabel)
-                    .foregroundColor(AngroveTheme.Colors.lightGreen)
+                SettingsAnimatedHeading(
+                    title: "TODAY IN HISTORY",
+                    font: AngroveTheme.Typography.uiLabel,
+                    color: AngroveTheme.Colors.lightGreen
+                )
 
-                Text(card.title)
-                    .font(.custom("LibreBaskerville-Regular", size: 40))
-                    .foregroundColor(AngroveTheme.Colors.primaryReadable)
+                SettingsAnimatedHeading(
+                    title: card.title,
+                    font: .custom("LibreBaskerville-Regular", size: 40),
+                    color: AngroveTheme.Colors.primaryReadable
+                )
             }
 
             Text(card.description)

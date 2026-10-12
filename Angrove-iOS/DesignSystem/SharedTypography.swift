@@ -551,10 +551,9 @@ func createEditorialTitle(
     return attributedString
 }
 
-// MARK: - User paragraph font
+// MARK: - App paragraph font
 
-/// Applies the user's response font and size settings to app-wide paragraph text.
-/// Sans/Medium reproduces the design-system body (14) and bodyLarge (16) exactly.
+/// App interface prose stays in Figtree. The response font preference is reserved for model output.
 struct ParagraphFontModifier: ViewModifier {
     enum Role {
         case regular
@@ -569,15 +568,11 @@ struct ParagraphFontModifier: ViewModifier {
     }
 
     let role: Role
-    @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .serif
     @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .medium
 
     func body(content: Content) -> some View {
         let size = role.baseSize + (fontSize.pointSize - ConversationFontSizeOption.medium.pointSize)
-        switch responseFont {
-        case .sans: content.font(.custom("Figtree-Regular", fixedSize: size))
-        case .serif: content.font(.custom("LibreBaskerville-Regular", fixedSize: size))
-        }
+        content.font(.custom("Figtree-Regular", fixedSize: size))
     }
 }
 

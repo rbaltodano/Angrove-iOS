@@ -730,13 +730,11 @@ private struct ClippedPassageLibraryCard: View {
 private struct LibraryHomeHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("\(Text("The ").font(.custom("LibreBaskerville-Regular", size: 40)))\(Text("Library").font(.custom("LibreBaskerville-Italic", size: 40)))")
-                .foregroundStyle(AngroveTheme.Colors.primaryReadable)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+            SettingsDetailHeading(title: "The Library")
 
             Text("The primary sources Angrove draws on when it grounds an answer.")
                 .paragraphFont()
+                .settingsTextReveal()
                 .lineSpacing(FlowLayout.rowSpacing)
                 .foregroundStyle(AngroveTheme.Colors.paragraphText)
                 .padding(.top, 8)

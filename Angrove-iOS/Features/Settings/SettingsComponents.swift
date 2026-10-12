@@ -566,17 +566,18 @@ enum SettingsHaptics {
 /// Native counterpart of the guide's word-by-word headline reveal.
 struct SettingsDetailHeading: View {
     let title: LocalizedStringResource
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var hasRevealed = false
-    @State private var elapsed: Double = 0
 
     var body: some View {
         let words = String(localized: title).split(separator: " ", omittingEmptySubsequences: false)
-        let duration = 0.6 + Double(max(words.count - 1, 0)) * 0.055
-        words.enumerated().reduce(Text(verbatim: "")) { text, word in
+        let headingText = words.enumerated().reduce(Text(verbatim: "")) { text, word in
             text + Text(verbatim: (word.offset == 0 ? "" : " ") + String(word.element))
                 .customAttribute(SettingsRevealWord(index: word.offset))
         }
+        SettingsAnimatedHeading(
+            text: headingText,
+            wordCount: words.count,
+            accessibilityLabel: String(localized: title)
+        )
         .font(AngroveTheme.Typography.settingsDetailTitle)
         .tracking(AngroveTheme.Typography.settingsDetailTitleTracking)
         .foregroundStyle(AngroveTheme.Colors.headingText)
@@ -586,49 +587,5 @@ struct SettingsDetailHeading: View {
         .minimumScaleFactor(0.75)
         .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .textRenderer(SettingsHeadingRenderer(elapsed: reduceMotion ? duration : elapsed))
-        .accessibilityLabel(Text(title))
-        .accessibilityAddTraits(.isHeader)
-        .onScrollVisibilityChange(threshold: 0.4) { isVisible in
-            guard isVisible, !hasRevealed else { return }
-            hasRevealed = true
-            withAnimation(reduceMotion ? nil : .linear(duration: duration)) {
-                elapsed = duration
-            }
-        }
-    }
-}
-
-private struct SettingsRevealWord: TextAttribute {
-    let index: Int
-}
-
-private struct SettingsHeadingRenderer: TextRenderer {
-    var elapsed: Double
-    var animatableData: Double {
-        get { elapsed }
-        set { elapsed = newValue }
-    }
-
-    func draw(layout: Text.Layout, in context: inout GraphicsContext) {
-        for line in layout {
-            for run in line {
-                let index = run[SettingsRevealWord.self]?.index ?? 0
-                let progress = min(max((elapsed - Double(index) * 0.055) / 0.6, 0), 1)
-                let fade = UnitCurve.bezier(
-                    startControlPoint: UnitPoint(x: 0.25, y: 0.1),
-                    endControlPoint: UnitPoint(x: 0.25, y: 1)
-                ).value(at: progress)
-                let movement = UnitCurve.bezier(
-                    startControlPoint: UnitPoint(x: 0.2, y: 0.8),
-                    endControlPoint: UnitPoint(x: 0.2, y: 1)
-                ).value(at: progress)
-                var copy = context
-                copy.opacity *= fade
-                copy.addFilter(.blur(radius: 4 * (1 - fade)))
-                copy.translateBy(x: 0, y: 12 * (1 - movement))
-                copy.draw(run)
-            }
-        }
     }
 }

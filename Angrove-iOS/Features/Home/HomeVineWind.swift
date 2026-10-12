@@ -60,7 +60,7 @@ struct HomeVineWind: View {
     var side: HomeVineSide = .right
     var width: CGFloat = 176
     var parallax: HomeVineParallax? = nil
-    var depth: CGFloat = 0.15
+    var depth: CGFloat = 0.0375
     var delay: TimeInterval = 0
     var returnDelay: TimeInterval = 0
 

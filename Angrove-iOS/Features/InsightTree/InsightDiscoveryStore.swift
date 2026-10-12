@@ -45,15 +45,17 @@ enum InsightDiscoveryStore {
     static func newInsightIDs(
         in currentIDs: Set<UUID>,
         excluding previousIDs: Set<UUID> = [],
+        acceptedIDs: Set<UUID> = [],
         preferences: PrivatePreferences = .standard
     ) -> Set<UUID> {
         currentIDs.subtracting(previousIDs)
-            .subtracting(loadIDs(forKey: seenInsightIDsKey, preferences: preferences))
+            .subtracting(loadIDs(forKey: seenInsightIDsKey, preferences: preferences).subtracting(acceptedIDs))
     }
 
     static func newNodeIDs(
         in currentIDs: Set<UUID>,
         excluding previousIDs: Set<UUID> = [],
+        acceptedIDs: Set<UUID> = [],
         memberInsightIDs: [UUID: Set<UUID>] = [:],
         preferences: PrivatePreferences = .standard
     ) -> Set<UUID> {
@@ -66,7 +68,7 @@ enum InsightDiscoveryStore {
                 insightIDs.isDisjoint(with: seenInsights) ? nil : nodeID
             })
         }
-        return currentIDs.subtracting(previousIDs).subtracting(seenNodes)
+        return currentIDs.subtracting(previousIDs).subtracting(seenNodes.subtracting(acceptedIDs))
     }
 
     /// Record the entrance before starting its cancellable animation. Keep discovery dots

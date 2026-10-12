@@ -1420,16 +1420,11 @@ private struct LibraryParagraph: View {
         self.onOpenURL = onOpenURL
     }
 
-    /// Where the reading is in this paragraph: none, wholly read, or at a word within it.
+    /// Highlights belong to live listening; saved positions only supply the bookmark marker.
     private var speechState: AskingTextView.SpeechState {
-        let position: Int?
-        if speech.activeLibraryWorkID == sourceID, speech.phase != .idle {
-            position = speech.activeWord ?? speech.firstWord
-        } else {
-            let bookmark = LibraryListeningStore.shared.bookmark(for: sourceID)
-            position = bookmark?.progress == 1 ? nil : bookmark?.wordIndex
-        }
-        guard let active = position else { return .none }
+        guard speech.activeLibraryWorkID == sourceID,
+              speech.phase != .idle, !speech.isPaused,
+              let active = speech.activeWord ?? speech.firstWord else { return .none }
         let base = chunkIndex * LibrarySpeech.wordsPerChunk
         if active < base { return .none }
         if active >= base + LibrarySpeech.wordsPerChunk { return .init(readBefore: Int.max, active: nil) }

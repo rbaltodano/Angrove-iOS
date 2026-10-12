@@ -58,9 +58,11 @@ struct BranchModeTopBar: View {
                                 .font(.system(size: titleFontSize - 3, weight: .medium))
                                 .foregroundColor(AngroveTheme.Colors.lightGreen)
                             ConversationHeading(title: title) { title in
-                                Text(title)
-                                    .font(.custom("LibreBaskerville-Regular", size: titleFontSize))
-                                    .foregroundColor(AngroveTheme.Colors.primaryReadable)
+                                SettingsAnimatedHeading(
+                                    title: title,
+                                    font: .custom("LibreBaskerville-Regular", size: titleFontSize),
+                                    color: AngroveTheme.Colors.primaryReadable
+                                )
                                     .lineLimit(1)
                             }
                         }
@@ -68,9 +70,11 @@ struct BranchModeTopBar: View {
                         .onTapGesture(perform: onTapStudyTopicBadge)
                     } else {
                         ConversationHeading(title: title) { title in
-                            Text(title)
-                                .font(.custom("LibreBaskerville-Regular", size: titleFontSize))
-                                .foregroundColor(AngroveTheme.Colors.primaryReadable)
+                            SettingsAnimatedHeading(
+                                title: title,
+                                font: .custom("LibreBaskerville-Regular", size: titleFontSize),
+                                color: AngroveTheme.Colors.primaryReadable
+                            )
                                 .lineLimit(1)
                         }
                         .transition(.blurFade)

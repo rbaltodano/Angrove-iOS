@@ -3,6 +3,8 @@ import SwiftUI
 extension EnvironmentValues {
     /// Decorative entrances wait until the app's boot mask has finished revealing the page.
     @Entry var isBootRevealComplete = true
+    /// Text entrances can run alongside the page's initial slide-up reveal.
+    @Entry var isBootPageRevealAnimating = true
     @Entry var homeVinePlayback: HomeVinePlaybackController? = nil
 }
 
@@ -17,6 +19,7 @@ struct BootPresentation<Content: View>: View {
     @State private var stage = 1
     @State private var hasFinishedGrowing = false
     @State private var hasStartedReveal = false
+    @State private var hasStartedPageReveal = false
     @State private var hasFinishedReveal = false
     @State private var markOpacity = 0.0
     @State private var revealProgress = 0.0
@@ -32,6 +35,7 @@ struct BootPresentation<Content: View>: View {
 
             content
                 .environment(\.isBootRevealComplete, hasFinishedReveal)
+                .environment(\.isBootPageRevealAnimating, hasStartedPageReveal)
                 .environment(\.homeVinePlayback, homeVinePlayback)
                 .offset(y: reduceMotion ? 0 : 32 * (1 - revealProgress))
                 .mask {
@@ -88,6 +92,7 @@ struct BootPresentation<Content: View>: View {
                     ? .easeInOut(duration: 0.3)
                     : .timingCurve(0.55, 0, 0.17, 1, duration: 1.5)
                 withAnimation(revealAnimation) {
+                    hasStartedPageReveal = true
                     revealProgress = 1
                 }
                 try await Task.sleep(for: .milliseconds(reduceMotion ? 300 : 1500))

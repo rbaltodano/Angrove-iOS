@@ -305,11 +305,11 @@ struct CompletedResponseSegments: View {
             HStack(spacing: 0) {
                 Text(link.leadingPunctuation)
                     .font(responseFont.textFont(size: conversationFontSize))
-                    .foregroundColor(AngroveTheme.Colors.secondaryMuted)
+                    .foregroundColor(AngroveTheme.Colors.lightGreen)
                 AnimatedInsightUnderlineText(
                     text: link.title,
                     font: responseFont.textFont(size: conversationFontSize),
-                    color: AngroveTheme.Colors.secondaryMuted,
+                    color: AngroveTheme.Colors.lightGreen,
                     isVisible: isVisible,
                     animationDelay: underlineDelay,
                     underlineOpacity: 1
@@ -321,7 +321,7 @@ struct CompletedResponseSegments: View {
                 )
                 Text(link.trailingPunctuation)
                     .font(responseFont.textFont(size: conversationFontSize))
-                    .foregroundColor(AngroveTheme.Colors.secondaryMuted)
+                    .foregroundColor(AngroveTheme.Colors.lightGreen)
             }
             .padding(.horizontal, 2)
             .contentShape(Rectangle())

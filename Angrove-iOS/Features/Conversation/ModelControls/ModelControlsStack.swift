@@ -106,7 +106,8 @@ struct ModelControlsStack<Controls: View>: View {
                     title: confirmationTitle,
                     width: controlsWidth,
                     onConfirm: onConfirm,
-                    onDecline: onDecline
+                    onDecline: onDecline,
+                    showsControlBorder: true
                 )
                 .transition(.bottomDockCard)
             }
@@ -274,7 +275,7 @@ private struct ModelControlsConfirmationPill: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            HStack(spacing: 24) {
+            HStack(spacing: 12) {
                 Button("Yes", action: onConfirm)
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())

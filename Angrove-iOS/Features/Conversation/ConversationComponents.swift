@@ -1250,9 +1250,11 @@ struct ChatThreadColumn: View {
                         ? (bigTitleDraft.isEmpty ? String(localized: "Conversation title") : bigTitleDraft)
                         : nil
                 ) { title in
-                    Text(title)
-                        .font(AngroveTheme.Typography.titleXLarge)
-                        .foregroundColor(AngroveTheme.Colors.headingText)
+                    SettingsAnimatedHeading(
+                        title: title,
+                        font: AngroveTheme.Typography.titleXLarge,
+                        color: AngroveTheme.Colors.headingText
+                    )
                         .lineSpacing(14)
                         .multilineTextAlignment(conversationTextAlignment.textAlignment)
                         .frame(maxWidth: .infinity, alignment: conversationTextAlignment.frameAlignment)
@@ -1412,9 +1414,11 @@ struct ChatThreadColumn: View {
                                 .multilineTextAlignment(conversationTextAlignment.textAlignment)
                                 .frame(maxWidth: .infinity, alignment: conversationTextAlignment.frameAlignment)
                             } else {
-                                Text(title)
-                                    .font(.custom("LibreBaskerville-Regular", size: 34))
-                                    .foregroundColor(AngroveTheme.Colors.primaryReadable)
+                                SettingsAnimatedHeading(
+                                    title: title,
+                                    font: .custom("LibreBaskerville-Regular", size: 34),
+                                    color: AngroveTheme.Colors.primaryReadable
+                                )
                                     .multilineTextAlignment(conversationTextAlignment.textAlignment)
                                     .frame(maxWidth: .infinity, alignment: conversationTextAlignment.frameAlignment)
                             }

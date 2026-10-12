@@ -41,7 +41,7 @@ struct InsightTreeInsightCard: View {
             HStack(alignment: .center, spacing: 8) {
                 Image(systemName: "text.bubble.fill")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(AngroveTheme.Colors.darkGreen)
+                    .foregroundColor(AngroveTheme.Colors.lightGreen)
                     .sfSymbolDrawOn()
 
                 Text(insight.title)

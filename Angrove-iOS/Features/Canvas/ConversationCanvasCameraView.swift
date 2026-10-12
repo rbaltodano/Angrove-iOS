@@ -434,7 +434,7 @@ private struct BranchMapPreviewView: View {
             Image(systemName: icon).font(.system(size: isInsightChip ? 14 : 12, weight: .semibold))
             Text(title).font(isInsightChip ? .figtreeHeading2 : .figtreeChipLabel).lineLimit(1)
         }
-        .foregroundColor(AngroveTheme.Colors.darkGreen)
+        .foregroundColor(isInsightChip ? AngroveTheme.Colors.lightGreen : AngroveTheme.Colors.darkGreen)
         .padding(.horizontal, 20).padding(.vertical, 16)
         .background(AngroveTheme.Colors.canvas)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -514,7 +514,7 @@ private struct BranchMapPreviewView: View {
                     Text(concept.word.capitalized)
                         .font(.figtreeHeading2)
                 }
-                .foregroundColor(AngroveTheme.Colors.darkGreen).lineLimit(1)
+                .foregroundColor(AngroveTheme.Colors.lightGreen).lineLimit(1)
                 .opacity(labelOpacity)
             }
             questionText(question, submitted: true, lineLimit: 3).opacity(questionOpacity)
@@ -573,7 +573,7 @@ private struct BranchIconPreviewView: View {
                     Text(ctx)
                         .font(isInsightChip ? .figtreeHeading2 : .figtreeChipLabel)
                 }
-                .foregroundColor(AngroveTheme.Colors.darkGreen)
+                .foregroundColor(isInsightChip ? AngroveTheme.Colors.lightGreen : AngroveTheme.Colors.darkGreen)
                 .lineLimit(1).padding(.horizontal, 16).padding(.vertical, 12)
                 .background(AngroveTheme.Colors.canvas)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))

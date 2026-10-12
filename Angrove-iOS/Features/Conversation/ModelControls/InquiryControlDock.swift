@@ -329,7 +329,7 @@ struct InquiryControlDock: View {
             }
         }
 
-        if isCanvasMode && showsStudyControls {
+        if isCanvasMode && showsStudyControls && hasCanvasInsightHover {
             StudyBranchDockControls(
                 count: studyBranchCount,
                 onCountChange: onStudyBranchCountChange,

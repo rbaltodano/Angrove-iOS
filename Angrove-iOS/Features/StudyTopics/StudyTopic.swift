@@ -98,6 +98,14 @@ enum StudyTopicInsightTreeBuilder {
             }
     }
 
+    /// Definitions can change without changing stable Insight IDs; array ordering does not
+    /// change membership or content and must not trigger a refresh prompt.
+    static func needsUpdate(accepted: [ConceptDefinition], incoming: [ConceptDefinition]) -> Bool {
+        let acceptedByID = Dictionary(accepted.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        let incomingByID = Dictionary(incoming.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+        return acceptedByID != incomingByID
+    }
+
     private static func term(_ word: String) -> String {
         word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }

@@ -187,6 +187,9 @@ struct StudyTopicsView: View {
                     savedInsights: $savedInsights,
                     treeInsights: topicTreeSnapshots[topic.id.uuidString, default: []],
                     restoredTreeInsightID: restoredTreeInsightID,
+                    treeUpdateConfirmationTitle: treeUpdateConfirmationTitle,
+                    onConfirmTreeUpdate: updateSelectedTopicTree,
+                    onDeclineTreeUpdate: dismissTreeUpdateConfirmation,
                     isExistingConversationPickerOpen: $isExistingConversationPickerOpen,
                     canvasMode: topicCanvasMode,
                     modelTasks: modelTasks,
@@ -236,6 +239,7 @@ struct StudyTopicsView: View {
                     onRequestPhotoPicker: { showTopicPhotoPicker = true },
                     onRequestFilePicker:  { showTopicFilePicker  = true }
                 )
+                .id(topic.id)
                 .transition(.move(edge: .trailing))
                 .zIndex(1)
             }
@@ -298,7 +302,10 @@ struct StudyTopicsView: View {
             onDetailVisibilityChange(newValue != nil)
             reportControls()
         }
-        .onChange(of: topicCanvasMode.isTopicCanvasVisible) { _, _ in
+        .onChange(of: topicCanvasMode.isTopicCanvasVisible) { _, isVisible in
+            if isVisible, let selectedTopicID, topicTreeNeedsUpdate(selectedTopicID) {
+                pendingTreeUpdateTopicID = selectedTopicID
+            }
             reportControls()
         }
         .onChange(of: pendingTreeUpdateTopicID) { _, _ in
@@ -436,16 +443,17 @@ struct StudyTopicsView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Color.clear.frame(height: 72)
 
-                    VStack(alignment: .center, spacing: 8) {
-                        Text(todayString())
-                            .font(AngroveTheme.Typography.uiLabel)
-                            .foregroundColor(AngroveTheme.Colors.lightGreen)
+                    VStack(alignment: .leading, spacing: 8) {
+                        SettingsDetailHeading(title: "Study Topics")
 
-                        Text("Study Topics")
-                            .font(.custom("LibreBaskerville-Regular", size: 30))
-                            .foregroundColor(AngroveTheme.Colors.primaryReadable)
+                        Text("Bring related conversations together and follow an idea as it develops.")
+                            .paragraphFont()
+                            .settingsTextReveal()
+                            .lineSpacing(FlowLayout.rowSpacing)
+                            .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                            .padding(.top, 8)
                     }
-                    .frame(maxWidth: .infinity, alignment: .center)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 28)
 
                     StudyTopicsSearchField(
@@ -664,8 +672,10 @@ struct StudyTopicsView: View {
     }
 
     private func topicTreeNeedsUpdate(_ topicID: UUID) -> Bool {
-        let current = Set(topicTreeSnapshots[topicID.uuidString, default: []].map(\.id))
-        return Set(aggregatedTreeInsights(for: topicID).map(\.id)) != current
+        StudyTopicInsightTreeBuilder.needsUpdate(
+            accepted: topicTreeSnapshots[topicID.uuidString, default: []],
+            incoming: aggregatedTreeInsights(for: topicID)
+        )
     }
 
     private func removeInsight(_ insight: ConceptDefinition, fromTreeFor topicID: UUID) {
@@ -895,7 +905,7 @@ private struct StudyTopicsEmptyState: View {
             AngroveEmptyState(
                 systemImage: "book.closed",
                 title: "Gather your studies here",
-                message: "Create a study topic to organize conversations, insights, and files around a single subject."
+                message: "Create a study topic to organize conversations and insights around a single subject."
             )
         }
     }

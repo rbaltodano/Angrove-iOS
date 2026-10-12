@@ -106,6 +106,40 @@ struct GlobalInsightTreeUpdatePromptTests {
         ))
     }
 
+    @Test("An accepted merged bookmark clears the badge even when its ID is absent from the tree")
+    func reconciledBookmarkIsAcknowledged() {
+        #expect(GlobalInsightTreeUpdatePrompt.pendingInsightIDs(
+            libraryIDs: [first, second], seenInsightIDs: [first],
+            acknowledgedLibraryIDs: [first, second]
+        ).isEmpty)
+    }
+
+    @Test("Declining an update clears its badge, while a later save remains actionable")
+    func declinedUpdateAndLaterSave() {
+        #expect(GlobalInsightTreeUpdatePrompt.pendingInsightIDs(
+            libraryIDs: [first], seenInsightIDs: [], acknowledgedLibraryIDs: [first]
+        ).isEmpty)
+        #expect(GlobalInsightTreeUpdatePrompt.pendingInsightIDs(
+            libraryIDs: [first, second], seenInsightIDs: [], acknowledgedLibraryIDs: [first]
+        ) == [second])
+        #expect(GlobalInsightTreeUpdatePrompt.shouldOffer(
+            libraryIDs: [first, second], acknowledgedLibraryIDs: [first], treeNeedsUpdate: true
+        ))
+    }
+
+    @Test("Removed and already viewed Insights never leave a phantom badge")
+    func badgeFiltersCurrentLibrary() {
+        #expect(GlobalInsightTreeUpdatePrompt.pendingInsightIDs(
+            libraryIDs: [second], seenInsightIDs: [first, second], acknowledgedLibraryIDs: nil
+        ).isEmpty)
+        #expect(GlobalInsightTreeUpdatePrompt.pendingInsightIDs(
+            libraryIDs: [], seenInsightIDs: [], acknowledgedLibraryIDs: [first]
+        ).isEmpty)
+        #expect(GlobalInsightTreeUpdatePrompt.pendingInsightIDs(
+            libraryIDs: [first], seenInsightIDs: [], acknowledgedLibraryIDs: nil
+        ) == [first])
+    }
+
     @Test("A never-answered prompt is offered, but not when the tree already matches")
     func unansweredPrompt() {
         #expect(GlobalInsightTreeUpdatePrompt.shouldOffer(

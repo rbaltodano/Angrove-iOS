@@ -77,6 +77,56 @@ enum InsightClusterSpatialLayout {
         return targets
     }
 
+    /// Maximize the smallest free bond angle around fixed graph connections and pinned chips.
+    /// Allocate bonds to the arc whose next subdivision leaves the widest spacing, then divide
+    /// each occupied arc evenly. Preserve cyclic member order and choose the least rotation.
+    static func azimuthTargets(_ members: [Member], fixedAngles: [Double] = []) -> [UUID: Double] {
+        guard !members.isEmpty else { return [:] }
+        let turn = 2 * Double.pi
+        let ring = members.sorted {
+            let a = normalizedAzimuth($0.azimuth), b = normalizedAzimuth($1.azimuth)
+            return a == b ? $0.id.uuidString < $1.id.uuidString : a < b
+        }
+        let anchors = Array(Set(fixedAngles.map(normalizedAzimuth))).sorted()
+        var targets: [Double] = []
+        if anchors.isEmpty {
+            // Preserve the cluster's orientation while regularizing its angular gaps.
+            let step = turn / Double(ring.count)
+            let phases = ring.enumerated().map { normalizedAzimuth($0.element.azimuth) - Double($0.offset) * step }
+            let phase = atan2(phases.reduce(0) { $0 + sin($1) }, phases.reduce(0) { $0 + cos($1) })
+            targets = ring.indices.map { normalizedAzimuth(phase + Double($0) * step) }.sorted()
+        } else {
+            let gaps = anchors.indices.map { index in
+                (index + 1 < anchors.count ? anchors[index + 1] : anchors[0] + turn) - anchors[index]
+            }
+            var counts = [Int](repeating: 0, count: anchors.count)
+            for _ in members {
+                let arc = gaps.indices.max {
+                    gaps[$0] / Double(counts[$0] + 2) < gaps[$1] / Double(counts[$1] + 2)
+                }!
+                counts[arc] += 1
+            }
+            for arc in anchors.indices where counts[arc] > 0 {
+                let step = gaps[arc] / Double(counts[arc] + 1)
+                targets += (1...counts[arc]).map { normalizedAzimuth(anchors[arc] + Double($0) * step) }
+            }
+            targets.sort()
+        }
+        func delta(_ a: Double, _ b: Double) -> Double { atan2(sin(a - b), cos(a - b)) }
+        let shift = ring.indices.min { first, second in
+            func cost(_ shift: Int) -> Double {
+                ring.indices.reduce(0) { sum, index in
+                    let distance = delta(targets[(index + shift) % ring.count], ring[index].azimuth)
+                    return sum + distance * distance
+                }
+            }
+            return cost(first) < cost(second)
+        }!
+        return Dictionary(uniqueKeysWithValues: ring.indices.map {
+            (ring[$0].id, ring[$0].azimuth + delta(targets[($0 + shift) % ring.count], ring[$0].azimuth))
+        })
+    }
+
     private static func normalizedAzimuth(_ azimuth: Double) -> Double {
         let value = azimuth.truncatingRemainder(dividingBy: 2 * .pi)
         return value < 0 ? value + 2 * .pi : value

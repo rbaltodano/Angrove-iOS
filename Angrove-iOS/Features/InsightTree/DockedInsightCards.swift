@@ -34,7 +34,7 @@ struct DockedInsightTreeCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center, spacing: 8) {
-                DockedCardTextBubbleIcon(size: 12, delay: 0.18, color: AngroveTheme.Colors.darkGreen)
+                DockedCardTextBubbleIcon(size: 12, delay: 0.18, color: AngroveTheme.Colors.lightGreen)
 
                 Text(insight.title)
                     .font(.custom("Figtree-Bold", size: 18))
@@ -282,14 +282,14 @@ private struct DockedInsightLinkRow: View {
             onTap(insight)
         } label: {
             HStack(spacing: 8) {
-                DockedCardTextBubbleIcon(size: 14, delay: 0, color: AngroveTheme.Colors.darkGreen)
+                DockedCardTextBubbleIcon(size: 14, delay: 0, color: AngroveTheme.Colors.lightGreen)
 
                 // No minimumScaleFactor: it interacts with the insertion transition below and
                 // locks later-inserted rows at a slightly reduced scale. Fixed size + truncation
                 // keeps every link identical.
                 Text(insight.title)
                     .font(.custom("Figtree-Bold", size: 14))
-                    .foregroundColor(AngroveTheme.Colors.secondaryMuted)
+                    .foregroundColor(AngroveTheme.Colors.lightGreen)
                     .lineLimit(1)
                     .truncationMode(.tail)
 
@@ -313,7 +313,7 @@ struct DockedConceptCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center, spacing: 8) {
-                DockedCardTextBubbleIcon(size: 12, delay: 0.18, color: AngroveTheme.Colors.darkGreen)
+                DockedCardTextBubbleIcon(size: 12, delay: 0.18, color: AngroveTheme.Colors.lightGreen)
                 Text(concept.word.capitalized)
                     .font(.custom("Figtree-Bold", size: 18))
                     .foregroundColor(AngroveTheme.Colors.lightGreen)
@@ -546,7 +546,7 @@ private struct EditablePercent: View {
 private struct DockedCardTextBubbleIcon: View {
     let size: CGFloat
     var delay: TimeInterval = 0
-    var color: Color = AngroveTheme.Colors.darkGreenDarkMode
+    var color: Color = AngroveTheme.Colors.lightGreen
     @State private var isVisible = false
 
     var body: some View {

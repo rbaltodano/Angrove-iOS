@@ -26,7 +26,16 @@ extension Spring {
 /// The User Guide's first-visible fade, blur, and slight upward text reveal.
 struct SettingsTextRevealModifier: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isBootPageRevealAnimating) private var isBootPageRevealAnimating
     @State private var hasRevealed = false
+    @State private var isVisible = false
+
+    private func revealIfReady() {
+        guard isVisible, isBootPageRevealAnimating, !hasRevealed else { return }
+        withAnimation(reduceMotion ? nil : .timingCurve(0.25, 0.1, 0.25, 1, duration: 0.6)) {
+            hasRevealed = true
+        }
+    }
 
     func body(content: Content) -> some View {
         content
@@ -34,11 +43,120 @@ struct SettingsTextRevealModifier: ViewModifier {
             .blur(radius: hasRevealed || reduceMotion ? 0 : 4)
             .offset(y: hasRevealed || reduceMotion ? 0 : 12)
             .onScrollVisibilityChange(threshold: 0.01) { isVisible in
-                guard isVisible, !hasRevealed else { return }
-                withAnimation(reduceMotion ? nil : .timingCurve(0.25, 0.1, 0.25, 1, duration: 0.6)) {
-                    hasRevealed = true
-                }
+                self.isVisible = isVisible
+                revealIfReady()
             }
+            .onChange(of: isBootPageRevealAnimating) { _, _ in revealIfReady() }
+    }
+}
+
+/// Reusable word-by-word heading reveal used by Settings and the Home greeting.
+struct SettingsAnimatedHeading: View {
+    let text: Text
+    let wordCount: Int
+    let accessibilityLabel: String
+    var visibilityThreshold: CGFloat = 0.4
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isBootPageRevealAnimating) private var isBootPageRevealAnimating
+    @State private var hasRevealed = false
+    @State private var isVisible = false
+    @State private var elapsed: Double = 0
+
+    init(
+        text: Text,
+        wordCount: Int,
+        accessibilityLabel: String,
+        visibilityThreshold: CGFloat = 0.4
+    ) {
+        self.text = text
+        self.wordCount = wordCount
+        self.accessibilityLabel = accessibilityLabel
+        self.visibilityThreshold = visibilityThreshold
+    }
+
+    init(
+        title: String,
+        font: Font,
+        color: Color,
+        visibilityThreshold: CGFloat = 0.01,
+        lineBreaksBetweenWords: Bool = false
+    ) {
+        let words = title.split(separator: " ")
+        var attributedText = Text(verbatim: "")
+        for (index, word) in words.enumerated() {
+            attributedText = attributedText
+                + Text(verbatim: index == 0 ? "" : (lineBreaksBetweenWords ? "\n" : " "))
+                + Text(verbatim: String(word))
+                    .font(font)
+                    .foregroundColor(color)
+                    .customAttribute(SettingsRevealWord(index: index))
+        }
+
+        self.init(
+            text: attributedText,
+            wordCount: words.count,
+            accessibilityLabel: title,
+            visibilityThreshold: visibilityThreshold
+        )
+    }
+
+    private var duration: Double {
+        0.6 + Double(max(wordCount - 1, 0)) * 0.055
+    }
+
+    private func revealIfReady() {
+        guard isVisible, isBootPageRevealAnimating, !hasRevealed else { return }
+        hasRevealed = true
+        withAnimation(reduceMotion ? nil : .linear(duration: duration)) {
+            elapsed = duration
+        }
+    }
+
+    var body: some View {
+        text
+            .textRenderer(SettingsHeadingRenderer(elapsed: reduceMotion ? duration : elapsed))
+            .accessibilityLabel(Text(verbatim: accessibilityLabel))
+            .accessibilityAddTraits(.isHeader)
+            .onScrollVisibilityChange(threshold: visibilityThreshold) { isVisible in
+                self.isVisible = isVisible
+                revealIfReady()
+            }
+            .onChange(of: isBootPageRevealAnimating) { _, _ in revealIfReady() }
+    }
+}
+
+struct SettingsRevealWord: TextAttribute {
+    let index: Int
+}
+
+struct SettingsHeadingRenderer: TextRenderer {
+    var elapsed: Double
+    var animatableData: Double {
+        get { elapsed }
+        set { elapsed = newValue }
+    }
+
+    func draw(layout: Text.Layout, in context: inout GraphicsContext) {
+        for line in layout {
+            for run in line {
+                let index = run[SettingsRevealWord.self]?.index ?? 0
+                let progress = min(max((elapsed - Double(index) * 0.055) / 0.6, 0), 1)
+                let fade = UnitCurve.bezier(
+                    startControlPoint: UnitPoint(x: 0.25, y: 0.1),
+                    endControlPoint: UnitPoint(x: 0.25, y: 1)
+                ).value(at: progress)
+                let movement = UnitCurve.bezier(
+                    startControlPoint: UnitPoint(x: 0.2, y: 0.8),
+                    endControlPoint: UnitPoint(x: 0.2, y: 1)
+                ).value(at: progress)
+                var copy = context
+                copy.opacity *= fade
+                copy.addFilter(.blur(radius: 4 * (1 - fade)))
+                copy.translateBy(x: 0, y: 12 * (1 - movement))
+                copy.draw(run)
+            }
+        }
     }
 }
 
