@@ -30,11 +30,8 @@ struct SettingsTextRevealModifier: ViewModifier {
     @State private var hasRevealed = false
     @State private var isVisible = false
 
-    private func revealIfReady() {
-        guard isVisible, isBootPageRevealAnimating, !hasRevealed else { return }
-        withAnimation(reduceMotion ? nil : .timingCurve(0.25, 0.1, 0.25, 1, duration: 0.6)) {
-            hasRevealed = true
-        }
+    private var canReveal: Bool {
+        isVisible && isBootPageRevealAnimating
     }
 
     func body(content: Content) -> some View {
@@ -42,11 +39,20 @@ struct SettingsTextRevealModifier: ViewModifier {
             .opacity(hasRevealed || reduceMotion ? 1 : 0)
             .blur(radius: hasRevealed || reduceMotion ? 0 : 4)
             .offset(y: hasRevealed || reduceMotion ? 0 : 12)
-            .onScrollVisibilityChange(threshold: 0.01) { isVisible in
-                self.isVisible = isVisible
-                revealIfReady()
+            .onGeometryChange(for: Bool.self) { proxy in
+                textIsVisible(proxy, threshold: 0.01)
+            } action: { visible in
+                isVisible = visible
             }
-            .onChange(of: isBootPageRevealAnimating) { _, _ in revealIfReady() }
+            .task(id: canReveal) {
+                guard canReveal, !hasRevealed else { return }
+                do { try await Task.sleep(for: .milliseconds(16)) } catch { return }
+                guard !Task.isCancelled else { return }
+                var transaction = Transaction(animation: reduceMotion ? nil :
+                    .timingCurve(0.25, 0.1, 0.25, 1, duration: 0.6))
+                transaction.disablesAnimations = false
+                withTransaction(transaction) { hasRevealed = true }
+            }
     }
 }
 
@@ -128,8 +134,10 @@ struct SettingsAnimatedHeading: View {
             .onAppear {
                 hasAppeared = true
             }
-            .onScrollVisibilityChange(threshold: visibilityThreshold) { isVisible in
-                self.isVisible = isVisible
+            .onGeometryChange(for: Bool.self) { proxy in
+                textIsVisible(proxy, threshold: visibilityThreshold)
+            } action: { visible in
+                isVisible = visible
             }
             .task(id: canReveal) {
                 guard canReveal, !hasRevealed else { return }
@@ -145,6 +153,17 @@ struct SettingsAnimatedHeading: View {
                 }
             }
     }
+}
+
+/// Layout is available during boot even before scroll visibility callbacks arrive.
+/// Measure against the scroll viewport so offscreen text still waits for scrolling.
+private func textIsVisible(_ proxy: GeometryProxy, threshold: CGFloat) -> Bool {
+    guard let viewport = proxy.bounds(of: .scrollView(axis: .vertical)) else { return true }
+    let bounds = CGRect(origin: .zero, size: proxy.size)
+    guard bounds.width > 0, bounds.height > 0 else { return false }
+    let intersection = bounds.intersection(viewport)
+    guard !intersection.isNull else { return false }
+    return intersection.width * intersection.height / (bounds.width * bounds.height) >= threshold
 }
 
 struct SettingsRevealWord: TextAttribute {
