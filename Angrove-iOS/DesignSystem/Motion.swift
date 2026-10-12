@@ -56,23 +56,30 @@ struct SettingsAnimatedHeading: View {
     let wordCount: Int
     let accessibilityLabel: String
     var visibilityThreshold: CGFloat = 0.4
+    var revealsOnAppear = false
+    var isPageVisible = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isBootPageRevealAnimating) private var isBootPageRevealAnimating
     @State private var hasRevealed = false
     @State private var isVisible = false
+    @State private var hasAppeared = false
     @State private var elapsed: Double = 0
 
     init(
         text: Text,
         wordCount: Int,
         accessibilityLabel: String,
-        visibilityThreshold: CGFloat = 0.4
+        visibilityThreshold: CGFloat = 0.4,
+        revealsOnAppear: Bool = false,
+        isPageVisible: Bool = true
     ) {
         self.text = text
         self.wordCount = wordCount
         self.accessibilityLabel = accessibilityLabel
         self.visibilityThreshold = visibilityThreshold
+        self.revealsOnAppear = revealsOnAppear
+        self.isPageVisible = isPageVisible
     }
 
     init(
@@ -80,7 +87,9 @@ struct SettingsAnimatedHeading: View {
         font: Font,
         color: Color,
         visibilityThreshold: CGFloat = 0.01,
-        lineBreaksBetweenWords: Bool = false
+        lineBreaksBetweenWords: Bool = false,
+        revealsOnAppear: Bool = false,
+        isPageVisible: Bool = true
     ) {
         let words = title.split(separator: " ")
         var attributedText = Text(verbatim: "")
@@ -97,7 +106,9 @@ struct SettingsAnimatedHeading: View {
             text: attributedText,
             wordCount: words.count,
             accessibilityLabel: title,
-            visibilityThreshold: visibilityThreshold
+            visibilityThreshold: visibilityThreshold,
+            revealsOnAppear: revealsOnAppear,
+            isPageVisible: isPageVisible
         )
     }
 
@@ -105,12 +116,8 @@ struct SettingsAnimatedHeading: View {
         0.6 + Double(max(wordCount - 1, 0)) * 0.055
     }
 
-    private func revealIfReady() {
-        guard isVisible, isBootPageRevealAnimating, !hasRevealed else { return }
-        hasRevealed = true
-        withAnimation(reduceMotion ? nil : .linear(duration: duration)) {
-            elapsed = duration
-        }
+    private var canReveal: Bool {
+        isPageVisible && isBootPageRevealAnimating && (revealsOnAppear ? hasAppeared : isVisible)
     }
 
     var body: some View {
@@ -118,11 +125,25 @@ struct SettingsAnimatedHeading: View {
             .textRenderer(SettingsHeadingRenderer(elapsed: reduceMotion ? duration : elapsed))
             .accessibilityLabel(Text(verbatim: accessibilityLabel))
             .accessibilityAddTraits(.isHeader)
+            .onAppear {
+                hasAppeared = true
+            }
             .onScrollVisibilityChange(threshold: visibilityThreshold) { isVisible in
                 self.isVisible = isVisible
-                revealIfReady()
             }
-            .onChange(of: isBootPageRevealAnimating) { _, _ in revealIfReady() }
+            .task(id: canReveal) {
+                guard canReveal, !hasRevealed else { return }
+                // Home is mounted in a transaction that disables animations while hidden.
+                // Render the initial text state before starting its own reveal transaction.
+                do { try await Task.sleep(for: .milliseconds(16)) } catch { return }
+                guard canReveal, !Task.isCancelled else { return }
+                var transaction = Transaction(animation: reduceMotion ? nil : .linear(duration: duration))
+                transaction.disablesAnimations = false
+                withTransaction(transaction) {
+                    hasRevealed = true
+                    elapsed = duration
+                }
+            }
     }
 }
 

@@ -148,6 +148,7 @@ struct HomeDashboardView: View {
                         if let todayInHistory = sections.today {
                             HomeTodayInHistorySection(
                                 card: todayInHistory,
+                                isPageVisible: isPageVisible,
                                 onStartConversation: { onStartTodayInHistory(todayInHistory) }
                             )
                             .transition(.blurFade)
@@ -406,9 +407,13 @@ struct HomeFigmaOpeningSection: View {
             VStack(alignment: .center, spacing: 48) {
                 if !hidesGreetingHeader {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(HomeDashboardContent.todayString())
-                            .font(AngroveTheme.Typography.uiLabel)
-                            .foregroundColor(AngroveTheme.Colors.lightGreen)
+                        SettingsAnimatedHeading(
+                            title: HomeDashboardContent.todayString(),
+                            font: AngroveTheme.Typography.uiLabel,
+                            color: AngroveTheme.Colors.lightGreen,
+                            visibilityThreshold: 0.01,
+                            revealsOnAppear: true
+                        )
 
                         animatedGreetingHeading
                     }
@@ -757,6 +762,7 @@ private struct HomeLooseThreadSection: View {
 
 private struct HomeTodayInHistorySection: View {
     let card: TodayInHistoryCard
+    let isPageVisible: Bool
     var onStartConversation: () -> Void
 
     var body: some View {
@@ -765,14 +771,21 @@ private struct HomeTodayInHistorySection: View {
                 SettingsAnimatedHeading(
                     title: "TODAY IN HISTORY",
                     font: AngroveTheme.Typography.uiLabel,
-                    color: AngroveTheme.Colors.lightGreen
+                    color: AngroveTheme.Colors.lightGreen,
+                    visibilityThreshold: 0.01,
+                    revealsOnAppear: true,
+                    isPageVisible: isPageVisible
                 )
 
                 SettingsAnimatedHeading(
                     title: card.title,
                     font: .custom("LibreBaskerville-Regular", size: 40),
-                    color: AngroveTheme.Colors.primaryReadable
+                    color: AngroveTheme.Colors.primaryReadable,
+                    visibilityThreshold: 0.01,
+                    revealsOnAppear: true,
+                    isPageVisible: isPageVisible
                 )
+                .id(card.title)
             }
 
             Text(card.description)

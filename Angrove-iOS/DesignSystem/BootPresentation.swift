@@ -92,10 +92,13 @@ struct BootPresentation<Content: View>: View {
                     ? .easeInOut(duration: 0.3)
                     : .timingCurve(0.55, 0, 0.17, 1, duration: 1.5)
                 withAnimation(revealAnimation) {
-                    hasStartedPageReveal = true
                     revealProgress = 1
                 }
-                try await Task.sleep(for: .milliseconds(reduceMotion ? 300 : 1500))
+                // The mask covers the page at the start of its slide. Begin text entrances
+                // once it exposes the headings, while the page is still moving upward.
+                try await Task.sleep(for: .milliseconds(reduceMotion ? 0 : 450))
+                hasStartedPageReveal = true
+                try await Task.sleep(for: .milliseconds(reduceMotion ? 300 : 1050))
                 hasFinishedReveal = true
             } catch {
                 // A scene change must not strand the shell behind an invisible loading screen.
