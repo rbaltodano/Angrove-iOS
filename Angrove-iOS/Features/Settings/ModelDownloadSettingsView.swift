@@ -23,7 +23,7 @@ struct ModelDownloadSettingsView: View {
     }
 }
 
-/// Shared with the conversation's Model Tasks popup. Progress is supplied by Apple's download,
+/// Shared with Home and the conversation's Model Tasks popup. Progress is supplied by Apple's download,
 /// not by a timer estimating completion. Verification is a separate indeterminate stage.
 struct ModelDownloadStatusView: View {
     let delivery: ModelDeliveryState
@@ -106,7 +106,20 @@ struct ModelDownloadPreviewView: View {
         try await Task.sleep(for: .milliseconds(200))
     })
     var body: some View {
-        ModelDownloadSettingsView(delivery: delivery)
+        Group {
+            if ProcessInfo.processInfo.arguments.contains("--home") {
+                HomeDashboardView(
+                    conversations: [], activeConversationID: nil, savedInsights: [],
+                    userName: "friend",
+                    questionOfTheDay: HomeQuestionOfTheDay(question: "What makes a question worth returning to?"),
+                    looseThread: nil, todayInHistory: nil, glossedTerm: nil, yourQuote: nil,
+                    onOpenMenu: {}, onSelectConversation: { _ in }, onStartQuestion: { _ in },
+                    onOpenInsightBridge: { _, _ in }, modelDelivery: delivery
+                )
+            } else {
+                ModelDownloadSettingsView(delivery: delivery)
+            }
+        }
             .task {
                 let args = ProcessInfo.processInfo.arguments
                 let value = args.firstIndex(of: "--model-download-preview").flatMap { index in
@@ -118,6 +131,9 @@ struct ModelDownloadPreviewView: View {
                 case "integrity": delivery.update(.failed(.integrity))
                 case "downloading": delivery.update(.downloading(completed: 1_830_000_000, total: 3_660_000_000))
                 case "verifying": delivery.update(.verifying)
+                case "waiting": delivery.update(.waiting)
+                case "paused": delivery.update(.paused)
+                case "development": delivery.update(.development)
                 case "ready": delivery.update(.ready)
                 default: delivery.update(.notInstalled)
                 }

@@ -100,6 +100,9 @@ nonisolated struct InsightTreeLocalStateFileStore: @unchecked Sendable {
 }
 
 nonisolated enum InsightTreeLocalStateStore {
+    /// Allows a caller to isolate a complete tree session, including the global scope.
+    @TaskLocal static var scopedStore: InsightTreeLocalStateFileStore?
+
     static func load<Value: Codable>(
         _ type: Value.Type,
         key: String,
@@ -115,6 +118,7 @@ nonisolated enum InsightTreeLocalStateStore {
     }
 
     private static func store(defaults: UserDefaults) -> InsightTreeLocalStateFileStore? {
+        if let scopedStore { return scopedStore }
         guard let applicationSupport = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask

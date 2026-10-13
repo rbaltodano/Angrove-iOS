@@ -23,6 +23,7 @@ struct InsightTreeCanvasView: View {
     let pulsingNodeID: UUID?
     let selectedCanvasTargets: [CanvasSelectionTarget]
     let selectionPulseRequest: Int
+    var insightFocusRequest: Int = 0
     var showsBackground: Bool = true
     var makeNodeChildIDs: Set<UUID> = []
     var generatedMakeNodeChildIDs: Set<UUID> = []
@@ -500,15 +501,8 @@ struct InsightTreeCanvasView: View {
             .onChange(of: restoreFocusedCameraRequest) { oldValue, newValue in
                 restorePreFocusCamera()
             }
-            .onChange(of: focusedInsightID) { oldValue, newValue in
-                guard let newValue,
-                      let focusTarget = insightFocusTarget(for: newValue) else { return }
-
-                focusHoveredTarget(
-                    at: focusTarget,
-                    elevation: insightElevation(forInsightID: newValue),
-                    in: size
-                )
+            .onChange(of: InsightFocusRequest(id: focusedInsightID, revision: insightFocusRequest)) { _, request in
+                focusRequestedInsight(in: size)
             }
             .onChange(of: pulsingInsightID, initial: true) { _, insightID in
                 // Cards opened from search, a Node card, or Study are discoveries too.

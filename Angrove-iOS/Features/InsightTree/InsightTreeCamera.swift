@@ -132,3 +132,9 @@ final class DisplayLinkDriver {
         link = nil
     }
 }
+
+/// A repeated card selection must still request a camera movement.
+struct InsightFocusRequest: Equatable {
+    let id: UUID?
+    let revision: Int
+}

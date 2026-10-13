@@ -27,7 +27,9 @@ struct HomeDashboardView: View {
     var onRefresh: () -> Void = {}
     var onLoadHomeSections: () async -> Void = {}
     var isPageVisible: Bool = true
+    var modelDelivery: ModelDeliveryState = .shared
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(NewUserCardEligibility.firstUseKey) private var firstUseTimestamp: Double = 0
     @AppStorage(UserGuideReadingHistory.key) private var visitedGuideTopicsJSON = "[]"
@@ -167,7 +169,8 @@ struct HomeDashboardView: View {
                             hidesGreetingHeader: sections.today != nil,
                             onStartQuestion: onStartQuestion,
                             listeningWork: listeningWork,
-                            onOpenListeningWork: openListeningWork
+                            onOpenListeningWork: openListeningWork,
+                            modelDelivery: modelDelivery
                         )
 
                         if showsNewUserCard {
@@ -256,12 +259,14 @@ struct HomeDashboardView: View {
                 .frame(maxWidth: usesLandscapeLayout ? 1_120 : .infinity, alignment: .center)
                 // The vine hangs from the right edge behind the greeting and scrolls away with it.
                 .background(alignment: .topTrailing) {
-                    HomeVineWind(parallax: vineParallax)
-                        .padding(.top, usesLandscapeLayout ? 48 : 72)
+                    if !dynamicTypeSize.isAccessibilitySize {
+                        HomeVineWind(parallax: vineParallax)
+                            .padding(.top, usesLandscapeLayout ? 48 : 72)
+                    }
                 }
                 // Hang the left vine 132 points below the streak calendar, behind the page.
                 .backgroundPreferenceValue(HomeCalendarBoundsKey.self) { anchor in
-                    if let anchor, !usesLandscapeLayout {
+                    if let anchor, !usesLandscapeLayout, !dynamicTypeSize.isAccessibilitySize {
                         GeometryReader { proxy in
                             HomeVineWind(side: .left, parallax: vineParallax, depth: 0.055, delay: 0.15, returnDelay: 0.05)
                                 .offset(y: proxy[anchor].maxY + 132)
@@ -365,6 +370,7 @@ struct HomeFigmaOpeningSection: View {
     var onStartQuestion: (HomeQuestionOfTheDay) -> Void
     var listeningWork: LibraryWork? = nil
     var onOpenListeningWork: (LibraryWork) -> Void = { _ in }
+    var modelDelivery: ModelDeliveryState = .shared
 
     private var animatedGreetingHeading: some View {
         let greetingWords = "\(greeting),".split(separator: " ")
@@ -428,6 +434,8 @@ struct HomeFigmaOpeningSection: View {
                     unfinishedCount: unfinishedCount
                 )
 
+                HomeModelDownloadCard(delivery: modelDelivery)
+
                 if let listeningWork {
                     LibraryListeningCard(work: listeningWork, onListen: {
                         LibraryListeningActions.toggle(listeningWork) { request in
@@ -459,6 +467,27 @@ struct HomeFigmaOpeningSection: View {
     }
 }
 
+/// Download progress appears immediately beneath the calendar, before other Home cards.
+private struct HomeModelDownloadCard: View {
+    let delivery: ModelDeliveryState
+
+    var body: some View {
+        switch delivery.phase {
+        case .waiting, .downloading, .paused, .verifying:
+            SettingsControlCard {
+                ModelDownloadStatusView(delivery: delivery)
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(AngroveTheme.Colors.quietBorder, lineWidth: 1)
+            )
+            .accessibilityIdentifier("home-model-download-card")
+        default:
+            EmptyView()
+        }
+    }
+}
+
 /// The streak calendar's frame, used to place the left vine below it.
 private struct HomeCalendarBoundsKey: PreferenceKey {
     static let defaultValue: Anchor<CGRect>? = nil
@@ -474,9 +503,13 @@ private struct HomeFigmaUsageAndStats: View {
     let insightCount: Int
     let studyTopicCount: Int
     let unfinishedCount: Int
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(alignment: .center, spacing: 24) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .center, spacing: 24))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 24))
+        layout {
             HomeFigmaUsageGrid(month: month)
                 .anchorPreference(key: HomeCalendarBoundsKey.self, value: .bounds) { $0 }
 
@@ -779,7 +812,7 @@ private struct HomeTodayInHistorySection: View {
 
                 SettingsAnimatedHeading(
                     title: card.title,
-                    font: .custom("LibreBaskerville-Regular", size: 40),
+                    font: AngroveTheme.Typography.titleHome,
                     color: AngroveTheme.Colors.primaryReadable,
                     visibilityThreshold: 0.01,
                     revealsOnAppear: true,
@@ -787,6 +820,9 @@ private struct HomeTodayInHistorySection: View {
                 )
                 .id(card.title)
             }
+            // Display headings already start large. Keep them within the reading lane;
+            // the description below continues to follow the full accessibility range.
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
 
             Text(card.description)
                 .paragraphFont()
@@ -903,10 +939,12 @@ private struct HomeFigmaStatsGrid: View {
     let insightCount: Int
     let studyTopicCount: Int
     let unfinishedCount: Int
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         LazyVGrid(
-            columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)],
+            columns: Array(repeating: GridItem(.flexible(), spacing: 8),
+                           count: dynamicTypeSize.isAccessibilitySize ? 1 : 2),
             spacing: 8
         ) {
             HomeFigmaStat(value: conversationCount, label: conversationCount == 1 ? "Conversation" : "Conversations")
@@ -920,6 +958,7 @@ private struct HomeFigmaStatsGrid: View {
 private struct HomeFigmaStat: View {
     let value: Int
     let label: String
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(spacing: 4) {
@@ -931,10 +970,12 @@ private struct HomeFigmaStat: View {
             Text(label)
                 .font(AngroveTheme.Typography.uiLabel)
                 .foregroundColor(AngroveTheme.Colors.lightGreen)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .multilineTextAlignment(.center)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.7)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(height: 49)
+        .frame(minHeight: 49)
         .frame(maxWidth: .infinity)
     }
 }

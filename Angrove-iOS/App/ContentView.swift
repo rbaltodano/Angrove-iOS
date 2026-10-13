@@ -33,6 +33,7 @@ struct ContentView: View {
     @State private var globalTreeInsights: [ConceptDefinition] =
         GlobalInsightTreeStore.load()
     @State private var isGlobalTreeUpdatePromptVisible: Bool = false
+    @State private var acceptedGlobalTreeUpdateIDs: Set<UUID> = []
     /// The saved Insights the user last answered the Global Insight Tree update prompt for.
     @State private var globalTreeAcknowledgedLibraryIDs: Set<UUID>? =
         GlobalInsightTreeUpdatePrompt.loadAcknowledgedLibraryIDs()
@@ -569,6 +570,7 @@ struct ContentView: View {
     @ViewBuilder private var insightTreePage: some View {
         InsightTreeView(
             insights: globalTreeInsights,
+            acceptedGlobalUpdateIDs: acceptedGlobalTreeUpdateIDs,
             selectionRequest: globalInsightSelectionRequest,
             clearSelectionRequest: globalInsightClearSelectionRequest,
             dismissHoverRequest: globalInsightDismissHoverRequest,
@@ -1911,6 +1913,7 @@ struct ContentView: View {
             }
 
             withAnimation(.springStandard) {
+                acceptedGlobalTreeUpdateIDs = Set(update.insights.map(\.id)).subtracting(existingSnapshot.map(\.id))
                 globalTreeInsights = update.insights
                 isGlobalTreeReconciling = false
             }

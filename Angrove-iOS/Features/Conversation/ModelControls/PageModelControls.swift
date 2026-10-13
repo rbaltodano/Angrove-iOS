@@ -294,6 +294,9 @@ private struct PageModelControlActionButton: View {
 
                 BlurSwapText(title)
                     .font(.custom("Figtree-SemiBold", size: 14))
+                    // The shared pill sizes to its contents. Bound this short chrome label
+                    // so it remains on screen even at the largest accessibility text size.
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             }
             .foregroundColor(AngroveTheme.Colors.lightGreen)
             .frame(minHeight: 21)

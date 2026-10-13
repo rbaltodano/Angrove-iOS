@@ -5,12 +5,33 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import plistlib
+import re
 import subprocess
 
 
 def load_plist(path):
     with path.open('rb') as stream:
         return plistlib.load(stream)
+
+
+def empty_static_linker_stub(bundle):
+    """Xcode embeds empty compatibility dylibs for some statically linked SwiftPM targets.
+
+    Require zero symbols and a single zero-length text section, rather than exempting an SDK
+    by name or accepting stripped symbols alone. Actual SDK code is audited in the app binary.
+    """
+    if bundle.suffix != '.framework':
+        return False
+    info_path = bundle / 'Info.plist'
+    if not info_path.exists():
+        return False
+    executable = bundle / load_plist(info_path).get('CFBundleExecutable', bundle.stem)
+    result = subprocess.run(['xcrun', 'otool', '-l', str(executable)], capture_output=True, text=True)
+    if result.returncode or not re.search(r'\bnsyms 0\b', result.stdout):
+        return False
+    sections = re.findall(r'Section\s+sectname (\S+)\s+segname (\S+)\s+addr \S+\s+size (0x[0-9a-fA-F]+)', result.stdout)
+    return bool(sections) and all(name == '__text' and segment == '__TEXT' and int(size, 16) == 0
+                                  for name, segment, size in sections)
 
 
 def audit(path):
@@ -25,12 +46,41 @@ def audit(path):
         blockers.append('A model is bundled in the app instead of delivered as an asset pack')
     bundles = [path, *path.rglob('*.appex'), *path.rglob('*.framework')]
     manifests = []
+    empty_framework_stubs = []
+    minimum_os_checks = []
     for bundle in bundles:
+        bundle_info = load_plist(bundle / 'Info.plist')
+        executable = bundle / bundle_info.get('CFBundleExecutable', bundle.stem)
+        commands = subprocess.run(['xcrun', 'otool', '-l', str(executable)], capture_output=True, text=True)
+        binary_minimums = re.findall(r'\bminos (\d+(?:\.\d+)*)', commands.stdout)
+        binary_minimums += re.findall(r'cmd LC_VERSION_MIN_IPHONEOS\s+cmdsize \d+\s+version (\d+(?:\.\d+)*)', commands.stdout)
+        declared = bundle_info.get('MinimumOSVersion')
+        label = bundle.relative_to(path).as_posix()
+        def os_version(value):
+            parts = value.split('.')
+            return tuple(int(part) for part in parts) + (0,) * (3 - len(parts))
+        minimum_os_checks.append({'bundle': label, 'declaredMinimumOS': declared, 'binaryMinimumOS': binary_minimums})
+        if bundle.suffix == '.framework':
+            signature = subprocess.run(['codesign', '--verify', '--strict', str(bundle)], capture_output=True, text=True)
+            minimum_os_checks[-1]['signatureVerified'] = signature.returncode == 0
+            if signature.returncode:
+                blockers.append(f'Framework signature verification failed: {label}')
+        if commands.returncode or not binary_minimums or not declared:
+            blockers.append(f'Minimum OS cannot be verified: {label}')
+        else:
+            for binary_minimum in binary_minimums:
+                if os_version(binary_minimum) > os_version(declared):
+                    blockers.append(f'Minimum OS mismatch: {label} declares {declared}, binary requires {binary_minimum}')
+                if os_version(binary_minimum) > os_version(info['MinimumOSVersion']):
+                    blockers.append(f'Embedded binary requires a newer OS than the app: {label}')
         privacy = bundle / 'PrivacyInfo.xcprivacy'
         if privacy.exists():
             data = load_plist(privacy)
             manifests.append({'bundle': bundle.relative_to(path).as_posix(),
                               'apiCategories': data.get('NSPrivacyAccessedAPITypes', [])})
+        elif empty_static_linker_stub(bundle):
+            empty_framework_stubs.append({'bundle': bundle.relative_to(path).as_posix(),
+                'evidence': 'Zero symbols; only a zero-length text section. Static SDK code belongs to the app API audit.'})
         else:
             blockers.append(f'Missing privacy manifest: {bundle.relative_to(path).as_posix()} (audit SDK/API usage)')
     downloader = path / 'Extensions/AngroveModelDownloader.appex'
@@ -107,7 +157,7 @@ def audit(path):
     return {'bundleID': info.get('CFBundleIdentifier'), 'version': info.get('CFBundleShortVersionString'),
             'build': info.get('CFBundleVersion'), 'minimumOS': info.get('MinimumOSVersion'),
             'deviceFamilies': info.get('UIDeviceFamily'), 'uncompressedFileBytes': size,
-            'privacyManifests': manifests, 'signedEntitlements': entitlements,
+            'minimumOSChecks': minimum_os_checks, 'privacyManifests': manifests, 'emptyFrameworkStubs': empty_framework_stubs, 'signedEntitlements': entitlements,
             'signedBundles': signed_bundles,
             'blockers': blockers,
             'scope': 'Packaging inspection only. Hosting, phone behavior, rights and App Privacy answers require separate verification.'}

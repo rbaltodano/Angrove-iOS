@@ -25,8 +25,13 @@ final class InsightTreeViewModel: ObservableObject {
             occupiedIDs.contains($0.fromNodeID) || occupiedIDs.contains($0.toNodeID)
         }.flatMap { [$0.fromNodeID, $0.toNodeID] })
         let responseSeedIDs = midpointStoreScope == nil ? Set<UUID>() : Set(localSeedAnchors.map(\.id))
+        let transferredParentIDs = Set(placedMidpoints.filter(\.isNodeConcept).flatMap { $0.formerParents.map(\.id) })
+        let explicitSourceNodeIDs = Set(placedMidpoints.filter(\.isNodeConcept).flatMap { $0.sources.filter(\.isNode).map(\.insightID) })
         return nodes.filter {
-            occupiedIDs.contains($0.id) || connectedIDs.contains($0.id) || responseSeedIDs.contains($0.id)
+            // Transferring the last Insight empties its former concept. Keep its saved anchor
+            // for removal/reparenting, but don't show an empty circle and a leftover graph edge.
+            if transferredParentIDs.contains($0.id), !occupiedIDs.contains($0.id), !explicitSourceNodeIDs.contains($0.id) { return false }
+            return occupiedIDs.contains($0.id) || connectedIDs.contains($0.id) || responseSeedIDs.contains($0.id)
         }
     }
 

@@ -1,4 +1,107 @@
-# TestFlight handoff — October 5, 2026
+# TestFlight handoff — October 12, 2026
+
+**Build 4 was rejected during Apple processing (ITMS-90208).** Successful upload did not mean
+successful processing. The copied ONNX compatibility framework declared iOS 15.1 despite having
+a binary minimum of 26.4. This was a missing check in the local packaging audit.
+
+**Build 5 corrects this mismatch and uploaded successfully at 12:47 EDT on October 12.**
+Apple reported that processing started. App Store Connect API now confirms build 5 is
+`VALID`, its internal state is `IN_BETA_TESTING`, and it belongs to Personal Testing.
+Its external state is `READY_FOR_BETA_SUBMISSION`; the Beta Testers external group has no builds. Its simulator build, Release archive,
+and distribution export succeeded. The exact exported IPA now passes minimum-OS checks for the
+app, both extensions, and both frameworks, with strict framework signature verification. The
+updated audit also rejects the old build 4 package for the exact mismatch Apple reported.
+
+Build 5 artifacts are in `build/testflight-build5/`. The automatic final build phase corrects the
+copied ONNX plist to its actual binary target, then re-signs the framework. It does not change the
+runtime binary, app deployment target, or Insight Tree fixes. See the
+[packaging correction evidence](ONNX-Release-Packaging-Audit.md).
+
+**Internal TestFlight delivery is complete.** The essential model pack uploaded successfully
+through altool (exit 0). Apple confirms version 1 of `angrove-gemma4-e4b-0b2a8980` has
+import state COMPLETE and internal beta release state READY_FOR_TESTING. Build 5 is VALID,
+IN_BETA_TESTING, and assigned to Personal Testing. Actual phone download and first AI generation
+remain to be checked; external beta submission/approval is separate.
+Personal phone data has not been touched.
+
+## Model-pack follow-up — October 12
+
+The owner reported the ready-to-test notification and requested finishing model delivery.
+Reverified the existing 3,129,706,564-byte archive SHA-256 as
+`cee085f9b7229191d73d0cd81b8a076d8de9458035321b2c889abf28f5947040`.
+Apple Archive listing confirms the model at
+`Contents/Models/angrove-gemma4-e4b-0b2a8980/gemma-4-E4B-it.litertlm`, matching the
+production delivery code and essential manifest. No app/model source changes were needed.
+
+Transporter accepted and examined the archive, and the signed-in app lookup exposes
+**Angrove, 6819392752**. Its chooser still does not apply the selection through accessibility or
+keyboard controls, including after centering the window. The pack is **not delivered**.
+After renewed owner authorization, computer-use retries included a Transporter restart,
+re-adding the archive, direct mouse input, accessibility selection, keyboard navigation, and
+list scrolling. The picker still did not apply Angrove; Add remains disabled.
+The app picker is left open for the owner to select Angrove and click Add; delivery and
+processing verification still remain afterward. Command-line alternatives require a separately
+available app-specific password or App Store Connect API credential; none is configured for this
+workflow. Do not expose or extract existing account tokens to bypass this blocker.
+
+Apple documents that internal testing automatically uses the latest processed pack; another app
+build is not required solely to deliver this unchanged pack. External testers require the pack's
+TestFlight App Review approval as well as the app build's approval:
+[Apple-hosted asset pack testing](https://developer.apple.com/help/app-store-connect/test-a-beta-version/test-apple-hosted-asset-packs).
+
+## Build 4 changes and evidence
+
+- Global Insights opens at normal zoom with its saved content visible immediately. Only exact
+  additions accepted by pressing Yes receive the update tour. Automatic concept bookmarks and
+  completed Make Node branches do not start a tour on reopening.
+- Child Insight card selections issue an explicit camera request, including reselection of the
+  same ID; stale search focus is cleared and any active entrance tour is cancelled.
+- Home accessibility corrections retain readable history headings, a usable New Conversation
+  dock label, and stacked statistics on accessibility text sizes.
+- Empty former source concepts are hidden after Midpoint transfer while explicitly selected
+  source nodes remain available. Global label-queue tests isolate persistent state per case.
+- Complete regression: 539 tests in 91 suites passed. After the final camera gate adjustment,
+  55 focused tests in 6 suites passed. Small-phone global canvas fixtures were visually checked
+  in light/dark. Actual child-card taps and owner-phone model/lifecycle checks remain unverified.
+- Stable Xcode 27.0 (27A266a), version 1.0 build 4, production bundle ID, iPhone-only device
+  family, strict distribution signatures, profiles, App Group and Apple-hosted pack flags verified.
+  Final exported packaging audit has no blockers. The model is absent from the application bundle.
+- Apple warned that `onnxruntime.framework` has no dSYM for UUID
+  `995FD603-42C9-3FED-8414-90E7DFE3A106`. This exported framework is the zero-code static-link
+  compatibility stub, with no symbols; the real runtime is linked into the app. See the
+  [ONNX packaging evidence](ONNX-Release-Packaging-Audit.md). Upload still succeeded.
+
+Artifacts and logs are under `build/testflight-build4/`: `Angrove-build4-final.xcarchive`,
+`export-final/Angrove-iOS.ipa`, `artifact-final.json`, `source-record.json`, `source.patch`,
+`regression-final.log`, `camera-final.log`, `packaging-report-final.json`, and `upload-final.log`.
+The prepared export is 280,352,760 bytes, SHA-256
+`a94d2b7be24f4ab4823afbc3a0b75b3a1f285b8d674e83727364775243db6c96`.
+Xcode uploads from the final archive through its own distribution pipeline.
+
+## Remaining TestFlight steps
+
+1. Install/update build 5 through TestFlight on a supported iPhone, preserving existing app data.
+   Verify the hosted model download and first local generation, normal Insights opening,
+   Yes-update focus, and child-card camera pan in global and conversation trees. No fresh
+   uninstall or container reset was performed or is required by this handoff.
+2. For people outside the App Store Connect team, submit the app build and model pack to
+   TestFlight App Review before external invitations. Build 5 is READY_FOR_BETA_SUBMISSION;
+   the Beta Testers external group has no builds. No external review or invitations were sent.
+
+Verified delivery evidence:
+- `build/testflight-build5/processing-status-api-20261012.json`: build 5 VALID,
+  internal IN_BETA_TESTING, assigned to Personal Testing.
+- `build/asset-packs/upload-20261012.log`: complete pack upload succeeded, exit 0.
+- `build/asset-packs/version1-status-20261012.json`: model pack version 1 import COMPLETE,
+  state READY_FOR_TESTING, internalBetaReleaseState READY_FOR_TESTING, platform IOS.
+- `build/asset-packs/delivery-20261012.json`: archive size/hash and Apple pack/version IDs.
+
+The Transporter picker, Safari key-download failure, and iCloud access issue were resolved by
+using Chrome on the owner's phone, retrieving the key through Finder, and uploading through
+altool with a permission-restricted local credential copy outside the repository. No private
+key contents or tokens were printed. App source and the accepted build 5 binary were unchanged.
+
+# October 5 preparation and subsequent history
 
 App version **1.0, build 2** uploaded successfully on October 5 at 16:34 EDT. Apple reported
 that processing had started; completion has not yet been verified. The essential model pack
@@ -204,3 +307,36 @@ gitignored inputs. A clean checkout must regenerate them before archiving
 
 Nothing was uploaded. Still required: upload the app and the essential model pack, verify
 processing, then a fresh TestFlight install with model download on a supported iPhone.
+
+## API delivery resumed — October 12
+
+Chrome on the owner’s phone successfully downloaded the API key after Safari failed. Finder
+retrieved it from iCloud Downloads and made a permission-restricted local copy outside the
+repository so altool could read it. Private key contents and authentication tokens are not
+printed or recorded in app artifacts. `--list-asset-packs` authenticated successfully and
+returned no existing packs before this first upload.
+
+Build readiness evidence: `build/testflight-build5/processing-status-api-20261012.json`.
+Build 5 ID `a5093feb-9d20-4b74-904c-27e09129efe2` is VALID, internally IN_BETA_TESTING,
+and assigned to Personal Testing. External testing is READY_FOR_BETA_SUBMISSION; Beta Testers
+has no builds. No invitations or beta review submission were made.
+
+Model upload is running through `altool --upload-asset-pack` to app 6819392752; log:
+`build/asset-packs/upload-20261012.log`. Manifest upload succeeded. Archive upload and
+subsequent Apple processing still need verification before claiming working TestFlight AI.
+
+### Model upload completed
+
+The complete archive upload succeeded (altool exit 0). Apple version 1:
+`ffb0493b-9dab-4921-85d8-58a78302788e`; background asset ID
+`a624687e-be06-4b10-8f3a-3b0bb3018cd9`. Initial status is PROCESSING, with no internal beta
+version assigned yet. Delivery record: `build/asset-packs/delivery-20261012.json`; initial
+processing evidence: `build/asset-packs/processing-20261012.json`.
+
+### Model processing verified complete
+
+Apple now reports version 1 importState COMPLETE, state READY_FOR_TESTING, and
+internalBetaReleaseState READY_FOR_TESTING for IOS. Final evidence:
+`build/asset-packs/version1-status-20261012.json`; the delivery and build source records
+were updated. Internal TestFlight model delivery is complete. Actual owner-phone AI generation
+remains unverified; external beta review and invitations were not submitted.

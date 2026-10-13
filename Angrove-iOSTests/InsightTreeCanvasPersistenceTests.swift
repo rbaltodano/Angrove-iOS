@@ -8,7 +8,7 @@ import Testing
 /// switching conversations) doesn't silently drop state that looks committed to the user. These
 /// tests simulate that recreation by constructing a second, independent store/view model against
 /// the same UserDefaults-backed scope and asserting the state carried over.
-@Suite("Insight Tree canvas persistence")
+@Suite("Insight Tree canvas persistence", InsightTreeStateIsolation())
 struct InsightTreeCanvasPersistenceTests {
     private func makeConcept(word: String = "Essence") -> ConceptDefinition {
         ConceptDefinition(

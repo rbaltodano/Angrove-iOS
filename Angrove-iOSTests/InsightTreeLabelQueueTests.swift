@@ -3,7 +3,7 @@ import Testing
 @testable import Angrove_iOS
 
 @MainActor
-@Suite("Insight Tree label queue", .serialized)
+@Suite("Insight Tree label queue", .serialized, InsightTreeStateIsolation())
 struct InsightTreeLabelQueueTests {
     @Test("Reopening shares pending labels, running labels, and definitions", arguments: [false, true], ["queued", "label", "definition"])
     func reopeningSharesWork(conversation: Bool, stage: String) async throws {

@@ -18,6 +18,7 @@ xcuserdata/
 *.dSYM
 DerivedData/
 .build/
+.build-phone/
 LocalModels/
 Angrove-iOS/LocalModels/
 LocalGrounding/

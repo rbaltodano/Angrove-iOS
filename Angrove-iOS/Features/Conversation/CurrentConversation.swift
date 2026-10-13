@@ -1832,6 +1832,8 @@ struct CurrentConversationView: View {
         in branchID: UUID
     ) {
         switch command {
+        case .define:
+            break // Submitted as a response-producing turn by the composer.
         case .clear:
             clearCurrentConversation()
         case .compact:

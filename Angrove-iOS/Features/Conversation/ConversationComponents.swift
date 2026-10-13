@@ -1093,7 +1093,9 @@ struct ChatThreadColumn: View {
         // way to read text that was typed but not yet blurred.
         branchData.topQuestionText = topFieldRelay.currentText()
         let submittedQuestion = branchData.topQuestionText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let command = SlashCommand.invocation(for: submittedQuestion) {
+        if let command = SlashCommand.invocation(for: submittedQuestion), !command.producesResponse {
+            // Keep an incomplete definition request editable until it has a subject.
+            guard command != .define(nil) else { return }
             topFieldRelay.replaceAll("")
             branchData.topQuestionText = ""
             topFieldIsEmpty = true
@@ -1154,7 +1156,9 @@ struct ChatThreadColumn: View {
         // Flush live UITextView text to binding before reading (relay avoids per-keystroke writes).
         branchData.bottomQuestionText = bottomFieldRelay.currentText()
         let submittedQuestion = branchData.bottomQuestionText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let command = SlashCommand.invocation(for: submittedQuestion) {
+        if let command = SlashCommand.invocation(for: submittedQuestion), !command.producesResponse {
+            // Keep an incomplete definition request editable until it has a subject.
+            guard command != .define(nil) else { return }
             bottomFieldRelay.replaceAll("")
             branchData.bottomQuestionText = ""
             bottomFieldIsEmpty = true

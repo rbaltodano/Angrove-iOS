@@ -28,6 +28,7 @@ struct SlashCommand: Identifiable, Equatable {
 }
 
 enum SlashCommandInvocation: Equatable {
+    case define(String?)
     case compact
     case clear
     case rename(String?)
@@ -35,11 +36,18 @@ enum SlashCommandInvocation: Equatable {
     case tree
     case topic
     case insights
+
+    /// Definition requests create a normal persisted turn rather than a management action.
+    var producesResponse: Bool {
+        if case .define(.some) = self { return true }
+        return false
+    }
 }
 
 extension SlashCommand {
     /// Commands currently supported by the conversation runtime.
     static let all: [SlashCommand] = [
+        SlashCommand(name: "/define",     description: "Define a word or main subject as an Insight card"),
         SlashCommand(name: "/compact",    description: "Condense the conversation so far"),
         SlashCommand(name: "/clear",      description: "Clear the current conversation"),
         SlashCommand(name: "/rename",     description: "Rename the current conversation"),
@@ -54,6 +62,10 @@ extension SlashCommand {
             .split(maxSplits: 1, whereSeparator: \.isWhitespace)
         guard let name = parts.first else { return nil }
         switch name.lowercased() {
+        case "/define":
+            return .define(parts.count == 2
+                ? String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+                : nil)
         case "/compact":
             return parts.count == 1 ? .compact : nil
         case "/clear":

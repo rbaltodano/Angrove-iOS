@@ -49,6 +49,85 @@ struct InsightTreeReturnTests {
     }
 
     @MainActor
+    @Test("Opening a distant global graph preserves normal zoom rather than fitting every concept")
+    func distantGlobalGraphKeepsZoom() {
+        var canvas = makeCanvas()
+        let farther = NodeModel(id: UUID(), conceptLabel: "Distant", definition: "", insights: [], embedding: [],
+            position: CGPoint(x: -8000, y: -8000), isSuggested: false, suggestedInsights: nil)
+        canvas = InsightTreeCanvasView(nodes: canvas.nodes + [farther], edges: [], restoreFocusedCameraRequest: 0,
+            focusedInsightID: nil, focusedSearchNodeID: nil, pulsingInsightID: nil, pulsingNodeID: nil,
+            selectedCanvasTargets: [], selectionPulseRequest: 0, showsAllClusterInsights: true,
+            onNodeTapped: { _ in }, onInsightTapped: { _ in }, onCanvasMoved: {},
+            onSuggestConnection: { _ in }, onDismissSuggestedNode: { _ in })
+        canvas.keepTreeInView(in: CGSize(width: 375, height: 667))
+        #expect(canvas.cameraState.scale == 1)
+        #expect(canvas.cameraState.offset == CGSize(width: -4000, height: 4000))
+    }
+
+    @MainActor
+    @Test("Selecting a child Insight centers its chip, including reselection after a camera move", arguments: [false, true])
+    func childInsightFocus(global: Bool) throws {
+        let concept = ConceptDefinition(word: "Child", partOfSpeech: "", pronunciation: "", meaning: "Child definition", example: "")
+        let insight = InsightModel(concept: concept)
+        let node = NodeModel(id: UUID(), conceptLabel: "Parent", definition: "", insights: [insight], embedding: [],
+                             position: CGPoint(x: 2400, y: 1600), isSuggested: false, suggestedInsights: nil)
+        let canvas = InsightTreeCanvasView(nodes: [node], edges: [], restoreFocusedCameraRequest: 0,
+            focusedInsightID: insight.id, focusedSearchNodeID: nil, pulsingInsightID: insight.id, pulsingNodeID: nil,
+            selectedCanvasTargets: [], selectionPulseRequest: 0, showsAllClusterInsights: global,
+            isHoveringTarget: true, onNodeTapped: { _ in }, onInsightTapped: { _ in }, onCanvasMoved: {},
+            onSuggestConnection: { _ in }, onDismissSuggestedNode: { _ in })
+        let size = CGSize(width: 375, height: 667)
+        let position = try #require(canvas.insightFocusTarget(for: insight.id))
+        for _ in 0..<2 {
+            canvas.cameraState.offset = .zero
+            canvas.focusRequestedInsight(in: size)
+            let camera = InsightTreeCamera(scale: canvas.cameraState.scale, offset: canvas.cameraState.offset)
+            let projected = camera.project(position, elevation: canvas.insightElevation(forInsightID: insight.id), in: size).position
+            #expect(abs(projected.x - size.width / 2) < 0.01)
+            #expect(abs(projected.y - size.height / 2) < 0.01)
+        }
+    }
+
+    @MainActor
+    @Test("Opening unseen global Insights shows the settled canvas at normal zoom", arguments: [false, true])
+    func globalOpeningSnapshot(dark: Bool) async throws {
+        let scene = try #require(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 375, height: 667)
+        defer { window.isHidden = true; window.rootViewController = nil }
+        // Existing shared history makes all fixture Insights unseen, as after another tree visit.
+        InsightDiscoveryStore.markPresented(insightIDs: [UUID()])
+        let nodes = (0..<5).map { index in
+            let insight = InsightModel(concept: ConceptDefinition(word: "Insight \(index + 1)", partOfSpeech: "", pronunciation: "", meaning: "A saved Insight.", example: ""))
+            return NodeModel(id: UUID(), conceptLabel: "Concept \(index + 1)", definition: "", insights: [insight], embedding: [],
+                position: CGPoint(x: CGFloat(index) * 900, y: 0), isSuggested: false, suggestedInsights: nil)
+        }
+        let canvas = InsightTreeCanvasView(nodes: nodes, edges: [], restoreFocusedCameraRequest: 0,
+            focusedInsightID: nil, focusedSearchNodeID: nil, pulsingInsightID: nil, pulsingNodeID: nil,
+            selectedCanvasTargets: [], selectionPulseRequest: 0, showsAllClusterInsights: true,
+            onNodeTapped: { _ in }, onInsightTapped: { _ in }, onCanvasMoved: {},
+            onSuggestConnection: { _ in }, onDismissSuggestedNode: { _ in })
+        window.overrideUserInterfaceStyle = dark ? .dark : .light
+        window.rootViewController = UIHostingController(rootView: canvas.environment(\.colorScheme, dark ? .dark : .light))
+        window.makeKeyAndVisible()
+        try await Task.sleep(for: .milliseconds(500))
+        window.layoutIfNeeded()
+        #expect(canvas.cameraState.scale == 1)
+        #expect(canvas.revealState.activeSequence == nil)
+        #expect(canvas.revealState.entranceTask == nil)
+        #expect(canvas.revealState.revealedInsightIDs == Set(nodes.flatMap(\.insights).map(\.id)))
+        let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+            window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        }
+        let png = try #require(image.pngData())
+        let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appending(path: "InsightTreeReturnLayouts")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let filename = dark ? "global-opening-dark.png" : "global-opening-light.png"
+        try png.write(to: directory.appending(path: filename))
+        Attachment.record(png, named: filename)
+    }
+
+    @MainActor
     private func makeCanvas(restoring: Bool = false, hovering: Bool = false) -> InsightTreeCanvasView {
         let id = UUID()
         let node = NodeModel(id: id, conceptLabel: "Remembered", definition: "", insights: [], embedding: [],

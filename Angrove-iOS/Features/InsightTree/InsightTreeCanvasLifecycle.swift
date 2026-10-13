@@ -40,8 +40,8 @@ extension InsightTreeCanvasView {
                         markUndiscovered(newInsights.map(\.id))   // new since last open → blue dot
                         reportUndiscoveredInsightCount()
                         saveAllInsightIDsAsSeen()
-                        if isRestoringHover || isHoveringTarget { revealAllCurrentContent() }
-                        if !newInsights.isEmpty && !isRestoringHover && !isHoveringTarget {
+                        if showsAllClusterInsights || isRestoringHover || isHoveringTarget { revealAllCurrentContent() }
+                        if !showsAllClusterInsights && !newInsights.isEmpty && !isRestoringHover && !isHoveringTarget {
                             revealState.entranceTask = Task {
                                 await runEntranceSequence(newInsights: newInsights, in: size)
                             }
@@ -100,7 +100,7 @@ extension InsightTreeCanvasView {
                     moved[id] = body
                 }
                 if moved.count == bodies.count, moved.contains(where: { bodies[$0.key]?.pos != $0.value.pos }) {
-                    withAnimation(reduceMotion ? nil : .smooth(duration: 0.9)) { bodies = moved }
+                    withAnimation(reduceMotion || (showsAllClusterInsights && acceptedEntranceIDs.isEmpty) ? nil : .smooth(duration: 0.9)) { bodies = moved }
                     Task { @MainActor in
                         try? await Task.sleep(for: .milliseconds(950))
                         keepTreeInView(in: size)
@@ -157,7 +157,7 @@ extension InsightTreeCanvasView {
                         ($0.id, Set($0.insights.map(\.id)))
                     })
                 )
-                if isRestoringHover && !defersEntranceUntilPersistedTree {
+                if !defersEntranceUntilPersistedTree && (isRestoringHover || (showsAllClusterInsights && acceptedEntranceIDs.isEmpty && makeNodeChildIDs.isSubset(of: generatedMakeNodeChildIDs) && revealState.pendingMakeNodeChildren.isEmpty && midpointPlacedInsightID == nil)) {
                     // Async preparation on reopen establishes a baseline, rather than touring
                     // away from the remembered hover. Newly added items retain their blue dots.
                     markUndiscovered(Array(addedLiveInsightIDs))

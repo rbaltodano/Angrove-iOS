@@ -147,7 +147,7 @@ extension InsightTreeCanvasView {
         }
     }
 
-    /// If no node lands on screen under the current camera, frame the whole tree.
+    /// If the current view is empty, pan to the nearest concept without changing zoom.
     func keepTreeInView(in size: CGSize) {
         guard !isRestoringHover, !isHoveringTarget else { return }
         let positions = nodes.map { simPosition(of: $0.id) ?? $0.position }
@@ -162,11 +162,21 @@ extension InsightTreeCanvasView {
             ))
         }
         guard !anyVisible else { return }
-        if positions.count == 1 {
-            focusInsight(at: positions[0], in: size)
-        } else {
-            zoomToFit(worldPositions: positions, in: size)
+        let camera = InsightTreeCamera(scale: scale, offset: cameraState.offset)
+        let center = camera.screenToWorld(CGPoint(x: size.width / 2, y: size.height / 2), in: size)
+        if let nearest = positions.min(by: {
+            hypot($0.x - center.x, $0.y - center.y) < hypot($1.x - center.x, $1.y - center.y)
+        }) {
+            focusInsight(at: nearest, in: size)
         }
+    }
+
+    func focusRequestedInsight(in size: CGSize) {
+        guard let id = focusedInsightID, let position = insightFocusTarget(for: id) else { return }
+        // A card selection takes ownership from an update tour before centering the chip.
+        revealState.entranceTask?.cancel()
+        revealAllCurrentContent()
+        focusHoveredTarget(at: position, elevation: insightElevation(forInsightID: id), in: size)
     }
 
     /// Reappearing canvases can retain the same focus ID, so an onChange alone cannot restore it.

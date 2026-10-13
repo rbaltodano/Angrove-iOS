@@ -62,6 +62,57 @@ struct SlashCommandTests {
         #expect(SlashCommand.invocation(for: "/renameNext") == nil)
     }
 
+    @Test("Define accepts a word, noun phrase, or sentence and preserves its text")
+    func defineInvocation() {
+        #expect(SlashCommand.invocation(for: " /DeFiNe  Natural Law  ") == .define("Natural Law"))
+        #expect(SlashCommand.invocation(for: "/define The soul is the form of the body.")
+            == .define("The soul is the form of the body."))
+        #expect(SlashCommand.invocation(for: "/define\nprudence") == .define("prudence"))
+        #expect(SlashCommand.invocation(for: "/define ") == .define(nil))
+        #expect(SlashCommand.invocation(for: "/defineNext") == nil)
+        #expect(SlashCommandInvocation.define("prudence").producesResponse)
+        #expect(!SlashCommandInvocation.define(nil).producesResponse)
+        #expect(!SlashCommandInvocation.rename("Notes").producesResponse)
+    }
+
+    @Test("Subject selection accepts a noun phrase and rejects empty or multiline output")
+    func definitionSubjectValidation() throws {
+        #expect(try LiteRTAngroveModel.definitionSubject(from: #"{"title":" Natural Law "}"#) == "Natural Law")
+        #expect(throws: (any Error).self) {
+            try LiteRTAngroveModel.definitionSubject(from: #"{"title":" "}"#)
+        }
+        #expect(throws: (any Error).self) {
+            try LiteRTAngroveModel.definitionSubject(from: #"{"title":"soul\nbody"}"#)
+        }
+        #expect(throws: (any Error).self) {
+            try LiteRTAngroveModel.definitionSubject(from: "not JSON")
+        }
+    }
+
+    @Test("A card-only response contains one complete inline Insight and no prose segments")
+    @MainActor
+    func cardOnlyResponse() {
+        let insight = ConceptDefinition(
+            word: "Prudence", partOfSpeech: "", pronunciation: "",
+            meaning: "Prudence is practical wisdom in choosing how to act.", example: ""
+        )
+        let response = ModelResponse(text: "", insight: insight)
+        let annotated = response.annotatedText
+        #expect(annotated == annotated.trimmingCharacters(in: .whitespacesAndNewlines))
+        #expect(!annotated.contains("\n"))
+        #expect(InlineInsightMarkup.insight(from: annotated) == insight)
+        #expect(InlineInsightMarkup.insights(in: response.annotatedText) == [insight])
+        let segments = ResponseParser.parseSegments(from: response.annotatedText)
+        #expect(segments.count == 1)
+        if let segment = segments.first, case .insight(let rendered) = segment.kind {
+            #expect(rendered == insight)
+        } else {
+            Issue.record("Card-only response must render as one Insight segment")
+        }
+        #expect(InlineInsightMarkup.plainText(from: response.annotatedText)
+            == "Prudence\nPrudence is practical wisdom in choosing how to act.")
+    }
+
     @Test("Commands without arguments keep their existing behavior")
     func existingInvocations() {
         #expect(SlashCommand.invocation(for: "/compact") == .compact)

@@ -604,10 +604,11 @@ struct ModelResponse {
         }
         var result = mutable as String
         if let insight {
-            // The generation adapter populates `insight` only after its
-            // deterministic direct-definition intent gate requires and validates one. The model
-            // supplies definition content; it does not decide whether a card should appear.
-            result = "\(InlineInsightMarkup.marker(for: insight))\n\n\(result)"
+            // Explicit /define and validated direct-definition requests opt into a card.
+            // A card-only response serializes just its marker, without an empty prose block.
+            result = result.isEmpty
+                ? InlineInsightMarkup.marker(for: insight)
+                : "\(InlineInsightMarkup.marker(for: insight))\n\n\(result)"
         }
         return result
     }

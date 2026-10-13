@@ -14,6 +14,8 @@ struct InsightTreeView: View {
     @AppStorage(SettingsStorageKey.insightTreeBackground) private var insightTreeBackground: CanvasBackgroundOption = .system
     let insights: [ConceptDefinition]
     let conversationID: UUID?
+    /// Exact additions from answering Yes to the global update prompt.
+    var acceptedGlobalUpdateIDs: Set<UUID> = []
     var selectionRequest: Int = 0
     var persistedTreeRefreshRequest: Int = 0
     var clearSelectionRequest: Int = 0
@@ -109,6 +111,7 @@ struct InsightTreeView: View {
     @State private var makeNodeGenerating: Bool = false
     @State private var restoreFocusedCameraRequest: Int = 0
     @State private var focusedInsightID: UUID?
+    @State private var insightFocusRequest = 0
     @State private var focusedNodeID: UUID?
     @State private var acceptedEntranceIDs: Set<UUID> = []
     @State private var undoInsight: ConceptDefinition? = nil
@@ -171,6 +174,7 @@ struct InsightTreeView: View {
     init(
         insights: [ConceptDefinition],
         conversationID: UUID? = nil,
+        acceptedGlobalUpdateIDs: Set<UUID> = [],
         selectionRequest: Int = 0,
         persistedTreeRefreshRequest: Int = 0,
         clearSelectionRequest: Int = 0,
@@ -226,6 +230,7 @@ struct InsightTreeView: View {
     ) {
         self.insights              = insights
         self.conversationID        = conversationID
+        self.acceptedGlobalUpdateIDs = acceptedGlobalUpdateIDs
         self.model                 = model
         self.embeddingProvider     = embeddingProvider
         self.selectionRequest      = selectionRequest
@@ -501,6 +506,7 @@ struct InsightTreeView: View {
                 pulsingNodeID: selectedNode?.id,
                 selectedCanvasTargets: selectedCanvasTargets,
                 selectionPulseRequest: selectionPulseRequest,
+                insightFocusRequest: insightFocusRequest,
                 showsBackground: false,
                 makeNodeChildIDs: viewModel.makeNodeChildIDs,
                 generatedMakeNodeChildIDs: viewModel.generatedMakeNodeChildIDs,
@@ -768,7 +774,7 @@ struct InsightTreeView: View {
         content
         .onChange(of: insights) { oldValue, newValue in
             if conversationID == nil {
-                let addedIDs = Set(newValue.map(\.id)).subtracting(oldValue.map(\.id))
+                let addedIDs = Set(newValue.map(\.id)).subtracting(oldValue.map(\.id)).intersection(acceptedGlobalUpdateIDs)
                 acceptedEntranceIDs.formUnion(addedIDs)
                 // A promoted Node's bookmark uses its source Insight ID, while its imported
                 // anchor retains the Node ID. Both identities belong to this accepted update.
@@ -910,6 +916,7 @@ struct InsightTreeView: View {
             highlightInsightPair()
         }
         .onAppear {
+            acceptedEntranceIDs = []
             focusedInsightID = nil
             focusedNodeID = nil
             clearCanvasSelectionSilently()
@@ -1059,6 +1066,8 @@ struct InsightTreeView: View {
         // it); other taps recenter on the insight as usual.
         if moveCamera {
             focusedInsightID = insight.id
+            focusedNodeID = nil
+            insightFocusRequest += 1
         }
         onQuoteInsight?(concept(for: insight))
 
@@ -1165,6 +1174,8 @@ struct InsightTreeView: View {
     private func showNodeCard(_ node: NodeModel) {
         guard viewModel.visibleNodes.contains(where: { $0.id == node.id }) else { return }
         stopReadingAloud(for: selectedInsight)
+        focusedInsightID = nil
+        focusedNodeID = nil
         clearMakeNodeCardGrowth()
         playDockedCardHaptic()
         onSelectionStateChange?(true)
@@ -1278,6 +1289,8 @@ struct InsightTreeView: View {
         guard selectedInsight != nil || selectedNode != nil || hoveredConcept != nil else { return }
 
         stopReadingAloud(for: selectedInsight)
+        focusedInsightID = nil
+        focusedNodeID = nil
         clearMakeNodeCardGrowth()
         playDockedCardHaptic()
         onSelectionStateChange?(false)
@@ -1300,6 +1313,8 @@ struct InsightTreeView: View {
         guard selectedInsight != nil || selectedNode != nil || hoveredConcept != nil else { return }
 
         stopReadingAloud(for: selectedInsight)
+        focusedInsightID = nil
+        focusedNodeID = nil
         clearMakeNodeCardGrowth()
         playDockedCardHaptic()
         onSelectionStateChange?(false)
