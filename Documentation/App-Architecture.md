@@ -222,7 +222,7 @@ storage boundaries. See [Data Encryption](Data-Encryption.md) for coverage, reco
 
 | Area | Primary location |
 | --- | --- |
-| App shell and page handoff | `Angrove-iOS/App/ContentView.swift` |
+| App shell and page handoff | `iOS/App/ContentView.swift` |
 | Conversation orchestration | `Features/Conversation/CurrentConversation.swift` |
 | Transcript and response lifecycle | `Features/Conversation/ConversationComponents.swift` |
 | Visible model tasks | `Features/Conversation/ModelTaskQueue.swift` |
@@ -251,7 +251,7 @@ The URL handler waits for shell startup to complete and uses the same conversati
 the Home card, preserving the reason and Insight prompt context. The existing App Lock overlay
 still protects the destination. Before a question exists, the link opens Home.
 
-`WidgetShared/DailyQuestionWidgetStore.swift` shares only question text through the App Group
+`Shared/Widgets/DailyQuestionWidgetStore.swift` shares only question text through the App Group
 `group.com.ryanbaltodano.Aquinas-iOS`. The shared text is AES-256-GCM encrypted with a separate App Group Keychain key accessible
 after the first unlock. `HomeQuestionOfTheDayStore` publishes on save and load
 (the latter migrates an existing question on the first app launch after upgrading), requesting

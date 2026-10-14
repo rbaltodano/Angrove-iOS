@@ -13,6 +13,8 @@
 
 # Angrove
 
+Current development layout: [one checkout with iOS, macOS and Shared folders](Documentation/Workspace-Layout.md).
+
 **An AI of your own. A private place for serious questions.**
 
 Angrove is a private, local-first companion for the rigorous study of philosophy, history, and
@@ -157,11 +159,11 @@ internal development detail.
 
 | Path | What you'll find |
 | --- | --- |
-| `Angrove-iOS/App` | App entry point and overall navigation shell |
-| `Angrove-iOS/Features` | Conversation, Home, Insight Tree, Library, and settings experiences |
-| `Angrove-iOS/DesignSystem` | Typography, colors, and shared interface elements |
-| `Angrove-iOS/Services` | Model runtime and local grounding |
-| `Angrove-iOS/Persistence` | Local conversation and Insight state |
+| `iOS/App` | App entry point and overall navigation shell |
+| `iOS/Features` | Conversation, Home, Insight Tree, Library, and settings experiences |
+| `iOS/DesignSystem` | Typography, colors, and shared interface elements |
+| `iOS/Services` | Model runtime and local grounding |
+| `iOS/Persistence` | Local conversation and Insight state |
 | `Angrove-iOSTests` | Focused behavior and regression coverage |
 
 ## Build and verify

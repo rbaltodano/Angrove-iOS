@@ -25,6 +25,27 @@ struct InsightTreeReturnTests {
     }
 
     @MainActor
+    @Test("Ending search retains framing with and without a selected hover")
+    func endingSearchRetainsCamera() {
+        for hovering in [false, true] {
+            let canvas = makeCanvas(hovering: hovering)
+            canvas.cameraState.scale = 0.8
+            canvas.cameraState.offset = CGSize(width: 42, height: -36)
+            canvas.focusHoveredTarget(at: CGPoint(x: 900, y: -500), in: CGSize(width: 320, height: 780))
+            let scale = canvas.cameraState.scale
+            let offset = canvas.cameraState.offset
+            #expect(canvas.cameraState.preFocusSnapshot != nil)
+            canvas.retainFocusedCamera()
+            canvas.restorePreFocusCamera()
+            #expect(canvas.cameraState.scale == scale)
+            #expect(canvas.cameraState.offset == offset)
+            #expect(canvas.cameraState.preFocusSnapshot == nil)
+            canvas.rememberCameraBeforeFocusIfNeeded()
+            #expect(canvas.cameraState.preFocusSnapshot?.offset == offset)
+        }
+    }
+
+    @MainActor
     @Test("Loading a remembered hover does not zoom out to fit a distant tree")
     func restorationDoesNotFitTree() {
         let canvas = makeCanvas(restoring: true)
@@ -56,7 +77,7 @@ struct InsightTreeReturnTests {
             position: CGPoint(x: -8000, y: -8000), isSuggested: false, suggestedInsights: nil)
         canvas = InsightTreeCanvasView(nodes: canvas.nodes + [farther], edges: [], restoreFocusedCameraRequest: 0,
             focusedInsightID: nil, focusedSearchNodeID: nil, pulsingInsightID: nil, pulsingNodeID: nil,
-            selectedCanvasTargets: [], selectionPulseRequest: 0, showsAllClusterInsights: true,
+            selectedCanvasTargets: [], selectionPulseRequest: 0, suppliedCamera: InsightTreeCanvasCameraState(), showsAllClusterInsights: true,
             onNodeTapped: { _ in }, onInsightTapped: { _ in }, onCanvasMoved: {},
             onSuggestConnection: { _ in }, onDismissSuggestedNode: { _ in })
         canvas.keepTreeInView(in: CGSize(width: 375, height: 667))
@@ -73,7 +94,7 @@ struct InsightTreeReturnTests {
                              position: CGPoint(x: 2400, y: 1600), isSuggested: false, suggestedInsights: nil)
         let canvas = InsightTreeCanvasView(nodes: [node], edges: [], restoreFocusedCameraRequest: 0,
             focusedInsightID: insight.id, focusedSearchNodeID: nil, pulsingInsightID: insight.id, pulsingNodeID: nil,
-            selectedCanvasTargets: [], selectionPulseRequest: 0, showsAllClusterInsights: global,
+            selectedCanvasTargets: [], selectionPulseRequest: 0, suppliedCamera: InsightTreeCanvasCameraState(), showsAllClusterInsights: global,
             isHoveringTarget: true, onNodeTapped: { _ in }, onInsightTapped: { _ in }, onCanvasMoved: {},
             onSuggestConnection: { _ in }, onDismissSuggestedNode: { _ in })
         let size = CGSize(width: 375, height: 667)
@@ -135,7 +156,7 @@ struct InsightTreeReturnTests {
         return InsightTreeCanvasView(nodes: [node], edges: [], restoreFocusedCameraRequest: 0,
             focusedInsightID: nil, focusedSearchNodeID: hovering ? id : nil,
             pulsingInsightID: nil, pulsingNodeID: hovering ? id : nil,
-            selectedCanvasTargets: [], selectionPulseRequest: 0,
+            selectedCanvasTargets: [], selectionPulseRequest: 0, suppliedCamera: InsightTreeCanvasCameraState(),
             isRestoringHover: restoring, isHoveringTarget: hovering,
             onNodeTapped: { _ in }, onInsightTapped: { _ in }, onCanvasMoved: {},
             onSuggestConnection: { _ in }, onDismissSuggestedNode: { _ in })

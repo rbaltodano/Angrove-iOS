@@ -5,6 +5,552 @@
 	};
 	objectVersion = 77;
 	objects = {
+		E01400000000000000000004 = { isa = PBXFileSystemSynchronizedBuildFileExceptionSet; membershipExceptions = (AGENTS.md, README.md,); target = C50000000000000000000001; };
+		E01400000000000000000001 = { isa = PBXFileSystemSynchronizedRootGroup; path = Shared; sourceTree = "<group>"; exceptions = (E01400000000000000000002, E01400000000000000000003,); };
+		E01400000000000000000002 = { isa = PBXFileSystemSynchronizedBuildFileExceptionSet; membershipExceptions = (AGENTS.md, README.md,); target = D61EFA742F8AAB5B0081D843; };
+		E01400000000000000000003 = { isa = PBXFileSystemSynchronizedBuildFileExceptionSet; membershipExceptions = (AGENTS.md, README.md,); target = C50000000000000000000001; };
+
+		C96BADAF4E61088E6440456B = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/StudyTopics/StudyTopic.swift"; sourceTree = SOURCE_ROOT; };
+		CA6BADAF4E61088E6440456B = { isa = PBXBuildFile; fileRef = C96BADAF4E61088E6440456B; };
+		C94166B80D1B0D5E01B66CD4 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/SlashCommandMenu.swift"; sourceTree = SOURCE_ROOT; };
+		CA4166B80D1B0D5E01B66CD4 = { isa = PBXBuildFile; fileRef = C94166B80D1B0D5E01B66CD4; };
+		C96A46EE5432B77EA7139F9F = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Library/LibrarySubjectIcon.swift"; sourceTree = SOURCE_ROOT; };
+		CA6A46EE5432B77EA7139F9F = { isa = PBXBuildFile; fileRef = C96A46EE5432B77EA7139F9F; };
+
+		C904E60DDC180CB53A9BFDA9 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/InsightLibraryCard.swift"; sourceTree = SOURCE_ROOT; };
+		CA04E60DDC180CB53A9BFDA9 = { isa = PBXBuildFile; fileRef = C904E60DDC180CB53A9BFDA9; };
+		C9DC7FE16A8A9FED795F6DED = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/ResponseFeedbackContext.swift"; sourceTree = SOURCE_ROOT; };
+		CADC7FE16A8A9FED795F6DED = { isa = PBXBuildFile; fileRef = C9DC7FE16A8A9FED795F6DED; };
+		C94B62108BFB56F1A5CD858C = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/ResponseWordMenu.swift"; sourceTree = SOURCE_ROOT; };
+		CA4B62108BFB56F1A5CD858C = { isa = PBXBuildFile; fileRef = C94B62108BFB56F1A5CD858C; };
+		C904F4582CBD71F9226FD98B = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/ModelResponseFooter.swift"; sourceTree = SOURCE_ROOT; };
+		CA04F4582CBD71F9226FD98B = { isa = PBXBuildFile; fileRef = C904F4582CBD71F9226FD98B; };
+		C964439B353F8B33FA5D5007 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/ModelResponseCard.swift"; sourceTree = SOURCE_ROOT; };
+		CA64439B353F8B33FA5D5007 = { isa = PBXBuildFile; fileRef = C964439B353F8B33FA5D5007; };
+		C9F9C488AAC0823EB1AC72D8 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/StreamingMessageView.swift"; sourceTree = SOURCE_ROOT; };
+		CAF9C488AAC0823EB1AC72D8 = { isa = PBXBuildFile; fileRef = C9F9C488AAC0823EB1AC72D8; };
+		C9F1FE2E3E7989D90B7C9AC8 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/CompletedResponseSegments.swift"; sourceTree = SOURCE_ROOT; };
+		CAF1FE2E3E7989D90B7C9AC8 = { isa = PBXBuildFile; fileRef = C9F1FE2E3E7989D90B7C9AC8; };
+		C9E81966F5A4FDD8494BCA66 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/LiveFormattedResponseView.swift"; sourceTree = SOURCE_ROOT; };
+		CAE81966F5A4FDD8494BCA66 = { isa = PBXBuildFile; fileRef = C9E81966F5A4FDD8494BCA66; };
+		C94199071CBFAEB4776A761E = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/LiveResponseParsing.swift"; sourceTree = SOURCE_ROOT; };
+		CA4199071CBFAEB4776A761E = { isa = PBXBuildFile; fileRef = C94199071CBFAEB4776A761E; };
+		C97352F4F2D33AE7FF5DAA15 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/LiveResponseStore.swift"; sourceTree = SOURCE_ROOT; };
+		CA7352F4F2D33AE7FF5DAA15 = { isa = PBXBuildFile; fileRef = C97352F4F2D33AE7FF5DAA15; };
+		C9B9B09D1EA05DE5D24E116A = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/AnimatedInsightUnderlineText.swift"; sourceTree = SOURCE_ROOT; };
+		CAB9B09D1EA05DE5D24E116A = { isa = PBXBuildFile; fileRef = C9B9B09D1EA05DE5D24E116A; };
+		C997CBB483C4481A19462B2A = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/ResponseCitationChip.swift"; sourceTree = SOURCE_ROOT; };
+		CA97CBB483C4481A19462B2A = { isa = PBXBuildFile; fileRef = C997CBB483C4481A19462B2A; };
+		C99B164EAFD0858995C8D375 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/DefinedTermMarkup.swift"; sourceTree = SOURCE_ROOT; };
+		CA9B164EAFD0858995C8D375 = { isa = PBXBuildFile; fileRef = C99B164EAFD0858995C8D375; };
+
+		C9ABAE2C494AD872D07F65AE = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightLibrary/InsightLibraryStore.swift"; sourceTree = SOURCE_ROOT; };
+		CAABAE2C494AD872D07F65AE = { isa = PBXBuildFile; fileRef = C9ABAE2C494AD872D07F65AE; };
+
+		C95007C66B75BEC2372EAF97 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/WordPieceTokenizer.swift"; sourceTree = SOURCE_ROOT; };
+		CA5007C66B75BEC2372EAF97 = { isa = PBXBuildFile; fileRef = C95007C66B75BEC2372EAF97; };
+		C984BF61E456100B93AB4874 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/SemanticAssetService.swift"; sourceTree = SOURCE_ROOT; };
+		CA84BF61E456100B93AB4874 = { isa = PBXBuildFile; fileRef = C984BF61E456100B93AB4874; };
+
+		C9C5AE2F9FBE69E45C23E46D = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/MiniLMEmbedder.swift"; sourceTree = SOURCE_ROOT; };
+		CAC5AE2F9FBE69E45C23E46D = { isa = PBXBuildFile; fileRef = C9C5AE2F9FBE69E45C23E46D; };
+		C99CF0E60AE189EE4AEAD964 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/ScriptureCitation.swift"; sourceTree = SOURCE_ROOT; };
+		CA9CF0E60AE189EE4AEAD964 = { isa = PBXBuildFile; fileRef = C99CF0E60AE189EE4AEAD964; };
+
+		C946A07AA5C6318B0CF4B351 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/MiniLMEmbeddingProvider.swift"; sourceTree = SOURCE_ROOT; };
+		CA46A07AA5C6318B0CF4B351 = { isa = PBXBuildFile; fileRef = C946A07AA5C6318B0CF4B351; };
+		C97FCD6A31FD8A202451D5D7 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/MiniLMGroundingProvider.swift"; sourceTree = SOURCE_ROOT; };
+		CA7FCD6A31FD8A202451D5D7 = { isa = PBXBuildFile; fileRef = C97FCD6A31FD8A202451D5D7; };
+		C9C29A5FEE0736E191110AD8 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/OnDeviceGroundingStore.swift"; sourceTree = SOURCE_ROOT; };
+		CAC29A5FEE0736E191110AD8 = { isa = PBXBuildFile; fileRef = C9C29A5FEE0736E191110AD8; };
+
+		C92806ACA758CB6D7C3EB922 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/BundledPassageCorpus.swift"; sourceTree = SOURCE_ROOT; };
+		CA2806ACA758CB6D7C3EB922 = { isa = PBXBuildFile; fileRef = C92806ACA758CB6D7C3EB922; };
+		C91CC8DB633B4B3586478922 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/BundledLibraryReader.swift"; sourceTree = SOURCE_ROOT; };
+		CA1CC8DB633B4B3586478922 = { isa = PBXBuildFile; fileRef = C91CC8DB633B4B3586478922; };
+		C9EDC87320C8C06FCAAF396D = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/NewConversationRequest.swift"; sourceTree = SOURCE_ROOT; };
+		CAEDC87320C8C06FCAAF396D = { isa = PBXBuildFile; fileRef = C9EDC87320C8C06FCAAF396D; };
+
+		C91967E2A24AC47C045043AE = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Models/HomeQuestionMetadata.swift"; sourceTree = SOURCE_ROOT; };
+		CA1967E2A24AC47C045043AE = { isa = PBXBuildFile; fileRef = C91967E2A24AC47C045043AE; };
+		C9413928E4D893E4D1CA631C = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/LiteRTArguments.swift"; sourceTree = SOURCE_ROOT; };
+		CA413928E4D893E4D1CA631C = { isa = PBXBuildFile; fileRef = C9413928E4D893E4D1CA631C; };
+		C9462CF1B2BB926FA5978F89 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Models/LibraryDocument.swift"; sourceTree = SOURCE_ROOT; };
+		CA462CF1B2BB926FA5978F89 = { isa = PBXBuildFile; fileRef = C9462CF1B2BB926FA5978F89; };
+		C91E4481AE1C453CC28CEE85 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/IncrementalGenerationGuard.swift"; sourceTree = SOURCE_ROOT; };
+		CA1E4481AE1C453CC28CEE85 = { isa = PBXBuildFile; fileRef = C91E4481AE1C453CC28CEE85; };
+		C9FD0289DB8BFC93D62C0F21 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/ModelThought.swift"; sourceTree = SOURCE_ROOT; };
+		CAFD0289DB8BFC93D62C0F21 = { isa = PBXBuildFile; fileRef = C9FD0289DB8BFC93D62C0F21; };
+		C9109B95323C1AE8C8DA2A23 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/SummaArticleIndex.swift"; sourceTree = SOURCE_ROOT; };
+		CA109B95323C1AE8C8DA2A23 = { isa = PBXBuildFile; fileRef = C9109B95323C1AE8C8DA2A23; };
+		C9E1580A618C8EF6B35F0339 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/LiteRTGenerationRecorder.swift"; sourceTree = SOURCE_ROOT; };
+		CAE1580A618C8EF6B35F0339 = { isa = PBXBuildFile; fileRef = C9E1580A618C8EF6B35F0339; };
+
+		C9C2A194CC82C49E3C349D04 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/LiteRTModelStore.swift"; sourceTree = SOURCE_ROOT; };
+		CAC2A194CC82C49E3C349D04 = { isa = PBXBuildFile; fileRef = C9C2A194CC82C49E3C349D04; };
+		C9A021D7AB7B0AA53C41807C = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/LiteRTModelInstaller.swift"; sourceTree = SOURCE_ROOT; };
+		CAA021D7AB7B0AA53C41807C = { isa = PBXBuildFile; fileRef = C9A021D7AB7B0AA53C41807C; };
+		C9B0A2592FCE506385737DAB = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/LiteRTAngroveRuntime.swift"; sourceTree = SOURCE_ROOT; };
+		CAB0A2592FCE506385737DAB = { isa = PBXBuildFile; fileRef = C9B0A2592FCE506385737DAB; };
+		C914C57E5A2860F88F7AFDEE = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/LiteRTAngroveModel.swift"; sourceTree = SOURCE_ROOT; };
+		CA14C57E5A2860F88F7AFDEE = { isa = PBXBuildFile; fileRef = C914C57E5A2860F88F7AFDEE; };
+		C94061FC661CBE6BF2158AB6 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/LiteRTModelOverride.swift"; sourceTree = SOURCE_ROOT; };
+		CA4061FC661CBE6BF2158AB6 = { isa = PBXBuildFile; fileRef = C94061FC661CBE6BF2158AB6; };
+		C97F4D990392CB99FF17C07F = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/ConversationSession.swift"; sourceTree = SOURCE_ROOT; };
+		CA7F4D990392CB99FF17C07F = { isa = PBXBuildFile; fileRef = C97F4D990392CB99FF17C07F; };
+		C9204C1359D6905F9BF03BE8 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Persistence/InquiryPersistence.swift"; sourceTree = SOURCE_ROOT; };
+		CA204C1359D6905F9BF03BE8 = { isa = PBXBuildFile; fileRef = C9204C1359D6905F9BF03BE8; };
+		C994E67E2F02DDE2BF628E08 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Persistence/ConversationInsightMembershipStore.swift"; sourceTree = SOURCE_ROOT; };
+		CA94E67E2F02DDE2BF628E08 = { isa = PBXBuildFile; fileRef = C994E67E2F02DDE2BF628E08; };
+
+		C9950861BD80FAC83D5918D5 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/DynamicInsightSheetCard.swift"; sourceTree = SOURCE_ROOT; };
+		CA950861BD80FAC83D5918D5 = { isa = PBXBuildFile; fileRef = C9950861BD80FAC83D5918D5; };
+		C9763817C197F64BA1085532 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/StudyBranchDockControls.swift"; sourceTree = SOURCE_ROOT; };
+		CA763817C197F64BA1085532 = { isa = PBXBuildFile; fileRef = C9763817C197F64BA1085532; };
+		C994A6569C1A6D929EB66F86 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Library/LibrarySpeech.swift"; sourceTree = SOURCE_ROOT; };
+		CA94A6569C1A6D929EB66F86 = { isa = PBXBuildFile; fileRef = C994A6569C1A6D929EB66F86; };
+
+		CCE99FE67EE359EDBE446CBF = { isa = PBXFileReference; path = "Shared/Assets.xcassets"; sourceTree = SOURCE_ROOT; };
+		CDE99FE67EE359EDBE446CBF = { isa = PBXBuildFile; fileRef = CCE99FE67EE359EDBE446CBF; };
+
+		C900A5B8858E417957EC14D2 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Models/LibraryWork.swift"; sourceTree = SOURCE_ROOT; };
+		CA00A5B8858E417957EC14D2 = { isa = PBXBuildFile; fileRef = C900A5B8858E417957EC14D2; };
+		C9B4A4DAEC214741C0F879AB = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/LibraryLoadingView.swift"; sourceTree = SOURCE_ROOT; };
+		CAB4A4DAEC214741C0F879AB = { isa = PBXBuildFile; fileRef = C9B4A4DAEC214741C0F879AB; };
+		C90FE5164235549880F18E12 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/LeafLoadingAnimation.swift"; sourceTree = SOURCE_ROOT; };
+		CA0FE5164235549880F18E12 = { isa = PBXBuildFile; fileRef = C90FE5164235549880F18E12; };
+		C904C5820859196ECEB291A7 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/InquiryContextChips.swift"; sourceTree = SOURCE_ROOT; };
+		CA04C5820859196ECEB291A7 = { isa = PBXBuildFile; fileRef = C904C5820859196ECEB291A7; };
+		C9E0AC4E0008C2E9629D9194 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/SharedTypography.swift"; sourceTree = SOURCE_ROOT; };
+		CAE0AC4E0008C2E9629D9194 = { isa = PBXBuildFile; fileRef = C9E0AC4E0008C2E9629D9194; };
+		C96128EADCD06FD42497685D = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/RuntimeMemory.swift"; sourceTree = SOURCE_ROOT; };
+		CA6128EADCD06FD42497685D = { isa = PBXBuildFile; fileRef = C96128EADCD06FD42497685D; };
+		C905AC8B26074D902EA63F04 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/InsightTreeSemanticPolicy.swift"; sourceTree = SOURCE_ROOT; };
+		CA05AC8B26074D902EA63F04 = { isa = PBXBuildFile; fileRef = C905AC8B26074D902EA63F04; };
+		C90124E08742A8B4BC4536F7 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/SpokenWordHighlight.swift"; sourceTree = SOURCE_ROOT; };
+		CA0124E08742A8B4BC4536F7 = { isa = PBXBuildFile; fileRef = C90124E08742A8B4BC4536F7; };
+		C91B921069C1172A95C2CA4C = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/SuggestedInsightSheet.swift"; sourceTree = SOURCE_ROOT; };
+		CA1B921069C1172A95C2CA4C = { isa = PBXBuildFile; fileRef = C91B921069C1172A95C2CA4C; };
+		C9432329CD18EB0697E8BB17 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/NodeInsightSheet.swift"; sourceTree = SOURCE_ROOT; };
+		CA432329CD18EB0697E8BB17 = { isa = PBXBuildFile; fileRef = C9432329CD18EB0697E8BB17; };
+		C95B0F4FCA6FFD86C5C816D4 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/AngroveEmptyState.swift"; sourceTree = SOURCE_ROOT; };
+		CA5B0F4FCA6FFD86C5C816D4 = { isa = PBXBuildFile; fileRef = C95B0F4FCA6FFD86C5C816D4; };
+		C9524DF6FA86AE868C8D6B98 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/ModelControls/PhotoAttachmentControl.swift"; sourceTree = SOURCE_ROOT; };
+		CA524DF6FA86AE868C8D6B98 = { isa = PBXBuildFile; fileRef = C9524DF6FA86AE868C8D6B98; };
+
+		C9E605249EA4B28F239E2CE3 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/LiteRTLifecycleTrace.swift"; sourceTree = SOURCE_ROOT; };
+		CAE605249EA4B28F239E2CE3 = { isa = PBXBuildFile; fileRef = C9E605249EA4B28F239E2CE3; };
+		C98BFAC84030EAFDC6D003AB = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeView.swift"; sourceTree = SOURCE_ROOT; };
+		CA8BFAC84030EAFDC6D003AB = { isa = PBXBuildFile; fileRef = C98BFAC84030EAFDC6D003AB; };
+		C94C94AE467115052C571CE1 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/DockedInsightCards.swift"; sourceTree = SOURCE_ROOT; };
+		CA4C94AE467115052C571CE1 = { isa = PBXBuildFile; fileRef = C94C94AE467115052C571CE1; };
+		C902B6D23C4A6D8E5732B309 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/StudyModeView.swift"; sourceTree = SOURCE_ROOT; };
+		CA02B6D23C4A6D8E5732B309 = { isa = PBXBuildFile; fileRef = C902B6D23C4A6D8E5732B309; };
+		C9333F98E35A8A060455728E = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/StudyBranchPreview.swift"; sourceTree = SOURCE_ROOT; };
+		CA333F98E35A8A060455728E = { isa = PBXBuildFile; fileRef = C9333F98E35A8A060455728E; };
+		C9ADD3587FFE97DD2BE7EF19 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/StudyBranchScene.swift"; sourceTree = SOURCE_ROOT; };
+		CAADD3587FFE97DD2BE7EF19 = { isa = PBXBuildFile; fileRef = C9ADD3587FFE97DD2BE7EF19; };
+		C92F66E281E6C914E7753C5A = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/StudyToolPrototype.swift"; sourceTree = SOURCE_ROOT; };
+		CA2F66E281E6C914E7753C5A = { isa = PBXBuildFile; fileRef = C92F66E281E6C914E7753C5A; };
+		C9A5C92CADC2605268A46CE3 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/ResponseButtons.swift"; sourceTree = SOURCE_ROOT; };
+		CAA5C92CADC2605268A46CE3 = { isa = PBXBuildFile; fileRef = C9A5C92CADC2605268A46CE3; };
+		C906DDDC9776DF0C2D5B7DF9 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/ResponseParsing.swift"; sourceTree = SOURCE_ROOT; };
+		CA06DDDC9776DF0C2D5B7DF9 = { isa = PBXBuildFile; fileRef = C906DDDC9776DF0C2D5B7DF9; };
+		C96BB3185765DBF502D2A5B9 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/ResponseFlowLayout.swift"; sourceTree = SOURCE_ROOT; };
+		CA6BB3185765DBF502D2A5B9 = { isa = PBXBuildFile; fileRef = C96BB3185765DBF502D2A5B9; };
+		C902A7BC6C0941CB33DF2A6E = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/ModelControls/ContextUsageCard.swift"; sourceTree = SOURCE_ROOT; };
+		CA02A7BC6C0941CB33DF2A6E = { isa = PBXBuildFile; fileRef = C902A7BC6C0941CB33DF2A6E; };
+		C942C9D2386C73EBE03B01E4 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/ModelControls/ModelControlsStack.swift"; sourceTree = SOURCE_ROOT; };
+		CA42C9D2386C73EBE03B01E4 = { isa = PBXBuildFile; fileRef = C942C9D2386C73EBE03B01E4; };
+		C9267C46E9477102B6EA2C8B = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/ModelControls/ModelControlsHost.swift"; sourceTree = SOURCE_ROOT; };
+		CA267C46E9477102B6EA2C8B = { isa = PBXBuildFile; fileRef = C9267C46E9477102B6EA2C8B; };
+		C9804E0471DD864B1BC440E5 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/ModelControls/InquiryControlDock.swift"; sourceTree = SOURCE_ROOT; };
+		CA804E0471DD864B1BC440E5 = { isa = PBXBuildFile; fileRef = C9804E0471DD864B1BC440E5; };
+		C9483E4AD69DBC01FFE22E71 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/ModelControls/ReadingControlsCard.swift"; sourceTree = SOURCE_ROOT; };
+		CA483E4AD69DBC01FFE22E71 = { isa = PBXBuildFile; fileRef = C9483E4AD69DBC01FFE22E71; };
+		C91C1C2EE8F3D1EBEFE31FC5 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/Speech/ResponseSpeechPlayer.swift"; sourceTree = SOURCE_ROOT; };
+		CA1C1C2EE8F3D1EBEFE31FC5 = { isa = PBXBuildFile; fileRef = C91C1C2EE8F3D1EBEFE31FC5; };
+		C98B666E5F62587E783A0369 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/Speech/SpeechNowPlaying.swift"; sourceTree = SOURCE_ROOT; };
+		CA8B666E5F62587E783A0369 = { isa = PBXBuildFile; fileRef = C98B666E5F62587E783A0369; };
+		C9DE013CF98BDE1B1C667248 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/Speech/ParadeeSpeechEngine.swift"; sourceTree = SOURCE_ROOT; };
+		CADE013CF98BDE1B1C667248 = { isa = PBXBuildFile; fileRef = C9DE013CF98BDE1B1C667248; };
+		C92E3A82E8A57205E3DC0330 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/Speech/SpokenUnit.swift"; sourceTree = SOURCE_ROOT; };
+		CA2E3A82E8A57205E3DC0330 = { isa = PBXBuildFile; fileRef = C92E3A82E8A57205E3DC0330; };
+		C92F0794C945E08EB022A59B = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/Speech/SpeechPronunciations.swift"; sourceTree = SOURCE_ROOT; };
+		CA2F0794C945E08EB022A59B = { isa = PBXBuildFile; fileRef = C92F0794C945E08EB022A59B; };
+		C91D6DBA72D528EEBE83F1D1 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/Speech/SpeechTextNormalizer.swift"; sourceTree = SOURCE_ROOT; };
+		CA1D6DBA72D528EEBE83F1D1 = { isa = PBXBuildFile; fileRef = C91D6DBA72D528EEBE83F1D1; };
+		C93B5AA717B522BD434738F8 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Library/LibraryListeningStore.swift"; sourceTree = SOURCE_ROOT; };
+		CA3B5AA717B522BD434738F8 = { isa = PBXBuildFile; fileRef = C93B5AA717B522BD434738F8; };
+		C9589ADA1D53DE152B8B4378 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Library/LibraryTextFormatter.swift"; sourceTree = SOURCE_ROOT; };
+		CA589ADA1D53DE152B8B4378 = { isa = PBXBuildFile; fileRef = C9589ADA1D53DE152B8B4378; };
+		C9718D9C6FF9F75F9F6F2587 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Models/LibrarySubject.swift"; sourceTree = SOURCE_ROOT; };
+		CA718D9C6FF9F75F9F6F2587 = { isa = PBXBuildFile; fileRef = C9718D9C6FF9F75F9F6F2587; };
+		C9AC5E31C85AA9562E1E2F5A = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/PlatformClipboard.swift"; sourceTree = SOURCE_ROOT; };
+		CAAC5E31C85AA9562E1E2F5A = { isa = PBXBuildFile; fileRef = C9AC5E31C85AA9562E1E2F5A; };
+		C9640708CDEB6415232F30E0 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/ButtonChangeMotion.swift"; sourceTree = SOURCE_ROOT; };
+		CA640708CDEB6415232F30E0 = { isa = PBXBuildFile; fileRef = C9640708CDEB6415232F30E0; };
+		C9656A1316AADCF8F55F5B7B = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/TruncatableParagraph.swift"; sourceTree = SOURCE_ROOT; };
+		CA656A1316AADCF8F55F5B7B = { isa = PBXBuildFile; fileRef = C9656A1316AADCF8F55F5B7B; };
+
+		CC967D655752AB47E3276CCE = { isa = PBXFileReference; path = "Shared/Resources/Speech/paradee_int8.onnx"; sourceTree = SOURCE_ROOT; };
+		CD967D655752AB47E3276CCE = { isa = PBXBuildFile; fileRef = CC967D655752AB47E3276CCE; };
+		CCC6493C7589604D3C9882CD = { isa = PBXFileReference; path = "Shared/Resources/Speech/paradee_config.json"; sourceTree = SOURCE_ROOT; };
+		CDC6493C7589604D3C9882CD = { isa = PBXBuildFile; fileRef = CCC6493C7589604D3C9882CD; };
+
+		CE0000000000000000000002 = { isa = PBXBuildFile; productRef = A20000000000000000000009; };
+		CE0000000000000000000001 = { isa = PBXBuildFile; productRef = A20000000000000000000006; };
+		C9D46B1E2E83499E387FF281 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/ModelControls/ModelCompletionNotifications.swift"; sourceTree = SOURCE_ROOT; };
+		CAD46B1E2E83499E387FF281 = { isa = PBXBuildFile; fileRef = C9D46B1E2E83499E387FF281; };
+		C96CEC25BE2969E201651651 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Settings/SettingsPreferences.swift"; sourceTree = SOURCE_ROOT; };
+		CA6CEC25BE2969E201651651 = { isa = PBXBuildFile; fileRef = C96CEC25BE2969E201651651; };
+
+		C937B5B756F7BBF183D7A27C = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Models/DailyQuestionDraft.swift"; sourceTree = SOURCE_ROOT; };
+		CA37B5B756F7BBF183D7A27C = { isa = PBXBuildFile; fileRef = C937B5B756F7BBF183D7A27C; };
+		C92C4EDCFD3C64C3884388C8 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Models/LibraryPassage.swift"; sourceTree = SOURCE_ROOT; };
+		CA2C4EDCFD3C64C3884388C8 = { isa = PBXBuildFile; fileRef = C92C4EDCFD3C64C3884388C8; };
+		C96EAE911071D7DBC18B1BE2 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Models/InquiryModels.swift"; sourceTree = SOURCE_ROOT; };
+		CA6EAE911071D7DBC18B1BE2 = { isa = PBXBuildFile; fileRef = C96EAE911071D7DBC18B1BE2; };
+		C90B87E7078C74964F64594D = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Models/UploadedFile.swift"; sourceTree = SOURCE_ROOT; };
+		CA0B87E7078C74964F64594D = { isa = PBXBuildFile; fileRef = C90B87E7078C74964F64594D; };
+		C916A231AD822330A567E7DA = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/AngroveGrounding.swift"; sourceTree = SOURCE_ROOT; };
+		CA16A231AD822330A567E7DA = { isa = PBXBuildFile; fileRef = C916A231AD822330A567E7DA; };
+		C9183081CE8DB6A493BCC72A = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/ResponseCitations.swift"; sourceTree = SOURCE_ROOT; };
+		CA183081CE8DB6A493BCC72A = { isa = PBXBuildFile; fileRef = C9183081CE8DB6A493BCC72A; };
+		C9F4AA9E949D15BFC18A48FD = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/NodeConceptLabelPolicy.swift"; sourceTree = SOURCE_ROOT; };
+		CAF4AA9E949D15BFC18A48FD = { isa = PBXBuildFile; fileRef = C9F4AA9E949D15BFC18A48FD; };
+		C9CD2B7A967B554A22D95165 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/ModelTaskEnvironment.swift"; sourceTree = SOURCE_ROOT; };
+		CACD2B7A967B554A22D95165 = { isa = PBXBuildFile; fileRef = C9CD2B7A967B554A22D95165; };
+
+		C9A670F876034BB664EB4C43 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/AngroveModel.swift"; sourceTree = SOURCE_ROOT; };
+		CAA670F876034BB664EB4C43 = { isa = PBXBuildFile; fileRef = C9A670F876034BB664EB4C43; };
+		C9EA9D53391E10E07A6E92FA = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/UnavailableAngroveModel.swift"; sourceTree = SOURCE_ROOT; };
+		CAEA9D53391E10E07A6E92FA = { isa = PBXBuildFile; fileRef = C9EA9D53391E10E07A6E92FA; };
+		C907F2C4E63ECC3B3D967BCE = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/EmbeddingProvider.swift"; sourceTree = SOURCE_ROOT; };
+		CA07F2C4E63ECC3B3D967BCE = { isa = PBXBuildFile; fileRef = C907F2C4E63ECC3B3D967BCE; };
+		C96545C9586599C129A557B6 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/ModelRuntimeLifecycle.swift"; sourceTree = SOURCE_ROOT; };
+		CA6545C9586599C129A557B6 = { isa = PBXBuildFile; fileRef = C96545C9586599C129A557B6; };
+		C9F88B6A41FD4617E010E364 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/ModelTaskQueue.swift"; sourceTree = SOURCE_ROOT; };
+		CAF88B6A41FD4617E010E364 = { isa = PBXBuildFile; fileRef = C9F88B6A41FD4617E010E364; };
+		C9A2B8402AF82C740CB3F8D6 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/ModelControls/ModelTasksCard.swift"; sourceTree = SOURCE_ROOT; };
+		CAA2B8402AF82C740CB3F8D6 = { isa = PBXBuildFile; fileRef = C9A2B8402AF82C740CB3F8D6; };
+		C9AEE830B22E34CE1918A45A = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeViewModel.swift"; sourceTree = SOURCE_ROOT; };
+		CAAEE830B22E34CE1918A45A = { isa = PBXBuildFile; fileRef = C9AEE830B22E34CE1918A45A; };
+		C95C04F87D1D7D40EA2C13DA = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeGrowth.swift"; sourceTree = SOURCE_ROOT; };
+		CA5C04F87D1D7D40EA2C13DA = { isa = PBXBuildFile; fileRef = C95C04F87D1D7D40EA2C13DA; };
+		C907775EFDD132D2AD533055 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/SemanticLayout.swift"; sourceTree = SOURCE_ROOT; };
+		CA07775EFDD132D2AD533055 = { isa = PBXBuildFile; fileRef = C907775EFDD132D2AD533055; };
+		C9D730A9AFA6ED123B4F5290 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/SemanticTreeWorker.swift"; sourceTree = SOURCE_ROOT; };
+		CAD730A9AFA6ED123B4F5290 = { isa = PBXBuildFile; fileRef = C9D730A9AFA6ED123B4F5290; };
+		C991E652BFBD7F6F2EAE5288 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/SemanticOverlapRelaxation.swift"; sourceTree = SOURCE_ROOT; };
+		CA91E652BFBD7F6F2EAE5288 = { isa = PBXBuildFile; fileRef = C991E652BFBD7F6F2EAE5288; };
+
+		C92996AE0088D9F27E25549D = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/SettingsHaptics.swift"; sourceTree = SOURCE_ROOT; };
+		CA2996AE0088D9F27E25549D = { isa = PBXBuildFile; fileRef = C92996AE0088D9F27E25549D; };
+
+		C9BB8FA08BC92F1279B25493 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "macOS/Platform/MacCanvasScrollInput.swift"; sourceTree = SOURCE_ROOT; };
+		CABB8FA08BC92F1279B25493 = { isa = PBXBuildFile; fileRef = C9BB8FA08BC92F1279B25493; };
+
+		C911261E14347762858AA24E = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/ThinkingShimmer.swift"; sourceTree = SOURCE_ROOT; };
+		CA11261E14347762858AA24E = { isa = PBXBuildFile; fileRef = C911261E14347762858AA24E; };
+
+		C80000000000000000000001 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/PerspectivePlaneProjection.swift"; sourceTree = SOURCE_ROOT; };
+		C80000000000000000000002 = { isa = PBXBuildFile; fileRef = C80000000000000000000001; };
+		C80000000000000000000003 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/TextTransitions.swift"; sourceTree = SOURCE_ROOT; };
+		C80000000000000000000004 = { isa = PBXBuildFile; fileRef = C80000000000000000000003; };
+		C80000000000000000000005 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Persistence/LocalInsightTreeSeedStore.swift"; sourceTree = SOURCE_ROOT; };
+		C80000000000000000000006 = { isa = PBXBuildFile; fileRef = C80000000000000000000005; };
+		C80000000000000000000007 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Services/PerformanceTrace.swift"; sourceTree = SOURCE_ROOT; };
+		C80000000000000000000008 = { isa = PBXBuildFile; fileRef = C80000000000000000000007; };
+
+		C70000000000000000000001 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/AnimatedDotGridBackground.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000002 = { isa = PBXBuildFile; fileRef = C70000000000000000000001; };
+		C70000000000000000000003 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/BrandFonts.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000004 = { isa = PBXBuildFile; fileRef = C70000000000000000000003; };
+		C70000000000000000000005 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/CanvasBackground.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000006 = { isa = PBXBuildFile; fileRef = C70000000000000000000005; };
+		C70000000000000000000007 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/CanvasFeedback.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000008 = { isa = PBXBuildFile; fileRef = C70000000000000000000007; };
+		C70000000000000000000009 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/Motion.swift"; sourceTree = SOURCE_ROOT; };
+		C7000000000000000000000A = { isa = PBXBuildFile; fileRef = C70000000000000000000009; };
+		C7000000000000000000000B = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/OrbitCamera.swift"; sourceTree = SOURCE_ROOT; };
+		C7000000000000000000000C = { isa = PBXBuildFile; fileRef = C7000000000000000000000B; };
+		C7000000000000000000000D = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/PageRevealEnvironment.swift"; sourceTree = SOURCE_ROOT; };
+		C7000000000000000000000E = { isa = PBXBuildFile; fileRef = C7000000000000000000000D; };
+		C7000000000000000000000F = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Conversation/ConversationHeading.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000010 = { isa = PBXBuildFile; fileRef = C7000000000000000000000F; };
+		C70000000000000000000011 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/CanvasPulseSegment.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000012 = { isa = PBXBuildFile; fileRef = C70000000000000000000011; };
+		C70000000000000000000013 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightClusterSpatialLayout.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000014 = { isa = PBXBuildFile; fileRef = C70000000000000000000013; };
+		C70000000000000000000015 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightDiscoveryStore.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000016 = { isa = PBXBuildFile; fileRef = C70000000000000000000015; };
+		C70000000000000000000017 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeCamera.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000018 = { isa = PBXBuildFile; fileRef = C70000000000000000000017; };
+		C70000000000000000000019 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeCanvasChip.swift"; sourceTree = SOURCE_ROOT; };
+		C7000000000000000000001A = { isa = PBXBuildFile; fileRef = C70000000000000000000019; };
+		C7000000000000000000001B = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeCanvasComponents.swift"; sourceTree = SOURCE_ROOT; };
+		C7000000000000000000001C = { isa = PBXBuildFile; fileRef = C7000000000000000000001B; };
+		C7000000000000000000001D = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeCanvasConceptNode.swift"; sourceTree = SOURCE_ROOT; };
+		C7000000000000000000001E = { isa = PBXBuildFile; fileRef = C7000000000000000000001D; };
+		C7000000000000000000001F = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeCanvasDiscovery.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000020 = { isa = PBXBuildFile; fileRef = C7000000000000000000001F; };
+		C70000000000000000000021 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeCanvasGestures.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000022 = { isa = PBXBuildFile; fileRef = C70000000000000000000021; };
+		C70000000000000000000023 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeCanvasGraphEdge.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000024 = { isa = PBXBuildFile; fileRef = C70000000000000000000023; };
+		C70000000000000000000025 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeCanvasLayout.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000026 = { isa = PBXBuildFile; fileRef = C70000000000000000000025; };
+		C70000000000000000000027 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeCanvasLifecycle.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000028 = { isa = PBXBuildFile; fileRef = C70000000000000000000027; };
+		C70000000000000000000029 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeCanvasMidpoint.swift"; sourceTree = SOURCE_ROOT; };
+		C7000000000000000000002A = { isa = PBXBuildFile; fileRef = C70000000000000000000029; };
+		C7000000000000000000002B = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeCanvasRendering.swift"; sourceTree = SOURCE_ROOT; };
+		C7000000000000000000002C = { isa = PBXBuildFile; fileRef = C7000000000000000000002B; };
+		C7000000000000000000002D = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeCanvasSimulation.swift"; sourceTree = SOURCE_ROOT; };
+		C7000000000000000000002E = { isa = PBXBuildFile; fileRef = C7000000000000000000002D; };
+		C7000000000000000000002F = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeCanvasStudy.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000030 = { isa = PBXBuildFile; fileRef = C7000000000000000000002F; };
+		C70000000000000000000031 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeCanvasTypes.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000032 = { isa = PBXBuildFile; fileRef = C70000000000000000000031; };
+		C70000000000000000000033 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeCanvasView.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000034 = { isa = PBXBuildFile; fileRef = C70000000000000000000033; };
+		C70000000000000000000035 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeConnectorRouting.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000036 = { isa = PBXBuildFile; fileRef = C70000000000000000000035; };
+		C70000000000000000000037 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeCrowdingSpacing.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000038 = { isa = PBXBuildFile; fileRef = C70000000000000000000037; };
+		C70000000000000000000039 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeEdgeUntangling.swift"; sourceTree = SOURCE_ROOT; };
+		C7000000000000000000003A = { isa = PBXBuildFile; fileRef = C70000000000000000000039; };
+		C7000000000000000000003B = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeGeometry.swift"; sourceTree = SOURCE_ROOT; };
+		C7000000000000000000003C = { isa = PBXBuildFile; fileRef = C7000000000000000000003B; };
+		C7000000000000000000003D = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeModels.swift"; sourceTree = SOURCE_ROOT; };
+		C7000000000000000000003E = { isa = PBXBuildFile; fileRef = C7000000000000000000003D; };
+		C7000000000000000000003F = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreePresentationState.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000040 = { isa = PBXBuildFile; fileRef = C7000000000000000000003F; };
+		C70000000000000000000041 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/InsightTreeSelectionOverlay.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000042 = { isa = PBXBuildFile; fileRef = C70000000000000000000041; };
+		C70000000000000000000043 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/RoutedConceptConnector.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000044 = { isa = PBXBuildFile; fileRef = C70000000000000000000043; };
+		C70000000000000000000045 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/SpatialCollisionIndex.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000046 = { isa = PBXBuildFile; fileRef = C70000000000000000000045; };
+		C70000000000000000000047 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/StudyNodeLayout.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000048 = { isa = PBXBuildFile; fileRef = C70000000000000000000047; };
+		C70000000000000000000049 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/InsightTree/StudyNodeScene.swift"; sourceTree = SOURCE_ROOT; };
+		C7000000000000000000004A = { isa = PBXBuildFile; fileRef = C70000000000000000000049; };
+		C7000000000000000000004B = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Features/Settings/SettingsPreferenceKeys.swift"; sourceTree = SOURCE_ROOT; };
+		C7000000000000000000004C = { isa = PBXBuildFile; fileRef = C7000000000000000000004B; };
+		C7000000000000000000004D = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Models/ConceptDefinition.swift"; sourceTree = SOURCE_ROOT; };
+		C7000000000000000000004E = { isa = PBXBuildFile; fileRef = C7000000000000000000004D; };
+		C7000000000000000000004F = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Persistence/InsightTreeLocalStateStore.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000050 = { isa = PBXBuildFile; fileRef = C7000000000000000000004F; };
+		C70000000000000000000051 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Persistence/PrivatePreferencesCore.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000052 = { isa = PBXBuildFile; fileRef = C70000000000000000000051; };
+		C70000000000000000000053 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Persistence/SerializedPersonalStore.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000054 = { isa = PBXBuildFile; fileRef = C70000000000000000000053; };
+		C70000000000000000000055 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Widgets/LocalDataEncryption.swift"; sourceTree = SOURCE_ROOT; };
+		C70000000000000000000056 = { isa = PBXBuildFile; fileRef = C70000000000000000000055; };
+		C60000000000000000000001 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/Navigation/AppPage.swift"; sourceTree = SOURCE_ROOT; };
+		C60000000000000000000002 = { isa = PBXBuildFile; fileRef = C60000000000000000000001; };
+		C60000000000000000000003 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/AppIconImage.swift"; sourceTree = SOURCE_ROOT; };
+		C60000000000000000000004 = { isa = PBXBuildFile; fileRef = C60000000000000000000003; };
+		C60000000000000000000005 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/ContextUsageIcon.swift"; sourceTree = SOURCE_ROOT; };
+		C60000000000000000000006 = { isa = PBXBuildFile; fileRef = C60000000000000000000005; };
+		C60000000000000000000007 = { isa = PBXFileReference; lastKnownFileType = image.png; path = "Shared/Assets.xcassets/AppIconImage.imageset/AppIconImage.png"; sourceTree = SOURCE_ROOT; };
+		C60000000000000000000008 = { isa = PBXBuildFile; fileRef = C60000000000000000000007; };
+
+		CF0400000000000000000000 = { isa = PBXFileReference; lastKnownFileType = folder.icon; path = "Shared/AngroveAppIcon.icon"; sourceTree = SOURCE_ROOT; };
+		CF0400000000000000000001 = { isa = PBXBuildFile; fileRef = CF0400000000000000000000; };
+
+		C50000000000000000000001 = { isa = PBXNativeTarget; name = "Angrove-macOS"; productName = "Angrove-macOS"; productType = "com.apple.product-type.application"; productReference = C50000000000000000000002; buildConfigurationList = C50000000000000000000007; buildPhases = (C50000000000000000000004, C50000000000000000000005, C50000000000000000000006,); dependencies = (); buildRules = (); fileSystemSynchronizedGroups = (E01400000000000000000001, C50000000000000000000003,); packageProductDependencies = (C5000000000000000000000A, A20000000000000000000006, A20000000000000000000009,); };
+		C50000000000000000000002 = { isa = PBXFileReference; explicitFileType = wrapper.application; path = "Angrove-macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		C50000000000000000000003 = { isa = PBXFileSystemSynchronizedRootGroup; path = "macOS"; sourceTree = "<group>"; exceptions = (E01400000000000000000004,); };
+		CF0300000000000000000000 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/QuotedQuestionContainer.swift"; sourceTree = SOURCE_ROOT; };
+		CF0300000000000000000001 = { isa = PBXBuildFile; fileRef = CF0300000000000000000000; };
+		C50000000000000000000004 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                              ); runOnlyForDeploymentPostprocessing = 0; };
+		C50000000000000000000005 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (CE0000000000000000000002,CE0000000000000000000001,C5000000000000000000000B,); runOnlyForDeploymentPostprocessing = 0; };
+		C50000000000000000000028 = { isa = PBXFileReference; lastKnownFileType = file; path = "Shared/Fonts/Figtree-Bold.ttf"; sourceTree = SOURCE_ROOT; };
+		C50000000000000000000029 = { isa = PBXBuildFile; fileRef = C50000000000000000000028; };
+		C5000000000000000000002A = { isa = PBXFileReference; lastKnownFileType = file; path = "Shared/Fonts/Figtree-ExtraBold.ttf"; sourceTree = SOURCE_ROOT; };
+		C5000000000000000000002B = { isa = PBXBuildFile; fileRef = C5000000000000000000002A; };
+		C5000000000000000000002C = { isa = PBXFileReference; lastKnownFileType = file; path = "Shared/Fonts/Figtree-Regular.ttf"; sourceTree = SOURCE_ROOT; };
+		C5000000000000000000002D = { isa = PBXBuildFile; fileRef = C5000000000000000000002C; };
+		C5000000000000000000002E = { isa = PBXFileReference; lastKnownFileType = file; path = "Shared/Fonts/Figtree-SemiBold.ttf"; sourceTree = SOURCE_ROOT; };
+		C5000000000000000000002F = { isa = PBXBuildFile; fileRef = C5000000000000000000002E; };
+		C50000000000000000000030 = { isa = PBXFileReference; lastKnownFileType = file; path = "Shared/Fonts/LibreBaskerville-Bold.ttf"; sourceTree = SOURCE_ROOT; };
+		C50000000000000000000031 = { isa = PBXBuildFile; fileRef = C50000000000000000000030; };
+		C50000000000000000000032 = { isa = PBXFileReference; lastKnownFileType = file; path = "Shared/Fonts/LibreBaskerville-BoldItalic.ttf"; sourceTree = SOURCE_ROOT; };
+		C50000000000000000000033 = { isa = PBXBuildFile; fileRef = C50000000000000000000032; };
+		C50000000000000000000034 = { isa = PBXFileReference; lastKnownFileType = file; path = "Shared/Fonts/LibreBaskerville-Italic.ttf"; sourceTree = SOURCE_ROOT; };
+		C50000000000000000000035 = { isa = PBXBuildFile; fileRef = C50000000000000000000034; };
+		C50000000000000000000036 = { isa = PBXFileReference; lastKnownFileType = file; path = "Shared/Fonts/LibreBaskerville-Regular.ttf"; sourceTree = SOURCE_ROOT; };
+		C50000000000000000000037 = { isa = PBXBuildFile; fileRef = C50000000000000000000036; };
+		CF0100000000000000000000 = { isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = "Shared/LocalGrounding/MiniLM.mlpackage"; sourceTree = SOURCE_ROOT; };
+		CF0200000000000000000000 = { isa = PBXBuildFile; fileRef = CF0100000000000000000000; };
+		CF0100000000000000000001 = { isa = PBXFileReference; lastKnownFileType = text; path = "Shared/LocalGrounding/vocab.txt"; sourceTree = SOURCE_ROOT; };
+		CF0200000000000000000001 = { isa = PBXBuildFile; fileRef = CF0100000000000000000001; };
+		CF0100000000000000000002 = { isa = PBXFileReference; lastKnownFileType = file; path = "Shared/LocalGrounding/embeddings.bin"; sourceTree = SOURCE_ROOT; };
+		CF0200000000000000000002 = { isa = PBXBuildFile; fileRef = CF0100000000000000000002; };
+		CF0100000000000000000003 = { isa = PBXFileReference; lastKnownFileType = text.json; path = "Shared/LocalGrounding/passages.json"; sourceTree = SOURCE_ROOT; };
+		CF0200000000000000000003 = { isa = PBXBuildFile; fileRef = CF0100000000000000000003; };
+		C50000000000000000000006 = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (
+
+
+
+
+
+
+C60000000000000000000008,        ); runOnlyForDeploymentPostprocessing = 0; };
+		C50000000000000000000007 = { isa = XCConfigurationList; buildConfigurations = (C50000000000000000000008, C50000000000000000000009,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		C50000000000000000000008 = { isa = XCBuildConfiguration; name = Debug; buildSettings = { ASSETCATALOG_COMPILER_APPICON_NAME = AngroveAppIcon; ARCHS = arm64; SDKROOT = macosx; SUPPORTED_PLATFORMS = macosx; MACOSX_DEPLOYMENT_TARGET = 27.0; CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = 7XG2DHY989; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = Angrove; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education"; PRODUCT_BUNDLE_IDENTIFIER = "com.ryanbaltodano.Angrove.macOS"; PRODUCT_NAME = "$(TARGET_NAME)"; PRODUCT_MODULE_NAME = AngroveMac; MARKETING_VERSION = 1.0; CURRENT_PROJECT_VERSION = 1; SWIFT_VERSION = 5.0; SWIFT_STRICT_CONCURRENCY = complete; ENABLE_APP_SANDBOX = YES; ENABLE_HARDENED_RUNTIME = YES; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks",); }; };
+		C50000000000000000000009 = { isa = XCBuildConfiguration; name = Release; buildSettings = { ASSETCATALOG_COMPILER_APPICON_NAME = AngroveAppIcon; ARCHS = arm64; SDKROOT = macosx; SUPPORTED_PLATFORMS = macosx; MACOSX_DEPLOYMENT_TARGET = 27.0; CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = 7XG2DHY989; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = Angrove; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education"; PRODUCT_BUNDLE_IDENTIFIER = "com.ryanbaltodano.Angrove.macOS"; PRODUCT_NAME = "$(TARGET_NAME)"; PRODUCT_MODULE_NAME = AngroveMac; MARKETING_VERSION = 1.0; CURRENT_PROJECT_VERSION = 1; SWIFT_VERSION = 5.0; SWIFT_STRICT_CONCURRENCY = complete; ENABLE_APP_SANDBOX = YES; ENABLE_HARDENED_RUNTIME = YES; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks",); }; };
+		C5000000000000000000000A = { isa = XCSwiftPackageProductDependency; package = A20000000000000000000002; productName = LiteRTLM; };
+		C5000000000000000000000B = { isa = PBXBuildFile; productRef = C5000000000000000000000A; };
+		C5000000000000000000000C = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/AngroveTheme.swift"; sourceTree = SOURCE_ROOT; };
+		C5000000000000000000000D = { isa = PBXBuildFile; fileRef = C5000000000000000000000C; };
+		C5000000000000000000000E = { isa = PBXGroup; name = "Mac Shared Sources"; children = (CF0400000000000000000000, C5000000000000000000000C, C50000000000000000000028, C5000000000000000000002A, C5000000000000000000002C, C5000000000000000000002E, C50000000000000000000030, C50000000000000000000032, C50000000000000000000034, C50000000000000000000036,); sourceTree = "<group>"; };
+		C50000000000000000000014 = { isa = PBXNativeTarget; name = "Angrove-macOSTests"; productName = "Angrove-macOSTests"; productType = "com.apple.product-type.bundle.unit-test"; productReference = C50000000000000000000015; buildConfigurationList = C50000000000000000000019; buildPhases = (C50000000000000000000017, C50000000000000000000018,); dependencies = (C5000000000000000000001D,); buildRules = (); fileSystemSynchronizedGroups = (C50000000000000000000016,); };
+		C50000000000000000000015 = { isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = "Angrove-macOSTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		C50000000000000000000016 = { isa = PBXFileSystemSynchronizedRootGroup; path = "Angrove-macOSTests"; sourceTree = "<group>"; };
+		C50000000000000000000017 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		C50000000000000000000018 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		C50000000000000000000019 = { isa = XCConfigurationList; buildConfigurations = (C5000000000000000000001A, C5000000000000000000001B,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		C5000000000000000000001A = { isa = XCBuildConfiguration; name = Debug; buildSettings = { ARCHS = arm64; SDKROOT = macosx; SUPPORTED_PLATFORMS = macosx; MACOSX_DEPLOYMENT_TARGET = 27.0; GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = "com.ryanbaltodano.Angrove.macOS.Tests"; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = 7XG2DHY989; BUNDLE_LOADER = "$(TEST_HOST)"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Angrove-macOS.app/Contents/MacOS/Angrove-macOS"; }; };
+		C5000000000000000000001B = { isa = XCBuildConfiguration; name = Release; buildSettings = { ARCHS = arm64; SDKROOT = macosx; SUPPORTED_PLATFORMS = macosx; MACOSX_DEPLOYMENT_TARGET = 27.0; GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = "com.ryanbaltodano.Angrove.macOS.Tests"; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = 7XG2DHY989; BUNDLE_LOADER = "$(TEST_HOST)"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Angrove-macOS.app/Contents/MacOS/Angrove-macOS"; }; };
+		C5000000000000000000001C = { isa = PBXContainerItemProxy; containerPortal = D61EFA6D2F8AAB5B0081D843; proxyType = 1; remoteGlobalIDString = C50000000000000000000001; remoteInfo = "Angrove-macOS"; };
+		C5000000000000000000001D = { isa = PBXTargetDependency; target = C50000000000000000000001; targetProxy = C5000000000000000000001C; };
+
 B40000000000000000000001 = {isa = PBXFileReference; explicitFileType = "wrapper.extensionkit-extension"; path = AngroveModelDownloader.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 B40000000000000000000002 = {isa = PBXFileSystemSynchronizedRootGroup; path = AngroveModelDownloader; sourceTree = "<group>"; exceptions = (B40000000000000000000003,); };
 B40000000000000000000003 = {isa = PBXFileSystemSynchronizedBuildFileExceptionSet; membershipExceptions = (Info.plist,); target = B40000000000000000000004; };
@@ -27,7 +573,7 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
         B30000000000000000000006 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
         B30000000000000000000007 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
         B30000000000000000000008 = {isa = XCConfigurationList; buildConfigurations = (B30000000000000000000009,B3000000000000000000000A,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-        B3000000000000000000000B = {isa = PBXFileSystemSynchronizedRootGroup; path = WidgetShared; sourceTree = "<group>"; };
+        B3000000000000000000000B = {isa = PBXFileSystemSynchronizedRootGroup; path = "Shared/Widgets"; sourceTree = "<group>"; };
         B3000000000000000000000C = {isa = PBXBuildFile; fileRef = B30000000000000000000001; settings = {ATTRIBUTES = (RemoveHeadersOnCopy,); }; };
         B3000000000000000000000D = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 13; files = (B3000000000000000000000C,); name = "Embed App Extensions"; runOnlyForDeploymentPostprocessing = 0; };
         B3000000000000000000000E = {isa = PBXTargetDependency; target = B30000000000000000000004; };
@@ -60,6 +606,8 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
 		D61EFA932F8ABE770081D843 /* Exceptions for "Angrove-iOS" folder in "Angrove-iOS" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				AGENTS.md,
+				README.md,
 				Config.xcconfig,
 				Info.plist,
 			);
@@ -78,7 +626,7 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
 			exceptions = (
 				D61EFA932F8ABE770081D843 /* Exceptions for "Angrove-iOS" folder in "Angrove-iOS" target */,
 			);
-			path = "Angrove-iOS";
+			path = "iOS";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -107,6 +655,8 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
 		D61EFA6C2F8AAB5B0081D843 = {
 			isa = PBXGroup;
 			children = (
+				E01400000000000000000001,
+                C50000000000000000000003, C50000000000000000000016, C5000000000000000000000E,
                 B40000000000000000000002,
 				D61EFA772F8AAB5B0081D843 /* Angrove-iOS */,
 				A10000000000000000000002 /* Angrove-iOSTests */,
@@ -119,6 +669,7 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
 		D61EFA762F8AAB5B0081D843 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+                C50000000000000000000002, C50000000000000000000015,
 				B30000000000000000000001,
                 B40000000000000000000001,
                 D61EFA752F8AAB5B0081D843 /* Angrove-iOS.app */,
@@ -171,8 +722,8 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
                 B3000000000000000000000E,
                 B4000000000000000000000D,
 			);
-			fileSystemSynchronizedGroups = (
-                B3000000000000000000000B,
+			fileSystemSynchronizedGroups = (E01400000000000000000001,
+
 				D61EFA772F8AAB5B0081D843 /* Angrove-iOS */,
 			);
 			name = "Angrove-iOS";
@@ -223,6 +774,7 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+                C50000000000000000000001, C50000000000000000000014,
                 B40000000000000000000004,
                 B30000000000000000000004,
 				D61EFA742F8AAB5B0081D843 /* Angrove-iOS */,
@@ -498,14 +1050,14 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
 				ASSETCATALOG_COMPILER_APPICON_NAME = AngroveAppIcon;
 				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AngroveLightIcon AngroveDarkIcon";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Angrove-iOS/Angrove-iOS.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "iOS/Angrove-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 7XG2DHY989;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Angrove-iOS/Info.plist";
+				INFOPLIST_FILE = "iOS/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Angrove;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -538,7 +1090,7 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
 				ASSETCATALOG_COMPILER_APPICON_NAME = AngroveAppIcon;
 				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AngroveLightIcon AngroveDarkIcon";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Angrove-iOS/Angrove-Release.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "iOS/Angrove-Release.entitlements";
                 EXCLUDED_SOURCE_FILE_NAMES = "$(inherited) LocalModels *.litertlm";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -546,7 +1098,7 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
 				DEVELOPMENT_TEAM = 7XG2DHY989;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Angrove-iOS/Info.plist";
+				INFOPLIST_FILE = "iOS/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Angrove;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

@@ -22,7 +22,7 @@ class ReaderDocumentTests(unittest.TestCase):
             backend = root / "backend"
             (backend / "corpus").mkdir(parents=True)
             (backend / "data/corpus/raw").mkdir(parents=True)
-            (root / "Angrove-iOS/LocalGrounding").mkdir(parents=True)
+            (root / "Shared/LocalGrounding").mkdir(parents=True)
             sources = [
                 {"id": source, "title": source, "license_status": "confirmed_pd"}
                 for source in ["short-work", "aristotle-metaphysics"]
@@ -36,7 +36,7 @@ class ReaderDocumentTests(unittest.TestCase):
             (backend / "data/corpus/raw/aristotle-metaphysics.txt").write_text(
                 "[Metaphysics/Book 1]\n\nOnly the first book."
             )
-            (root / "Angrove-iOS/LocalGrounding/passages.json").write_text(
+            (root / "Shared/LocalGrounding/passages.json").write_text(
                 json.dumps(
                     [
                         {

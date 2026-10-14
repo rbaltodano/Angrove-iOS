@@ -618,7 +618,7 @@ def build_into(args):
     sources = yaml.safe_load((args.backend / "corpus/sources.yaml").read_text())[
         "sources"
     ]
-    corpus = json.loads((ROOT / "Angrove-iOS/LocalGrounding/passages.json").read_text())
+    corpus = json.loads((ROOT / "Shared/LocalGrounding/passages.json").read_text())
     groups = collections.defaultdict(list)
     for p in corpus:
         groups[p["sourceId"]].append(p)
@@ -682,7 +682,7 @@ def build_into(args):
                 re.findall(
                     r'\("([A-Z0-9]{3})(?:\d{2,3})", "([^"]+)"\)',
                     (
-                        ROOT / "Angrove-iOS/Features/Library/LibraryView.swift"
+                        ROOT / "iOS/Features/Library/LibraryView.swift"
                     ).read_text(),
                 )
             )
@@ -880,7 +880,7 @@ if __name__ == "__main__":
         "--cache", type=Path, default=ROOT / "output/library-source-cache"
     )
     parser.add_argument(
-        "--output", type=Path, default=ROOT / "Angrove-iOS/LibraryDocuments"
+        "--output", type=Path, default=ROOT / "iOS/LibraryDocuments"
     )
     parser.add_argument(
         "--audit",

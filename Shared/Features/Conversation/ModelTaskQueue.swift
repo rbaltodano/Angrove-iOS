@@ -1,0 +1,650 @@
+//
+//  ModelTaskQueue.swift
+//  Angrove-iOS
+//
+
+import Foundation
+import Observation
+#if os(iOS)
+import UIKit
+#endif
+
+enum ModelTaskKind: Hashable {
+    case userQuestion(branchID: UUID, responseIndex: Int)
+    case defineInsight(key: String, name: String)
+    case createMidpoint
+    case makeNode
+    case studyBranch
+    case updateInsightTree
+    case refreshInsightTree
+    /// Separate identity so labels do not suppress response seeding or persisted refresh jobs.
+    case labelInsightTree
+    case refreshQuestionOfTheDay
+
+    var title: String {
+        switch self {
+        case .userQuestion:
+            return String(localized: "User Question")
+        case .defineInsight(_, let name):
+            return String(localized: "Define “\(name.localizedCapitalized)”")
+        case .createMidpoint:
+            return String(localized: "Create Midpoint")
+        case .makeNode:
+            return String(localized: "Make Node")
+        case .studyBranch:
+            return String(localized: "Branch")
+        case .updateInsightTree, .refreshInsightTree, .labelInsightTree:
+            return String(localized: "Update Insight Tree")
+        case .refreshQuestionOfTheDay:
+            return String(localized: "Consolidate information")
+        }
+    }
+
+    var definitionKey: String? {
+        guard case .defineInsight(let key, _) = self else { return nil }
+        return key
+    }
+
+    var userQuestionBranchID: UUID? {
+        guard case .userQuestion(let branchID, _) = self else { return nil }
+        return branchID
+    }
+
+    var isInsightTreeTask: Bool {
+        switch self {
+        case .updateInsightTree, .refreshInsightTree, .labelInsightTree:
+            return true
+        default:
+            return false
+        }
+    }
+
+    var standardStatusText: String {
+        switch self {
+        case .userQuestion, .makeNode, .studyBranch:
+            return String(localized: "Thinking...")
+        case .defineInsight:
+            return String(localized: "Parsing...")
+        case .createMidpoint:
+            return String(localized: "Plotting...")
+        case .updateInsightTree, .refreshInsightTree, .labelInsightTree:
+            return String(localized: "Mapping...")
+        case .refreshQuestionOfTheDay:
+            return String(localized: "Consolidating...")
+        }
+    }
+
+    var defaultOriginPage: ModelTaskOriginPage {
+        switch self {
+        case .userQuestion, .defineInsight:
+            return .conversation
+        case .createMidpoint, .makeNode, .studyBranch, .updateInsightTree, .refreshInsightTree, .labelInsightTree:
+            return .insights
+        case .refreshQuestionOfTheDay:
+            return .home
+        }
+    }
+}
+
+enum ModelTaskOriginPage: Hashable {
+    case home
+    case conversation
+    case openConversations
+    case settings
+    case insights
+    case studyTopics
+}
+
+/// Shared work identity survives recreation of the view that requested it. Response analysis
+/// intentionally has no shared key: each completed turn needs its own mapping job.
+enum ModelTaskWorkKey: Hashable {
+    case insightTreeCluster(scope: UUID?, nodeID: UUID)
+}
+
+enum FunModelStatusCopy {
+    static let general = [
+        "Uhhh...",
+        "On it...",
+        "Aye capin!",
+        "Gimme a sec...",
+        "Yawn...",
+        "Dancing...",
+        "la la la...",
+        "Lemme think...",
+        ":^)",
+        "*beep boop*",
+        "Roboting..."
+    ]
+
+    static let loading = [
+        "Wakin up...",
+        "Need Coffee...",
+        "Zzzzz...",
+        "*falls over*",
+        ":^)"
+    ]
+
+    static func randomStatus(for kind: ModelTaskKind) -> String {
+        randomStatus(from: taskSpecificBank(for: kind))
+    }
+
+    static func randomThinkingStatus() -> String {
+        randomStatus(from: ["Lemme think..."])
+    }
+
+    static func randomLoadingStatus() -> String {
+        randomStatus(from: loading)
+    }
+
+    private static func taskSpecificBank(for kind: ModelTaskKind) -> [String] {
+        switch kind {
+        case .userQuestion, .makeNode, .studyBranch:
+            return ["Lemme think..."]
+        case .defineInsight:
+            return ["Defining...", "Naming..."]
+        case .createMidpoint:
+            return ["Watch this...", "Connecting...", "Graphing..."]
+        case .updateInsightTree, .refreshInsightTree, .labelInsightTree:
+            return ["Scribbling...", "Jotting...", "Planting...", "Trimming...", "Prunning..."]
+        case .refreshQuestionOfTheDay:
+            return ["Packin up..."]
+        }
+    }
+
+    private static func randomStatus(from specificBank: [String]) -> String {
+        let selectedBank = Bool.random() ? specificBank : general
+        return selectedBank.randomElement() ?? general[0]
+    }
+}
+
+enum ModelTaskPhase: Equatable {
+    case completed
+    case current
+    case upcoming
+}
+
+enum ModelTaskPriority: Int, Comparable {
+    case background = 0
+    case foreground = 1
+
+    static func < (lhs: ModelTaskPriority, rhs: ModelTaskPriority) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
+struct ModelTaskSnapshot: Identifiable, Equatable {
+    let id: UUID
+    let kind: ModelTaskKind
+    let originPage: ModelTaskOriginPage
+    /// The specific conversation this task belongs to, when its origin page is `.conversation`.
+    /// Lets task navigation reopen the exact conversation instead of whichever one happens to
+    /// be active.
+    let conversationID: UUID?
+    let phase: ModelTaskPhase
+    let funStatusText: String?
+    let funLoadingStatusText: String?
+
+    var title: String {
+        kind.title
+    }
+}
+
+@MainActor
+@Observable
+final class ModelTaskQueue {
+    private struct Job {
+        let id: UUID
+        let kind: ModelTaskKind
+        let originPage: ModelTaskOriginPage
+        let conversationID: UUID?
+        let priority: ModelTaskPriority
+        let workKey: ModelTaskWorkKey?
+        let funStatusText: String?
+        let funLoadingStatusText: String?
+        let onStart: () -> Void
+        var onCancel: () -> Void
+        var onCompletion: () -> Void
+        let operation: () async -> Void
+    }
+
+    private(set) var completedTasks: [ModelTaskSnapshot] = []
+    /// The most recent successful completion, retained after the transient completed-task list
+    /// clears so page-level refresh policies can react exactly once to completed model work.
+    private(set) var latestCompletedTask: ModelTaskSnapshot?
+    /// Runs synchronously when a task completes, including while the app is in the background.
+    @ObservationIgnored var onTaskCompleted: ((ModelTaskSnapshot) -> Void)?
+    private(set) var currentTask: ModelTaskSnapshot?
+    private(set) var upcomingTasks: [ModelTaskSnapshot] = []
+    private(set) var isRuntimeLoading = false
+    private(set) var personality: ConversationPersonality = .default
+    /// User-question completions that have not yet been viewed in their conversation.
+    private(set) var completedUserQuestionBranchIDs: Set<UUID> = []
+
+    @ObservationIgnored private var currentJob: Job?
+    @ObservationIgnored private var waitingJobs: [Job] = []
+    @ObservationIgnored private var runningTask: Task<Void, Never>?
+    @ObservationIgnored private var completedTasksClearTask: Task<Void, Never>?
+    @ObservationIgnored private let runtimeLifecycle: ModelRuntimeLifecycleManager
+    @ObservationIgnored private var lifecycleTransitionTask: Task<Void, Never>?
+    /// Invalidates a superseded unload transition so its tail can't clear state that a newer
+    /// foreground return (or newer unload) now owns. See `setApplicationActive`.
+    @ObservationIgnored private var lifecycleTransitionGeneration = 0
+    @ObservationIgnored private var isExecutionSuspended = false
+    @ObservationIgnored private var applicationIsActive = true
+    /// Lets an in-flight response continue during iOS's finite background execution window.
+    /// The system may still expire this window before generation finishes.
+    #if os(iOS)
+    @ObservationIgnored private var backgroundExecutionTask: UIBackgroundTaskIdentifier = .invalid
+    #else
+    @ObservationIgnored private var backgroundExecutionTask: NSObjectProtocol?
+    #endif
+
+    init(
+        runtimeLifecycle: ModelRuntimeLifecycleManager = ModelRuntimeLifecycleManager()
+    ) {
+        self.runtimeLifecycle = runtimeLifecycle
+    }
+
+    var allTasks: [ModelTaskSnapshot] {
+        completedTasks + [currentTask].compactMap { $0 } + upcomingTasks
+    }
+
+    var pendingCount: Int {
+        (currentTask == nil ? 0 : 1) + upcomingTasks.count
+    }
+
+    var totalCount: Int {
+        allTasks.count
+    }
+
+    var currentPosition: Int {
+        guard currentTask != nil else { return completedTasks.count }
+        return completedTasks.count + 1
+    }
+
+    var isBusy: Bool {
+        currentTask != nil || !upcomingTasks.isEmpty
+    }
+
+    @discardableResult
+    func enqueue(
+        kind: ModelTaskKind,
+        originPage: ModelTaskOriginPage? = nil,
+        conversationID: UUID? = nil,
+        priority: ModelTaskPriority = .foreground,
+        runsNext: Bool = false,
+        workKey: ModelTaskWorkKey? = nil,
+        onStart: @escaping () -> Void = {},
+        onCancel: @escaping () -> Void = {},
+        onCompletion: @escaping () -> Void = {},
+        operation: @escaping () async -> Void
+    ) -> UUID {
+        if let workKey {
+            if var job = currentJob, job.workKey == workKey {
+                join(&job, onCancel: onCancel, onCompletion: onCompletion)
+                currentJob = job
+                return job.id
+            }
+            if let index = waitingJobs.firstIndex(where: { $0.workKey == workKey }) {
+                join(&waitingJobs[index], onCancel: onCancel, onCompletion: onCompletion)
+                return waitingJobs[index].id
+            }
+        }
+        completedTasksClearTask?.cancel()
+        completedTasksClearTask = nil
+        if let branchID = kind.userQuestionBranchID {
+            completedUserQuestionBranchIDs.remove(branchID)
+        }
+
+        if !isBusy {
+            completedTasks.removeAll()
+        }
+
+        let job = Job(
+            id: UUID(),
+            kind: kind,
+            originPage: originPage ?? kind.defaultOriginPage,
+            conversationID: conversationID,
+            priority: priority,
+            workKey: workKey,
+            funStatusText: personality == .fun
+                ? FunModelStatusCopy.randomStatus(for: kind)
+                : nil,
+            funLoadingStatusText: personality == .fun
+                ? FunModelStatusCopy.randomLoadingStatus()
+                : nil,
+            onStart: onStart,
+            onCancel: onCancel,
+            onCompletion: onCompletion,
+            operation: operation
+        )
+        if priority == .foreground, currentJob?.priority == .background {
+            LiteRTLifecycleTrace.shared.record("queue-preempt-foreground")
+            requeueCurrentJob()
+        }
+        // `runsNext` lets follow-up work for a just-finished answer (its Insight Tree mapping)
+        // run before questions that were already waiting behind it.
+        waitingJobs.insert(job, at: runsNext ? 0 : defaultInsertionIndex(for: priority))
+        publishUpcomingTasks()
+        startNextIfNeeded()
+        return job.id
+    }
+
+    private func join(
+        _ job: inout Job,
+        onCancel: @escaping () -> Void,
+        onCompletion: @escaping () -> Void
+    ) {
+        let previousCancel = job.onCancel
+        let previousCompletion = job.onCompletion
+        job.onCancel = { previousCancel(); onCancel() }
+        job.onCompletion = { previousCompletion(); onCompletion() }
+    }
+
+    func contains(where predicate: (ModelTaskSnapshot) -> Bool) -> Bool {
+        allTasks.contains(where: predicate)
+    }
+
+    func setPersonality(_ personality: ConversationPersonality) {
+        self.personality = personality
+    }
+
+    func stopCurrent() {
+        guard currentJob != nil else { return }
+        LiteRTLifecycleTrace.shared.record("queue-stop")
+        endBackgroundExecutionTask()
+        detachCurrentJob(cancellingRun: true)?.onCancel()
+        startNextIfNeeded()
+    }
+
+    func removeUpcoming(id: UUID) {
+        guard let index = waitingJobs.firstIndex(where: { $0.id == id }) else { return }
+        let job = waitingJobs.remove(at: index)
+        job.onCancel()
+        publishUpcomingTasks()
+    }
+
+    @discardableResult
+    func moveUpcoming(id: UUID, relativeTo targetID: UUID, placeAfterTarget: Bool) -> Bool {
+        guard id != targetID,
+              let sourceIndex = waitingJobs.firstIndex(where: { $0.id == id }) else {
+            return false
+        }
+
+        let originalOrder = waitingJobs.map(\.id)
+        let job = waitingJobs.remove(at: sourceIndex)
+        guard let targetIndex = waitingJobs.firstIndex(where: { $0.id == targetID }) else {
+            waitingJobs.insert(job, at: min(sourceIndex, waitingJobs.count))
+            return false
+        }
+
+        let insertionIndex = min(
+            targetIndex + (placeAfterTarget ? 1 : 0),
+            waitingJobs.count
+        )
+        waitingJobs.insert(job, at: insertionIndex)
+        guard waitingJobs.map(\.id) != originalOrder else {
+            return false
+        }
+
+        publishUpcomingTasks()
+        return true
+    }
+
+    func cancelTasks(where predicate: (ModelTaskSnapshot) -> Bool) {
+        if let currentTask, predicate(currentTask) {
+            endBackgroundExecutionTask()
+            detachCurrentJob(cancellingRun: true)?.onCancel()
+        }
+
+        var cancelledJobs: [Job] = []
+        waitingJobs.removeAll { job in
+            guard predicate(snapshot(for: job, phase: .upcoming)) else { return false }
+            cancelledJobs.append(job)
+            return true
+        }
+        cancelledJobs.forEach { $0.onCancel() }
+        publishUpcomingTasks()
+        startNextIfNeeded()
+    }
+
+    func clearCompletedTasks() {
+        completedTasksClearTask?.cancel()
+        completedTasksClearTask = nil
+        completedTasks.removeAll()
+    }
+
+    func markUserQuestionsViewed(branchIDs: Set<UUID>) {
+        completedUserQuestionBranchIDs.subtract(branchIDs)
+    }
+
+    func setApplicationActive(_ isActive: Bool) {
+        applicationIsActive = isActive
+        LiteRTLifecycleTrace.shared.record("app-active", ["isActive": isActive])
+        if isActive {
+            endBackgroundExecutionTask()
+            // Returning to the foreground must ALWAYS resume execution. This previously bailed
+            // out whenever an unload transition was still in flight
+            // (`guard lifecycleTransitionTask == nil else { return }`), deferring entirely to
+            // that task to clear `isExecutionSuspended` on its way out. But that task waits for
+            // every generation lease to be released, so a generation that never finishes pinned
+            // it forever: `isExecutionSuspended` stayed true, `startNextIfNeeded()` never ran
+            // again, and the queue sat permanently dead — Model Status reading "Idle" while the
+            // user's question waited in `upcomingTasks` — until the app was relaunched. Coming
+            // back to the foreground is exactly when we want the pending unload abandoned, so
+            // cancel it and resume unconditionally.
+            lifecycleTransitionGeneration &+= 1
+            lifecycleTransitionTask?.cancel()
+            lifecycleTransitionTask = nil
+            isExecutionSuspended = false
+            startNextIfNeeded()
+        } else {
+            beginBackgroundExecutionTaskIfNeeded()
+            beginImmediateUnload(reason: .background)
+        }
+    }
+
+    func handleMemoryPressure() {
+        LiteRTLifecycleTrace.shared.record("memory-warning")
+        beginImmediateUnload(reason: .memoryPressure)
+    }
+
+    func updateThermalPressure(_ pressure: ModelRuntimeThermalPressure) {
+        Task { [weak self] in
+            guard let self else { return }
+            await runtimeLifecycle.updateThermalPressure(pressure)
+            guard pressure == .critical else { return }
+            beginImmediateUnload(reason: .criticalThermalPressure)
+        }
+    }
+
+    private func startNextIfNeeded() {
+        guard !isExecutionSuspended,
+              currentJob == nil,
+              !waitingJobs.isEmpty else {
+            publishUpcomingTasks()
+            scheduleCompletedTasksClearIfIdle()
+            return
+        }
+
+        completedTasksClearTask?.cancel()
+        completedTasksClearTask = nil
+        let job = waitingJobs.removeFirst()
+        currentJob = job
+        currentTask = snapshot(for: job, phase: .current)
+        publishUpcomingTasks()
+        job.onStart()
+
+        runningTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let requiresLoading = await runtimeLifecycle.requiresLoadingForNextLease()
+            setRuntimeLoading(requiresLoading, for: job.id)
+            guard let lease = await runtimeLifecycle.acquireLease() else {
+                setRuntimeLoading(false, for: job.id)
+                guard !Task.isCancelled else { return }
+                failCurrent(id: job.id)
+                return
+            }
+            setRuntimeLoading(false, for: job.id)
+            guard !Task.isCancelled else {
+                await runtimeLifecycle.releaseLease(lease)
+                return
+            }
+            await job.operation()
+            await runtimeLifecycle.releaseLease(lease)
+            guard !Task.isCancelled else { return }
+            completeCurrent(id: job.id)
+        }
+    }
+
+    private func setRuntimeLoading(_ isLoading: Bool, for jobID: UUID) {
+        guard currentJob?.id == jobID else { return }
+        isRuntimeLoading = isLoading
+    }
+
+    private func failCurrent(id: UUID) {
+        guard currentJob?.id == id else { return }
+        endBackgroundExecutionTask()
+        detachCurrentJob(cancellingRun: false)?.onCancel()
+        startNextIfNeeded()
+    }
+
+    private func completeCurrent(id: UUID) {
+        guard let job = currentJob, job.id == id else { return }
+        endBackgroundExecutionTask()
+        isRuntimeLoading = false
+        let completedTask = snapshot(for: job, phase: .completed)
+        completedTasks.append(completedTask)
+        latestCompletedTask = completedTask
+        onTaskCompleted?(completedTask)
+        if let branchID = job.kind.userQuestionBranchID {
+            completedUserQuestionBranchIDs.insert(branchID)
+        }
+        detachCurrentJob(cancellingRun: false)
+        job.onCompletion()
+        startNextIfNeeded()
+    }
+
+    /// Clears the running job's state and returns it. Completion and failure run inside the job's
+    /// own task, so only stop/cancel/preemption cancel that task.
+    @discardableResult
+    private func detachCurrentJob(cancellingRun: Bool) -> Job? {
+        let job = currentJob
+        if cancellingRun { runningTask?.cancel() }
+        runningTask = nil
+        currentJob = nil
+        currentTask = nil
+        isRuntimeLoading = false
+        return job
+    }
+
+    /// Returns the running job to the front of the queue so it restarts later.
+    private func requeueCurrentJob() {
+        guard let job = detachCurrentJob(cancellingRun: true) else { return }
+        waitingJobs.insert(job, at: 0)
+    }
+
+    private func beginImmediateUnload(reason: ModelRuntimeUnloadReason) {
+        isExecutionSuspended = true
+        preemptCurrentBackgroundPreservingJob()
+        guard lifecycleTransitionTask == nil else { return }
+
+        lifecycleTransitionGeneration &+= 1
+        let generation = lifecycleTransitionGeneration
+        lifecycleTransitionTask = Task { [weak self] in
+            guard let self else { return }
+            await runtimeLifecycle.unloadAsSoonAsIdle(reason: reason)
+            // A foreground return (or a newer unload) bumps the generation and takes ownership
+            // of this state — never let a superseded transition clear a live task or unsuspend
+            // execution behind it.
+            guard generation == lifecycleTransitionGeneration else { return }
+            lifecycleTransitionTask = nil
+            guard applicationIsActive else { return }
+            isExecutionSuspended = false
+            startNextIfNeeded()
+        }
+    }
+
+    #if os(iOS)
+    private func beginBackgroundExecutionTaskIfNeeded() {
+        guard backgroundExecutionTask == .invalid, currentJob != nil else { return }
+        backgroundExecutionTask = UIApplication.shared.beginBackgroundTask(
+            withName: "Angrove model response"
+        ) { [weak self] in
+            // iOS terminates apps that have not ended the task when this handler returns.
+            MainActor.assumeIsolated { self?.endBackgroundExecutionTask() }
+        }
+    }
+
+    private func endBackgroundExecutionTask() {
+        guard backgroundExecutionTask != .invalid else { return }
+        let task = backgroundExecutionTask
+        backgroundExecutionTask = .invalid
+        UIApplication.shared.endBackgroundTask(task)
+    }
+
+    #else
+    private func beginBackgroundExecutionTaskIfNeeded() {
+        guard backgroundExecutionTask == nil, currentJob != nil else { return }
+        backgroundExecutionTask = ProcessInfo.processInfo.beginActivity(options: .userInitiatedAllowingIdleSystemSleep, reason: "Angrove model response")
+    }
+    private func endBackgroundExecutionTask() {
+        guard let token = backgroundExecutionTask else { return }
+        backgroundExecutionTask = nil
+        ProcessInfo.processInfo.endActivity(token)
+    }
+    #endif
+
+    private func preemptCurrentBackgroundPreservingJob() {
+        guard currentJob?.priority == .background else { return }
+        LiteRTLifecycleTrace.shared.record("queue-preempt-background")
+        requeueCurrentJob()
+        publishUpcomingTasks()
+    }
+
+    private func publishUpcomingTasks() {
+        upcomingTasks = waitingJobs.map { snapshot(for: $0, phase: .upcoming) }
+    }
+
+    /// Inserts newly queued work into its normal priority group without disturbing any
+    /// explicit ordering the person has already established by dragging pending tasks.
+    private func defaultInsertionIndex(for priority: ModelTaskPriority) -> Int {
+        guard priority == .foreground else {
+            return waitingJobs.endIndex
+        }
+
+        if let lastForegroundIndex = waitingJobs.lastIndex(where: {
+            $0.priority == .foreground
+        }) {
+            return waitingJobs.index(after: lastForegroundIndex)
+        }
+
+        return waitingJobs.firstIndex(where: {
+            $0.priority == .background
+        }) ?? waitingJobs.endIndex
+    }
+
+    private func scheduleCompletedTasksClearIfIdle() {
+        guard !isBusy, !completedTasks.isEmpty else { return }
+
+        completedTasksClearTask?.cancel()
+        completedTasksClearTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(700))
+            guard !Task.isCancelled, let self, !self.isBusy else { return }
+            self.completedTasks.removeAll()
+            self.completedTasksClearTask = nil
+        }
+    }
+
+    private func snapshot(for job: Job, phase: ModelTaskPhase) -> ModelTaskSnapshot {
+        ModelTaskSnapshot(
+            id: job.id,
+            kind: job.kind,
+            originPage: job.originPage,
+            conversationID: job.conversationID,
+            phase: phase,
+            funStatusText: job.funStatusText,
+            funLoadingStatusText: job.funLoadingStatusText
+        )
+    }
+}

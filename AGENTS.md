@@ -1,4 +1,4 @@
-# Angrove iOS repository guide
+# Angrove multiplatform repository guide
 
 This is the canonical instruction file for coding agents. `CLAUDE.md` imports it so Claude Code
 and Codex follow the same project guidance. Keep this file short: it routes work; it does not
@@ -16,12 +16,19 @@ duplicate architecture specifications.
 | iOS composition, ownership, and persistence | [`Documentation/App-Architecture.md`](Documentation/App-Architecture.md) |
 | LiteRT runtime or model recovery | [`Documentation/Model-Runtime.md`](Documentation/Model-Runtime.md) |
 | Builds, tests, device work, or Figma | [`Documentation/Development-Workflow.md`](Documentation/Development-Workflow.md) |
+| Native macOS port | [`Documentation/Mac-Port.md`](Documentation/Mac-Port.md), then the shared feature contracts |
 | Study mode | [`Documentation/Study-Tool.md`](Documentation/Study-Tool.md) |
 | Gemma 4 E4B QAT migration | [`Documentation/Gemma4-E4B-QAT-Plan.md`](Documentation/Gemma4-E4B-QAT-Plan.md), then its [progress ledger](Documentation/Gemma4-E4B-QAT-Progress.md) |
 
 ## Non-negotiable rules
 
 - Preserve unrelated and uncommitted work. Do not reset, discard, or overwrite it.
+- The owner's everyday Mac app is `/Applications/Angrove.app`. After completing a Mac
+  app change, use `bash Tools/install-local-mac.sh` to update that same signed app before
+  handoff. Do not leave the latest usable build only in DerivedData or launch another
+  normal build copy. Keep isolated previews separate. Preserve running work: quit normally
+  before installing, and report explicitly if installation is still pending. See
+  [`Documentation/Mac-Port.md`](Documentation/Mac-Port.md#normal-local-app).
 - Before installing a special build on the owner's physical phone from any worktree other
   than `~/Developer/Aquinas-iOS-main` on `main`, set its visible app name to
   `<current main app name> – <work name>` and verify the exact signed app's
@@ -52,9 +59,15 @@ duplicate architecture specifications.
 
 ## Working conventions
 
-- The app source lives in `Angrove-iOS/`; focused tests are in `Angrove-iOSTests/`.
+- One canonical checkout at `~/Developer/Aquinas-iOS-main` owns both native app targets.
+- iPhone-only code lives in `iOS/`; Mac-only code lives in `macOS/`; code and resources
+  compiled by both apps live in `Shared/`. Read `Documentation/Workspace-Layout.md`.
+- Focused tests remain in `Angrove-iOSTests/` and `Angrove-macOSTests/`.
+- The old `~/Developer/Archive/Worktrees/Aquinas-iOS-mac` worktree is preserved for recovery, not automatic
+  sharing. Do not implement new platform work there for this unified workflow.
 - Prefer small SwiftUI views with narrow inputs. Keep feature code under
-  `Angrove-iOS/Features/<Feature>/` and shared visual primitives under `DesignSystem/`.
+  `iOS/Features/<Feature>/` or `macOS/Features/<Feature>/`, with common features under
+  `Shared/Features/` and common visual primitives under `Shared/DesignSystem/`.
 - Add behavior-oriented regression coverage for logic with meaningful regression risk.
 - Before handing off a visible change, inspect small-phone layouts, light/dark appearance,
   navigation, and empty states as applicable.
@@ -62,6 +75,15 @@ duplicate architecture specifications.
   tree changes, verify both the global library canvas and the persisted conversation tree.
 
 ## Standard verification
+
+For shared-source changes, verify both app targets. The Mac command is:
+
+```sh
+xcodebuild -project Angrove-iOS.xcodeproj -scheme Angrove-macOS \
+  -destination 'platform=macOS,arch=arm64' \
+  -derivedDataPath build/workspace-layout-mac CODE_SIGNING_ALLOWED=NO build
+```
+
 
 Run from the repository root. Always use a concrete arm64 simulator; the bundled LiteRT framework
 does not support the generic simulator destination.

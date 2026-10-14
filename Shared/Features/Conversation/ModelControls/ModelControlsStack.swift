@@ -1,0 +1,461 @@
+//
+//  ModelControlsStack.swift
+//  Angrove-iOS
+//
+
+import SwiftUI
+
+/// Bottom-anchored vertical composition shared by every model-control surface.
+/// Its middle position is intentionally reserved for the upcoming notification cards.
+struct ModelControlsStack<Controls: View>: View {
+    let showsScrollToBottom: Bool
+    let onScrollToBottom: () -> Void
+    let contextCard: ContextCardState?
+    let contextWordCount: Int
+    let contextWordLimit: Int
+    let canCompactContext: Bool
+    let onCompactContext: () async -> Bool
+    let onClearConversation: () -> Void
+    let modelTasksPopupState: ModelTasksPopupState?
+    let modelTasks: ModelTaskQueue?
+    let supplementalPopupIsOpen: Bool
+    let supplementalPopup: AnyView?
+    let confirmationTitle: String?
+    let onConfirm: () -> Void
+    let onDecline: () -> Void
+    let dockedCard: ModelControlsDockedCard?
+    let controlsUpdateKey: String
+    let controls: Controls
+    @Environment(\.modelCompletionNotifications) private var completionNotifications
+    private var speech = ResponseSpeechPlayer.shared
+    @State private var controlsWidth: CGFloat = 315
+    @State private var controlsScale: CGFloat = 1
+    @State private var hasMeasuredControls = false
+    @State private var controlsPulseTask: Task<Void, Never>?
+
+    init(
+        showsScrollToBottom: Bool = false,
+        onScrollToBottom: @escaping () -> Void = {},
+        contextCard: ContextCardState? = nil,
+        contextWordCount: Int = 0,
+        contextWordLimit: Int = angroveContextWindowLimit,
+        canCompactContext: Bool = false,
+        onCompactContext: @escaping () async -> Bool = { false },
+        onClearConversation: @escaping () -> Void = {},
+        modelTasksPopupState: ModelTasksPopupState? = nil,
+        modelTasks: ModelTaskQueue? = nil,
+        supplementalPopupIsOpen: Bool = false,
+        supplementalPopup: AnyView? = nil,
+        confirmationTitle: String? = nil,
+        onConfirm: @escaping () -> Void = {},
+        onDecline: @escaping () -> Void = {},
+        dockedCard: ModelControlsDockedCard? = nil,
+        controlsUpdateKey: String = "",
+        @ViewBuilder controls: () -> Controls
+    ) {
+        self.showsScrollToBottom = showsScrollToBottom
+        self.onScrollToBottom = onScrollToBottom
+        self.contextCard = contextCard
+        self.contextWordCount = contextWordCount
+        self.contextWordLimit = contextWordLimit
+        self.canCompactContext = canCompactContext
+        self.onCompactContext = onCompactContext
+        self.onClearConversation = onClearConversation
+        self.modelTasksPopupState = modelTasksPopupState
+        self.modelTasks = modelTasks
+        self.supplementalPopupIsOpen = supplementalPopupIsOpen
+        self.supplementalPopup = supplementalPopup
+        self.confirmationTitle = confirmationTitle
+        self.onConfirm = onConfirm
+        self.onDecline = onDecline
+        self.dockedCard = dockedCard
+        self.controlsUpdateKey = controlsUpdateKey
+        self.controls = controls()
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            if let completionNotifications {
+                ForEach(completionNotifications.notifications) { notification in
+                    Group {
+                        if notification.kind == .pageReturn {
+                            ModelControlsConfirmationPill(
+                                title: notification.title,
+                                width: controlsWidth,
+                                onConfirm: { completionNotifications.open(id: notification.id) },
+                                onDecline: { completionNotifications.dismiss(id: notification.id) },
+                                iconName: (notification.returnPage ?? .conversation).sidebarIconName,
+                                showsControlBorder: true
+                            )
+                        } else {
+                            ModelCompletionNotificationPill(
+                                title: notification.title,
+                                kind: notification.kind,
+                                width: controlsWidth,
+                                onOpen: { completionNotifications.open(id: notification.id) },
+                                onDismiss: { completionNotifications.dismiss(id: notification.id) }
+                            )
+                        }
+                    }
+                    .transition(.bottomDockCard)
+                }
+            }
+
+            if let confirmationTitle {
+                ModelControlsConfirmationPill(
+                    title: confirmationTitle,
+                    width: controlsWidth,
+                    onConfirm: onConfirm,
+                    onDecline: onDecline,
+                    showsControlBorder: true
+                )
+                .transition(.bottomDockCard)
+            }
+
+            if let contextCard, contextCard.isOpen {
+                ContextControlsStackCard(
+                    contextCard: contextCard,
+                    wordCount: contextWordCount,
+                    wordLimit: contextWordLimit,
+                    canCompact: canCompactContext,
+                    onCompactContext: onCompactContext,
+                    onClearConversation: onClearConversation
+                )
+            } else if supplementalPopupIsOpen, let supplementalPopup {
+                supplementalPopup
+                    .transition(.bottomDockCard)
+            } else if let modelTasksPopupState,
+                      modelTasksPopupState.isOpen,
+                      let modelTasks {
+                ModelTasksCard(modelTasks: modelTasks, popupState: modelTasksPopupState)
+                    .transition(.bottomDockCard)
+            } else if speech.occupiesCardSlot, speech.showsReader {
+                ReadingControlsCard()
+                    .transition(.bottomDockCard)
+            } else if let dockedCard {
+                dockedCard.view
+                    #if os(macOS)
+                    // Cards can grow independently of the controls pill within the pane.
+                    .frame(maxWidth: AngroveTheme.Spacing.insightCardMaxWidth)
+                    .fixedSize(horizontal: false, vertical: true)
+                    #endif
+                    .transition(.bottomDockCard)
+            }
+
+            // The collapsed strip shares the stack with any other card, always just above the pill.
+            if speech.isReadingCardOpen, speech.isReadingCardCollapsed, speech.showsReader {
+                ReadingControlsCard()
+                    .transition(.bottomDockCard)
+            }
+
+            controls
+                .scaleEffect(controlsScale)
+                .background {
+                    GeometryReader { geometry in
+                        Color.clear.preference(
+                            key: ModelControlsWidthPreferenceKey.self,
+                            value: geometry.size.width
+                        )
+                    }
+                }
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .overlay(alignment: .top) {
+            if showsScrollToBottom {
+                ScrollToBottomStackButton(action: onScrollToBottom)
+                    // Keep transient scroll state out of the dock's measured height and
+                    // the conversation's reserved bottom inset. Offset (not an alignment
+                    // guide, which the overlay ignored) so it sits one stack gap above the
+                    // topmost card, matching the VStack's spacing.
+                    .offset(y: -(ScrollToBottomStackButton.size + 16))
+                    .transition(.bottomDockCard)
+            }
+        }
+        .onPreferenceChange(ModelControlsWidthPreferenceKey.self) { width in
+            guard width > 0, abs(controlsWidth - width) > 0.5 else { return }
+            let shouldPulseForSizeChange = hasMeasuredControls
+            hasMeasuredControls = true
+            controlsWidth = width
+            if shouldPulseForSizeChange {
+                pulseControls()
+            }
+        }
+        .onChange(of: controlsUpdateKey) { _, _ in
+            pulseControls()
+        }
+        // Another card opening takes the stack from the Reading card.
+        .onChange(of: modelTasksPopupState?.isOpen == true) { _, isOpen in
+            if isOpen, speech.occupiesCardSlot { speech.isReadingCardOpen = false }
+        }
+        .onChange(of: contextCard?.isOpen == true) { _, isOpen in
+            if isOpen, speech.occupiesCardSlot { speech.isReadingCardOpen = false }
+        }
+        // A docked Insight card takes the slot the expanded Reading card holds.
+        .onChange(of: dockedCard?.key) { _, key in
+            if key != nil, speech.occupiesCardSlot { speech.isReadingCardOpen = false }
+        }
+        // Expanding the card claims the slot from whatever was open beside the strip.
+        .onChange(of: speech.isReadingCardCollapsed) { _, isCollapsed in
+            guard !isCollapsed, speech.isReadingCardOpen else { return }
+            contextCard?.reset()
+            modelTasksPopupState?.isOpen = false
+        }
+        .onDisappear {
+            controlsPulseTask?.cancel()
+        }
+        .animation(
+            .springStandard,
+            value: showsScrollToBottom
+        )
+        .animation(
+            .springStandard,
+            value: contextCard?.isOpen == true
+        )
+        .animation(
+            .springStandard,
+            value: modelTasksPopupState?.isOpen == true
+        )
+        .animation(
+            .springStandard,
+            value: supplementalPopupIsOpen
+        )
+        .animation(
+            .springStandard,
+            value: speech.isReadingCardOpen
+        )
+        .animation(
+            .springStandard,
+            value: speech.isReadingCardCollapsed
+        )
+        .animation(
+            .springStandard,
+            value: completionNotifications?.notifications.map(\.id) ?? []
+        )
+        .animation(
+            .springStandard,
+            value: confirmationTitle
+        )
+        // Docked cards arrive through a preference, which drops the page's transaction;
+        // animate their changes here instead.
+        .animation(.springStandard, value: dockedCard?.key)
+    }
+
+    private func pulseControls() {
+        controlsPulseTask?.cancel()
+        withAnimation(.springLively) {
+            controlsScale = 1.05
+        }
+        controlsPulseTask = Task {
+            try? await Task.sleep(for: .milliseconds(180))
+            guard !Task.isCancelled else { return }
+            withAnimation(.springLively) {
+                controlsScale = 1
+            }
+        }
+    }
+}
+
+private struct ModelControlsConfirmationPill: View {
+    let title: String
+    let width: CGFloat
+    let onConfirm: () -> Void
+    let onDecline: () -> Void
+    var iconName: String = "point.3.connected.trianglepath.dotted"
+    var showsControlBorder: Bool = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: iconName)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(AngroveTheme.Colors.lightGreen)
+                    .sfSymbolDrawOn()
+                    .frame(width: 18, height: 18)
+
+                Text(title)
+                    .font(AngroveTheme.Typography.uiLabel)
+                    .foregroundStyle(AngroveTheme.Colors.headingText)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 12) {
+                Button("Yes", action: onConfirm)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .accessibilityLabel("Confirm \(title)")
+
+                Button("No", action: onDecline)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .accessibilityLabel("Decline \(title)")
+            }
+            .font(BrandTypography.font("Figtree-Bold", size: 12))
+            .foregroundStyle(AngroveTheme.Colors.headingText)
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 20)
+        .frame(width: width, height: 50)
+        .background(AngroveTheme.Colors.canvasSecondary)
+        .clipShape(Capsule())
+        .overlay {
+            Capsule().stroke(
+                AngroveTheme.Colors.controlBorder.opacity(showsControlBorder ? 1 : 0),
+                lineWidth: 1
+            )
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct ModelControlsWidthPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 315
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct ScrollToBottomStackButton: View {
+    static let size: CGFloat = 24
+
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "arrow.down")
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundColor(AngroveTheme.Colors.onAccent)
+                .frame(width: Self.size, height: Self.size)
+                .background(AngroveTheme.Colors.lightBrown)
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Scroll to bottom")
+    }
+}
+
+// MARK: - Model Status Button
+
+struct ModelStatusButton: View {
+    let modelTasks: ModelTaskQueue
+    let action: () -> Void
+    var controlIsPressed: Binding<Bool> = .constant(false)
+    /// Allows non-model background work (such as Global Insight Tree reconciliation) to use the
+    /// same activity affordance without acquiring a model-runtime lease.
+    var statusOverride: String? = nil
+
+    private var isActive: Bool {
+        modelTasks.isBusy || statusOverride != nil
+    }
+
+    private var totalTaskCount: Int {
+        modelTasks.totalCount
+    }
+
+    private var currentTaskNumber: Int {
+        min(modelTasks.currentPosition, max(totalTaskCount, 1))
+    }
+
+    private var activeStatusText: String {
+        if let statusOverride { return statusOverride }
+        if modelTasks.isRuntimeLoading {
+            return modelTasks.currentTask?.funLoadingStatusText
+                ?? String(localized: "Loading...")
+        }
+        return modelTasks.currentTask?.funStatusText
+            ?? modelTasks.currentTask?.kind.standardStatusText
+            ?? String(localized: "Thinking...")
+    }
+
+    private var accessibleActiveStatusText: String {
+        if let statusOverride { return statusOverride }
+        if modelTasks.isRuntimeLoading {
+            return String(localized: "Loading...")
+        }
+        return modelTasks.currentTask?.kind.standardStatusText
+            ?? String(localized: "Thinking...")
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                if isActive && totalTaskCount > 1 {
+                    ModelTaskCounter(
+                        currentTaskNumber: currentTaskNumber,
+                        totalTaskCount: totalTaskCount
+                    )
+                        .transition(.scale(scale: 0.8).combined(with: .opacity))
+                }
+
+                if isActive {
+                    BlurSwapText(activeStatusText)
+                        .fixedSize(horizontal: statusOverride != nil, vertical: false)
+                        .modifier(
+                            ThinkingShimmer(
+                                isActive: true,
+                                color: AngroveTheme.Colors.lightGreen
+                            )
+                        )
+                        .transition(.blurFade)
+                } else {
+                    Text("Idle")
+                        .foregroundColor(AngroveTheme.Colors.paragraphText)
+                        .transition(.blurFade)
+                }
+            }
+            .font(BrandTypography.font("Figtree-SemiBold", size: 14))
+            .foregroundColor(AngroveTheme.Colors.lightGreen)
+            .frame(minHeight: 21)
+            .contentShape(Rectangle())
+            .animation(.easeInOut(duration: 0.25), value: isActive)
+            .animation(.springQuick, value: totalTaskCount)
+            .animation(.springQuick, value: currentTaskNumber)
+        }
+        .buttonStyle(FloatingControlButtonStyle(isPressed: controlIsPressed))
+        .accessibilityLabel(accessibilityStatus)
+    }
+
+    private var accessibilityStatus: String {
+        guard isActive else { return String(localized: "Model status: Idle") }
+        guard totalTaskCount > 1 else {
+            return String(localized: "Model status: \(accessibleActiveStatusText)")
+        }
+        return String(
+            localized: "Model status: task \(currentTaskNumber) of \(totalTaskCount), \(accessibleActiveStatusText)"
+        )
+    }
+
+}
+
+struct FloatingControlPressFeedback: ViewModifier {
+    let isButtonPressed: Bool
+    @GestureState private var isPressed = false
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(isPressed || isButtonPressed ? 1.05 : 1)
+            .animation(
+                .springLively,
+                value: isPressed || isButtonPressed
+            )
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .updating($isPressed) { _, isPressed, _ in
+                        isPressed = true
+                    }
+            )
+    }
+}
+
+struct FloatingControlButtonStyle: ButtonStyle {
+    @Binding var isPressed: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .onChange(of: configuration.isPressed) { _, newValue in
+                isPressed = newValue
+            }
+    }
+}
