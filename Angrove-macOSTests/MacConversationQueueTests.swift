@@ -395,7 +395,7 @@ struct MacResponseRevealTests {
                               styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentView = host
-        defer { window.close() }
+        defer { window.contentView = nil; window.close() }
         host.frame = NSRect(x: 0, y: 0, width: 500, height: 600)
         host.layoutSubtreeIfNeeded()
         try await Task.sleep(for: .milliseconds(150))
@@ -407,7 +407,12 @@ struct MacResponseRevealTests {
         #expect(state.visible > 1)
         #expect(state.visible < 200)
         #expect(!state.finished)
-        try await Task.sleep(for: .seconds(2))
+        // Completion includes a final animation callback. Wait for the observed
+        // result rather than assuming the main actor runs it at an exact deadline.
+        let deadline = ContinuousClock.now.advanced(by: .seconds(8))
+        while !state.finished && ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
         #expect(state.visible == 200)
         #expect(state.finished)
     }

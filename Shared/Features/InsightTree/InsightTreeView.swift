@@ -397,7 +397,7 @@ struct InsightTreeView: View {
                     .offset(y: dockedCardDragY)
                     .gesture(dockedCardDismissGesture)
                     .transition(.bottomDockCard)
-                    .frame(maxWidth: AngroveTheme.Spacing.insightCardMaxWidth)
+                    .insightCardSizing()
                     .padding(.horizontal, dockedCardSideInset)
                 } else if showsDockedCardAfterStudy, let selectedInsight {
                     DockedInsightTreeCard(
@@ -420,7 +420,7 @@ struct InsightTreeView: View {
                     .offset(y: dockedCardDragY)
                     .gesture(dockedCardDismissGesture)
                     .transition(.bottomDockCard)
-                    .frame(maxWidth: AngroveTheme.Spacing.insightCardMaxWidth)
+                    .insightCardSizing()
                     .padding(.horizontal, dockedCardSideInset)
                 } else if showsDockedCardAfterStudy, let selectedNode {
                     // Selection keeps an identity snapshot; show the live node so a background
@@ -444,7 +444,7 @@ struct InsightTreeView: View {
                     .offset(y: dockedCardDragY)
                     .gesture(dockedCardDismissGesture)
                     .transition(.bottomDockCard)
-                    .frame(maxWidth: AngroveTheme.Spacing.insightCardMaxWidth)
+                    .insightCardSizing()
                     .padding(.horizontal, dockedCardSideInset)
                 }
             }

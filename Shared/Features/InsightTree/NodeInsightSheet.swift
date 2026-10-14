@@ -77,5 +77,6 @@ struct InsightTreeInsightCard: View {
                 .stroke(AngroveTheme.Colors.brownBorder, lineWidth: 1)
         )
         .cardGlow(yOffset: 16)
+        .insightCardSizing(mobileMaxWidth: .infinity)
     }
 }

@@ -12,6 +12,9 @@ struct MacFloatingSidebar: View {
     let activeConversationID: UUID
     let openMenuID: UUID?
     let openMenu: (UUID) -> Void
+    let renamingConversationID: UUID?
+    let beginRename: (UUID) -> Void
+    let finishRename: (UUID, String?) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var initializedPresentation = false
     @State private var compactVisible = false
@@ -30,7 +33,9 @@ struct MacFloatingSidebar: View {
                                    conversations: conversations, loadingBranchIDs: loadingBranchIDs, openConversation: openConversation,
                                    newConversation: newConversation, openPreview: openPreview,
                                    activeConversationID: activeConversationID, openMenuID: openMenuID, openMenu: openMenu,
-                                   isPresented: initializedPresentation ? expandedPresented : !isCompact)
+                                   isPresented: initializedPresentation ? expandedPresented : !isCompact,
+                                   renamingConversationID: renamingConversationID,
+                                   beginRename: beginRename, finishRename: finishRename)
                     .frame(width: max(MacSidebarLayout.minimumWidth, geometry.size.width))
                     .opacity((initializedPresentation ? expandedPresented : !isCompact) ? 1 : 0)
                     .allowsHitTesting(!isCompact && expandedPresented)
@@ -85,12 +90,15 @@ private struct MacExpandedSidebar: View {
     let openMenuID: UUID?
     let openMenu: (UUID) -> Void
     let isPresented: Bool
+    let renamingConversationID: UUID?
+    let beginRename: (UUID) -> Void
+    let finishRename: (UUID, String?) -> Void
 
     var body: some View {
         VStack(spacing: 20) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    studying
+                    logo
                         .modifier(MacSidebarEntrance(isPresented: isPresented, delay: 0.15, duration: 0.32, offset: 24))
                     navigation
                     ornament
@@ -108,19 +116,13 @@ private struct MacExpandedSidebar: View {
         .padding(.top, MacSidebarLayout.contentTopInset - MacSidebarLayout.contentInset)
     }
 
-    private var studying: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("CURRENTLY STUDYING")
-                .font(AngroveTheme.Typography.uiLabel)
-                .foregroundStyle(AngroveTheme.Colors.lightGreen)
-                .frame(height: 18)
-            Text(showsFixture ? "What is The Didache?" : "A New Conversation")
-                .font(BrandTypography.font("LibreBaskerville-Regular", size: 28))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .foregroundStyle(AngroveTheme.Colors.headingText)
-                .frame(maxWidth: .infinity, minHeight: 35, alignment: .leading)
-        }
+    private var logo: some View {
+        Image("AngroveLogo")
+            .resizable()
+            .scaledToFit()
+            .frame(maxWidth: 150)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityLabel("Angrove")
     }
 
     private var navigation: some View {
@@ -255,7 +257,10 @@ private struct MacExpandedSidebar: View {
                     isSelected: selection == .conversations && activeConversationID == conversation.id,
                     isMenuOpen: openMenuID == conversation.id,
                     isLoading: !loadingBranchIDs.isDisjoint(with: conversation.branches.map(\.id)),
-                    onOpen: { openConversation(conversation.id) }, onMenu: { openMenu(conversation.id) })
+                    onOpen: { openConversation(conversation.id) }, onMenu: { openMenu(conversation.id) },
+                    isRenaming: renamingConversationID == conversation.id,
+                    onRename: { beginRename(conversation.id) },
+                    onFinishRename: { finishRename(conversation.id, $0) })
                     .modifier(MacSidebarEntrance(isPresented: isPresented, delay: 0.20 + Double(index) * 0.05))
             }
         }.font(AngroveTheme.Typography.body).foregroundStyle(AngroveTheme.Colors.paragraphText)

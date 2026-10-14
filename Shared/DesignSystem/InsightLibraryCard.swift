@@ -88,7 +88,6 @@ struct InsightLibraryCard: View {
             }
         }
         .padding(28)
-        .frame(maxWidth: maxWidth)
         .background(AngroveTheme.Colors.canvasSecondary, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
@@ -101,6 +100,7 @@ struct InsightLibraryCard: View {
             x: 0,
             y: 16
         )
+        .insightCardSizing(mobileMaxWidth: maxWidth)
         .onChange(of: isReadingInsight) { _, isReading in
             guard !isReading, !isPreparingSpeech, hidesActionsForSpeech else { return }
             withAnimation(.easeOut(duration: 0.2)) { hidesActionsForSpeech = false }

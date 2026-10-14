@@ -5,6 +5,76 @@
 
 # Native Mac port
 
+### Recent-page navigation — October 14, 2026
+
+Command-Shift-T opens the global Insight Tree. Command-R moves to the previous
+recent page; Command-Shift-R moves forward. The session retains five distinct pages,
+including each conversation separately, Home, global Insights and Study Topics.
+The embedded conversation tree belongs to its conversation page. Traversing history
+does not reorder it; visiting a page or acting there moves it to newest, shifts the
+others down and retains them. Repeated actions do not create duplicate entries.
+Commands are disabled at either end of history, and deleted conversations are removed.
+
+Sidebar, slash-command, task-card, reading-card and keyboard navigation share the same
+routing. Unsent conversation drafts remain available when switching pages within the
+session. Native clicks and typing within page content promote that page; explicit
+control callbacks also cover accessibility activation of search, queue and tree tools.
+Background model activity does not count as page interaction.
+
+The signed Release update is installed at `/Applications/Angrove.app`. Native dark-mode
+checks verified global navigation, backward and forward traversal, promoting the
+third-most-recent global tree by opening search while retaining the intervening pages,
+and an unsent draft surviving a global-tree round trip. The draft was cleared without
+submission and the original saved conversation restored. Light appearance was not
+separately inspected for this keyboard/navigation change.
+
+Five history regressions and the existing shortcut suite pass. A full rerun passed all
+77 Mac tests; another full run with the final control callbacks passed 76 and exposed
+the existing `finalBatchContinuesRevealingBeforeReportingCompletion` timing flake. That
+test and all history/shortcut checks passed together in the final focused run (10 tests).
+Logs: `/tmp/angrove-history-tests-retry.log`, `/tmp/angrove-history-semantic-tests.log`,
+`/tmp/angrove-history-focused-final.log`, `/tmp/angrove-history-install-final.log`.
+
+### Workspace keyboard shortcuts — October 14, 2026
+
+The Mac menus expose Command-N for a new conversation, Command-Return to reveal and
+focus the question composer, Command-T to open the current conversation’s Insight Tree,
+Command-S to swap the conversation/tree panes, and Command-P to toggle their pinned
+layout. Swap and Pin first open a closed secondary pane; focusing a minimized conversation
+reveals it. Existing drafts remain intact when focusing or selecting the same conversation.
+
+Command-1 through Command-9 select saved conversations in the existing Recents order
+before pin prioritization, excluding study-topic containers. Unavailable positions are
+disabled. Command-M opens the existing process-shared Model Tasks popup in the main pane
+or global Insights workspace. Minimize moves to Shift-Command-M. Commands target the
+workspace scene, with no live runtime or personal-store creation in the command menu.
+
+All 68 Mac tests passed, including four new shortcut regressions and a mounted native
+editor focus/draft/no-submission check. Signed Release build and installation at
+`/Applications/Angrove.app` succeeded. Native dark-mode checks verified Command-N,
+Command-Return followed by typing, Command-T, Command-S, Command-P, Command-M, and
+Command-1/2 against the two saved conversations. The verification draft was cleared
+without submission and the original conversation was restored. Positions 3–9 and empty
+recents are covered by tests; light appearance was not separately inspected for this
+keyboard-only change. Logs: `/tmp/angrove-hotkeys-tests.log` and
+`/tmp/angrove-hotkeys-install.log`.
+
+
+### Inline sidebar renaming — October 14, 2026
+
+Double-click a saved conversation title in Recents to select its full name and edit it
+in place. Return or clicking outside saves; Escape cancels. Empty names preserve the
+existing title. The conversation menu's Rename action opens the same editor. Single
+clicks continue opening conversations, and renaming uses the existing metadata save path.
+
+Mac Debug/Release builds and all ten focused sidebar action/editor tests passed, including
+mounted editor selection, initial focus, Return, Escape and narrow light/dark rendering.
+The signed update was installed at `/Applications/Angrove.app`. Native interaction verified
+double-click selection, immediate text replacement, Escape restoring the original title,
+and Return exiting editing. The verification draft was discarded.
+Logs: `/tmp/angrove-inline-rename-tests.log` and `/tmp/angrove-inline-rename-install.log`.
+
+
 ### Compact stagger and conversation loading — October 13, 2026
 
 The compact rail fades its logo and navigation items in from top to bottom, using
@@ -873,3 +943,22 @@ Conversation response paragraphs, the sidebar menu, and native question editor n
 `MacConversationStyle.bodyFontSize`. They use the existing 13-point Mac typography baseline.
 Release build passed and the signed update was installed at `/Applications/Angrove.app` and
 reopened. Log: `/tmp/angrove-paragraph-size-install.log`.
+
+### Shared resizable Insight card width — October 14, 2026
+
+Desktop Insight cards start at 400 points and resize between 400 and 600 points from
+12-point targets inside either side edge, excluding the rounded corners. AppKit supplies
+the horizontal resize cursor. Cards stay centered while dragging; native event coordinates
+keep the drag stable as the edge moves. A single `macInsightCardWidth` preference applies
+to tree popups, definition sheets, inline definitions, and subsequent cards across launches.
+Narrow panes constrain the visible width down to 400 without overwriting the preference.
+iPhone retains its existing width cap and has no resize handles.
+
+Mac Debug tests and signed Release build passed; four focused regressions cover edge
+directions, limits, narrow panes, native mouse input and new-card preference reuse.
+The iPhone 17 simulator build passed. Native dark appearance checks in the installed app
+verified both edges at 400/500/600 points and a different saved Insight opening at 600
+after relaunch. Light appearance preview could not be inspected because Computer Use
+timed out for the isolated unsigned preview. The signed update was installed at
+`/Applications/Angrove.app`. Logs: `/tmp/angrove-card-resize-native-tests.log`,
+`/tmp/angrove-card-resize-ios.log`, `/tmp/angrove-card-resize-install-verified.log`.

@@ -65,21 +65,12 @@ struct AngroveSideMenu: View, Equatable {
             ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 24) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("CURRENT TOPIC")
-                            .font(.custom("Figtree-Bold", size: 12))
-                            .foregroundColor(AngroveTheme.Colors.lightGreen)
-
-                        Text(currentTitle)
-                            .font(.custom("LibreBaskerville-Regular", size: 28))
-                            .lineSpacing(8)
-                            .foregroundColor(AngroveTheme.Colors.headingText)
-                            .multilineTextAlignment(.leading)
-                            .lineLimit(2)
-                            .truncationMode(.tail)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
+                    Image("AngroveLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 150)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityLabel("Angrove")
                         .opacity(showsTitle ? 1 : 0)
                         .offset(x: showsTitle ? 0 : -24)
 

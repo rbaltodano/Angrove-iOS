@@ -9,10 +9,12 @@ struct MacGlobalInsightWorkspace: View {
     @State private var askConcept: ConceptDefinition?
     @State private var showsConversationPicker = false
     private let runtime = MacApplicationRuntime.shared
+    var queuePopup: ModelTasksPopupState? = nil
+    var onActivity: () -> Void = {}
     var onAsk: (ConceptDefinition, UUID?) -> Void
 
     var body: some View {
-        MacInsightTreePane(session: session, controls: controls, runtime: runtime, isVisible: true, isGlobal: true)
+        MacInsightTreePane(session: session, controls: controls, runtime: runtime, isVisible: true, isGlobal: true, onActivity: onActivity)
             .compositingGroup()
             .background {
                 MacConversationDock(session: session, tree: controls, runtime: runtime, isCanvasMode: true,
@@ -20,7 +22,7 @@ struct MacGlobalInsightWorkspace: View {
                     isAsking: askConcept != nil, onAsk: { askConcept = controls.hoveredConcept },
                     onAskNew: { if let concept = askConcept { onAsk(concept, nil) } },
                     onAskExisting: { showsConversationPicker = true },
-                    onCancelAsk: { askConcept = nil })
+                    onCancelAsk: { askConcept = nil }, queuePopup: queuePopup, onActivity: onActivity)
             }
             .overlayPreferenceValue(ModelControlsPreferenceKey.self, alignment: .bottom) { configuration in
                 ModelControlsHost(configuration: configuration).zIndex(2)

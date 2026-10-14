@@ -34,6 +34,7 @@ struct AngroveMacApp: App {
         }
         .defaultSize(width: MacDesignPreview.compact ? 760 : 1_440, height: MacDesignPreview.compact ? 540 : 900)
         .windowStyle(.hiddenTitleBar)
+        .commands { MacWorkspaceCommands() }
         .restorationBehavior(MacDesignPreview.isEnabled || MacDesignPreview.compact ? .disabled : .automatic)
 
         Settings {

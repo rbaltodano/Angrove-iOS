@@ -9,6 +9,7 @@ struct MacInsightTreePane: View {
     let isVisible: Bool
     var isGlobal = false
     var cardsAtFrameBottom = false
+    var onActivity: () -> Void = {}
     @State private var hasMounted = false
 
     var body: some View {
@@ -34,7 +35,7 @@ struct MacInsightTreePane: View {
                     onQuoteInsight: { controls.hoveredConcept = $0 },
                     onSelectionStateChange: { controls.hasHover = $0 },
                     onInsightSelectionStateChange: { controls.hasInsightHover = $0 },
-                    onSelectedCanvasItemCountChange: { controls.selectedCount = $0 },
+                    onSelectedCanvasItemCountChange: { if $0 > 0 { onActivity() }; controls.selectedCount = $0 },
                     onPromotedInsightIDsChange: { session.promotedIDs = $0; if isGlobal && !session.isPreview { GlobalInsightPromotedIDsStore.save($0) } },
                     savedConceptIDs: session.savedIDs,
                     onToggleSavedConcept: session.toggleBookmark, onBookmarkConcepts: session.bookmark,
@@ -61,7 +62,6 @@ struct MacInsightTreePane: View {
         .overlayPreferenceValue(ModelControlsPreferenceKey.self, alignment: .bottom) { configuration in
             if cardsAtFrameBottom && isVisible, let card = configuration?.dockedCard {
                 card.view
-                    .frame(maxWidth: AngroveTheme.Spacing.insightCardMaxWidth)
                     .padding(24)
                     .animation(.springStandard, value: card.key)
             }

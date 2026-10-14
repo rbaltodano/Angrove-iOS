@@ -237,14 +237,12 @@ struct DockedNodeTreeCard: View {
 
             // Links to the concept's child / member insights.
             if showsChildInsights && !node.insights.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(Array(node.insights.enumerated()), id: \.element.id) { index, insight in
-                        if index < visibleInsightCount {
-                            DockedInsightLinkRow(insight: insight, onTap: onSelectInsight)
-                                .transition(.opacity)
-                        }
-                    }
-                }
+                DockedNodeInsightLinks(
+                    insights: node.insights,
+                    visibleInsightCount: visibleInsightCount,
+                    onSelectInsight: onSelectInsight
+                )
+                .id(node.id)
                 .padding(.top, 4)
             }
         }
@@ -271,6 +269,102 @@ struct DockedNodeTreeCard: View {
                 }
             }
         }
+    }
+}
+
+/// A node's member links stop growing after three rows. Scroll geometry controls the
+/// edge fades so the first and last links remain fully readable at either endpoint.
+private struct DockedNodeInsightLinks: View {
+    let insights: [InsightModel]
+    let visibleInsightCount: Int
+    let onSelectInsight: (InsightModel) -> Void
+
+    @State private var rowHeight: CGFloat = 20
+    @State private var scrollEdges = ScrollEdges()
+
+    private struct ScrollEdges: Equatable {
+        var hasContentAbove = false
+        var hasContentBelow = false
+    }
+
+    private var viewportHeight: CGFloat {
+        let count = min(3, visibleInsightCount)
+        return CGFloat(count) * rowHeight + CGFloat(max(0, count - 1)) * 12
+    }
+
+    var body: some View {
+        if insights.count > 3 {
+            ScrollView(.vertical, showsIndicators: false) {
+                DockedNodeInsightLinkRows(
+                    insights: insights,
+                    visibleInsightCount: visibleInsightCount,
+                    onSelectInsight: onSelectInsight,
+                    onMeasureRow: { rowHeight = $0 }
+                )
+            }
+            .frame(height: viewportHeight)
+            .scrollBounceBehavior(.basedOnSize)
+            .onScrollGeometryChange(for: ScrollEdges.self) { geometry in
+                let offset = geometry.contentOffset.y + geometry.contentInsets.top
+                let remaining = geometry.contentSize.height + geometry.contentInsets.top
+                    + geometry.contentInsets.bottom - geometry.containerSize.height - offset
+                return ScrollEdges(
+                    hasContentAbove: offset > 1,
+                    hasContentBelow: remaining > 1
+                )
+            } action: { _, edges in
+                scrollEdges = edges
+            }
+            .overlay(alignment: .top) {
+                DockedNodeScrollFade(isTop: true)
+                    .opacity(scrollEdges.hasContentAbove ? 1 : 0)
+            }
+            .overlay(alignment: .bottom) {
+                DockedNodeScrollFade(isTop: false)
+                    .opacity(scrollEdges.hasContentBelow ? 1 : 0)
+            }
+        } else {
+            DockedNodeInsightLinkRows(
+                insights: insights,
+                visibleInsightCount: visibleInsightCount,
+                onSelectInsight: onSelectInsight,
+                onMeasureRow: { rowHeight = $0 }
+            )
+        }
+    }
+}
+
+private struct DockedNodeInsightLinkRows: View {
+    let insights: [InsightModel]
+    let visibleInsightCount: Int
+    let onSelectInsight: (InsightModel) -> Void
+    let onMeasureRow: (CGFloat) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(insights.prefix(visibleInsightCount)) { insight in
+                DockedInsightLinkRow(insight: insight, onTap: onSelectInsight)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                        if height > 0 { onMeasureRow(height) }
+                    }
+                    .transition(.opacity)
+            }
+        }
+    }
+}
+
+private struct DockedNodeScrollFade: View {
+    let isTop: Bool
+
+    var body: some View {
+        LinearGradient(
+            colors: [insightTreeInsightColor, insightTreeInsightColor.opacity(0)],
+            startPoint: isTop ? .top : .bottom,
+            endPoint: isTop ? .bottom : .top
+        )
+        .frame(height: 20)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 

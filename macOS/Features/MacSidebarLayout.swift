@@ -45,27 +45,28 @@ struct MacSidebarToggle: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack(spacing: 0) {
-            Spacer(minLength: 0)
-            Button {
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: MacSidebarTransition.widthDuration)) {
-                    layout.toggleCompact()
+        if !layout.isCompact {
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+                Button {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: MacSidebarTransition.widthDuration)) {
+                        layout.toggleCompact()
+                    }
+                } label: {
+                    Image(systemName: "inset.filled.leftthird.rectangle")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
                 }
-            } label: {
-                Image(systemName: "inset.filled.leftthird.rectangle")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                    .frame(width: 24, height: 24)
-                    .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .accessibilityLabel("Collapse sidebar")
+                .help("Collapse sidebar")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(layout.isCompact ? "Expand sidebar" : "Collapse sidebar")
-            .help(layout.isCompact ? "Expand sidebar" : "Collapse sidebar")
+            .padding(.trailing, MacSidebarLayout.contentInset)
+            .frame(width: layout.width(in: windowWidth))
+            .padding(.top, 19) // 24-point button centered with the 14-point native controls at y=24.
         }
-        .padding(.trailing, MacSidebarLayout.contentInset)
-        // Leave room beside the three native buttons when the rail is compact.
-        .frame(width: max(layout.width(in: windowWidth), 140))
-        .padding(.top, 19) // 24-point button centered with the 14-point native controls at y=24.
     }
 }
 

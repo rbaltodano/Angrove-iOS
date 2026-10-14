@@ -136,7 +136,6 @@ struct ModelControlsStack<Controls: View>: View {
                 dockedCard.view
                     #if os(macOS)
                     // Cards can grow independently of the controls pill within the pane.
-                    .frame(maxWidth: AngroveTheme.Spacing.insightCardMaxWidth)
                     .fixedSize(horizontal: false, vertical: true)
                     #endif
                     .transition(.bottomDockCard)

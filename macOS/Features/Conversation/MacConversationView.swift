@@ -6,7 +6,7 @@ struct MacConversationView: View {
     let session: MacConversationState
     let onSend: () -> Void
     @Binding var question: String
-    @State private var offset: CGFloat = 0
+    var focusQuestionRequest = 0
     @State private var position = ScrollPosition()
     @State private var isQuestionFocused = false
     @StateObject private var slashQuery = SlashCommandQuery()
@@ -48,30 +48,16 @@ struct MacConversationView: View {
             }
             .scrollIndicators(.never)
             .scrollPosition($position)
-            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, newValue in
-                offset = newValue
-            }
-            .overlay(alignment: .top) {
-                if offset > 200 {
-                    ZStack(alignment: .top) {
-                        edgeFade(top: true)
-                            .ignoresSafeArea(.container, edges: .top)
-                        Text(showsFixture ? "Conversation Title" : session.title)
-                            .font(MacConversationStyle.pinnedTitle)
-                            .foregroundStyle(AngroveTheme.Colors.headingText)
-                            .padding(.top, 48)
-                    }
-                    .allowsHitTesting(false)
-                }
-            }
-            .overlay(alignment: .bottom) {
-                if !showsCommands && (offset > 200 || geometry.size.height < 700) { edgeFade(top: false) }
-            }
+            .modifier(MacConversationScrollChrome(title: showsFixture ? "Conversation Title" : session.title,
+                isCompact: geometry.size.height < 700, showsCommands: showsCommands))
             .task {
                 if showsFixture && MacDesignPreview.startsScrolled {
                     position.scrollTo(y: 323)
                 }
                 if session.quote != nil { focusComposer() }
+            }
+            .onChange(of: focusQuestionRequest, initial: true) { _, request in
+                if request > 0 { focusComposer() }
             }
             .onChange(of: session.quoteRequest) { _, _ in focusComposer() }
             .onChange(of: session.isComposerReady) { _, ready in
@@ -141,10 +127,11 @@ struct MacConversationView: View {
                         Text(text).font(AngroveTheme.Typography.body).foregroundStyle(AngroveTheme.Colors.placeholderText)
                     } else {
                         let run = session.responseRun(transcriptIndex: index)
-                        ModelResponseCard(title: "", fullText: text, shouldAnimateOnAppear: session.shouldRevealResponse(transcriptIndex: index),
-                            showsThinkingIntro: session.isPending(transcriptIndex: index) || session.presentation(transcriptIndex: index)?.showsThinking == true, isAwaitingResponse: text.isEmpty && session.isPending(transcriptIndex: index), isReceivingStream: !text.isEmpty && session.isPending(transcriptIndex: index),
+                        let presentation = MacConversationResponsePresentation(text: text, isPending: session.isPending(transcriptIndex: index))
+                        ModelResponseCard(title: "", fullText: presentation.visibleText, shouldAnimateOnAppear: session.shouldRevealResponse(transcriptIndex: index),
+                            showsThinkingIntro: session.isPending(transcriptIndex: index) || session.presentation(transcriptIndex: index)?.showsThinking == true, isAwaitingResponse: presentation.isAwaitingResponse, isReceivingStream: presentation.isWriting,
                             isQueuedForModel: session.isQueued(transcriptIndex: index),
-                            usesIncrementalStream: session.usesIncrementalResponse(transcriptIndex: index),
+                            usesIncrementalStream: false,
                             thinkingSummary: session.summary(transcriptIndex: index),
                             liveThought: session.liveThought(transcriptIndex: index),
                             thinkingDurationSeconds: session.thinkingDuration(transcriptIndex: index),
@@ -179,7 +166,10 @@ struct MacConversationView: View {
 
     private var composer: some View {
         VStack(alignment: .trailing, spacing: 12) {
-            if let concept = session.quote { quoteChip(concept, removable: true) }
+            if let concept = session.quote {
+                quoteChip(concept, removable: true)
+                    .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
+            }
             QuotedQuestionContainer(isEmpty: question.isEmpty,
                 lineHeight: MacConversationStyle.questionLineHeight,
                 fontName: MacConversationStyle.questionFontName,
@@ -225,7 +215,11 @@ struct MacConversationView: View {
             icon: concept.isLibraryQuote ? "books.vertical" : "text.bubble",
             isFilled: !removable, animatesAppearance: removable, showRemove: removable,
             onTap: { session.selectedDefinition = concept },
-            onRemove: session.removeQuote)
+            onRemove: {
+                withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .springLively) {
+                    session.removeQuote()
+                }
+            })
             .frame(maxWidth: MacConversationStyle.questionMaxWidth, alignment: .trailing)
     }
 
@@ -233,9 +227,52 @@ struct MacConversationView: View {
         position.scrollTo(id: "question-composer", anchor: .center)
         isQuestionFocused = true
     }
+}
 
-    private func edgeFade(top: Bool) -> some View {
-        MacConversationEdgeFade(top: top)
+/// The Mac reveals the completed answer in one pass. Stream updates drive the
+/// Writing status without mounting independent paragraph reveal tasks.
+struct MacConversationResponsePresentation {
+    let text: String
+    let isPending: Bool
+
+    var visibleText: String { isPending ? "" : text }
+    var isAwaitingResponse: Bool { isPending }
+    var isWriting: Bool { isPending && !text.isEmpty }
+}
+
+/// Keep scroll observation below the transcript's update boundary. Only crossing
+/// the heading threshold changes state; pixel offsets never rebuild response cards.
+struct MacConversationScrollChrome: ViewModifier {
+    let title: String
+    let isCompact: Bool
+    let showsCommands: Bool
+    @State private var showsPinnedTitle = false
+
+    func body(content: Content) -> some View {
+        content
+            .onScrollGeometryChange(for: Bool.self) {
+                $0.contentOffset.y + $0.contentInsets.top > 200
+            } action: { _, isPastHeading in
+                showsPinnedTitle = isPastHeading
+            }
+            .overlay(alignment: .top) {
+                if showsPinnedTitle {
+                    ZStack(alignment: .top) {
+                        MacConversationEdgeFade(top: true)
+                            .ignoresSafeArea(.container, edges: .top)
+                        Text(title)
+                            .font(MacConversationStyle.pinnedTitle)
+                            .foregroundStyle(AngroveTheme.Colors.headingText)
+                            .padding(.top, 48)
+                    }
+                    .allowsHitTesting(false)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if !showsCommands && (showsPinnedTitle || isCompact) {
+                    MacConversationEdgeFade(top: false)
+                }
+            }
     }
 }
 
@@ -282,6 +319,7 @@ struct MacCommandEditor: NSViewRepresentable {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = AngroveTheme.Spacing.unit
         view.defaultParagraphStyle = paragraph
+        view.typingAttributes[.paragraphStyle] = paragraph
         return view
     }
 
@@ -351,6 +389,17 @@ struct MacCommandEditor: NSViewRepresentable {
 
         func refreshHighlight() {
             guard !hasMarkedText() else { return }
+            // Replacing `string` (draft restoration, command insertion, paste)
+            // can leave text storage without the default paragraph style.
+            // Apply it to existing text as well as future typing so wrapped
+            // questions retain the submitted question's line spacing.
+            if let paragraph = defaultParagraphStyle {
+                typingAttributes[.paragraphStyle] = paragraph
+                if let storage = textStorage, storage.length > 0 {
+                    storage.addAttribute(.paragraphStyle, value: paragraph,
+                                         range: NSRange(location: 0, length: storage.length))
+                }
+            }
             let token = string.split(whereSeparator: \.isWhitespace).first.map(String.init)
             let next = SlashCommand.invocation(for: string) != nil ? token?.lowercased() : nil
             if next != command {

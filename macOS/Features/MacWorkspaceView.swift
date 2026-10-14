@@ -47,10 +47,14 @@ struct MacWorkspaceView: View {
     @State private var sidebar = MacSidebarLayout()
     @State private var conversationMenuID: UUID?
     @State private var actionConversationID: UUID?
-    @State private var renameDraft = ""
-    @State private var showsRename = false
+    @State private var renamingConversationID: UUID?
     @State private var showsDelete = false
     @State private var topicConversation: InquiryConversation?
+    @State private var shortcutRequest: MacShortcutRequest?
+    @State private var paneShortcut: MacShortcutRequest?
+    @State private var queuePopup = ModelTasksPopupState()
+    @State private var history = MacPageHistory()
+    @State private var conversationDrafts: [UUID: String] = [:]
 
     var body: some View {
         if support.isSupported {
@@ -59,22 +63,21 @@ struct MacWorkspaceView: View {
             let loadingBranchIDs = Set(pendingTasks.compactMap { $0.kind.userQuestionBranchID })
             GeometryReader { geometry in
                 HStack(spacing: 0) {
-                    MacFloatingSidebar(selection: $selection, isCompact: sidebar.isCompact, showsFixture: showFixture,
+                    MacFloatingSidebar(selection: Binding(get: { selection }, set: { navigate(to: page(for: $0)) }), isCompact: sidebar.isCompact, showsFixture: showFixture,
                         conversations: conversations, loadingBranchIDs: loadingBranchIDs, openConversation: { id in
-                        pendingQuote = nil
-                        showFixture = false; conversationID = id; selection = .conversations
+                        navigate(to: MacWorkspacePage(destination: .conversations, conversationID: id))
                     }, newConversation: {
-                        showFixture = false
-                        pendingQuote = nil
-                        question = ""
-                        selection = .conversations
-                        conversationID = UUID()
+                        navigate(to: MacWorkspacePage(destination: .conversations, conversationID: UUID()))
                     }, openPreview: {
-                        showFixture = true
-                        selection = .conversations
-                        conversationID = UUID()
+                        navigate(to: MacWorkspacePage(destination: .conversations, conversationID: UUID(), isFixture: true))
                     }, activeConversationID: conversationID, openMenuID: conversationMenuID,
-                        openMenu: { conversationMenuID = conversationMenuID == $0 ? nil : $0 })
+                        openMenu: { conversationMenuID = conversationMenuID == $0 ? nil : $0 },
+                        renamingConversationID: renamingConversationID,
+                        beginRename: { conversationMenuID = nil; renamingConversationID = $0 },
+                        finishRename: { id, title in
+                            if renamingConversationID == id { renamingConversationID = nil }
+                            if let title { updateConversation(id, action: .rename(title)) }
+                        })
                     .frame(width: sidebar.width(in: geometry.size.width))
                     .clipped()
                     .overlay(alignment: .trailing) {
@@ -82,35 +85,36 @@ struct MacWorkspaceView: View {
                     }
                     .zIndex(3) // Navigation stays above workspace content and floating cards.
 
-                    if selection == .conversations {
-                        MacConversationWorkspace(showsFixture: showFixture, conversationID: conversationID, question: $question,
-                            initialQuote: pendingQuote, onInitialQuoteHandled: { pendingQuote = nil },
-                            onNewConversation: {
-                                pendingQuote = nil; question = ""; showFixture = false; conversationID = UUID()
-                            }, onOpenInsights: { selection = .insights })
-                            .id(conversationID)
-                    } else if selection == .insights {
-                        MacGlobalInsightWorkspace { concept, existingID in
-                            pendingQuote = concept
-                            var snapshot = CurrentConversationsStore.load() ?? InquiryPersistenceSnapshot(conversations: [], activeConversationID: nil)
-                            let targetID: UUID
-                            if let existingID { targetID = existingID }
-                            else {
-                                let conversation = InquiryConversation(branches: [ChatBranch(startingConcept: nil)])
-                                snapshot.conversations.append(conversation)
-                                targetID = conversation.id
-                                question = ""
+                    ZStack {
+                        if selection == .conversations {
+                            MacConversationWorkspace(showsFixture: showFixture, conversationID: conversationID, question: $question,
+                                shortcutRequest: $paneShortcut, queuePopup: queuePopup, onActivity: recordPageActivity,
+                                initialQuote: pendingQuote, onInitialQuoteHandled: { pendingQuote = nil },
+                                onNewConversation: {
+                                    navigate(to: MacWorkspacePage(destination: .conversations, conversationID: UUID()))
+                                }, onOpenInsights: { navigate(to: page(for: .insights)) })
+                                .id(conversationID)
+                        } else if selection == .insights {
+                            MacGlobalInsightWorkspace(queuePopup: queuePopup, onActivity: recordPageActivity) { concept, existingID in
+                                var snapshot = CurrentConversationsStore.load() ?? InquiryPersistenceSnapshot(conversations: [], activeConversationID: nil)
+                                let targetID: UUID
+                                if let existingID { targetID = existingID }
+                                else {
+                                    let conversation = InquiryConversation(branches: [ChatBranch(startingConcept: nil)])
+                                    snapshot.conversations.append(conversation)
+                                    targetID = conversation.id
+                                }
+                                snapshot.activeConversationID = targetID
+                                CurrentConversationsStore.save(snapshot)
+                                conversations = snapshot.conversations
+                                navigate(to: MacWorkspacePage(destination: .conversations, conversationID: targetID))
+                                pendingQuote = concept
                             }
-                            snapshot.activeConversationID = targetID
-                            CurrentConversationsStore.save(snapshot)
-                            conversations = snapshot.conversations
-                            conversationID = targetID
-                            showFixture = false
-                            selection = .conversations
+                        } else {
+                            MacDestinationView(destination: selection)
                         }
-                    } else {
-                        MacDestinationView(destination: selection)
                     }
+                    .background(MacPageActivityObserver(onActivity: recordPageActivity))
                 }
                 .coordinateSpace(name: "MacWorkspace")
                 .overlay(alignment: .topLeading) {
@@ -124,18 +128,20 @@ struct MacWorkspaceView: View {
                                                       anchors: anchors, onAction: handleConversationAction)
                 }
             }
+            .focusedSceneValue(\.macWorkspaceCommands, MacWorkspaceCommandTarget(
+                request: $shortcutRequest,
+                recentConversationIDs: MacWorkspaceCommandTarget.recentIDs(in: conversations),
+                canGoBack: history.canGoBack, canGoForward: history.canGoForward))
+            .onAppear { history.visit(currentPage) }
+            .onChange(of: shortcutRequest) { _, request in
+                guard let request else { return }
+                handleShortcut(request)
+                shortcutRequest = nil
+            }
             .onExitCommand { conversationMenuID = nil }
             .onChange(of: selection) { _, _ in conversationMenuID = nil }
             .onChange(of: sidebar.isCompact) { _, _ in conversationMenuID = nil }
             .onChange(of: conversationID) { _, _ in conversationMenuID = nil }
-            .alert("Rename Conversation", isPresented: $showsRename) {
-                TextField("Conversation name", text: $renameDraft)
-                Button("Cancel", role: .cancel) { actionConversationID = nil }
-                Button("Rename") {
-                    if let id = actionConversationID { updateConversation(id, action: .rename(renameDraft)) }
-                    actionConversationID = nil
-                }
-            }
             .alert("Delete Conversation?", isPresented: $showsDelete) {
                 Button("Cancel", role: .cancel) { actionConversationID = nil }
                 Button("Delete", role: .destructive) {
@@ -155,19 +161,28 @@ struct MacWorkspaceView: View {
                 conversations = CurrentConversationsStore.load()?.conversations ?? []
             }
             .onReceive(NotificationCenter.default.publisher(for: .macConversationDeleted)) { notification in
-                guard let id = notification.object as? UUID, conversationID == id else { return }
-                pendingQuote = nil
-                question = ""
-                showFixture = false
-                conversationID = MacSidebarConversationActions.sorted(conversations.filter { $0.id != id }).first?.id ?? UUID()
+                guard let id = notification.object as? UUID else { return }
+                history.removeConversation(id)
+                conversationDrafts[id] = nil
+                guard conversationID == id else { return }
+                let nextID = MacSidebarConversationActions.sorted(conversations.filter { $0.id != id }).first?.id ?? UUID()
+                if selection == .conversations {
+                    navigate(to: MacWorkspacePage(destination: .conversations, conversationID: nextID))
+                } else {
+                    conversationID = nextID
+                    question = conversationDrafts[nextID] ?? ""
+                    pendingQuote = nil
+                    showFixture = false
+                }
+                conversationDrafts[id] = nil
             }
             .environment(\.openModelTaskPage, { task in
                 if let id = task.conversationID {
-                    conversationID = id; showFixture = false; selection = .conversations
-                } else { selection = .insights }
+                    navigate(to: MacWorkspacePage(destination: .conversations, conversationID: id))
+                } else { navigate(to: page(for: .insights)) }
             })
             .environment(\.openReadingConversation, { id in
-                conversationID = id; showFixture = false; selection = .conversations
+                navigate(to: MacWorkspacePage(destination: .conversations, conversationID: id))
             })
             .ignoresSafeArea()
             .background(AngroveTheme.Colors.canvas)
@@ -185,13 +200,76 @@ struct MacWorkspaceView: View {
         }
     }
 
+    private var currentPage: MacWorkspacePage {
+        page(for: selection)
+    }
+
+    private func page(for destination: MacDestination) -> MacWorkspacePage {
+        MacWorkspacePage(destination: destination,
+            conversationID: destination == .conversations ? conversationID : nil,
+            isFixture: destination == .conversations && showFixture)
+    }
+
+    private func navigate(to page: MacWorkspacePage, recordsVisit: Bool = true) {
+        if page != currentPage {
+            conversationDrafts[conversationID] = question
+            pendingQuote = nil
+            paneShortcut = nil
+            queuePopup.reset()
+            conversationMenuID = nil
+            renamingConversationID = nil
+            if let id = page.conversationID {
+                conversationID = id
+                question = conversationDrafts[id] ?? ""
+                showFixture = page.isFixture
+            }
+            selection = page.destination
+        }
+        if recordsVisit { history.visit(page) }
+    }
+
+    private func recordPageActivity() {
+        history.visit(currentPage)
+    }
+
+    private func handleShortcut(_ request: MacShortcutRequest) {
+        conversationMenuID = nil
+        renamingConversationID = nil
+        switch request.action {
+        case .goBack:
+            if let page = history.back() { navigate(to: page, recordsVisit: false) }
+        case .goForward:
+            if let page = history.forward() { navigate(to: page, recordsVisit: false) }
+        case .openGlobalTree:
+            navigate(to: page(for: .insights))
+        case .newConversation:
+            navigate(to: MacWorkspacePage(destination: .conversations, conversationID: UUID()))
+            paneShortcut = MacShortcutRequest(action: .focusQuestion)
+        case .recentConversation(let number):
+            let ids = MacWorkspaceCommandTarget.recentIDs(in: conversations)
+            guard number >= 1, number <= ids.count else { return }
+            navigate(to: MacWorkspacePage(destination: .conversations, conversationID: ids[number - 1]))
+        case .openQueue:
+            if selection != .conversations && selection != .insights { navigate(to: page(for: .conversations)) }
+            recordPageActivity()
+            withAnimation(.springStandard) { queuePopup.isOpen = true }
+        case .openTree:
+            if selection == .insights { recordPageActivity(); return }
+            navigate(to: page(for: .conversations))
+            recordPageActivity()
+            paneShortcut = request
+        case .focusQuestion, .swapPanes, .pinPanes:
+            navigate(to: page(for: .conversations))
+            recordPageActivity()
+            paneShortcut = request
+        }
+    }
+
     private func handleConversationAction(_ action: MacSidebarConversationMenuAction, _ conversation: InquiryConversation) {
         conversationMenuID = nil
         switch action {
         case .rename:
-            actionConversationID = conversation.id
-            renameDraft = conversation.title
-            showsRename = true
+            renamingConversationID = conversation.id
         case .pin:
             updateConversation(conversation.id, action: .setPinned(!conversation.isPinned))
         case .topic:
@@ -223,10 +301,7 @@ struct MacWorkspaceView: View {
         LocalInsightTreeSeedStore.removeConversation(id)
         conversations = updated.conversations
         if conversationID == id {
-            pendingQuote = nil
-            question = ""
-            showFixture = false
-            conversationID = updated.activeConversationID ?? UUID()
+            navigate(to: MacWorkspacePage(destination: .conversations, conversationID: updated.activeConversationID ?? UUID()))
         }
         NotificationCenter.default.post(name: .macConversationSaved, object: nil)
     }

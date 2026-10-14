@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum MacSidebarConversationMenuAction: CaseIterable {
@@ -36,33 +37,45 @@ struct MacSidebarConversationRow: View {
     var isLoading = false
     let onOpen: () -> Void
     let onMenu: () -> Void
+    var isRenaming = false
+    let onRename: () -> Void
+    let onFinishRename: (String?) -> Void
     @State private var isHovered = false
     @FocusState private var optionsFocused: Bool
 
     var body: some View {
         HStack(spacing: 8) {
-            Button(action: onOpen) {
-                HStack(spacing: 8) {
-                    if conversation.isPinned {
-                        Image(systemName: "pin.fill")
-                            .foregroundStyle(AngroveTheme.Colors.lightGreen)
-                    }
-                    Text(conversation.title)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    if isLoading {
-                        ContextUsageIcon(progress: 0,
-                            color: AngroveTheme.Colors.paragraphText.opacity(0.75), isSpinning: true)
-                            .frame(width: 14, height: 14)
-                            .accessibilityLabel("Model working")
-                            .transition(.opacity)
-                    }
+            HStack(spacing: 8) {
+                if conversation.isPinned {
+                    Image(systemName: "pin.fill")
+                        .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 }
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .contentShape(Rectangle())
+                if isRenaming {
+                    MacSidebarRenameField(title: conversation.title, onFinish: onFinishRename)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 28)
+                } else {
+                    Button(action: onOpen) {
+                        Text(conversation.title)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .highPriorityGesture(TapGesture(count: 2).onEnded { onRename() })
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
+                    .accessibilityAction(named: Text("Rename"), onRename)
+                    .help("Double-click to rename")
+                }
+                if isLoading {
+                    ContextUsageIcon(progress: 0,
+                        color: AngroveTheme.Colors.paragraphText.opacity(0.75), isSpinning: true)
+                        .frame(width: 14, height: 14)
+                        .accessibilityLabel("Model working")
+                        .transition(.opacity)
+                }
             }
-            .accessibilityAddTraits(isSelected ? .isSelected : [])
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             Button(action: onMenu) {
                 MacIconView(icon: .ellipsis)
                     .frame(width: 28, height: 32)
@@ -161,5 +174,93 @@ private struct MacSidebarConversationMenuButton: View {
                 .contentShape(Rectangle())
         }
         .onHover { isHovered = $0 }
+    }
+}
+
+/// Native field editing selects the entire title and preserves standard Mac text shortcuts.
+struct MacSidebarRenameField: NSViewRepresentable {
+    let title: String
+    let onFinish: (String?) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onFinish: onFinish) }
+
+    func makeNSView(context: Context) -> TitleField {
+        let field = TitleField(string: title)
+        field.delegate = context.coordinator
+        field.isBordered = false
+        field.drawsBackground = false
+        field.focusRingType = .none
+        field.usesSingleLineMode = true
+        field.font = NSFont(name: "Figtree-Regular", size: BrandTypography.pointSize(MacConversationStyle.bodyFontSize.pointSize))
+        field.textColor = NSColor(AngroveTheme.Colors.paragraphText)
+        field.setAccessibilityLabel("Conversation name")
+        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return field
+    }
+
+    func updateNSView(_ field: TitleField, context: Context) {
+        context.coordinator.onFinish = onFinish
+        field.textColor = NSColor(AngroveTheme.Colors.paragraphText)
+    }
+
+    static func dismantleNSView(_ field: TitleField, coordinator: Coordinator) {
+        field.stopMonitoringClicks()
+    }
+
+    final class TitleField: NSTextField {
+        private var clickMonitor: Any?
+
+        func stopMonitoringClicks() {
+            if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
+            clickMonitor = nil
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            stopMonitoringClicks()
+            guard window != nil else { return }
+            clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+                if let self, event.window === self.window,
+                   self.currentEditor() != nil,
+                   !self.bounds.contains(self.convert(event.locationInWindow, from: nil)) {
+                    self.window?.makeFirstResponder(nil)
+                }
+                return event
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.window != nil else { return }
+                self.selectText(nil)
+            }
+        }
+    }
+
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        var onFinish: (String?) -> Void
+        private var finished = false
+
+        init(onFinish: @escaping (String?) -> Void) { self.onFinish = onFinish }
+
+        private func finish(_ title: String?) {
+            guard !finished else { return }
+            finished = true
+            onFinish(title)
+        }
+
+        func controlTextDidEndEditing(_ notification: Notification) {
+            guard let field = notification.object as? NSTextField else { return }
+            finish(field.stringValue)
+        }
+
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+                finish(nil)
+            } else if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                finish(textView.string)
+            } else {
+                return false
+            }
+            control.window?.makeFirstResponder(nil)
+            return true
+        }
     }
 }

@@ -18,6 +18,8 @@ struct MacConversationDock: View {
     var onAskNew: () -> Void = {}
     var onAskExisting: () -> Void = {}
     var onCancelAsk: () -> Void = {}
+    var queuePopup: ModelTasksPopupState? = nil
+    var onActivity: () -> Void = {}
     @State private var context = ContextCardState()
     @State private var popup = ModelTasksPopupState()
     @State private var showFilePicker = false
@@ -39,43 +41,48 @@ struct MacConversationDock: View {
             hasSelectedCanvasItems: tree.selectedCount > 0, selectedCanvasItemCount: tree.selectedCount,
             onScrollToBottom: {}, onViewEntireCanvas: onCloseTree,
             onOpenInsights: onOpenTree, onOpenPassages: { showPassages = true }, onSend: onSend,
-            onSelectCanvasItem: { tree.selectionRequest += 1 },
-            onCreateCanvasConcept: { tree.createConceptRequest += 1 },
-            onStudyCanvasInsight: { tree.studyRequest += 1 },
-            onInquireConnection: { tree.inquireConnectionRequest += 1 },
+            onSelectCanvasItem: { onActivity(); tree.selectionRequest += 1 },
+            onCreateCanvasConcept: { onActivity(); tree.createConceptRequest += 1 },
+            onStudyCanvasInsight: { onActivity(); tree.studyRequest += 1 },
+            onInquireConnection: { onActivity(); tree.inquireConnectionRequest += 1 },
             onQuoteCanvasItem: {
+                onActivity()
                 if let onAsk { onAsk() }
                 else if let concept = tree.hoveredConcept { session.attachQuote(concept); tree.dismissHoverRequest += 1 }
             },
             usesCanvasAskFlow: isGlobal, isCanvasAskMode: isAsking,
             onAskInNewConversation: onAskNew, onAskInExistingConversation: onAskExisting,
             onCancelCanvasAsk: onCancelAsk,
-            onMidpointConcepts: { tree.midpointEnterRequest += 1 },
+            onMidpointConcepts: { onActivity(); tree.midpointEnterRequest += 1 },
             isMidpointMode: tree.isMidpoint, isStudyMode: tree.isStudy,
             isStudyToolsActive: tree.studyToolsOpen,
-            onToggleStudyTools: { tree.studyToolsRequest += 1 },
+            onToggleStudyTools: { onActivity(); tree.studyToolsRequest += 1 },
             studyBranchCount: tree.studyBranchCount,
-            onStudyBranchCountChange: { tree.studyBranchCount = $0 },
-            onStudyBranchConfirm: { tree.studyBranchConfirmRequest += 1 },
+            onStudyBranchCountChange: { onActivity(); tree.studyBranchCount = $0 },
+            onStudyBranchConfirm: { onActivity(); tree.studyBranchConfirmRequest += 1 },
             isCanvasInsightLoading: tree.isGenerating,
-            modelTasks: runtime.modelTasks, modelTasksPopupState: popup, keepsIdleModelStatus: true,
+            modelTasks: runtime.modelTasks, modelTasksPopupState: queuePopup ?? popup, keepsIdleModelStatus: true,
             canvasSearchText: $tree.searchQuery, isCanvasSearchActive: $tree.searchActive,
             canvasSearchResultIndex: tree.searchIndex, canvasSearchResultCount: tree.searchCount,
-            onCanvasSearchPrevious: { tree.searchPreviousRequest += 1 },
-            onCanvasSearchNext: { tree.searchNextRequest += 1 },
-            onCanvasSearchActivated: { tree.dismissHoverRequest += 1 },
-            onMidpointCenter: { tree.midpointCenterRequest += 1 },
-            onMidpointPlace: { tree.midpointPlaceRequest += 1 },
-            onClearCanvasSelection: { tree.clearSelectionRequest += 1 },
+            onCanvasSearchPrevious: { onActivity(); tree.searchPreviousRequest += 1 },
+            onCanvasSearchNext: { onActivity(); tree.searchNextRequest += 1 },
+            onCanvasSearchActivated: { onActivity(); tree.dismissHoverRequest += 1 },
+            onModelStatusTap: onActivity,
+            onMidpointCenter: { onActivity(); tree.midpointCenterRequest += 1 },
+            onMidpointPlace: { onActivity(); tree.midpointPlaceRequest += 1 },
+            onClearCanvasSelection: { onActivity(); tree.clearSelectionRequest += 1 },
             contextWordCount: session.contextTokenCount, showsContextWheel: !isGlobal && !isCanvasMode, showsContextInCanvasMode: false,
             canCompactContext: runtime.modelIsAvailable && session.canCompactContext,
             onCompactContext: { await session.compact(runtime: runtime) },
             onClearConversation: { session.clear(runtime: runtime); onClearDraft() }, contextCard: context,
             surfaceID: isCanvasMode ? "mac-tree" : "mac-conversation"
         )
+        .onChange(of: (queuePopup ?? popup).isOpen) { _, isOpen in
+            if isOpen { context.reset() }
+        }
         .onChange(of: isCanvasMode) { _, _ in
             context.reset()
-            popup.isOpen = false
+            (queuePopup ?? popup).isOpen = false
             personalityMenu = false
         }
         .sheet(isPresented: $showPassages) {
@@ -108,6 +115,8 @@ struct MacWorkspaceControlSlot: View {
     let onCloseTree: () -> Void
     let onSend: () -> Void
     let onClearDraft: () -> Void
+    var queuePopup: ModelTasksPopupState? = nil
+    var onActivity: () -> Void = {}
 
     var body: some View {
         Color.clear
@@ -116,7 +125,7 @@ struct MacWorkspaceControlSlot: View {
                 MacConversationDock(session: session, tree: tree, runtime: runtime,
                                     isCanvasMode: isCanvasMode, hasQuestion: hasQuestion,
                                     onOpenTree: onOpenTree, onCloseTree: onCloseTree,
-                                    onSend: onSend, onClearDraft: onClearDraft)
+                                    onSend: onSend, onClearDraft: onClearDraft, queuePopup: queuePopup, onActivity: onActivity)
             }
             .overlayPreferenceValue(ModelControlsPreferenceKey.self, alignment: .bottom) { configuration in
                 ModelControlsHost(configuration: presentedConfiguration(configuration))

@@ -51,6 +51,7 @@ struct DynamicInsightSheetCard: View {
                 .stroke(AngroveTheme.Colors.brownBorder, lineWidth: 1)
         )
         .cardGlow()
+        .insightCardSizing(mobileMaxWidth: .infinity)
         .transaction { transaction in
             transaction.animation = nil
         }
