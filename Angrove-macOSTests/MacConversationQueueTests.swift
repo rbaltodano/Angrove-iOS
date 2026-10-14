@@ -376,15 +376,18 @@ struct MacResponseRevealTests {
         var receiving = true
         var visible = 0
         var finished = false
+        var reduceMotion: Bool?
     }
     struct Sample: View {
         let state: State
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
         var body: some View {
             StreamingMessageView(fullText: state.text, shouldStream: true,
                 isReceivingStream: state.receiving, usesIncrementalStream: true,
                 showsResponseActions: false,
                 onBodyRevealComplete: { state.finished = true },
                 onRevealedWordCountChange: { state.visible = $0 })
+                .onAppear { state.reduceMotion = reduceMotion }
         }
     }
 
@@ -399,14 +402,17 @@ struct MacResponseRevealTests {
         host.frame = NSRect(x: 0, y: 0, width: 500, height: 600)
         host.layoutSubtreeIfNeeded()
         try await Task.sleep(for: .milliseconds(150))
+        let reduceMotion = try #require(state.reduceMotion)
         #expect(state.visible == 1)
         #expect(!state.finished)
         state.text = Array(repeating: "Prudence", count: 200).joined(separator: " ")
         state.receiving = false
         try await Task.sleep(for: .milliseconds(200))
         #expect(state.visible > 1)
-        #expect(state.visible < 200)
-        #expect(!state.finished)
+        if !reduceMotion {
+            #expect(state.visible < 200)
+            #expect(!state.finished)
+        }
         // Completion includes a final animation callback. Wait for the observed
         // result rather than assuming the main actor runs it at an exact deadline.
         let deadline = ContinuousClock.now.advanced(by: .seconds(8))
