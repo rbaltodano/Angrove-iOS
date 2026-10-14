@@ -6,6 +6,9 @@
 import SwiftUI
 import Observation
 import simd
+#if os(macOS)
+import AppKit
+#endif
 
 @MainActor
 @Observable
@@ -122,7 +125,12 @@ final class DisplayLinkDriver {
     func start() {
         guard link == nil else { return }
         let proxy = Proxy { [weak self] ts in self?.onTick?(ts) }
+        #if os(macOS)
+        guard let screen = NSApp.mainWindow?.screen ?? NSScreen.main else { return }
+        let l = screen.displayLink(target: proxy, selector: #selector(Proxy.step(_:)))
+        #else
         let l = CADisplayLink(target: proxy, selector: #selector(Proxy.step(_:)))
+        #endif
         l.add(to: .main, forMode: .common)
         link = l
     }
