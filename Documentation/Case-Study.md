@@ -1,4 +1,4 @@
-# Angrove: building an AI study product on an iPhone
+# Angrove: building a private AI study workspace for iPhone and Mac
 
 **Role:** Ryan Baltodano, solo builder across product design, SwiftUI implementation, local model
 integration, retrieval, persistence and evaluation. **Status:** active development; no public
@@ -76,12 +76,26 @@ median answer times increased from 23.0 to 43.7 seconds on one set and 23.5 to 4
 That supported leaving thinking off by default. These are pattern-scored development comparisons,
 not independent accuracy or phone-speed claims. See [methodology and hashed evidence](Evaluation.md).
 
-**Fully Encrypted saved personal data.** The development encryption implementation uses
+**Encrypted local storage.** The development encryption implementation uses
 AES-256-GCM and Keychain-managed keys for personal stores, with a separate widget key. Startup
 validates ciphertext before migrating plaintext. Deliberate JSON exports remain readable;
-display, screenshots and Apple-managed backup protection are separate boundaries. Encryption
-source integration and physical-device lock/backup restoration are still pending release work.
+display, screenshots and Apple-managed backup protection are separate boundaries. Physical-device lock and backup-restoration validation are still pending release work.
 See [coverage and recovery](Data-Encryption.md).
+
+## Sharing the product across native platforms
+
+The iPhone and Mac targets compile the same `Shared/` feature logic, runtime integration,
+retrieval, and persistence directly. Platform folders own their app composition and native
+interaction. The Mac workspace adds resizable conversation/tree panes, a native question editor,
+keyboard commands, inline sidebar renaming, and recent-page navigation while retaining one
+process-scoped model queue. Separate test targets cover platform behavior.
+
+This keeps fixes to common behavior in one implementation while allowing each interface to fit
+its device. The [workspace layout](Workspace-Layout.md) documents ownership and build commands;
+[Mac navigation tests](../Angrove-macOSTests/MacPageHistoryTests.swift) exercise history and draft
+preservation without opening personal stores. The linked screenshots and recordings document
+the iPhone experience. The Mac front end remains in progress; no Mac visual showcase is
+included yet, and neither app is presented as a shipped release.
 
 ## Models and runtimes explored
 
@@ -122,10 +136,11 @@ model delivery, encryption migration and backup recovery, and a supported-device
 
 - [The app experience and screenshots](../README.md#a-look-inside)
 - [Build requirements and missing development assets](Development-Setup.md)
-- [`AngroveApplicationRuntime`](../Angrove-iOS/Services/AngroveApplicationRuntime.swift): model and queue ownership
-- [`MiniLMGroundingProvider`](../Angrove-iOS/Services/MiniLMGroundingProvider.swift): evidence retrieval
-- [`ModelTaskQueue`](../Angrove-iOS/Features/Conversation/ModelTaskQueue.swift): scheduling and cancellation
+- [`AngroveApplicationRuntime`](../iOS/Services/AngroveApplicationRuntime.swift): model and queue ownership
+- [`MiniLMGroundingProvider`](../Shared/Services/MiniLMGroundingProvider.swift): evidence retrieval
+- [`ModelTaskQueue`](../Shared/Features/Conversation/ModelTaskQueue.swift): scheduling and cancellation
 - [Evaluation report](Evaluation.md): measured decision and limitations
 
-A longer walkthrough video will be added by the maintainer. The existing Study clip shows one
-feature; it is not a full product demonstration.
+The [three product recordings](../README.md#watch-angrove-in-use) show a conversation and its
+tree, saved Insights, and answer playback. They document interaction rather than model-speed
+benchmarks.

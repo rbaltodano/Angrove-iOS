@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   build-and-test:
-    name: Build and test
+    name: iPhone build and tests
     # The bundled LiteRT framework is arm64-only, so this needs an Apple silicon runner and a
     # concrete simulator destination rather than the generic one.
     # GitHub's Xcode 27 image (macOS 27, arm64). Still a public preview as of October 2026.
@@ -60,3 +60,54 @@ jobs:
         with:
           name: TestResults
           path: TestResults.xcresult
+
+  mac-build-and-test:
+    name: Mac build and tests
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode 27
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then
+            echo "::error::Xcode 27 is not installed on this runner image."
+            exit 1
+          fi
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+      - name: Build and run Mac tests
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Angrove-iOS.xcodeproj \
+            -scheme Angrove-macOS \
+            -destination 'platform=macOS,arch=arm64' \
+            -resultBundlePath MacTestResults.xcresult \
+            -parallel-testing-enabled NO \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM= \
+            test
+      - name: Upload Mac test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MacTestResults
+          path: MacTestResults.xcresult
+
+  documentation-and-tools:
+    name: Documentation and offline tools
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check public documentation links
+        run: python3 scripts/check_documentation_links.py
+      - name: Install Library tooling dependencies
+        run: python3 -m pip install -r scripts/library/requirements.txt
+      - name: Verify evidence exporter and Library tooling
+        run: |
+          python3 -m unittest discover -s scripts/tests -v
+          python3 -m unittest discover -s scripts/library -p 'test_*.py' -v

@@ -6,8 +6,8 @@ server to configure, account to create, or API key to supply.
 
 ## Prerequisites
 
-- A Mac with Apple silicon and an Xcode installation containing an iOS SDK compatible with the
-  project's iOS 26.4 deployment target. Current development uses Xcode's iOS 27.0 simulator.
+- **Xcode 27 on Apple silicon.** The source uses the current SDK and compiler. Deployment
+  targets are iOS 26.4 and macOS 27; an older Xcode installation is not a supported build setup.
 - An installed **arm64** iPhone simulator. The vendored LiteRT-LM framework has no Intel simulator
   slice; a generic simulator destination cannot link it.
 - For live inference, the exact model and grounding assets described below. Simulator results
@@ -21,8 +21,8 @@ xcrun simctl list devices available
 open Angrove-iOS.xcodeproj
 ```
 
-Use scheme **Angrove-iOS**. In Signing & Capabilities, select your development team for a phone
-build, including the widget target and shared App Group/Keychain capabilities. Simulator builds
+Use scheme **Angrove-iOS** for iPhone or **Angrove-macOS** for Mac. In Signing & Capabilities,
+select your development team for a phone build, including the widget target and shared App Group/Keychain capabilities. Simulator builds
 do not need a physical-device provisioning profile. The app still uses historical `Aquinas`
 identifiers internally; do not rename them as a setup step.
 
@@ -35,7 +35,15 @@ xcodebuild -project Angrove-iOS.xcodeproj -scheme Angrove-iOS \
   -destination 'platform=iOS Simulator,name=iPhone 17,OS=27.0' build
 ```
 
-The local Swift package in `Vendor/LiteRTLM` includes the iOS framework and Swift wrapper.
+For Mac, use the native arm64 target:
+
+```sh
+xcodebuild -project Angrove-iOS.xcodeproj -scheme Angrove-macOS \
+  -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO build
+```
+
+The local Swift package in `Vendor/LiteRTLM` includes the iOS framework and Swift wrapper,
+and resolves its Mac framework from the pinned upstream release.
 Xcode may download package dependencies during the build. That development traffic is separate
 from the app's on-device generation and retrieval boundary.
 
@@ -55,23 +63,23 @@ Respect the model's terms and each corpus source's distribution terms.
 
 | Resource path | Purpose |
 | --- | --- |
-| `Angrove-iOS/LocalModels/gemma-4-E4B-it.litertlm` | Stock instruction-tuned LiteRT Community model; not an Angrove fine-tune |
-| `Angrove-iOS/LocalGrounding/MiniLM.mlpackage` | Core ML export of all-MiniLM-L6-v2; Xcode compiles it to `MiniLM.mlmodelc` |
-| `Angrove-iOS/LocalGrounding/vocab.txt` | Matching WordPiece vocabulary |
-| `Angrove-iOS/LocalGrounding/passages.json` | Library passages and source metadata |
-| `Angrove-iOS/LocalGrounding/embeddings.bin` | Parallel normalized 384-dimensional float32 passage embeddings |
+| `iOS/LocalModels/gemma-4-E4B-it.litertlm` | Stock instruction-tuned LiteRT Community model; not an Angrove fine-tune |
+| `Shared/LocalGrounding/MiniLM.mlpackage` | Core ML export of all-MiniLM-L6-v2; Xcode compiles it to `MiniLM.mlmodelc` |
+| `Shared/LocalGrounding/vocab.txt` | Matching WordPiece vocabulary |
+| `Shared/LocalGrounding/passages.json` | Library passages and source metadata |
+| `Shared/LocalGrounding/embeddings.bin` | Parallel normalized 384-dimensional float32 passage embeddings |
 
 The current model manifest requires **3,659,530,240 bytes** and SHA-256
 `0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0`.
 Verify the artifact before building:
 
 ```sh
-stat -f '%z' Angrove-iOS/LocalModels/gemma-4-E4B-it.litertlm
-shasum -a 256 Angrove-iOS/LocalModels/gemma-4-E4B-it.litertlm
+stat -f '%z' iOS/LocalModels/gemma-4-E4B-it.litertlm
+shasum -a 256 iOS/LocalModels/gemma-4-E4B-it.litertlm
 ```
 
 Compare both values with `LiteRTModelManifest.angrove` in
-[`LiteRTModelStore.swift`](../Angrove-iOS/Services/LiteRTModelStore.swift), which is authoritative
+[`LiteRTModelStore.swift`](../Shared/Services/LiteRTModelStore.swift), which is authoritative
 if the model changes. Keep the embedding model, vocabulary, passage metadata and vector export
 from the same corpus build. `OnDeviceGroundingStore` rejects a vector-byte-count mismatch.
 
@@ -88,10 +96,14 @@ xcodebuild -project Angrove-iOS.xcodeproj -scheme Angrove-iOS \
   -only-testing:Angrove-iOSTests/ModelRuntimeLifecycleTests \
   -only-testing:Angrove-iOSTests/ModelActionAvailabilityTests test
 
+xcodebuild -project Angrove-iOS.xcodeproj -scheme Angrove-macOS \
+  -destination 'platform=macOS,arch=arm64' \
+  CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= test
+
 python3 -m unittest discover -s scripts/tests -v
 ```
 
-The Swift command checks lifecycle ownership and explicit action failure; it is not a model
+The focused iPhone command checks lifecycle ownership and explicit action failure; it is not a model
 quality benchmark. Some suites require real bundled grounding assets and explicitly skip when
 those assets are absent. Report skips along with passes.
 

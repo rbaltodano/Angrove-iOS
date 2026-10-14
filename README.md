@@ -13,13 +13,12 @@
 
 # Angrove
 
-Current development layout: [one checkout with iOS, macOS and Shared folders](Documentation/Workspace-Layout.md).
-
 **An AI of your own. A private place for serious questions.**
 
 Angrove is a private, local-first companion for the rigorous study of philosophy, history, and
 theology. Ask a question, test an argument, follow a contradiction, and keep the ideas worth
-returning to. The app answers on your iPhone without sending your questions to a model server.
+returning to. The iPhone app answers without sending your questions to a model server. A native Mac port is
+in development, sharing the on-device runtime, retrieval, and persistence.
 
 Built around understanding, Angrove brings conversation, primary sources, and a map of your own
 thinking into one workspace. A discussion becomes something you can revisit and build on.
@@ -30,19 +29,21 @@ thinking into one workspace. A discussion becomes something you can revisit and 
 
 ## Building the product around the model
 
-This repository contains the iPhone app: SwiftUI interaction, a process-scoped LiteRT-LM runtime,
-on-device retrieval, a shared model-task queue, durable conversations, and a semantic map of saved
-ideas. Ryan Baltodano is the solo builder across product design and engineering.
+Ryan Baltodano is the solo builder across product design and engineering. This repository
+contains the iPhone app and the in-progress native Mac port: SwiftUI interaction, a process-scoped LiteRT-LM runtime, on-device
+retrieval, a shared model-task queue, encrypted persistence, and a semantic map of saved ideas.
+Common logic lives in `Shared/`; each platform owns its navigation, input, and window behavior.
 
-| Start here | What it shows |
+For a quick review, watch the [product demos](#watch-angrove-in-use), read the
+[technical case study](Documentation/Case-Study.md), then inspect the implementation below.
+
+| Engineering area | Implementation and evidence |
 | --- | --- |
-| [Technical case study](Documentation/Case-Study.md) | Product hypothesis, architecture decisions, tradeoffs and remaining validation |
-| [Historical model exploration](Documentation/Model-Exploration.md) | Gemma 4 12B and Qwen3-4B experiments, runtime constraints and grounding lessons |
-| [App Store release plan](Documentation/App-Store-Release-Plan.md) | Essential model delivery, owners, release gates and check-off schedule |
-| [Release readiness audit](Documentation/Release-Readiness-Audit.md) | Local archive findings, implemented delivery foundation and remaining submission blockers |
-| [Evaluation evidence](Documentation/Evaluation.md) | Four completed thinking-on/off comparisons, aggregate results and artifact hashes |
-| [Build and setup](Documentation/Development-Setup.md) | Requirements, missing assets, exact model manifest and useful checks |
-| [Architecture](Documentation/App-Architecture.md) | Runtime ownership, conversation identity and persistence boundaries |
+| Runtime ownership and cancellation | [Shared task queue](Shared/Features/Conversation/ModelTaskQueue.swift), [iPhone runtime](iOS/Services/AngroveApplicationRuntime.swift), [Mac runtime](macOS/Platform/MacApplicationRuntime.swift) |
+| Source-grounded answers | [Local retrieval](Shared/Services/MiniLMGroundingProvider.swift), [retrieval regressions](Angrove-iOSTests/MiniLMGroundingRetrievalTests.swift) |
+| Durable conversations and saved ideas | [Shared persistence](Shared/Persistence), [architecture](Documentation/App-Architecture.md) |
+| Mac port in progress | [Mac workspace](macOS/Features/MacWorkspaceView.swift), [navigation history tests](Angrove-macOSTests/MacPageHistoryTests.swift) |
+| Measured model tradeoffs | [Evaluation methodology and artifacts](Documentation/Evaluation.md) |
 
 **One measured decision:** native thinking remained off by default after two development sets
 returned **74/80 objective passes in either arm**, while simulator median answer time roughly
@@ -63,7 +64,7 @@ phone latency benchmark. See the report for the exact build and limitations.
 - **Library:** trace an answer to the passages it draws on and open the source to read it in
   context. The current bundled Library contains **37 works and 51,836 passages**, including
   Scripture, the Church Fathers, Thomas Aquinas, councils, catechisms, classical philosophy,
-  and history. Retrieval runs on your phone.
+  and history. Retrieval runs on-device.
 
 Study Topics bring related conversations and their Insights together. Home offers a Question of
 the Day and ideas worth revisiting, while Model Tasks lets you stop, remove, or reorder work
@@ -115,7 +116,7 @@ Generation, source retrieval, and Insight Tree work run on-device. Conversations
 Insights stay in the app's local storage; answering questions and building the tree make no
 network requests. Once the model is installed, Angrove works offline. No account is required.
 
-**Fully Encrypted saved personal data.** Angrove encrypts saved personal data on the device with
+**Encrypted local storage.** Angrove encrypts saved personal data on the device with
 AES-256-GCM, including conversations, attachments, Insights, Study Topics, personal settings, and
 local backups. Keys are protected by Apple Keychain. User-created conversation exports are
 readable JSON. The encryption is integrated into the app's storage and covered by tests;
@@ -132,8 +133,9 @@ Answers can make mistakes. The Library makes it easy to check important claims a
 author's own words and context.
 
 Angrove is in active development and is not publicly released yet. It is being built to stay
-free, with no subscription or paywalled features. The app is built and tested on iPhone 17;
-final supported-device requirements will be shared before launch.
+free, with no subscription or paywalled features. Development uses iPhone 17 and Apple silicon
+Macs. The Mac front end is still in progress and currently requires macOS 27;
+final supported-device requirements and release availability will be shared before launch.
 
 The local model and grounding assets are large and intentionally excluded from source control.
 A clean checkout can build the interface, but full inference requires the development artifacts.
@@ -159,27 +161,43 @@ internal development detail.
 
 | Path | What you'll find |
 | --- | --- |
-| `iOS/App` | App entry point and overall navigation shell |
-| `iOS/Features` | Conversation, Home, Insight Tree, Library, and settings experiences |
-| `iOS/DesignSystem` | Typography, colors, and shared interface elements |
-| `iOS/Services` | Model runtime and local grounding |
-| `iOS/Persistence` | Local conversation and Insight state |
-| `Angrove-iOSTests` | Focused behavior and regression coverage |
+| `iOS/` | iPhone app shell, navigation, platform adapters, and iPhone-only features |
+| `macOS/` | Native Mac windows, keyboard/mouse interaction, and platform adapters |
+| `Shared/Features/` | Conversation, model tasks, Insight Tree, and common presentation |
+| `Shared/DesignSystem/` | Semantic typography, colors, motion, and reusable interface elements |
+| `Shared/Services/` | Model integration, local retrieval, and shared services |
+| `Shared/Persistence/` | Encrypted local storage and durable conversation/Insight state |
+| `Angrove-iOSTests/`, `Angrove-macOSTests/` | Behavior and regression coverage for both apps |
+| `Documentation/` | Case study, architecture, evaluation evidence, and build instructions |
 
 ## Build and verify
 
-Follow the [setup guide](Documentation/Development-Setup.md), then open
-`Angrove-iOS.xcodeproj` with the **Angrove-iOS** scheme. The deployment target is iOS 26.4.
-Use an installed concrete arm64 simulator:
+Use **Xcode 27 on Apple silicon**. Follow the [setup guide](Documentation/Development-Setup.md),
+then open `Angrove-iOS.xcodeproj`. Select **Angrove-iOS** for iPhone or **Angrove-macOS** for Mac.
+The deployment targets are iOS 26.4 and macOS 27. A source checkout can build the UI; full
+inference requires the separately supplied model and grounding assets.
+
+Use an installed concrete arm64 simulator for iPhone:
 
 ```sh
 xcodebuild -project Angrove-iOS.xcodeproj -scheme Angrove-iOS \
-  -destination 'platform=iOS Simulator,name=iPhone 17' build
+  -destination 'platform=iOS Simulator,name=iPhone 17,OS=27.0' build
 ```
 
+Build the native Mac target without a developer signing identity:
+
+```sh
+xcodebuild -project Angrove-iOS.xcodeproj -scheme Angrove-macOS \
+  -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO build
+```
+
+The [setup guide](Documentation/Development-Setup.md#verify-behavior) includes test commands for
+both platforms. CI runs the asset-independent checks; tests requiring private development
+artifacts report explicit skips.
+
 For deterministic checks and model-evaluation methodology, see [Evaluation](Documentation/Evaluation.md).
-Three feature demos are linked above. A narrated walkthrough is still to be recorded; the
-[recording outline](Documentation/Demo-Outline.md) is available. Detailed contributor guidance starts at [`AGENTS.md`](AGENTS.md).
+Three feature demos are linked above. Detailed contributor guidance starts at
+[`AGENTS.md`](AGENTS.md).
 
 ## Naming
 

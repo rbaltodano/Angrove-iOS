@@ -17,7 +17,7 @@ post publicly or merge without them. This review does not authorize device runs 
    [proposed Foundations update](Gemma4-E4B-MODEL-INTEGRATION-Update.md). The latter is a review
    draft; do not apply its superseded promotion claims.
 4. Inspect the DEBUG sustained harness in
-   [`LiteRTSustainedProbe.swift`](../Angrove-iOS/Features/Developer/LiteRTSustainedProbe.swift),
+   [`LiteRTSustainedProbe.swift`](../iOS/Features/Developer/LiteRTSustainedProbe.swift),
    its call sites, and the bounded-memory `LiteRTModelInstaller.sha256` change. Do not edit
    `Angrove-iOS/Services/LiteRTAngroveModel.swift`; the owner may change prompts there on main.
 
