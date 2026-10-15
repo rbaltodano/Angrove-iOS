@@ -25,40 +25,41 @@ let package = Package(
     .library(
       name: "LiteRTLM",
       targets: ["LiteRTLM"]
-    )
+    ),
   ],
   targets: [
     // The Prebuilt Binary Target for iOS
     .binaryTarget(
       name: "CLiteRTLM",
+      // Angrove: the upstream v0.17.0 archive (checksum c94fc12a…2186) plus our
+      // PrivacyInfo.xcprivacy in each slice. See Documentation/LiteRT-Privacy-Crypto-Audit.md.
       path: "Binaries/CLiteRTLM.xcframework"
     ),
     // The Prebuilt Binary Target for Mac
     .binaryTarget(
       name: "CLiteRTLM_mac",
-      url: "https://github.com/google-ai-edge/LiteRT-LM/releases/download/v0.14.0/CLiteRTLM_mac.xcframework.zip",
-      checksum: "450615483509aaa6d34b321fdc6862e41a224b674468ab10aff64ebe113d21b7"
+      url:
+        "https://github.com/google-ai-edge/LiteRT-LM/releases/download/v0.17.0/CLiteRTLM_mac.xcframework.zip",
+      checksum: "83efd536485c9d58fcd7fb7d4556ddb16ca46bb775b0449d08d9825c6836c1a4"
     ),
     // The Swift Wrapper Target
     .target(
       name: "LiteRTLM",
       dependencies: [
         .target(name: "CLiteRTLM", condition: .when(platforms: [.iOS])),
-        .target(name: "CLiteRTLM_mac", condition: .when(platforms: [.macOS]))
+        .target(name: "CLiteRTLM_mac", condition: .when(platforms: [.macOS])),
       ],
       path: "swift",
       exclude: [
         "CapabilitiesTests.swift",
         "EngineTests.swift",
+        "EmbeddingEngineTests.swift",
         "ConversationTests.swift",
         "ToolTests.swift",
         "MessageTests.swift",
         "BUILD",
         "Info.plist",
       ],
-      linkerSettings: [
-        .unsafeFlags(["-Xlinker", "-all_load"])
-      ]
     ),
     // Separate test targets for each file to avoid naming conflicts:
     .testTarget(
@@ -84,6 +85,12 @@ let package = Package(
       dependencies: ["LiteRTLM"],
       path: "swift",
       sources: ["EngineTests.swift"]
+    ),
+    .testTarget(
+      name: "EmbeddingEngineTests",
+      dependencies: ["LiteRTLM"],
+      path: "swift",
+      sources: ["EmbeddingEngineTests.swift"]
     ),
     .testTarget(
       name: "MessageTests",

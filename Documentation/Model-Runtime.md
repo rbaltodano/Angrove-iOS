@@ -21,6 +21,16 @@ first. This document records iOS-specific runtime boundaries and validation rule
   but every phone-sized conversion so far lost speed, memory headroom, or accuracy. Next step:
   quantization-aware fine-tuning. See `Aquinas_Backend` `docs/Aquinas-Voice-Dataset.md`.
 
+## Vendored LiteRT-LM
+
+`Vendor/LiteRTLM` is upstream LiteRT-LM with Angrove patches. 1.0 shipped 0.14.0. After 1.0,
+`main` uses the 0.17.1 Swift wrapper with the v0.17.0 binaries (see
+[the post-1.0 changelog](Post-1.0-Changelog.md)). The patches add F32 activations,
+native-activity tracking, off-pool engine and conversation creation, and detached, ordered
+native deletes. They live in `Vendor/LiteRTLM/angrove-patches.diff`. To upgrade, start from
+the upstream release, re-apply that diff, copy `PrivacyInfo.xcprivacy` into both iOS slices,
+and rerun the [SDK audit](LiteRT-Privacy-Crypto-Audit.md).
+
 ## Runtime selection
 
 `AngroveApplicationRuntime` selects `LiteRTAngroveModel` when a verified local package is

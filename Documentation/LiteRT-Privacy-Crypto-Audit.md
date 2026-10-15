@@ -1,5 +1,28 @@
 # LiteRT SDK privacy and crypto audit
 
+## October 15, 2026 re-audit: LiteRT-LM 0.17.1 (post-1.0)
+
+The vendored package moved from 0.14.0 to the 0.17.1 Swift wrapper. The binaries are the
+v0.17.0 release archives, which 0.17.1 still references. The iOS archive matched upstream's
+SwiftPM checksum `c94fc12a…2186`. Device binary SHA-256
+`892798555f337315aa89f2f405e3e3b41d68de9d977b15c7d4a4fd3fa637684c` (43.2 → 60.5 MB), simulator
+`0387e2713b4947d75f1b9e2106e337a4c76b01fa1fce01358a8988a7cfee18db`. The Mac dylib is fetched by
+SwiftPM (checksum `83efd536…c1a4`), and its SHA-256 is
+`ece7f316cdcf0552caf7bbc1fc151fd4da068aa801caa5510c30440d66b1a585`.
+
+`scripts/audit_litert_sdk.py` was rerun on both device binaries and the results compared:
+- No new required-reason category. The same `stat`-family, `mach_absolute_time` (4 callers) and
+  `clock_gettime` imports are present.
+- Same networking surface. The `connect`, `socket`, `socketpair` and `gethostname` callers are
+  still only Rust standard-library helpers; only their mangled names changed.
+- Same 26 crypto-related symbols, with renamed hashes only.
+- New imports are Metal, IOSurface and CoreFoundation GPU-path symbols, plus `NSLog`, `dladdr` and
+  math and libc++ helpers.
+
+The existing `PrivacyInfo.xcprivacy` was copied unchanged into both slices. The 0.17.0 archive
+also ships `LICENSE` and `third_party_licenses.bundle` inside each framework. The original
+0.14 audit below is kept as history; its hashes describe the 1.0 build.
+
 October 5, 2026. Static review of the native SDK currently vendored by this working tree.
 The inventory is complete for the checks below. The integration-reviewed SDK API manifest is now
 bundled and verified in an App Store distribution export. The October 5 submission follow-up

@@ -1,0 +1,440 @@
+--- a/Package.swift
++++ b/Package.swift
+@@ -26,18 +26,14 @@
+       name: "LiteRTLM",
+       targets: ["LiteRTLM"]
+     ),
+-    .library(
+-      name: "LiteRTLMFoundationModels",
+-      targets: ["LiteRTLMFoundationModels"]
+-    ),
+   ],
+   targets: [
+     // The Prebuilt Binary Target for iOS
+     .binaryTarget(
+       name: "CLiteRTLM",
+-      url:
+-        "https://github.com/google-ai-edge/LiteRT-LM/releases/download/v0.17.0/CLiteRTLM.xcframework.zip",
+-      checksum: "c94fc12aa0403cb47208e419cc3bfe258214ea17035f7a63c16de536869f2186"
++      // Angrove: the upstream v0.17.0 archive (checksum c94fc12a…2186) plus our
++      // PrivacyInfo.xcprivacy in each slice. See Documentation/LiteRT-Privacy-Crypto-Audit.md.
++      path: "Binaries/CLiteRTLM.xcframework"
+     ),
+     // The Prebuilt Binary Target for Mac
+     .binaryTarget(
+@@ -55,8 +51,6 @@
+       ],
+       path: "swift",
+       exclude: [
+-        "apple_fm",
+-        "device_tests",
+         "CapabilitiesTests.swift",
+         "EngineTests.swift",
+         "EmbeddingEngineTests.swift",
+@@ -67,17 +61,6 @@
+         "Info.plist",
+       ],
+     ),
+-    // Apple Foundation Models Adapter
+-    .target(
+-      name: "LiteRTLMFoundationModels",
+-      dependencies: ["LiteRTLM"],
+-      path: "swift/apple_fm",
+-      exclude: [
+-        "BUILD",
+-        "main.swift",
+-        "AdapterTests.swift",
+-      ]
+-    ),
+     // Separate test targets for each file to avoid naming conflicts:
+     .testTarget(
+       name: "CapabilitiesTests",
+--- a/swift/BUILD
++++ b/swift/BUILD
+@@ -44,6 +44,7 @@
+     features = ["-swift.enable_v6"],
+     module_name = "LiteRTLM",
+     deps = [
++        ":CLiteRTLM_objc",
+ 
+ 
+         "//c:engine",
+@@ -154,7 +155,7 @@
+     features = ["exported_symbols"],
+     linkopts = [
+         "-undefined dynamic_lookup",
+-        "-install_name @rpath/libCLiteRTLM_mac.dylib",
++        "-install_name @rpath/CLiteRTLM_mac.dylib",
+     ],
+     minimum_os_version = "12.0",
+     visibility = ["//visibility:public"],
+@@ -185,7 +186,7 @@
+     cmd = """
+        mkdir -p CLiteRTLM_mac/Headers
+        # Copy the universal dylib
+-       cp $(location :CLiteRTLM_universal) CLiteRTLM_mac/libCLiteRTLM_mac.dylib
++       cp $(location :CLiteRTLM_universal) CLiteRTLM_mac/CLiteRTLM_mac.dylib
+        # Copy the headers
+        cp $(location //c:engine.h) CLiteRTLM_mac/Headers/
+        cp $(location //c:conversation.h) CLiteRTLM_mac/Headers/
+--- a/swift/Conversation.swift
++++ b/swift/Conversation.swift
+@@ -85,8 +85,31 @@
+   }
+ 
+   deinit {
++    // `litert_lm_conversation_delete` is a blocking native call that has been observed, via
++    // device console capture, to hang indefinitely inside the same upstream deadlock as
++    // `litert_lm_conversation_create`. Unlike a function call, `deinit` can't be `async` and
++    // has no caller to `await` it — it fires implicitly on whatever thread/executor happens to
++    // drop the last reference (here, `LiteRTAngroveRuntime`'s own actor executor). A hang here
++    // would silently freeze that entire actor, including its own stall-detection watchdog,
++    // forever. Firing the delete on a disposable thread means a hang costs one throwaway
++    // thread, never the caller.
++    //
++    // The thread also keeps the owning engine alive until the delete returns. `Engine.deinit`
++    // deletes the native engine on its own detached thread, so when a caller dropped an engine
++    // and its conversation together the two deletes raced; if the engine went first, LiteRT-LM
++    // logged "EngineAdvancedImpl destructed with 1 living sessions!" and the conversation's
++    // delete then freed tensor buffers that no longer existed (SIGSEGV in
++    // `LlmLiteRtCompiledModelExecutorStatic` teardown). Releasing the engine only after the
++    // conversation is gone makes the order deterministic.
+     if let handle = handle {
+-      litert_lm_conversation_delete(handle)
++      let handleToDelete = handle
++      let owningEngine = engine
++      NativeActivityMonitor.report("conversation-delete", isBegin: true)
++      Thread {
++        litert_lm_conversation_delete(handleToDelete)
++        withExtendedLifetime(owningEngine) {}
++        NativeActivityMonitor.report("conversation-delete", isBegin: false)
++      }.start()
+     }
+   }
+ 
+@@ -519,6 +542,11 @@
+         optionalArgs, responseFormat.type.cConstraintType, responseFormat.schemaOrPattern)
+     }
+ 
++    // A tool-call round reuses the context, so only its first send counts as a new stream.
++    if !context.reportsEnd {
++      NativeActivityMonitor.report("native-stream", isBegin: true)
++      context.reportsEnd = true
++    }
+     let contextPtr = Unmanaged.passRetained(context).toOpaque()
+ 
+     let status = litert_lm_conversation_send_message_stream(
+@@ -735,6 +763,10 @@
+     let suppressTokensConfig: SuppressTokensConfig?
+     let maxOutputTokens: Int?
+     let responseFormat: ResponseFormat?
++
++    /// Set once the native stream starts; the native side releases this context only when it
++    /// finishes, so `deinit` marks the true end of native generation.
++    var reportsEnd = false
+ 
+     init(
+       continuation: AsyncThrowingStream<Message, Error>.Continuation,
+@@ -753,6 +785,10 @@
+       self.maxOutputTokens = maxOutputTokens
+       self.responseFormat = responseFormat
+     }
++
++    deinit {
++      if reportsEnd { NativeActivityMonitor.report("native-stream", isBegin: false) }
++    }
+   }
+ }
+ 
+--- a/swift/Engine.swift
++++ b/swift/Engine.swift
+@@ -16,6 +16,40 @@
+ import OSLog
+ import CLiteRTLM
+ 
++/// Angrove patch: tracks native work that outlives the Swift call that started it (engine and
++/// conversation deletes on detached threads, and streams that keep generating after their
++/// consumer stopped listening), so callers can wait for it before loading a new engine, and
++/// lifecycle tests can check that nothing overlaps. Kinds: "engine-delete",
++/// "conversation-delete", "native-stream".
++public enum NativeActivityMonitor {
++  public typealias Observer = @Sendable (_ kind: String, _ isBegin: Bool) -> Void
++
++  private static let lock = NSLock()
++  private static var observer: Observer?
++  private static var running: [String: Int] = [:]
++
++  public static func setObserver(_ newObserver: Observer?) {
++    lock.lock()
++    observer = newObserver
++    lock.unlock()
++  }
++
++  /// How many of the given kinds of native work are running now.
++  public static func runningCount(of kinds: [String]) -> Int {
++    lock.lock()
++    defer { lock.unlock() }
++    return kinds.reduce(0) { $0 + (running[$1] ?? 0) }
++  }
++
++  static func report(_ kind: String, isBegin: Bool) {
++    lock.lock()
++    running[kind] = max(0, (running[kind] ?? 0) + (isBegin ? 1 : -1))
++    let current = observer
++    lock.unlock()
++    current?(kind, isBegin)
++  }
++}
++
+ /// Manages the lifecycle of a LiteRT-LM engine, providing an interface for interacting with the
+ /// underlying native library.
+ ///
+@@ -54,29 +88,52 @@
+   /// background thread to avoid blocking the main thread.
+   ///
+   /// - Throws: A `LiteRTLMError` if the engine fails to initialize.
+-  public func initialize() throws {
+-    try initializeInternal(benchmarkPrefillTokens: nil, benchmarkDecodeTokens: nil)
++  public func initialize() async throws {
++    try await initializeInternal(benchmarkPrefillTokens: nil, benchmarkDecodeTokens: nil)
+   }
+ 
+   /// Initializes the native LiteRT-LM engine specifically for benchmarking, avoiding global state params.
+-  func initializeForBenchmark(prefillTokens: Int, decodeTokens: Int) throws {
+-    try initializeInternal(
++  func initializeForBenchmark(prefillTokens: Int, decodeTokens: Int) async throws {
++    try await initializeInternal(
+       benchmarkPrefillTokens: prefillTokens, benchmarkDecodeTokens: decodeTokens)
+   }
+ 
+-  private func initializeInternal(benchmarkPrefillTokens: Int?, benchmarkDecodeTokens: Int?) throws
+-  {
++  private func initializeInternal(
++    benchmarkPrefillTokens: Int?, benchmarkDecodeTokens: Int?
++  ) async throws {
+     if isInitialized() {
+       throw LiteRTLMError.engine(.alreadyInitialized)
+     }
+ 
++    let config = engineConfig
++    // Runs the blocking native call off the actor's own cooperative-pool thread — see
++    // `runOffCooperativePool`'s doc comment for why.
++    let engine = try await Self.runOffCooperativePool {
++      try Self.createNativeEngineHandle(
++        config: config,
++        benchmarkPrefillTokens: benchmarkPrefillTokens,
++        benchmarkDecodeTokens: benchmarkDecodeTokens
++      )
++    }
++
++    self.handle = engine
++  }
++
++  /// Pure construction of the native engine handle, with no actor-isolated state touched, so it
++  /// can run on a dedicated off-pool thread via `runOffCooperativePool` instead of blocking the
++  /// actor's own executor.
++  private static func createNativeEngineHandle(
++    config: EngineConfig,
++    benchmarkPrefillTokens: Int?,
++    benchmarkDecodeTokens: Int?
++  ) throws -> OpaquePointer {
+     // Convert the enums to strings for passing to the native library.
+-    let backendStr = engineConfig.backend.rawValue
+-    let visionBackendStr = engineConfig.visionBackend?.rawValue
+-    let audioBackendStr = engineConfig.audioBackend?.rawValue
++    let backendStr = config.backend.rawValue
++    let visionBackendStr = config.visionBackend?.rawValue
++    let audioBackendStr = config.audioBackend?.rawValue
+ 
+     let settings = litert_lm_engine_settings_create(
+-      engineConfig.modelPath, backendStr, visionBackendStr, audioBackendStr)
++      config.modelPath, backendStr, visionBackendStr, audioBackendStr)
+ 
+     guard let settings else {
+       throw LiteRTLMError.engine(.failedToCreateSettings)
+@@ -84,13 +141,13 @@
+ 
+     defer { litert_lm_engine_settings_delete(settings) }
+ 
+-    if let maxNumTokens = engineConfig.maxNumTokens {
++    if let maxNumTokens = config.maxNumTokens {
+       litert_lm_engine_settings_set_max_num_tokens(settings, Int32(maxNumTokens))
+     }
+-    if let cacheDir = engineConfig.cacheDir {
++    if let cacheDir = config.cacheDir {
+       litert_lm_engine_settings_set_cache_dir(settings, cacheDir)
+     }
+-    if let loraRank = engineConfig.loraRank {
++    if let loraRank = config.loraRank {
+       litert_lm_engine_settings_set_lora_rank(settings, Int32(loraRank))
+       if loraRank > 0 {
+         var ranks = [Int32(loraRank)]
+@@ -100,7 +157,7 @@
+         }
+       }
+     }
+-    if let audioLoraRank = engineConfig.audioLoraRank {
++    if let audioLoraRank = config.audioLoraRank {
+       litert_lm_engine_settings_set_audio_lora_rank(settings, Int32(audioLoraRank))
+       if audioLoraRank > 0 {
+         var ranks = [Int32(audioLoraRank)]
+@@ -117,6 +174,11 @@
+     } else if ExperimentalFlags.enableBenchmark {
+       litert_lm_engine_settings_enable_benchmark(settings)
+     }
++    if let activationDataType = ExperimentalFlags.activationDataType {
++      // Angrove addition: 0 = F32, 1 = F16 (see `LiteRtLmActivationDataType` in the C header).
++      litert_lm_engine_settings_set_activation_data_type(
++        settings, LiteRtLmActivationDataType(rawValue: UInt32(activationDataType)))
++    }
+     if let enableSpeculativeDecoding = ExperimentalFlags.enableSpeculativeDecoding {
+       litert_lm_engine_settings_set_enable_speculative_decoding(settings, enableSpeculativeDecoding)
+     }
+@@ -132,7 +194,7 @@
+       throw LiteRTLMError.engine(.failedToCreateEngine)
+     }
+ 
+-    self.handle = engine
++    return engine
+   }
+ 
+   /// Creates a new `Conversation` from the initialized engine.
+@@ -141,7 +203,9 @@
+   /// - Returns: `Conversation` The created conversation.
+   /// - Throws: A `LiteRTLMError` if the conversation creation fails.
+   ///
+-  public func createConversation(with config: ConversationConfig? = nil) throws -> Conversation {
++  public func createConversation(with config: ConversationConfig? = nil) async throws
++    -> Conversation
++  {
+     guard isInitialized() else {
+       throw LiteRTLMError.engine(.notInitialized)
+     }
+@@ -149,9 +213,39 @@
+     // We can force unwrap handle here because the engine is guaranteed to be initialized, and
+     // initialization will set the handle.
+     let engineHandle = self.handle!
+-
+     let conversationConfig = config ?? ConversationConfig()
+ 
++    // Runs the blocking native call off the actor's own cooperative-pool thread. `Engine`'s
++    // executor is otherwise one of the app's few Swift Concurrency worker threads, and this
++    // specific native call (`litert_lm_conversation_create`) has been observed, via device
++    // console capture, to occasionally hang indefinitely inside a known upstream deadlock
++    // (`DEADLINE_EXCEEDED` in the native library's single-worker `callback_thread_pool`). Left
++    // on the actor's executor, a hang here would tie up a shared worker thread for as long as
++    // the hang lasts, which can starve every other actor-isolated task in the app — including
++    // our own stall watchdog — leaving it unable to ever notice and recover. See
++    // `runOffCooperativePool`'s doc comment for the mechanism.
++    let (conversationHandle, toolManager) = try await Self.runOffCooperativePool {
++      try Self.createNativeConversation(
++        engineHandle: engineHandle,
++        conversationConfig: conversationConfig
++      )
++    }
++
++    return Conversation(
++      handle: conversationHandle,
++      toolManager: toolManager,
++      automaticToolCalling: conversationConfig.automaticToolCalling,
++      engine: self,
++      enableResponseFormat: conversationConfig.enableResponseFormat,
++      visualTokenBudget: conversationConfig.visualTokenBudget)
++  }
++
++  /// Pure construction of the native conversation handle, with no actor-isolated state touched,
++  /// so it can run on a dedicated off-pool thread via `runOffCooperativePool`.
++  private static func createNativeConversation(
++    engineHandle: OpaquePointer,
++    conversationConfig: ConversationConfig
++  ) throws -> (handle: OpaquePointer, toolManager: ToolManager) {
+     let systemMessage = conversationConfig.systemMessage
+     let initialSystemMessageCount = conversationConfig.initialMessages.filter { $0.role == .system }
+       .count
+@@ -265,13 +359,7 @@
+       throw LiteRTLMError.engine(.failedToCreateConversation)
+     }
+ 
+-    return Conversation(
+-      handle: conversationHandle,
+-      toolManager: toolManager,
+-      automaticToolCalling: conversationConfig.automaticToolCalling,
+-      engine: self,
+-      enableResponseFormat: conversationConfig.enableResponseFormat,
+-      visualTokenBudget: conversationConfig.visualTokenBudget)
++    return (conversationHandle, toolManager)
+   }
+ 
+   /// Updates whether to enable Metal residency set on GPU at runtime.
+@@ -298,10 +386,45 @@
+     }
+   }
+ 
++  /// Runs a blocking synchronous closure on a dedicated, disposable OS thread instead of one of
++  /// Swift Concurrency's small, shared cooperative-pool threads (roughly one per CPU core,
++  /// shared by every actor and Task in the whole app). The native LiteRT-LM calls wrapped with
++  /// this are genuine blocking FFI calls that never yield back to the caller, and have been
++  /// observed, via device console capture, to occasionally hang indefinitely inside a known
++  /// upstream deadlock. Run directly on an actor's own executor, a hang like that would
++  /// permanently consume one of the app's few shared worker threads — starving every other
++  /// actor-isolated task in the app, including a stall-detection watchdog that specifically
++  /// exists to notice and recover from exactly this kind of hang. A dedicated thread means a
++  /// hang here costs one throwaway thread, never a shared one.
++  private static func runOffCooperativePool<T>(
++    _ work: @escaping @Sendable () throws -> T
++  ) async throws -> T where T: Sendable {
++    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, Error>) in
++      let thread = Thread {
++        do {
++          let value = try work()
++          continuation.resume(returning: value)
++        } catch {
++          continuation.resume(throwing: error)
++        }
++      }
++      thread.stackSize = 1 << 20
++      thread.start()
++    }
++  }
++
+   deinit {
++    // Same reasoning as `Conversation.deinit`: never block whatever thread/executor drops the
++    // last reference on a native call that can hang.
+     if let handle = handle {
+-      self.handle = nil
+-      litert_lm_engine_delete(handle)
++      let handleToDelete = handle
++      NativeActivityMonitor.report("engine-delete", isBegin: true)
++      Thread {
++        litert_lm_engine_delete(handleToDelete)
++        NativeActivityMonitor.report("engine-delete", isBegin: false)
++      }.start()
+     }
+   }
+ }
++
++extension OpaquePointer: @unchecked @retroactive Sendable {}
+--- a/swift/ExperimentalFlags.swift
++++ b/swift/ExperimentalFlags.swift
+@@ -124,6 +124,21 @@
+     }
+   }
+ 
++  private static var _activationDataType: Int32? = nil
++
++  /// Angrove addition: overrides the executor's activation data type (0 = F32, 1 = F16).
++  /// Read only when a new [Engine] is created.
++  public static var activationDataType: Int32? {
++    get { return _activationDataType }
++    set {
++      guard optedIn else {
++        logger.error("LiteRTLM: Must opt into experimental APIs before setting this flag.")
++        return
++      }
++      _activationDataType = newValue
++    }
++  }
++
+   private static var _enableSpeculativeDecoding: Bool? = nil
+ 
+   /// Whether to enable speculative decoding.

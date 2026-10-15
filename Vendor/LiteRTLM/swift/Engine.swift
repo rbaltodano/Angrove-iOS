@@ -175,11 +175,19 @@ public actor Engine {
       litert_lm_engine_settings_enable_benchmark(settings)
     }
     if let activationDataType = ExperimentalFlags.activationDataType {
-      // Angrove addition: 0 = F32, 1 = F16 (see `ActivationDataType` in the C header).
-      litert_lm_engine_settings_set_activation_data_type(settings, activationDataType)
+      // Angrove addition: 0 = F32, 1 = F16 (see `LiteRtLmActivationDataType` in the C header).
+      litert_lm_engine_settings_set_activation_data_type(
+        settings, LiteRtLmActivationDataType(rawValue: UInt32(activationDataType)))
     }
     if let enableSpeculativeDecoding = ExperimentalFlags.enableSpeculativeDecoding {
       litert_lm_engine_settings_set_enable_speculative_decoding(settings, enableSpeculativeDecoding)
+    }
+    if let visualTokenBudget = ExperimentalFlags.visualTokenBudget {
+      litert_lm_engine_settings_set_max_vision_tokens_per_image(settings, visualTokenBudget)
+    }
+    if let gpuEnableMetalResidencySet = ExperimentalFlags.gpuEnableMetalResidencySet {
+      litert_lm_engine_settings_set_gpu_enable_metal_residency_set(
+        settings, gpuEnableMetalResidencySet)
     }
 
     guard let engine = litert_lm_engine_create(settings) else {
@@ -223,7 +231,13 @@ public actor Engine {
       )
     }
 
-    return Conversation(handle: conversationHandle, toolManager: toolManager, engine: self)
+    return Conversation(
+      handle: conversationHandle,
+      toolManager: toolManager,
+      automaticToolCalling: conversationConfig.automaticToolCalling,
+      engine: self,
+      enableResponseFormat: conversationConfig.enableResponseFormat,
+      visualTokenBudget: conversationConfig.visualTokenBudget)
   }
 
   /// Pure construction of the native conversation handle, with no actor-isolated state touched,
@@ -309,13 +323,34 @@ public actor Engine {
     if !messagesJsonStr.isEmpty {
       litert_lm_conversation_config_set_messages(cConversationConfig, messagesJsonStr)
     }
-    litert_lm_conversation_config_set_enable_constrained_decoding(
-      cConversationConfig, ExperimentalFlags.enableConversationConstrainedDecoding)
+    if conversationConfig.enableResponseFormat {
+      var providerType = kLiteRtLmConstraintProviderTypeLlGuidance
+      litert_lm_conversation_config_set_constraint_provider(cConversationConfig, &providerType)
+      litert_lm_conversation_config_set_enable_constrained_decoding(cConversationConfig, true)
+    } else {
+      litert_lm_conversation_config_set_enable_constrained_decoding(
+        cConversationConfig, ExperimentalFlags.enableConversationConstrainedDecoding)
+    }
     litert_lm_conversation_config_set_stream_tool_calls(
       cConversationConfig,
       conversationConfig.enableToolCallStreaming
         && ExperimentalFlags.enableConversationToolCallStreaming,
       ExperimentalFlags.conversationToolCallStreamingChannelName)
+    if let filterChannelContentFromKvCache = ExperimentalFlags.filterChannelContentFromKvCache {
+      litert_lm_conversation_config_set_filter_channel_content_from_kv_cache(
+        cConversationConfig, filterChannelContentFromKvCache)
+    }
+
+    if let thinkingConfig = conversationConfig.thinkingConfig {
+      guard let cThinkingConfig = litert_lm_thinking_config_create() else {
+        throw LiteRTLMError.engine(.failedToCreateConversationConfig)
+      }
+      defer { litert_lm_thinking_config_delete(cThinkingConfig) }
+      litert_lm_thinking_config_set_enable_thinking(cThinkingConfig, thinkingConfig.enableThinking)
+      litert_lm_thinking_config_set_thinking_token_budget(
+        cThinkingConfig, Int32(thinkingConfig.thinkingTokenBudget))
+      litert_lm_conversation_config_set_thinking_config(cConversationConfig, cThinkingConfig)
+    }
 
     guard
       let conversationHandle = litert_lm_conversation_create(
@@ -325,6 +360,30 @@ public actor Engine {
     }
 
     return (conversationHandle, toolManager)
+  }
+
+  /// Updates whether to enable Metal residency set on GPU at runtime.
+  ///
+  /// Note: This is an experimental API. To use it, call
+  /// `ExperimentalFlags.optIntoExperimentalAPIs()` first.
+  ///
+  /// - Parameter enable: Whether to enable Metal residency set on GPU.
+  /// - Throws: A `LiteRTLMError` if experimental APIs are not opted into, the engine is not
+  ///   initialized, or update fails.
+  public func updateGPUEnableMetalResidencySet(_ enable: Bool) throws {
+    guard ExperimentalFlags.optedIn else {
+      logger.error("LiteRTLM: Must opt into experimental APIs before calling this method.")
+      throw LiteRTLMError.engine(.notOptedIntoExperimentalAPIs)
+    }
+    guard let handle else {
+      throw LiteRTLMError.engine(.notInitialized)
+    }
+    let status =
+      litert_lm_experimental_engine_update_gpu_enable_metal_residency_set(
+        handle, enable)
+    guard status == 0 else {
+      throw LiteRTLMError.engine(.failedToUpdateGPUEnableMetalResidencySet)
+    }
   }
 
   /// Runs a blocking synchronous closure on a dedicated, disposable OS thread instead of one of
