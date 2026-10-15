@@ -639,9 +639,27 @@ Mac-specific model identity, runtime selection and delivery configuration belong
 composition layer. Installed weights belong in the Mac app's own Application Support model
 directory (inside its sandbox for signed builds), with integrity verification and a distinct
 runtime cache directory. They should not be tracked in Git or placed among Mac UI source files.
-Local development may reference an existing verified artifact directly. A larger Mac model has
-not been selected or downloaded; evaluate its weights, context/KV cache and runtime memory on
-the 16 GiB baseline before adopting it. The previously shelved 12B research remains shelved.
+Local development may reference an existing verified artifact directly.
+
+### Model tiers — October 15, 2026
+
+`MacModelTier` (`macOS/Platform/`) picks the model for each launch. **Standard** is the iPhone's
+E4B package. **Large** is stock Gemma 4 12B (`gemma-4-12B-it.litertlm`, needs LiteRT-LM
+0.17+). **Extended**, the tuned-voice E4B INT8 package, will join after its re-export. Settings
+› Model offers the tiers the Mac's installed memory allows: Large currently needs 24 GiB, a
+placeholder until it's measured on a 16 GiB Mac. The choice applies at the next launch.
+A Mac falls back to Standard when the chosen tier isn't installed. Each tier has its own
+manifest and SHA-256 check. Every tier keeps the 4,096-token context; raising it needs a memory
+measurement and an `AngroveContextBudget` change. LiteRT names its caches per model file, so
+the tiers share one cache folder, and launch removes the inactive tiers' caches (12B: 5.6 GB).
+
+Large is not evaluated and has no download path yet. For local use, put the package in
+`Application Support/Angrove-macOS/Models/` with a `.verified.json` receipt. An APFS clone
+(`cp -c`) from `Aquinas_Backend/models/LiteRT-Stock/` uses no extra disk. In DEBUG builds, the
+backend copy is read directly. Live check through the production model path, opt-in:
+`TEST_RUNNER_ANGROVE_LIVE_MODEL_TIER=large xcodebuild … test
+-only-testing:Angrove-macOSTests/MacModelTierLiveTests`. On an M4 Pro (24 GiB), 12B loads in
+15.6 s from a cold cache and 1.7 s warm, and answers a short question in about 18 s (E4B: 7 s).
 
 
 ## Mac conversation design — October 12, 2026

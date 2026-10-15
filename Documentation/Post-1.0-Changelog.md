@@ -21,6 +21,17 @@ Collected from the [iOS] and [Shared] entries below.
 
 ## 2026-10-15
 
+- **[macOS] Model tiers: Standard (E4B) and Large (Gemma 4 12B).** Settings › Model picks the
+  tier, gated by installed memory (Large: 24 GiB placeholder). The choice applies at the next
+  launch and falls back to Standard when the chosen tier isn't installed. Each tier has its own
+  checksum, and inactive tiers' GPU caches are removed at launch. Large is unevaluated and opt-in;
+  the default stays Standard. Details are in `Mac-Port.md` › Model tiers. Verified: 115 Mac tests
+  pass. The opt-in live test ran 12B through the production model path: 15.6 s cold load,
+  1.7 s warm, about 18 s per answer, and the John chapter count correct. One early cold-load run
+  stalled with idle native threads and did not reproduce; watch for it.
+- **[Shared] `LiteRTAngroveRuntime` takes its context size as an init parameter** (default
+  4,096). No iPhone behavior change.
+
 - **[Shared] Mac parity batch: shared Home, Library, Settings and Study Topics code.** Work
   from parallel agents, committed together. iPhone Home dashboard, Library, User Guide,
   Licenses and Settings components moved from `iOS/` into `Shared/` (for example

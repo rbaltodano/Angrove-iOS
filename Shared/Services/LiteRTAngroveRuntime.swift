@@ -60,6 +60,9 @@ actor LiteRTAngroveRuntime {
     let supportsUnloading = true
 
     private let modelStore: LiteRTModelStore
+    /// This engine's KV-cache size. The iPhone always uses `maxNumTokens`; Mac model tiers
+    /// pass their own (see `MacModelTier`).
+    private let contextTokens: Int
 #if DEBUG
     /// `--litert-force-cpu` runs the full app on the CPU executor (plan C7: the simulator's
     /// Metal limits reject some packages on GPU).
@@ -129,7 +132,8 @@ actor LiteRTAngroveRuntime {
     private static let abandonedWorkWait: Duration = .seconds(45)
     /// How long a new engine load waits for earlier engines and conversations to finish deleting.
     private static let nativeDeleteWait: Duration = .seconds(10)
-    /// The production KV-cache size, shared by prompt, history, references, and answer.
+    /// The default KV-cache size, shared by prompt, history, references, and answer.
+    /// `AngroveContextBudget.totalTokenLimit` budgets against this same value.
     static let maxNumTokens = 4_096
     /// Gemma 4's multi-token-prediction drafter (a section of the E4B package) proposes several
     /// tokens for the main model to verify in one pass. Off for launch: on the phone GPU it saved
@@ -157,8 +161,9 @@ actor LiteRTAngroveRuntime {
 #endif
     }
 
-    init(modelStore: LiteRTModelStore = LiteRTModelStore()) {
+    init(modelStore: LiteRTModelStore = LiteRTModelStore(), contextTokens: Int = maxNumTokens) {
         self.modelStore = modelStore
+        self.contextTokens = contextTokens
     }
 
     /// Load and unload take the generation slot, like generation itself. The lifecycle manager
@@ -474,7 +479,7 @@ actor LiteRTAngroveRuntime {
             modelPath: modelURL.path,
             backend: backend,
             visionBackend: Self.visionBackend,
-            maxNumTokens: Self.maxNumTokens,
+            maxNumTokens: contextTokens,
             cacheDir: cacheURL.path
         )
         await waitForPendingNativeDeletes()

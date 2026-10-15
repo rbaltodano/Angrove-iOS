@@ -47,6 +47,7 @@ struct MacSettingsView: View {
                     MacAudioSettings()
                     MacNotificationSettings()
                     MacPrivacySettings()
+                    MacModelSettings()
                     MacDataSettings()
                     MacSupportSettings(openGuide: { showsGuide = true }, openHotKeys: { showsHotKeys = true })
             }
@@ -388,6 +389,33 @@ private struct MacPrivacySettings: View {
                 }
             }
         }
+    }
+}
+
+/// Model tier choice. The running tier only changes at the next launch (one engine per process).
+private struct MacModelSettings: View {
+    @AppStorage(MacModelTier.selectionKey) private var selection: MacModelTier = .standard
+    private let running = MacApplicationRuntime.shared.modelTier
+    private let options: [(MacModelTier, String)] = {
+        let memory = ProcessInfo.processInfo.physicalMemory
+        return MacModelTier.allCases.filter { $0.isEligible(physicalMemory: memory) }.map { tier in
+            (tier, tier.modelStore().hasInstalledModel() ? tier.title : "\(tier.title) (not installed)")
+        }
+    }()
+
+    var body: some View {
+        MacSettingsSection(title: "Model", description: "Choose the on-device model Angrove answers with.") {
+            MacSettingsRow(title: "Model size", description: description) {
+                MacMenuPicker(title: "Model size", selection: $selection, options: options)
+            }
+        }
+    }
+
+    private var description: String {
+        if selection != running {
+            return "\(selection.detail) Angrove switches the next time you open it."
+        }
+        return selection.detail
     }
 }
 

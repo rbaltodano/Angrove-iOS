@@ -9,6 +9,8 @@ import Observation
     let embeddingProvider: any EmbeddingProvider
     let modelIsAvailable: Bool
     let modelURL: URL?
+    /// The tier this launch runs; a Settings change applies at the next launch.
+    let modelTier: MacModelTier
 
     #if DEBUG
     /// Explicitly injected boundaries for isolated tests; the live app uses `shared`.
@@ -18,25 +20,26 @@ import Observation
         embeddingProvider = LazySemanticEmbeddingProvider()
         modelIsAvailable = true
         modelURL = nil
+        modelTier = .standard
     }
     #endif
 
     private init() {
-        var source: URL?
-        #if DEBUG
-        // Reuse the owner's existing, pinned E4B artifact without copying weights into this worktree.
-        let developer = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().deletingLastPathComponent()
-        let existing = developer.appending(path: "Aquinas-iOS-main/iOS/LocalModels/gemma-4-E4B-it.litertlm")
-        if FileManager.default.fileExists(atPath: existing.path) { source = existing }
-        #endif
-        let store = LiteRTModelStore(developmentModelURL: source)
+        let stores = Dictionary(uniqueKeysWithValues: MacModelTier.allCases.map { ($0, $0.modelStore()) })
+        let tier = MacModelTier.resolve(
+            selected: MacModelTier.storedSelection,
+            physicalMemory: ProcessInfo.processInfo.physicalMemory,
+            isInstalled: { stores[$0]?.hasInstalledModel() == true }
+        )
+        modelTier = tier
+        let store = stores[tier] ?? tier.modelStore()
         let installed = try? store.installedModelURL()
         modelURL = installed
         modelIsAvailable = installed != nil
         if let installed {
-            let native = LiteRTAngroveRuntime(modelStore: store)
-            let lifecycle = ModelRuntimeLifecycleManager(driver: VerifiedMacRuntimeDriver(runtime: native, url: installed), configuration: .adaptiveOnDevice)
+            let native = LiteRTAngroveRuntime(modelStore: store, contextTokens: tier.contextTokens)
+            let driver = VerifiedMacRuntimeDriver(runtime: native, url: installed, sha256: store.manifest.sha256)
+            let lifecycle = ModelRuntimeLifecycleManager(driver: driver, configuration: .adaptiveOnDevice)
             modelTasks = ModelTaskQueue(runtimeLifecycle: lifecycle)
             model = LiteRTAngroveModel(runtime: native, groundingProvider: LazyGroundingProvider())
         } else {
@@ -44,6 +47,9 @@ import Observation
             model = UnavailableAngroveModel()
         }
         embeddingProvider = LazySemanticEmbeddingProvider()
+        if let cache = try? store.cacheDirectory() {
+            Task.detached(priority: .background) { MacModelTier.removeCaches(except: tier, in: cache) }
+        }
     }
 }
 
@@ -52,13 +58,18 @@ private actor VerifiedMacRuntimeDriver: ModelRuntimeDriver {
     nonisolated let supportsUnloading = true
     let runtime: LiteRTAngroveRuntime
     let url: URL
+    let sha256: String
     private var verified = false
-    init(runtime: LiteRTAngroveRuntime, url: URL) { self.runtime = runtime; self.url = url }
+    init(runtime: LiteRTAngroveRuntime, url: URL, sha256: String) {
+        self.runtime = runtime
+        self.url = url
+        self.sha256 = sha256
+    }
     func loadModelWeights() async throws {
         if !verified {
             let url = url
             let digest = try await Task.detached(priority: .utility) { try LiteRTModelInstaller.sha256(of: url) }.value
-            guard digest == LiteRTModelManifest.angrove.sha256 else { throw LiteRTModelStoreError.invalidModelDigest }
+            guard digest == sha256 else { throw LiteRTModelStoreError.invalidModelDigest }
             verified = true
         }
         try await runtime.loadModelWeights()
