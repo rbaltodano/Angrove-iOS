@@ -1,9 +1,10 @@
 import SwiftUI
 
 enum MacSidebarTransition {
-    static let widthDuration = 0.42
+    static let timingScale = 0.5
+    static let widthDuration = 0.42 * timingScale
     static let midpoint = widthDuration / 2
-    static let fadeDuration = 0.14
+    static let fadeDuration = 0.14 * timingScale
 
     // Matches the corresponding mobile SideMenuRow delays.
     static func delay(for destination: MacDestination) -> Double {
@@ -11,7 +12,9 @@ enum MacSidebarTransition {
         case .home: 0.20
         case .insights: 0.25
         case .conversations: 0.30
+        case .library: 0.325
         case .studyTopics: 0.35
+        case .settings: 0.40
         }
     }
 }
@@ -35,9 +38,9 @@ struct MacSidebarEntrance: ViewModifier {
                     }
                     return
                 }
-                do { try await Task.sleep(for: .seconds(delay)) } catch { return }
+                do { try await Task.sleep(for: .seconds(delay * MacSidebarTransition.timingScale)) } catch { return }
                 guard !Task.isCancelled else { return }
-                withAnimation(.easeOut(duration: duration)) { visible = true }
+                withAnimation(.easeOut(duration: duration * MacSidebarTransition.timingScale)) { visible = true }
             }
     }
 }
@@ -64,9 +67,9 @@ struct MacSidebarIconEntrance: ViewModifier {
                 withTransaction(transaction) { visible = isPresented }
                 return
             }
-            do { try await Task.sleep(for: .seconds(delay)) } catch { return }
+            do { try await Task.sleep(for: .seconds(delay * MacSidebarTransition.timingScale)) } catch { return }
             guard !Task.isCancelled else { return }
-            withAnimation(.easeOut(duration: 0.35)) { visible = true }
+            withAnimation(.easeOut(duration: 0.35 * MacSidebarTransition.timingScale)) { visible = true }
         }
     }
 }
@@ -87,7 +90,7 @@ struct MacSidebarEntranceDivider: View {
         }
         .opacity(visible ? 1 : 0)
         .task(id: isPresented) {
-            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.35)) { visible = isPresented }
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.35 * MacSidebarTransition.timingScale)) { visible = isPresented }
         }
     }
 }

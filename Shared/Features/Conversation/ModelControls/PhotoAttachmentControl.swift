@@ -11,6 +11,23 @@ struct PhotoAttachmentControl: View {
     @State private var pendingAction: Task<Void, Never>?
 
     var body: some View {
+        #if os(macOS)
+        MacActionMenu(entries: {
+            var entries = [MacMenuEntry("Insights", symbol: "text.bubble", action: onInsights),
+                           MacMenuEntry("Passages", symbol: "books.vertical", action: onPassages)]
+            if let onPhotos { entries.append(MacMenuEntry("Photos", symbol: "photo", action: onPhotos)) }
+            if let onCamera { entries.append(MacMenuEntry("Camera", symbol: "camera", action: onCamera)) }
+            return entries
+        }) {
+            Image(systemName: "plus")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(AngroveTheme.Colors.lightGreen)
+                .frame(width: 16, height: 16)
+        }
+        .buttonStyle(FloatingControlButtonStyle(isPressed: $isPressed))
+        .accessibilityLabel("Add attachment")
+        .modelControlHoverLabel("Add attachment")
+        #else
         Button { isMenuOpen.toggle() } label: {
             Image(systemName: "plus")
                 .font(.system(size: 12, weight: .semibold))
@@ -28,10 +45,14 @@ struct PhotoAttachmentControl: View {
             .presentationCompactAdaptation(.popover)
         }
         .accessibilityLabel("Add attachment")
+        #if os(macOS)
+        .modelControlHoverLabel("Add attachment")
+        #endif
         .accessibilityHint(onPhotos == nil
             ? "Choose a saved Insight or Library passage."
             : "Choose a saved Insight, Library passage, or photo.")
         .onDisappear { pendingAction?.cancel() }
+        #endif
     }
 
     private func select(_ action: @escaping () -> Void) {

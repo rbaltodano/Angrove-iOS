@@ -171,6 +171,9 @@ struct ModelControlsHost: View {
         .padding(.bottom, showsContent ? c.bottomPadding : 0)
         .frame(maxWidth: c.maxWidth ?? .infinity)
         .frame(maxWidth: .infinity, alignment: c.alignment)
+        #if os(macOS)
+        .modelControlHoverOverlay(isVisible: showsContent && c.pillReplacement == nil)
+        #endif
         .animation(.easeInOut(duration: 0.22), value: c.id)
         .animation(.springStandard, value: c.bottomPadding)
         .animation(
@@ -293,6 +296,9 @@ struct ModelControlsHost: View {
                         )
                     )
                     .modifier(FloatingControlPressFeedback(isButtonPressed: c.isControlButtonPressed))
+                    #if os(macOS)
+                    .modelControlHoverPill()
+                    #endif
                     .animation(.springLively, value: c.controlsUpdateKey)
                     .opacity(c.pillReplacement == nil ? 1 : 0)
                     .allowsHitTesting(c.pillReplacement == nil)

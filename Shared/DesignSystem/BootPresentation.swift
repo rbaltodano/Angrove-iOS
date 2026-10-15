@@ -168,7 +168,3 @@ private struct BootRevealMask: View {
         .ignoresSafeArea()
     }
 }
-
-extension EnvironmentValues {
-    @Entry var homeVinePlayback: HomeVinePlaybackController? = nil
-}

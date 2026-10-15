@@ -195,3 +195,7 @@ struct HomeVinePlayback: Equatable {
         .padding()
         .background(AngroveTheme.Colors.canvas)
 }
+
+extension EnvironmentValues {
+    @Entry var homeVinePlayback: HomeVinePlaybackController? = nil
+}

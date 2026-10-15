@@ -83,6 +83,18 @@ struct StudyTopicCard: View {
                 description: displayDescription,
                 isPressed: isShowingLongPressFeedback
             ) {
+                Group {
+                #if os(macOS)
+                MacActionMenu(entries: { [
+                    MacMenuEntry("Rename", symbol: "pencil.line", action: onRename), .divider,
+                    MacMenuEntry("Delete", symbol: "trash", destructive: true, action: onDelete)
+                ] }) {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                        .frame(width: 22, height: 22)
+                }
+                #else
                 Menu {
                     Button("Rename", systemImage: "pencil.line") { onRename() }
                     Divider()
@@ -92,6 +104,8 @@ struct StudyTopicCard: View {
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(AngroveTheme.Colors.paragraphText)
                         .frame(width: 22, height: 22)
+                }
+                #endif
                 }
                 .buttonStyle(.plain)
                 .padding(11)
@@ -156,6 +170,7 @@ struct StudyTopicCard: View {
                 .allowsHitTesting(false)
         }
         .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .modifier(StudyTopicCardContextMenu(onRename: onRename, onDelete: onDelete))
         .onTapGesture(perform: onSelect)
         .onLongPressGesture(
             minimumDuration: longPressDuration,
@@ -176,5 +191,20 @@ struct StudyTopicCard: View {
 
     private var displayDescription: String {
         topic.description.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+private struct StudyTopicCardContextMenu: ViewModifier {
+    let onRename: () -> Void
+    let onDelete: () -> Void
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        content.macContextMenu { [
+            MacMenuEntry("Rename", symbol: "pencil.line", action: onRename), .divider,
+            MacMenuEntry("Delete", symbol: "trash", destructive: true, action: onDelete)
+        ] }
+        #else
+        content
+        #endif
     }
 }

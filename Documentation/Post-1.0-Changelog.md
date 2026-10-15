@@ -21,6 +21,16 @@ Collected from the [iOS] and [Shared] entries below.
 
 ## 2026-10-15
 
+- **[Shared] Mac parity batch: shared Home, Library, Settings and Study Topics code.** Work
+  from parallel agents, committed together. iPhone Home dashboard, Library, User Guide,
+  Licenses and Settings components moved from `iOS/` into `Shared/` (for example
+  `HomeDashboardSections`, `LibraryReaderComponents`, `BundledLicenses`, `UserGuideTopic`,
+  `BugReportSubmission`, `SharedFormControls`). Mac Settings, page headings, shortcuts,
+  Model Controls hover labels, image attachments and Study Topics were added. The details are
+  in `Mac-Port.md` (October 14–15 sections). **Owner:** confirm whether any of this was already
+  in the 1.0 archive. The iPhone parts are intended as moves; check them for visible changes
+  before writing patch notes.
+
 - **[Shared] LiteRT-LM runtime upgraded 0.14.0 → 0.17.1** (`Vendor/LiteRTLM`). Required for the
   Mac Large tier (Gemma 4 12B cannot load on 0.14).
   - **What changed:** the Swift wrapper is upstream 0.17.1. The binaries are the upstream

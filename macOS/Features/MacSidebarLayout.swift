@@ -88,8 +88,8 @@ struct MacSidebarResizeHandle: View {
                 }
             }
             .offset(x: 12)
-            .help("Drag to resize or collapse the sidebar. Drag outward to expand it.")
-            .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("MacWorkspace"))
+            .help("Drag to resize the sidebar. Double-click to expand or collapse it.")
+            .gesture(DragGesture(minimumDistance: 3, coordinateSpace: .named("MacWorkspace"))
                 .onChanged { value in
                     let origin = dragOrigin ?? layout
                     dragOrigin = origin
@@ -101,6 +101,9 @@ struct MacSidebarResizeHandle: View {
                     }
                     dragOrigin = nil
                 })
+            .simultaneousGesture(TapGesture(count: 2).onEnded {
+                toggleCompact()
+            })
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Sidebar resize handle")
             .accessibilityValue(layout.isCompact ? "Compact" : "\(Int(layout.width(in: windowWidth))) points")
@@ -110,10 +113,14 @@ struct MacSidebarResizeHandle: View {
                 applyDrag(from: origin, translation: translation)
             }
             .accessibilityAction(named: Text(layout.isCompact ? "Expand sidebar" : "Collapse sidebar")) {
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: MacSidebarTransition.widthDuration)) {
-                    layout.toggleCompact()
-                }
+                toggleCompact()
             }
+    }
+
+    private func toggleCompact() {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: MacSidebarTransition.widthDuration)) {
+            layout.toggleCompact()
+        }
     }
 
     private func applyDrag(from origin: MacSidebarLayout, translation: CGFloat) {

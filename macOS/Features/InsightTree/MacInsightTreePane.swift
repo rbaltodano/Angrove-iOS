@@ -8,13 +8,15 @@ struct MacInsightTreePane: View {
     let runtime: MacApplicationRuntime
     let isVisible: Bool
     var isGlobal = false
+    var originPage: ModelTaskOriginPage? = nil
     var cardsAtFrameBottom = false
     var onActivity: () -> Void = {}
     @State private var hasMounted = false
+    @AppStorage(SettingsStorageKey.insightTreeBackground) private var background: CanvasBackgroundOption = .system
 
     var body: some View {
         ZStack {
-            AngroveTheme.Colors.canvas
+            CanvasBackground(option: background)
             if hasMounted {
                 InsightTreeView(
                     insights: session.concepts, conversationID: isGlobal ? nil : session.id, persistsDiscoveryState: !session.isPreview,
@@ -51,11 +53,12 @@ struct MacInsightTreePane: View {
                     onMidpointModeChange: { controls.isMidpoint = $0 },
                     onMidpointGeneratingChange: { controls.isGenerating = $0 },
                     showQuestionBar: false,
-                    modelTasks: runtime.modelTasks, modelTaskOriginPage: isGlobal ? .insights : .conversation,
+                    modelTasks: runtime.modelTasks, modelTaskOriginPage: originPage ?? (isGlobal ? .insights : .conversation),
                     model: runtime.model, embeddingProvider: runtime.embeddingProvider
                 )
             }
         }
+        .canvasAppearance(background)
         .frame(minWidth: MacInsightPaneLayout.minimumContentWidth, alignment: .leading)
         .overlay(alignment: .top) { MacConversationEdgeFade(top: true) }
         .overlay(alignment: .bottom) { MacConversationEdgeFade(top: false) }

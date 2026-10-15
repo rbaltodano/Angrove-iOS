@@ -9,7 +9,7 @@ struct MacConversationTopicPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("Study Topic").font(AngroveTheme.Typography.uiHeading)
+            MacPageHeading(title: "Study Topic")
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     Button("No Study Topic") { onSelect(nil) }
@@ -21,12 +21,13 @@ struct MacConversationTopicPicker: View {
                             }
                         }
                     }
-                    if topics.isEmpty { Text("No Study Topics yet. Create one below.").paragraphFont() }
+                    if topics.isEmpty { Text("No Study Topics yet. Create one below.").paragraphFont().settingsTextReveal() }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack {
                 TextField("New Study Topic", text: $newTitle)
+                    .macPlainField()
                 Button("Create") {
                     let topic = StudyTopic(title: newTitle.trimmingCharacters(in: .whitespacesAndNewlines))
                     topics.append(topic)

@@ -3614,7 +3614,8 @@ code.cmd { background: var(--canvas-secondary); }
   // Wheel and trackpad input sets a target and the page eases toward it, so scrolling glides
   // instead of stepping. Touch, keyboard, the scrollbar, and anchor links stay native, and the
   // target re-syncs whenever one of them moves the page.
-  if (!reduceMotion) {
+  // The Mac app sets guideContext.nativeScrolling to keep the system's own wheel behavior.
+  if (!reduceMotion && !(window.guideContext && window.guideContext.nativeScrolling)) {
     var EASE = 0.11;              // share of the remaining distance covered each frame
     var target = window.scrollY, current = window.scrollY, gliding = false;
     function startupLocked() {

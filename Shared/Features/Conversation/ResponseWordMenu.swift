@@ -161,12 +161,13 @@ private struct ResponseWordMenuModifier: ViewModifier {
     let location: () -> DefinedTermMarkup.Location
     @Environment(\.defineResponseWord) private var defineResponseWord
     func body(content: Content) -> some View {
-        content.contextMenu {
-            Button("Copy", systemImage: "doc.on.doc") { PlatformClipboard.copy(token.filter { $0 != "*" }) }
+        content.macContextMenu {
+            var items = [MacMenuEntry("Copy", symbol: "doc.on.doc") { PlatformClipboard.copy(token.filter { $0 != "*" }) }]
             if let defineResponseWord, DefinedTermMarkup.term(in: token) != nil {
-                Button("Define", systemImage: "text.bubble") { defineResponseWord(ResponseWordDefinitionRequest(token: token, location: location())) }
+                items.append(MacMenuEntry("Define", symbol: "text.bubble") { defineResponseWord(ResponseWordDefinitionRequest(token: token, location: location())) })
             }
-            if let onReadFromHere { Button("Read from here", systemImage: "speaker.wave.2", action: onReadFromHere) }
+            if let onReadFromHere { items.append(MacMenuEntry("Read from here", symbol: "speaker.wave.2", action: onReadFromHere)) }
+            return items
         }
     }
 }

@@ -127,7 +127,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--website-root", type=Path, required=True)
     args = parser.parse_args()
-    output = APP_ROOT / "Angrove-iOS" / "Resources" / "UserGuide.html"
+    output = APP_ROOT / "Shared" / "Resources" / "UserGuide" / "UserGuide.html"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(bundle(args.website_root.resolve()))
     print(f"Bundled offline User Guide: {output} ({output.stat().st_size:,} bytes)")

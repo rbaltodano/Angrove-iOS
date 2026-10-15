@@ -43,8 +43,15 @@ enum InsightTreeReset {
             defaults.removeObject(forKey: key)
         }
 
+        #if os(macOS)
+        // The Mac stores live under its own folder; never touch a shared Application Support path.
+        let base = applicationSupport
+            ?? fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+                .appending(path: "Angrove-macOS", directoryHint: .isDirectory)
+        #else
         let base = applicationSupport
             ?? fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        #endif
         if let directory = base?.appending(path: "Aquinas/InsightTree", directoryHint: .isDirectory) {
             try? fileManager.removeItem(at: directory)
         }

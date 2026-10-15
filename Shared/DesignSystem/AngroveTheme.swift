@@ -101,6 +101,12 @@ enum AngroveTheme {
         static let treeConnector = brownBorder.opacity(0.55)
         static let border = brownBorder
         static let quietBorder = brownBorder
+        /// Floating menus and popover cards: the Mac's menus share one border; iPhone keeps its softer one.
+        #if os(macOS)
+        static let popupBorder = border
+        #else
+        static let popupBorder = darkBrown.opacity(0.08)
+        #endif
         static let controlBorder = brownBorder
         static let mutedIcon = responseButton
         static let controlGlow = canvas

@@ -15,6 +15,7 @@ struct MacFloatingSidebar: View {
     let renamingConversationID: UUID?
     let beginRename: (UUID) -> Void
     let finishRename: (UUID, String?) -> Void
+    var menuAction: (MacSidebarConversationMenuAction, InquiryConversation) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var initializedPresentation = false
     @State private var compactVisible = false
@@ -35,7 +36,7 @@ struct MacFloatingSidebar: View {
                                    activeConversationID: activeConversationID, openMenuID: openMenuID, openMenu: openMenu,
                                    isPresented: initializedPresentation ? expandedPresented : !isCompact,
                                    renamingConversationID: renamingConversationID,
-                                   beginRename: beginRename, finishRename: finishRename)
+                                   beginRename: beginRename, finishRename: finishRename, menuAction: menuAction)
                     .frame(width: max(MacSidebarLayout.minimumWidth, geometry.size.width))
                     .opacity((initializedPresentation ? expandedPresented : !isCompact) ? 1 : 0)
                     .allowsHitTesting(!isCompact && expandedPresented)
@@ -43,7 +44,7 @@ struct MacFloatingSidebar: View {
             }
         }
         .frame(maxHeight: .infinity)
-        .background(AngroveTheme.Colors.chipFill)
+        .background(AngroveTheme.Colors.sideMenuSurface)
         .overlay(alignment: .trailing) {
             Rectangle()
                 .fill(MacConversationStyle.border)
@@ -79,6 +80,9 @@ struct MacFloatingSidebar: View {
 }
 
 private struct MacExpandedSidebar: View {
+    private static let fixtureStudyTopics = [StudyTopic(title: "Summer Bible Study")]
+    @State private var commandHeld = false
+    @State private var savedStudyTopics = StudyTopicStore.load()
     @Binding var selection: MacDestination
     let showsFixture: Bool
     let conversations: [InquiryConversation]
@@ -93,27 +97,60 @@ private struct MacExpandedSidebar: View {
     let renamingConversationID: UUID?
     let beginRename: (UUID) -> Void
     let finishRename: (UUID, String?) -> Void
+    var menuAction: (MacSidebarConversationMenuAction, InquiryConversation) -> Void
+    @State private var scrollEdges = Edges()
 
     var body: some View {
-        VStack(spacing: 20) {
+        ZStack(alignment: .bottomLeading) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    logo
-                        .modifier(MacSidebarEntrance(isPresented: isPresented, delay: 0.15, duration: 0.32, offset: 24))
+                    // Reserves the pinned logo's space so the rows start beneath it.
+                    logo.hidden()
                     navigation
                     ornament
-                    studyTopics
+                    if showsFixture || !savedStudyTopics.isEmpty {
+                        studyTopics
+                    }
                     recents
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, MacSidebarLayout.contentInset)
+                // Keep navigation below the window controls while its surface spans the window.
+                .padding(.top, MacSidebarLayout.contentTopInset)
+                // Let the last row scroll fully above the floating settings icon.
+                .padding(.bottom, MacSidebarLayout.contentInset + Self.footerClearance)
             }
             .scrollIndicators(.never)
+            .onScrollGeometryChange(for: Edges.self) { geometry in
+                let top = geometry.contentOffset.y + geometry.contentInsets.top > 0.5
+                let bottom = geometry.contentOffset.y + geometry.containerSize.height
+                    < geometry.contentSize.height - 0.5
+                return Edges(top: top, bottom: bottom)
+            } action: { _, edges in
+                scrollEdges = edges
+            }
+
+            fade(from: .top)
+                .padding(.top, 84)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .opacity(scrollEdges.top ? 1 : 0)
+            fade(from: .bottom)
+                .opacity(scrollEdges.bottom ? 1 : 0)
+            logo
+                .modifier(MacSidebarEntrance(isPresented: isPresented, delay: 0.15, duration: 0.32, offset: 24))
+                .padding(.horizontal, MacSidebarLayout.contentInset)
+                .padding(.top, MacSidebarLayout.contentTopInset)
+                .frame(maxHeight: .infinity, alignment: .top)
             footer
+                .padding(.leading, MacSidebarLayout.contentInset)
+                .padding(.bottom, MacSidebarLayout.contentInset)
                 .modifier(MacSidebarEntrance(isPresented: isPresented, delay: 0.20))
         }
-        .padding(MacSidebarLayout.contentInset)
-        // Keep navigation below the window controls while its surface spans the window.
-        .padding(.top, MacSidebarLayout.contentTopInset - MacSidebarLayout.contentInset)
+        .animation(.easeInOut(duration: 0.28), value: scrollEdges)
+        .background(MacCommandKeyObserver { commandHeld = $0 })
+        .onReceive(NotificationCenter.default.publisher(for: .macConversationSaved)) { _ in
+            savedStudyTopics = StudyTopicStore.load()
+        }
     }
 
     private var logo: some View {
@@ -127,7 +164,7 @@ private struct MacExpandedSidebar: View {
 
     private var navigation: some View {
         VStack(alignment: .leading, spacing: 24) {
-            ForEach(MacDestination.allCases) { destination in
+            ForEach(MacDestination.sidebarDestinations) { destination in
                 Button {
                     selection = destination
                 } label: {
@@ -135,7 +172,7 @@ private struct MacExpandedSidebar: View {
                         MacIconView(icon: destination.asset)
                             .modifier(MacSidebarIconEntrance(isPresented: isPresented, delay: MacSidebarTransition.delay(for: destination)))
                         Text(destination.title)
-                            .font(MacConversationStyle.serifBody)
+                            .font(AngroveTheme.Typography.uiSubheading)
                             .foregroundStyle(AngroveTheme.Colors.paragraphText)
                             .modifier(MacSidebarEntrance(isPresented: isPresented,
                                 delay: MacSidebarTransition.delay(for: destination) + 0.025))
@@ -165,16 +202,14 @@ private struct MacExpandedSidebar: View {
 
     private var studyTopics: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Study Topics")
-                .font(AngroveTheme.Typography.uiHeading)
-                .foregroundStyle(AngroveTheme.Colors.headingText)
+            MacPageHeading(title: "Study Topics")
                 .frame(height: 27)
                 .modifier(MacSidebarEntrance(isPresented: isPresented, delay: 0.15, duration: 0.32, offset: 24))
-            if showsFixture {
+            ForEach(showsFixture ? Self.fixtureStudyTopics : savedStudyTopics) { topic in
                 Button { selection = .studyTopics } label: {
                     HStack(spacing: 10) {
                         MacIconView(icon: .studyTopic)
-                        Text("Summer Bible Study")
+                        Text(MacStudyTopicsView.displayTitle(topic))
                             .font(AngroveTheme.Typography.body)
                             .foregroundStyle(AngroveTheme.Colors.paragraphText)
                         Spacer(minLength: 0)
@@ -184,23 +219,28 @@ private struct MacExpandedSidebar: View {
                     .contentShape(Rectangle())
                 }
                 .modifier(MacSidebarEntrance(isPresented: isPresented, delay: 0.20))
-            } else {
-                Text("No study topics yet")
-                    .font(AngroveTheme.Typography.body)
-                    .foregroundStyle(AngroveTheme.Colors.placeholderText)
-                    .frame(height: 44)
-                    .modifier(MacSidebarEntrance(isPresented: isPresented, delay: 0.20))
             }
         }
     }
 
     private var recents: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Recents")
-                .font(AngroveTheme.Typography.uiHeading)
-                .foregroundStyle(AngroveTheme.Colors.headingText)
-                .frame(height: 27)
-                .modifier(MacSidebarEntrance(isPresented: isPresented, delay: 0.15, duration: 0.32, offset: 24))
+            HStack {
+                MacPageHeading(title: "Recents")
+                Spacer(minLength: 8)
+                Button(action: newConversation) {
+                    Image(systemName: MacIcon.plus.symbol)
+                        .font(.system(size: MacIcon.plus.size, weight: .medium))
+                        .foregroundStyle(AngroveTheme.Colors.placeholderText)
+                        .frame(width: 28, height: 27)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("New Conversation")
+                .help("New Conversation (⌘N)")
+                .keyboardShortcut("n", modifiers: .command)
+            }
+            .frame(height: 27)
+            .modifier(MacSidebarEntrance(isPresented: isPresented, delay: 0.15, duration: 0.32, offset: 24))
             #if DEBUG
             if showsFixture {
                 VStack(spacing: 0) {
@@ -209,14 +249,10 @@ private struct MacExpandedSidebar: View {
                             .lineLimit(1)
                             .truncationMode(.tail)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        Menu {
-                            Button("Open design preview", action: openPreview)
-                        } label: {
+                        MacActionMenu(entries: { [MacMenuEntry("Open design preview", symbol: "eye", action: openPreview)] }) {
                             MacIconView(icon: .ellipsis)
                                 .frame(width: 24, height: 28)
                         }
-                        .menuStyle(.borderlessButton)
-                        .menuIndicator(.hidden)
                         .accessibilityLabel("Conversation options")
                         .fixedSize()
                     }
@@ -256,40 +292,43 @@ private struct MacExpandedSidebar: View {
                 MacSidebarConversationRow(conversation: conversation,
                     isSelected: selection == .conversations && activeConversationID == conversation.id,
                     isMenuOpen: openMenuID == conversation.id,
+                    shortcutNumber: index < 9 ? index + 1 : nil,
+                    showsShortcut: commandHeld && isPresented,
                     isLoading: !loadingBranchIDs.isDisjoint(with: conversation.branches.map(\.id)),
                     onOpen: { openConversation(conversation.id) }, onMenu: { openMenu(conversation.id) },
                     isRenaming: renamingConversationID == conversation.id,
                     onRename: { beginRename(conversation.id) },
-                    onFinishRename: { finishRename(conversation.id, $0) })
+                    onFinishRename: { finishRename(conversation.id, $0) },
+                    contextEntries: { isPresented ? MacSidebarConversationMenu.entries(for: conversation) { menuAction($0, conversation) } : [] })
                     .modifier(MacSidebarEntrance(isPresented: isPresented, delay: 0.20 + Double(index) * 0.05))
             }
         }.font(AngroveTheme.Typography.body).foregroundStyle(AngroveTheme.Colors.paragraphText)
     }
 
+    private static let footerClearance: CGFloat = 64
+
+    private struct Edges: Equatable { var top = false, bottom = false }
+
+    private func fade(from edge: VerticalEdge) -> some View {
+        let surface = AngroveTheme.Colors.sideMenuSurface
+        return LinearGradient(colors: [surface, surface.opacity(0)],
+                              startPoint: edge == .top ? .top : .bottom,
+                              endPoint: edge == .top ? .bottom : .top)
+            .frame(height: 120)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
     private var footer: some View {
         HStack(spacing: 0) {
-            SettingsLink {
+            Button { selection = .settings } label: {
                 MacIconView(icon: .settings)
-                    .frame(width: 44, height: 52, alignment: .leading)
+                    .frame(width: 44, height: MacIcon.settings.size, alignment: .leading)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("Settings")
-            Spacer(minLength: 8)
-            Button(action: newConversation) {
-                HStack(spacing: 8) {
-                    MacIconView(icon: .plus)
-                    Text("New Conversation")
-                        .font(AngroveTheme.Typography.body)
-                        .foregroundStyle(AngroveTheme.Colors.canvas)
-                        .lineLimit(1)
-                }
-                .frame(width: 175, height: 52)
-                .background(AngroveTheme.Colors.lightGreen, in: Capsule())
-                .contentShape(Capsule())
-            }
-            .keyboardShortcut("n", modifiers: .command)
+            .accessibilityAddTraits(selection == .settings ? .isSelected : [])
         }
-        .background(AngroveTheme.Colors.chipFill)
     }
 }
 
@@ -305,13 +344,16 @@ private struct MacCompactSidebar: View {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Angrove")
                 .modifier(MacSidebarEntrance(isPresented: isPresented, delay: 0, duration: 0.20, offset: 0))
-            ForEach(Array(MacDestination.allCases.enumerated()), id: \.element.id) { index, destination in
+            ForEach(Array(MacDestination.sidebarDestinations.enumerated()), id: \.element.id) { index, destination in
                 MacCompactSidebarButton(destination: destination, isSelected: selection == destination,
                                         onSelect: { selection = destination })
                     .modifier(MacSidebarEntrance(isPresented: isPresented,
                         delay: Double(index + 1) * 0.06, duration: 0.20, offset: 0))
             }
             Spacer(minLength: 0)
+            MacCompactSidebarButton(destination: .settings, isSelected: selection == .settings,
+                                    onSelect: { selection = .settings })
+                .padding(.bottom, MacSidebarLayout.contentInset)
         }
         .frame(width: 44)
         .padding(.top, MacSidebarLayout.contentTopInset)

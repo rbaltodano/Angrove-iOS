@@ -5,17 +5,6 @@
 
 import SwiftUI
 
-/// Hands-on examples for the User Guide. Each one reuses the real component the feature uses, so
-/// the example changes with the design. Content is written ahead of time: examples never call the
-/// model.
-enum UserGuideExample {
-    case definitions
-    case tree
-    case study
-    case midpoint
-    case modelTasks
-}
-
 /// Places an example with its one-line instruction.
 struct UserGuideExampleView: View {
     let example: UserGuideExample

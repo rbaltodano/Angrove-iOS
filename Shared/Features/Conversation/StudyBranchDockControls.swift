@@ -56,6 +56,9 @@ struct StudyBranchDockControls: View {
                 .disabled(isBusy || count <= 2)
                 .opacity(count <= 2 ? 0.4 : 1)
                 .accessibilityLabel("Remove an Insight")
+                #if os(macOS)
+                .modelControlHoverLabel("Remove an Insight")
+                #endif
 
                 Text("\(count)", comment: "Number of Insights to create.")
                     .font(BrandTypography.font("Figtree-Bold", size: fontSize, relativeTo: .subheadline))
@@ -72,6 +75,9 @@ struct StudyBranchDockControls: View {
                 .disabled(isBusy || count >= 6)
                 .opacity(count >= 6 ? 0.4 : 1)
                 .accessibilityLabel("Add an Insight")
+                #if os(macOS)
+                .modelControlHoverLabel("Add an Insight")
+                #endif
             }
             .foregroundStyle(AngroveTheme.Colors.paragraphText.opacity(0.75))
             .padding(.horizontal, compact ? 14 : 32)
@@ -105,6 +111,9 @@ struct StudyBranchDockControls: View {
             .allowsHitTesting(showsPlaceAction && !isBusy)
             .disabled(isBusy)
             .accessibilityLabel("Branch into \(count) new Insights")
+            #if os(macOS)
+            .modelControlHoverLabel("Branch into \(count) new Insights")
+            #endif
         }
     }
 

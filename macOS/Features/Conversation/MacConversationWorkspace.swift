@@ -35,10 +35,10 @@ struct MacInsightPaneLayout: Equatable {
     }
     mutating func applyShortcut(_ action: MacShortcutRequest.Action, workspaceWidth: CGFloat) {
         switch action {
-        case .focusQuestion:
+        case .focusQuestion, .toggleContext:
             if isSwapped { open(workspaceWidth: workspaceWidth) }
         case .openTree:
-            if !isSwapped { open(workspaceWidth: workspaceWidth) }
+            toggle(workspaceWidth: workspaceWidth)
         case .swapPanes:
             open(workspaceWidth: workspaceWidth)
             swap()
@@ -118,6 +118,7 @@ struct MacConversationWorkspace: View {
     let queuePopup: ModelTasksPopupState
     var onActivity: () -> Void = {}
     @State private var focusQuestionRequest = 0
+    @State private var contextToggleRequest: UUID?
     var initialQuote: ConceptDefinition? = nil
     var onInitialQuoteHandled: () -> Void = {}
     var onNewConversation: () -> Void = {}
@@ -137,6 +138,8 @@ struct MacConversationWorkspace: View {
     @State private var showsTopicPicker = false
     @State private var workspaceWidth: CGFloat = 1000
 
+    @AppStorage(SettingsStorageKey.conversationBackground) private var conversationBackground: CanvasBackgroundOption = .system
+
     var body: some View {
         GeometryReader { geometry in
             let isTreeOpen = pane.fraction > 0
@@ -147,12 +150,14 @@ struct MacConversationWorkspace: View {
             let conversationIsFloating = pane.isSwapped && !pane.isPinned
             let mainControlsWidth = pane.mainControlsViewportWidth(in: geometry.size.width)
             ZStack(alignment: .topTrailing) {
-                MacConversationView(showsFixture: showsFixture, session: session, onSend: send, question: $question, focusQuestionRequest: focusQuestionRequest)
+                MacConversationView(showsFixture: showsFixture, session: session, onSend: send, question: $question, focusQuestionRequest: focusQuestionRequest,
+                                    onChooseTopic: { showsTopicPicker = true })
                     .padding(.horizontal, 24)
                     .padding(.bottom, 24)
                     .frame(width: pane.isSwapped ? pane.expandedContentWidth(in: geometry.size.width) : conversationWidth,
                            height: pane.isSwapped ? secondaryHeight : geometry.size.height)
-                    .background(AngroveTheme.Colors.canvas)
+                    .background(CanvasBackground(option: conversationBackground))
+                    .canvasAppearance(conversationBackground)
                     .frame(width: conversationWidth,
                            height: pane.isSwapped ? secondaryHeight : geometry.size.height, alignment: .leading)
                     .clipped()
@@ -192,6 +197,7 @@ struct MacConversationWorkspace: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: pane.isSwapped ? .topLeading : .topTrailing)
                 .zIndex(pane.isSwapped ? 0 : 2)
             }
+            .macPageFade()
             .overlayPreferenceValue(ModelControlsPreferenceKey.self, alignment: .bottom) { treeConfiguration in
                 ZStack(alignment: .bottomTrailing) {
                     // These two hosts belong to layout slots, so Swap changes their content in place.
@@ -201,7 +207,8 @@ struct MacConversationWorkspace: View {
                                             treeCard: treeConfiguration?.dockedCard,
                                             onOpenTree: { openTree(workspaceWidth: geometry.size.width) },
                                             onCloseTree: closeTree, onSend: send, onClearDraft: { question = "" },
-                                            queuePopup: queuePopup, onActivity: onActivity)
+                                            queuePopup: queuePopup, onActivity: onActivity,
+                                            contextToggleRequest: $contextToggleRequest)
                         .frame(width: mainControlsWidth, height: geometry.size.height)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     MacWorkspaceControlSlot(session: session, tree: tree, runtime: runtime,
@@ -209,7 +216,8 @@ struct MacConversationWorkspace: View {
                                             hasQuestion: !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                                             treeCard: treeConfiguration?.dockedCard,
                                             onOpenTree: { openTree(workspaceWidth: geometry.size.width) },
-                                            onCloseTree: closeTree, onSend: send, onClearDraft: { question = "" }, onActivity: onActivity)
+                                            onCloseTree: closeTree, onSend: send, onClearDraft: { question = "" }, onActivity: onActivity,
+                                            contextToggleRequest: $contextToggleRequest)
                         .frame(width: secondaryWidth, height: secondaryHeight)
                         .padding(pane.isPinned ? 0 : 24)
                         .opacity(isTreeOpen ? 1 : 0)
@@ -226,6 +234,7 @@ struct MacConversationWorkspace: View {
                     .opacity(isTreeOpen && !pane.isPinned ? 1 : 0)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
+                    .macPageFade()
             }
             .overlay(alignment: .topTrailing) {
                 HStack(spacing: 16) {
@@ -253,6 +262,7 @@ struct MacConversationWorkspace: View {
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { treeButtonWidth = $0 }
                 }
                 .padding(isTreeOpen ? (pane.isPinned ? 24 : 40) : 24)
+                .macPageFade()
             }
             .overlay {
                 if isTreeOpen || dragStartWidth != nil {
@@ -261,6 +271,7 @@ struct MacConversationWorkspace: View {
                                   y: geometry.size.height / 2)
                         .opacity(isTreeOpen ? 1 : 0)
                         .transition(.opacity)
+                        .macPageFade()
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: LocalInsightTreeSeedStore.didChange)) { notification in
@@ -307,10 +318,8 @@ struct MacConversationWorkspace: View {
                 Button("Clear Conversation", role: .destructive) { session.clear(runtime: runtime); question = "" }
                 Button("Cancel", role: .cancel) {}
             } message: { Text("This removes the current conversation’s messages and cancels its model tasks.") }
-            .alert("Rename Conversation", isPresented: $showsRenamePrompt) {
-                TextField("Conversation name", text: $renameDraft)
-                Button("Rename") { session.rename(to: renameDraft) }
-                Button("Cancel", role: .cancel) {}
+            .sheet(isPresented: $showsRenamePrompt) {
+                MacRenameConversationSheet(initialTitle: renameDraft) { session.rename(to: $0) }
             }
             .sheet(isPresented: $showsTopicPicker) {
                 MacConversationTopicPicker(selectedID: session.studyTopicID) { topicID in
@@ -324,6 +333,7 @@ struct MacConversationWorkspace: View {
                     pane.applyShortcut(request.action, workspaceWidth: geometry.size.width)
                 }
                 if request.action == .focusQuestion { focusQuestionRequest += 1 }
+                if request.action == .toggleContext { contextToggleRequest = request.id }
                 shortcutRequest = nil
             }
             .coordinateSpace(name: "MacConversationWorkspace")

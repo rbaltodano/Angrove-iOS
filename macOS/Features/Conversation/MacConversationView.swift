@@ -7,6 +7,13 @@ struct MacConversationView: View {
     let onSend: () -> Void
     @Binding var question: String
     var focusQuestionRequest = 0
+    var onChooseTopic: () -> Void = {}
+    @State private var displayedEyebrow = ""
+    @State private var isEyebrowHidden = false
+    @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .serif
+    @AppStorage("aquinas.settings.conversationFontSize") private var responseSize: ConversationFontSizeOption = .medium
+    // Read so a change in Settings redraws questions in the chosen face.
+    @AppStorage(MacConversationStyle.questionFontKey) private var questionFont: ConversationFontOption = .serif
     @State private var position = ScrollPosition()
     @State private var isQuestionFocused = false
     @StateObject private var slashQuery = SlashCommandQuery()
@@ -14,7 +21,7 @@ struct MacConversationView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var isComposerVisible: Bool {
-        session.isComposerReady || isQuestionFocused || !question.isEmpty || session.quote != nil
+        session.isComposerReady || isQuestionFocused || !question.isEmpty || session.quote != nil || !session.uploads.isEmpty
     }
 
     private var showsCommands: Bool {
@@ -23,7 +30,7 @@ struct MacConversationView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let columnWidth = min(650, max(140, geometry.size.width - 64))
+            let columnWidth = min(MacConversationStyle.conversationColumnMaxWidth, max(140, geometry.size.width - MacConversationStyle.pageHorizontalPadding * 2))
             ScrollView {
                 VStack(alignment: .trailing, spacing: 48) {
                     introduction
@@ -42,7 +49,7 @@ struct MacConversationView: View {
                         .id("question-composer")
                 }
                 .frame(width: columnWidth)
-                .padding(.top, (geometry.size.height >= 700 ? 200 : 100) + 24)
+                .padding(.top, MacConversationStyle.pageTopPadding)
                 .padding(.bottom, 350)
                 .frame(maxWidth: .infinity)
             }
@@ -68,19 +75,74 @@ struct MacConversationView: View {
         }
     }
 
-    private var introduction: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 4) {
-                MacIconView(icon: .studyTopic)
-                Text(showsFixture ? "AUGUSTINIAN PREDESTINATION" : "A NEW INQUIRY")
-                    .font(AngroveTheme.Typography.uiLabel)
-                    .foregroundStyle(AngroveTheme.Colors.lightGreen)
-            }
-            .frame(height: 18)
-            MacLineText(text: showsFixture ? "What Should We Study Today Ryan?" : "What Should We Study Today?", serif: true, size: 28, lineHeight: 34)
-                .foregroundStyle(AngroveTheme.Colors.headingText)
+    /// The header mirrors the iPhone: a pinned daily prompt keeps its own heading, otherwise the
+    /// heading follows the conversation's title until one exists.
+    private var header: (title: String, subtitle: String?) {
+        if showsFixture { return ("What Should We Study Today Ryan?", nil) }
+        if let branch = session.activeBranch,
+           let pinned = branch.pinnedHeaderQuestion?.trimmingCharacters(in: .whitespacesAndNewlines), !pinned.isEmpty {
+            let context = branch.hiddenPromptContext ?? ""
+            if context.contains("<question of the day>") { return (String(localized: "Question of the Day"), pinned) }
+            if let entry = TodayInHistoryCatalog.entry(matchingPromptContext: context) { return (entry.title, entry.description) }
+            return (pinned, nil)
         }
-        .frame(maxWidth: 350, alignment: .leading)
+        return (session.title == "New Conversation" ? "What Should We Study Today?" : session.title, nil)
+    }
+
+    private var eyebrowText: String {
+        if showsFixture { return "AUGUSTINIAN PREDESTINATION" }
+        if let id = session.studyTopicID, let topic = StudyTopicStore.load().first(where: { $0.id == id }) {
+            let title = topic.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !title.isEmpty { return title.uppercased() }
+        }
+        return "ADD TO STUDY TOPIC"
+    }
+
+    private var introduction: some View {
+        let header = header
+        return VStack(alignment: .leading, spacing: 8) {
+            Button(action: onChooseTopic) {
+                HStack(spacing: 4) {
+                    MacIconView(icon: .studyTopic)
+                    Text(displayedEyebrow)
+                        .font(AngroveTheme.Typography.uiLabel)
+                        .foregroundStyle(AngroveTheme.Colors.lightGreen)
+                        .opacity(isEyebrowHidden ? 0 : 1)
+                        .blur(radius: isEyebrowHidden ? 4 : 0)
+                }
+                .frame(height: 18)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .pointerStyle(.link)
+            .accessibilityHint("Assigns this conversation to a Study Topic")
+            .onAppear { displayedEyebrow = eyebrowText }
+            .onChange(of: eyebrowText) { _, text in
+                // Fade the old topic out, then glide the new one in, as on iPhone.
+                withAnimation(.easeIn(duration: 0.2)) { isEyebrowHidden = true }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(200))
+                    withAnimation(.springLively) {
+                        displayedEyebrow = text
+                        isEyebrowHidden = false
+                    }
+                }
+            }
+            ConversationHeading(title: header.title) { title in
+                MacPageHeading(title: title, font: MacPageHeading.pageFont)
+                    .lineSpacing(6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            if let subtitle = header.subtitle {
+                Text(subtitle)
+                    .paragraphFont()
+                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                    .lineSpacing(7)
+                    .padding(.top, 8)
+                    .settingsTextReveal()
+            }
+        }
+        .frame(maxWidth: header.subtitle == nil ? 350 : 560, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -101,21 +163,19 @@ struct MacConversationView: View {
     private var transcript: some View {
         VStack(alignment: .leading, spacing: 36) {
             if session.branches.count > 1 {
-                Picker("Conversation branch", selection: Bindable(session).selectedBranch) {
-                    ForEach(session.branches) { branch in
-                        Text(branch.startingConcept?.word ?? "Main conversation").tag(branch.id)
-                    }
-                }
+                MacMenuPicker(title: "Conversation branch", selection: Bindable(session).selectedBranch,
+                              options: session.branches.map { ($0.id, $0.startingConcept?.word ?? String(localized: "Main conversation")) })
             }
             ForEach(Array(session.transcript.enumerated()), id: \.offset) { index, block in
                 switch block {
-                case .user(let text, let concept, _):
+                case .user(let text, let concept, let uploads):
                     VStack(alignment: .trailing, spacing: 8) {
                         if let concept { quoteChip(concept, removable: false) }
+                        if !uploads.isEmpty { MacAttachmentStrip(files: uploads) }
                         QuotedQuestionContainer(isEmpty: false,
                             lineHeight: MacConversationStyle.questionLineHeight,
                             fontName: MacConversationStyle.questionFontName) {
-                            MacLineText(text: text, serif: true, lineHeight: MacConversationStyle.questionLineHeight)
+                            MacLineText(text: text, serif: MacConversationStyle.usesSerifQuestions, lineHeight: MacConversationStyle.questionLineHeight)
                                 .frame(maxWidth: MacConversationStyle.questionContentWidth(text), alignment: .leading)
                                 .textSelection(.enabled)
                         }
@@ -137,7 +197,8 @@ struct MacConversationView: View {
                             thinkingDurationSeconds: session.thinkingDuration(transcriptIndex: index),
                             groundingSources: session.sources(transcriptIndex: index),
                             evidenceBasis: session.presentation(transcriptIndex: index)?.evidenceBasis,
-                            conversationFontSize: MacConversationStyle.bodyFontSize,
+                            responseFont: responseFont,
+                            conversationFontSize: responseSize,
                             savedInsightIDs: session.savedIDs,
                             onRegenerate: { session.regenerate(transcriptIndex: index, runtime: MacApplicationRuntime.shared) },
                             onInsightTap: { session.define($0, source: $1, runtime: MacApplicationRuntime.shared) },
@@ -155,7 +216,7 @@ struct MacConversationView: View {
             }
             if !session.connectionConcepts.isEmpty {
                 VStack(alignment: .leading) {
-                    Text("Inquire Connection").font(AngroveTheme.Typography.uiHeading)
+                    MacPageHeading(title: "Inquire Connection")
                     ForEach(session.connectionConcepts) { concept in Text(concept.word) }
                     Button("Remove connection") { session.connectionConcepts = [] }
                 }.foregroundStyle(AngroveTheme.Colors.lightGreen)
@@ -170,14 +231,27 @@ struct MacConversationView: View {
                 quoteChip(concept, removable: true)
                     .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
             }
+            if !session.uploads.isEmpty {
+                MacAttachmentStrip(files: session.uploads) { id in
+                    withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .springLively) { session.removeUpload(id) }
+                }
+                .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
+            }
             QuotedQuestionContainer(isEmpty: question.isEmpty,
                 lineHeight: MacConversationStyle.questionLineHeight,
                 fontName: MacConversationStyle.questionFontName,
-                onTapToFocus: { isQuestionFocused = true }) {
+                maximumWidth: MacConversationStyle.questionMaxWidth,
+                onTapToFocus: {
+                    // Re-assert focus even when the flag is already set but the editor lost the responder.
+                    isQuestionFocused = false
+                    DispatchQueue.main.async { isQuestionFocused = true }
+                }) {
                 MacCommandEditor(text: $question,
                     isFocused: Binding(get: { isQuestionFocused }, set: { isQuestionFocused = $0 }),
                     reduceMotion: reduceMotion, onSubmit: onSend,
-                    onEscape: { dismissesCommands = true })
+                    onEscape: {
+                        if showsCommands { dismissesCommands = true } else { isQuestionFocused = false }
+                    })
                     .frame(width: min(MacConversationStyle.questionContentWidth(question, minimum: "Ask a question..."),
                                       MacConversationStyle.questionMaxWidth - 36))
                     .accessibilityLabel("Ask a question")
@@ -199,6 +273,8 @@ struct MacConversationView: View {
                         question = command.name + " "
                         isQuestionFocused = true
                     }
+                    .modifier(MacMenuScaleIn())
+                    .modifier(MacMenuTextReveal())
                     .frame(maxWidth: MacConversationStyle.questionMaxWidth)
             }
         }
@@ -260,9 +336,9 @@ struct MacConversationScrollChrome: ViewModifier {
                     ZStack(alignment: .top) {
                         MacConversationEdgeFade(top: true)
                             .ignoresSafeArea(.container, edges: .top)
-                        Text(title)
-                            .font(MacConversationStyle.pinnedTitle)
-                            .foregroundStyle(AngroveTheme.Colors.headingText)
+                        ConversationHeading(title: title) { title in
+                            MacPageHeading(title: title, font: MacConversationStyle.pinnedTitle)
+                        }
                             .padding(.top, 48)
                     }
                     .allowsHitTesting(false)
@@ -386,6 +462,30 @@ struct MacCommandEditor: NSViewRepresentable {
         }
 
         override func layout() { super.layout(); applyHighlight() }
+
+        private var clickMonitor: Any?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
+            clickMonitor = nil
+            guard window != nil else { return }
+            // Clicking anywhere outside the field ends editing.
+            clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+                if let self, event.window === self.window, self.window?.firstResponder === self,
+                   !self.bounds.contains(self.convert(event.locationInWindow, from: nil)) {
+                    self.window?.makeFirstResponder(nil)
+                }
+                return event
+            }
+        }
+
+        deinit { if let clickMonitor { NSEvent.removeMonitor(clickMonitor) } }
+
+        override func mouseDown(with event: NSEvent) {
+            if window?.firstResponder !== self { window?.makeFirstResponder(self) }
+            super.mouseDown(with: event)
+        }
 
         func refreshHighlight() {
             guard !hasMarkedText() else { return }

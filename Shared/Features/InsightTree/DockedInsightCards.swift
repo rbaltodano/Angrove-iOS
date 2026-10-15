@@ -569,6 +569,8 @@ private struct EditablePercent: View {
         Group {
             if isEditing {
                 TextField("", text: $text)
+                    .textFieldStyle(.plain)
+                    .focusEffectDisabled()
                     #if os(iOS)
                     .keyboardType(.numberPad)
                     #endif

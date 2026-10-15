@@ -12,9 +12,14 @@ struct MacGlobalInsightWorkspace: View {
     var queuePopup: ModelTasksPopupState? = nil
     var onActivity: () -> Void = {}
     var onAsk: (ConceptDefinition, UUID?) -> Void
+    /// A Study Topic's tree instead of the global one: its accepted snapshot, saved per topic.
+    var topicID: UUID? = nil
+    @State private var offersTopicUpdate = false
+    @Environment(\.macPageControlsVisible) private var pageControlsVisible
 
     var body: some View {
-        MacInsightTreePane(session: session, controls: controls, runtime: runtime, isVisible: true, isGlobal: true, onActivity: onActivity)
+        MacInsightTreePane(session: session, controls: controls, runtime: runtime, isVisible: true,
+                           isGlobal: topicID == nil, originPage: topicID == nil ? .insights : .studyTopics, onActivity: onActivity)
             .compositingGroup()
             .background {
                 MacConversationDock(session: session, tree: controls, runtime: runtime, isCanvasMode: true,
@@ -24,10 +29,24 @@ struct MacGlobalInsightWorkspace: View {
                     onAskExisting: { showsConversationPicker = true },
                     onCancelAsk: { askConcept = nil }, queuePopup: queuePopup, onActivity: onActivity)
             }
+            .macPageFade()
             .overlayPreferenceValue(ModelControlsPreferenceKey.self, alignment: .bottom) { configuration in
-                ModelControlsHost(configuration: configuration).zIndex(2)
+                ModelControlsHost(configuration: pageControlsVisible ? configuration : nil).zIndex(2)
             }
             .task {
+                if let topicID {
+                    session.configure(preview: false, conversationID: topicID, global: true)
+                    let snapshots = StudyTopicInsightTreeStore.load()
+                    let incoming = topicSnapshot(topicID)
+                    if let accepted = snapshots[topicID.uuidString] {
+                        session.concepts = accepted
+                        offersTopicUpdate = StudyTopicInsightTreeBuilder.needsUpdate(accepted: accepted, incoming: incoming)
+                    } else {
+                        session.concepts = incoming
+                    }
+                    session.savedIDs = Set(InsightLibraryStore.load().map(\.id))
+                    return
+                }
                 session.configure(preview: false, global: true)
                 session.promotedIDs = GlobalInsightPromotedIDsStore.load()
                 let ids = Set(InsightLibraryStore.load().map(\.id))
@@ -52,12 +71,16 @@ struct MacGlobalInsightWorkspace: View {
                     }
                 }
             } message: { Text("Include the Insights you’ve bookmarked since the last update?") }
+            .alert("Update Topic Tree?", isPresented: $offersTopicUpdate) {
+                Button("Keep Current Tree", role: .cancel) {}
+                Button("Update") { if let topicID { session.concepts = topicSnapshot(topicID) } }
+            } message: { Text("Include Insights bookmarked in this topic’s conversations since the last update?") }
             .onChange(of: session.connectionConcepts) { _, concepts in
                 if concepts.count >= 2 { showsConnectionComposer = true }
             }
             .sheet(isPresented: $showsConnectionComposer) {
                 VStack(spacing: 0) {
-                    HStack { Text("Inquire Connection").font(AngroveTheme.Typography.uiHeading); Spacer(); Button("Done") { showsConnectionComposer = false } }.padding(24)
+                    HStack { MacPageHeading(title: "Inquire Connection"); Spacer(); Button("Done") { showsConnectionComposer = false } }.padding(24)
                     MacConversationView(showsFixture: false, session: session, onSend: {
                         if session.send(connectionQuestion, runtime: runtime) { connectionQuestion = "" }
                     }, question: $connectionQuestion)
@@ -68,10 +91,10 @@ struct MacGlobalInsightWorkspace: View {
             }
             .sheet(isPresented: $showsConversationPicker) {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text("Ask in Existing Conversation").font(AngroveTheme.Typography.uiHeading)
+                    MacPageHeading(title: "Ask in Existing Conversation")
                     let conversations = CurrentConversationsStore.load()?.conversations ?? []
                     if conversations.isEmpty {
-                        Text("No conversations yet.").paragraphFont()
+                        Text("No conversations yet.").paragraphFont().settingsTextReveal()
                     }
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
@@ -96,10 +119,23 @@ struct MacGlobalInsightWorkspace: View {
                 askConcept = session.quote
                 session.quote = nil
             }
-            .onChange(of: session.concepts) { _, values in GlobalInsightTreeStore.save(values) }
+            .onChange(of: session.concepts) { _, values in
+                if let topicID {
+                    var snapshots = StudyTopicInsightTreeStore.load()
+                    snapshots[topicID.uuidString] = values
+                    StudyTopicInsightTreeStore.save(snapshots)
+                } else {
+                    GlobalInsightTreeStore.save(values)
+                }
+            }
             .onExitCommand { askConcept = nil; controls.dismissHoverRequest += 1; controls.studyExitRequest += 1 }
             .alert("Angrove", isPresented: Bindable(session).showsError) { Button("OK", role: .cancel) {} }
                 message: { Text(session.errorMessage ?? "") }
     }
+    private func topicSnapshot(_ topicID: UUID) -> [ConceptDefinition] {
+        StudyTopicInsightTreeBuilder.snapshot(topicID: topicID,
+            conversations: CurrentConversationsStore.load()?.conversations ?? [], savedInsights: InsightLibraryStore.load())
+    }
+
     private func acknowledge() { GlobalInsightTreeUpdatePrompt.saveAcknowledgedLibraryIDs(Set(InsightLibraryStore.load().map(\.id))) }
 }

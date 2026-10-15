@@ -20,6 +20,7 @@ struct MacConversationDock: View {
     var onCancelAsk: () -> Void = {}
     var queuePopup: ModelTasksPopupState? = nil
     var onActivity: () -> Void = {}
+    var contextToggleRequest: Binding<UUID?> = .constant(nil)
     @State private var context = ContextCardState()
     @State private var popup = ModelTasksPopupState()
     @State private var showFilePicker = false
@@ -75,6 +76,7 @@ struct MacConversationDock: View {
             canCompactContext: runtime.modelIsAvailable && session.canCompactContext,
             onCompactContext: { await session.compact(runtime: runtime) },
             onClearConversation: { session.clear(runtime: runtime); onClearDraft() }, contextCard: context,
+            contextToggleRequest: contextToggleRequest,
             surfaceID: isCanvasMode ? "mac-tree" : "mac-conversation"
         )
         .onChange(of: (queuePopup ?? popup).isOpen) { _, isOpen in
@@ -85,12 +87,15 @@ struct MacConversationDock: View {
             (queuePopup ?? popup).isOpen = false
             personalityMenu = false
         }
+        .modifier(MacAttachmentPickers(showsFiles: $showFilePicker, showsPhotos: $showPhotoPicker) { files in
+            withAnimation(.springLively) { session.attach(files) }
+        })
         .sheet(isPresented: $showPassages) {
             VStack(alignment: .leading, spacing: 20) {
-                Text("Clipped Passages").font(AngroveTheme.Typography.uiHeading)
+                MacPageHeading(title: "Clipped Passages")
                 let passages = ClippedPassageStore.load()
                 if passages.isEmpty {
-                    Text("No clipped passages yet.").font(AngroveTheme.Typography.body)
+                    Text("No clipped passages yet.").font(AngroveTheme.Typography.body).settingsTextReveal()
                 }
                 ForEach(passages) { passage in
                     Button(passage.word) { session.attachQuote(passage); showPassages = false }
@@ -117,6 +122,8 @@ struct MacWorkspaceControlSlot: View {
     let onClearDraft: () -> Void
     var queuePopup: ModelTasksPopupState? = nil
     var onActivity: () -> Void = {}
+    var contextToggleRequest: Binding<UUID?> = .constant(nil)
+    @Environment(\.macPageControlsVisible) private var pageControlsVisible
 
     var body: some View {
         Color.clear
@@ -125,7 +132,8 @@ struct MacWorkspaceControlSlot: View {
                 MacConversationDock(session: session, tree: tree, runtime: runtime,
                                     isCanvasMode: isCanvasMode, hasQuestion: hasQuestion,
                                     onOpenTree: onOpenTree, onCloseTree: onCloseTree,
-                                    onSend: onSend, onClearDraft: onClearDraft, queuePopup: queuePopup, onActivity: onActivity)
+                                    onSend: onSend, onClearDraft: onClearDraft, queuePopup: queuePopup, onActivity: onActivity,
+                                    contextToggleRequest: isCanvasMode ? .constant(nil) : contextToggleRequest)
             }
             .overlayPreferenceValue(ModelControlsPreferenceKey.self, alignment: .bottom) { configuration in
                 ModelControlsHost(configuration: presentedConfiguration(configuration))
@@ -134,7 +142,7 @@ struct MacWorkspaceControlSlot: View {
     }
 
     private func presentedConfiguration(_ configuration: ModelControlsConfiguration?) -> ModelControlsConfiguration? {
-        guard isVisible, var configuration else { return nil }
+        guard isVisible, pageControlsVisible, var configuration else { return nil }
         configuration.dockedCard = isCanvasMode ? treeCard : nil
         return configuration
     }
@@ -149,13 +157,19 @@ struct MacTreeHeaderButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 14, weight: .semibold))
+            ZStack {
+                Image(systemName: symbol)
+                    .id(symbol)
+                    .transition(.blurFade)
+            }
+            .animation(.springStandard, value: symbol)
+            .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(isActive ? AngroveTheme.Colors.accentRed : AngroveTheme.Colors.lightGreen)
             .frame(minWidth: 48, minHeight: 48)
             .contentShape(Rectangle())
         }
         .buttonStyle(FloatingControlButtonStyle(isPressed: $pressed))
+        .pulsesOnChange(of: symbol)
         .accessibilityLabel(label)
         .help(label)
     }

@@ -14,11 +14,15 @@ struct AngroveMacApp: App {
 
     init() {
         MacLaunchOwnership.claim()
+        MacNativeContextMenus.install()
+        if !Self.isHostingUnitTests { MacNotifications.install() }
         // Register the same bundled typefaces used by iOS, once for this process.
         for url in Bundle.main.urls(forResourcesWithExtension: "ttf", subdirectory: nil) ?? [] {
             CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
         }
     }
+
+    @AppStorage(SettingsStorageKey.colorScheme) private var appearance = "system"
 
     var body: some Scene {
         Window(MacDesignPreview.isEnabled ? "Angrove – Design Preview" : "Angrove", id: "workspace") {
@@ -26,10 +30,10 @@ struct AngroveMacApp: App {
                 // Match the iPhone test host: unit tests must not open personal stores.
                 Color.clear
             } else {
-                MacWorkspaceView(support: .current)
+                MacAppLockHost { BootPresentation(isReady: true) { MacWorkspaceView(support: .current) } }
                     .ignoresSafeArea(.container, edges: .top)
                     .background(MacWindowChrome())
-                    .preferredColorScheme(MacDesignPreview.colorScheme)
+                    .preferredColorScheme(MacDesignPreview.colorScheme ?? MacSettingsAppearance.scheme(appearance))
             }
         }
         .defaultSize(width: MacDesignPreview.compact ? 760 : 1_440, height: MacDesignPreview.compact ? 540 : 900)
@@ -37,14 +41,6 @@ struct AngroveMacApp: App {
         .commands { MacWorkspaceCommands() }
         .restorationBehavior(MacDesignPreview.isEnabled || MacDesignPreview.compact ? .disabled : .automatic)
 
-        Settings {
-            if Self.isHostingUnitTests {
-                Color.clear
-            } else {
-                MacSettingsView()
-                    .background(MacWindowChrome())
-            }
-        }
     }
 }
 

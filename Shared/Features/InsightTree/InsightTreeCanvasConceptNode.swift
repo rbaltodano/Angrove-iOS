@@ -77,11 +77,7 @@ struct InsightTreeCanvasConceptNode: View {
                 .offset(x: 20, y: -10)
             }
         }
-        .contextMenu {
-            if let onUnbookmark, !isSuggested {
-                Button("Unbookmark Node Concept", systemImage: "bookmark.slash", action: onUnbookmark)
-            }
-        }
+        .modifier(NodeConceptContextMenu(onUnbookmark: onUnbookmark, isSuggested: isSuggested))
         .offset(y: hasAppeared ? 0 : 24)
         .opacity(hasAppeared ? 1 : 0)
         .animation(.springRelaxed.delay(0.1), value: hasAppeared)
@@ -109,5 +105,25 @@ private struct NamingShimmer: ViewModifier {
         } else {
             content.foregroundStyle(AngroveTheme.Colors.primaryReadable)
         }
+    }
+}
+
+private struct NodeConceptContextMenu: ViewModifier {
+    let onUnbookmark: (() -> Void)?
+    let isSuggested: Bool
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        content.macContextMenu {
+            if let onUnbookmark, !isSuggested {
+                [MacMenuEntry("Unbookmark Node Concept", symbol: "bookmark.slash", action: onUnbookmark)]
+            } else { [] }
+        }
+        #else
+        content.contextMenu {
+            if let onUnbookmark, !isSuggested {
+                Button("Unbookmark Node Concept", systemImage: "bookmark.slash", action: onUnbookmark)
+            }
+        }
+        #endif
     }
 }

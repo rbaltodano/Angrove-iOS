@@ -23,9 +23,13 @@ struct AngroveEmptyState: View {
                 .font(.system(size: 28, weight: .semibold))
                 .foregroundColor(AngroveTheme.Colors.lightGreen)
 
+            #if os(macOS)
+            MacPageHeading(title: title, font: .baskervilleHeading1, color: AngroveTheme.Colors.primaryReadable)
+            #else
             Text(title)
                 .font(.baskervilleHeading1)
                 .foregroundColor(AngroveTheme.Colors.primaryReadable)
+            #endif
 
             Text(message)
                 .paragraphFont()
@@ -33,6 +37,9 @@ struct AngroveEmptyState: View {
                 .multilineTextAlignment(.center)
                 .foregroundColor(AngroveTheme.Colors.paragraphText)
                 .frame(maxWidth: 280)
+                #if os(macOS)
+                .settingsTextReveal()
+                #endif
         }
         .padding(24)
         .frame(maxWidth: .infinity, alignment: .center)

@@ -38,9 +38,13 @@ struct ModelTasksCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
+                #if os(macOS)
+                MacPageHeading(title: "Model Tasks")
+                #else
                 Text("Model Tasks")
                     .font(BrandTypography.font("Figtree-Bold", size: 18))
                     .foregroundColor(AngroveTheme.Colors.headingText)
+                #endif
 
                 if !modelTasks.allTasks.isEmpty {
                     Spacer()
@@ -53,7 +57,7 @@ struct ModelTasksCard: View {
             }
 
             #if os(iOS)
-            if ModelDeliveryState.shared.phase != .development {
+            if ModelDeliveryState.shared.phase.showsStatus {
                 ModelDownloadStatusView(delivery: .shared)
             }
             #endif
@@ -106,6 +110,9 @@ struct ModelTasksCard: View {
                         Text("Model is currently idle...")
                             .font(BrandTypography.font("Figtree-Regular", size: 14))
                             .lineLimit(1)
+                            #if os(macOS)
+                            .settingsTextReveal()
+                            #endif
                     }
                     .frame(minHeight: 28)
                     .transition(.opacity)
@@ -121,7 +128,7 @@ struct ModelTasksCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 36, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 36, style: .continuous)
-                .stroke(AngroveTheme.Colors.darkBrown.opacity(0.08), lineWidth: 1)
+                .stroke(AngroveTheme.Colors.popupBorder, lineWidth: 1)
         )
         .onChange(of: modelTasks.allTasks.count) { oldCount, newCount in
             dismissTask?.cancel()

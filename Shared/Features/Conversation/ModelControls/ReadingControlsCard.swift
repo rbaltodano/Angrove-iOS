@@ -56,6 +56,12 @@ struct ReadingControlsCard: View {
                             )
                         }
                     } label: {
+                        #if os(macOS)
+                        MacPageHeading(title: title, font: AngroveTheme.Typography.heading)
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(2)
+                            .contentShape(Rectangle())
+                        #else
                         Text(title)
                             .font(BrandTypography.font("LibreBaskerville-Regular", size: 20))
                             .foregroundStyle(AngroveTheme.Colors.headingText)
@@ -63,6 +69,7 @@ struct ReadingControlsCard: View {
                             .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
                             .contentShape(Rectangle())
+                        #endif
                     }
                     .buttonStyle(.plain)
                     .accessibilityHint(speech.activeLibraryWorkID == nil ? "Opens this conversation" : "Opens this work")
@@ -85,7 +92,7 @@ struct ReadingControlsCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 36, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 36, style: .continuous)
-                .stroke(AngroveTheme.Colors.darkBrown.opacity(0.08), lineWidth: 1)
+                .stroke(AngroveTheme.Colors.popupBorder, lineWidth: 1)
         )
     }
 
@@ -286,5 +293,8 @@ struct ReadingSpeakerButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Reading controls")
+        #if os(macOS)
+        .modelControlHoverLabel("Reading controls")
+        #endif
     }
 }

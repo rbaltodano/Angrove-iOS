@@ -414,6 +414,10 @@ struct ModelStatusButton: View {
         }
         .buttonStyle(FloatingControlButtonStyle(isPressed: controlIsPressed))
         .accessibilityLabel(accessibilityStatus)
+        #if os(macOS)
+        .modelControlHoverLabel(statusOverride == nil ? "Model Tasks" : "Model status",
+                               shortcut: statusOverride == nil ? "⌘M" : nil)
+        #endif
     }
 
     private var accessibilityStatus: String {

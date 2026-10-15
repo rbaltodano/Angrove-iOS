@@ -4,7 +4,7 @@ import SwiftUI
 enum MacSidebarConversationMenuAction: CaseIterable {
     case rename, pin, topic, delete
 
-    func title(for conversation: InquiryConversation) -> LocalizedStringKey {
+    func title(for conversation: InquiryConversation) -> LocalizedStringResource {
         switch self {
         case .rename: "Rename"
         case .pin: conversation.isPinned ? "Unpin" : "Pin"
@@ -34,13 +34,18 @@ struct MacSidebarConversationRow: View {
     let conversation: InquiryConversation
     let isSelected: Bool
     let isMenuOpen: Bool
+    var shortcutNumber: Int? = nil
+    var showsShortcut = false
     var isLoading = false
     let onOpen: () -> Void
     let onMenu: () -> Void
     var isRenaming = false
     let onRename: () -> Void
     let onFinishRename: (String?) -> Void
+    var contextEntries: () -> [MacMenuEntry] = { [] }
     @State private var isHovered = false
+    @State private var shortcutVisible = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var optionsFocused: Bool
 
     var body: some View {
@@ -50,23 +55,32 @@ struct MacSidebarConversationRow: View {
                     Image(systemName: "pin.fill")
                         .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 }
-                if isRenaming {
-                    MacSidebarRenameField(title: conversation.title, onFinish: onFinishRename)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 28)
-                } else {
-                    Button(action: onOpen) {
-                        Text(conversation.title)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                            .contentShape(Rectangle())
+                ZStack(alignment: .leading) {
+                    if isRenaming {
+                        MacSidebarRenameField(title: conversation.title, onFinish: onFinishRename)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 28)
+                            .transition(reduceMotion ? .opacity : .blurFade)
+                    } else {
+                        Button(action: onOpen) {
+                            Text(conversation.title)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .highPriorityGesture(TapGesture(count: 2).onEnded { onRename() })
+                        .accessibilityAddTraits(isSelected ? .isSelected : [])
+                        .accessibilityAction(named: Text("Rename"), onRename)
+                        .help("Double-click to rename")
+                        // A new identity per title, so a rename blurs the old name out and the new one in.
+                        .id(conversation.title)
+                        .transition(reduceMotion ? .opacity : .blurFade)
                     }
-                    .highPriorityGesture(TapGesture(count: 2).onEnded { onRename() })
-                    .accessibilityAddTraits(isSelected ? .isSelected : [])
-                    .accessibilityAction(named: Text("Rename"), onRename)
-                    .help("Double-click to rename")
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .animation(.easeInOut(duration: reduceMotion ? 0.15 : 0.3), value: isRenaming)
+                .animation(.easeInOut(duration: reduceMotion ? 0.15 : 0.3), value: conversation.title)
                 if isLoading {
                     ContextUsageIcon(progress: 0,
                         color: AngroveTheme.Colors.paragraphText.opacity(0.75), isSpinning: true)
@@ -89,13 +103,43 @@ struct MacSidebarConversationRow: View {
         }
         .font(AngroveTheme.Typography.body)
         .foregroundStyle(AngroveTheme.Colors.paragraphText)
-        .padding(.horizontal, 12)
+        .padding(.leading, shortcutVisible ? 44 : 16)
+        .padding(.trailing, 16)
         .background(isSelected || isHovered || isMenuOpen ? AngroveTheme.Colors.systemSelection : .clear,
                     in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(alignment: .leading) {
+            Text(shortcutNumber.map { "⌘\($0)" } ?? "")
+                .font(AngroveTheme.Typography.body)
+                .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                .frame(width: 24)
+                .padding(.leading, 12)
+                .opacity(shortcutVisible ? 0.5 : 0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
         .contentShape(Rectangle())
+        .macContextMenu { isRenaming ? [] : contextEntries() }
         .onHover { isHovered = $0 }
         .buttonStyle(.plain)
         .animation(.easeInOut(duration: 0.2), value: isLoading)
+        .task(id: ShortcutPresentation(number: shortcutNumber, isHeld: showsShortcut)) {
+            guard showsShortcut, let shortcutNumber else {
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { shortcutVisible = false }
+                return
+            }
+            if !reduceMotion {
+                do {
+                    try await Task.sleep(for: .seconds(Double(shortcutNumber - 1) * 0.05))
+                } catch { return }
+            }
+            guard !Task.isCancelled else { return }
+            withAnimation(reduceMotion ? nil : .easeIn(duration: 0.15)) { shortcutVisible = true }
+        }
+    }
+
+    private struct ShortcutPresentation: Equatable {
+        let number: Int?
+        let isHeld: Bool
     }
 }
 
@@ -131,49 +175,19 @@ struct MacSidebarConversationMenuOverlay: View {
     }
 }
 
-private struct MacSidebarConversationMenu: View {
+struct MacSidebarConversationMenu: View {
     let conversation: InquiryConversation
     let onAction: (MacSidebarConversationMenuAction) -> Void
 
-    var body: some View {
-        VStack(spacing: 4) {
-            ForEach(MacSidebarConversationMenuAction.allCases, id: \.self) { action in
-                if action == .delete {
-                    Rectangle().fill(AngroveTheme.Colors.border).frame(height: 1)
-                }
-                MacSidebarConversationMenuButton(action: action, conversation: conversation,
-                                                onSelect: { onAction(action) })
-            }
+    static func entries(for conversation: InquiryConversation, onAction: @escaping (MacSidebarConversationMenuAction) -> Void) -> [MacMenuEntry] {
+        MacSidebarConversationMenuAction.allCases.flatMap { action -> [MacMenuEntry] in
+            let entry = MacMenuEntry(action.title(for: conversation), symbol: action.symbol(for: conversation), destructive: action == .delete) { onAction(action) }
+            return action == .delete ? [.divider, entry] : [entry]
         }
-        .padding(12)
-        .background(AngroveTheme.Colors.canvasSecondary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(AngroveTheme.Colors.border, lineWidth: 1)
-                .allowsHitTesting(false)
-        }
-        .buttonStyle(.plain)
     }
-}
-
-private struct MacSidebarConversationMenuButton: View {
-    let action: MacSidebarConversationMenuAction
-    let conversation: InquiryConversation
-    let onSelect: () -> Void
-    @State private var isHovered = false
-
     var body: some View {
-        Button(role: action == .delete ? .destructive : nil, action: onSelect) {
-            Label(action.title(for: conversation), systemImage: action.symbol(for: conversation))
-                .font(AngroveTheme.Typography.body)
-                .foregroundStyle(action == .delete ? AngroveTheme.Colors.accentRed : AngroveTheme.Colors.paragraphText)
-                .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
-                .padding(.horizontal, 8)
-                .background(isHovered ? AngroveTheme.Colors.systemSelection : .clear,
-                            in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .contentShape(Rectangle())
-        }
-        .onHover { isHovered = $0 }
+        MacMenuContent(entries: Self.entries(for: conversation, onAction: onAction)) { $0.action() }
+            .modifier(MacMenuScaleIn())
     }
 }
 

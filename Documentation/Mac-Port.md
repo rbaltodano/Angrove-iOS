@@ -5,6 +5,197 @@
 
 # Native Mac port
 
+### Shared Mac menu appearance — October 15, 2026
+
+In-app menus now share the sidebar conversation menu's 260pt surface, 12pt corners
+and padding, 32pt rows, Figtree typography, semantic colors, quiet border, hover
+selection, icon column, and destructive action color. `MacMenuContent` is used by
+the sidebar overlay and the transient `MacActionMenu` presenter.
+
+The attachment plus menu (including both attachment-control paths), Study Topic
+options and image menu, response-word actions, Node Concept context actions,
+conversation row right-click menus, Settings choices and branch choices use the
+shared surface. Native text fields and the Library reader also use it: standard
+editing actions respect selection, editability, Undo/Redo availability and clipboard
+types; native actions supplied by the text view, including Library Ask/Clip/read
+commands and available text submenus, are retained. OS-added remote menu adornments
+are not synthesized. The app's menu bar and confirmation dialogs retain their roles.
+
+Menus dismiss on Escape, outside clicks or application deactivation. Up/Down skips
+unavailable rows, Return selects, typing selects matching items, and submenus offer
+both Left-arrow and a visible Back row. Menus fit the active screen and scroll when
+tall. Right-click locations come from the event; SwiftUI visible frames resolve
+word/card hit regions, avoiding sibling hosting-view bounds and respecting scroll
+clipping. A regression mounts several targets and checks the clicked row's actions.
+Renaming fields receive text commands rather than their conversation actions.
+
+Both app targets build; all 16 focused menu and existing shortcut tests pass. The
+signed Release update is installed at `/Applications/Angrove.app`. Native checks
+verified attachment and conversation menus, correct Rename targeting without saving,
+text editing menu commands and preserved selection/focus, submenu Back, Escape and
+Settings choices in light/dark appearance. System appearance and the original
+conversation were restored; no question, rename, pin, deletion, clipboard change,
+or attachment was committed. Topic and tree menu actions were wired to their existing
+callbacks but were not separately exercised against saved content.
+
+Clear renders of the actual component are saved at `build-output/menus/menu-dark.png`
+and `menu-light.png`; the native popup screenshot tool returned scaled whole-window
+captures, so these focused renders are the visual review artifacts. Logs:
+`/tmp/angrove-menus-tests-final.log`, `/tmp/angrove-menus-ios-build.log`, and
+`/tmp/angrove-menus-install-final-verified.log`.
+
+
+### Settings inside the workspace — October 14, 2026
+
+Settings is now a native workspace destination, reached by the sidebar gear or
+Command-comma, with the sidebar and main window retained. Command-comma returns
+to the previous page when Settings is already open. Settings participates in the
+five-page history, including Command-R / Shift-Command-R traversal. Both expanded
+and compact sidebars provide Settings. The separate SwiftUI Settings scene and its
+window-toggle helper were removed.
+
+The existing single-page sections, 40pt heading, typography and reveal remain.
+User Guide opens inside Settings with an in-page Settings back button. The page
+uses flexible workspace sizing rather than a standalone window's minimum frame.
+Conversation drafts continue through the workspace's existing draft preservation.
+
+All 15 focused Mac shortcut, history and heading tests passed. The signed Release
+update is installed at `/Applications/Angrove.app`. Native dark checks verified
+Command-comma opening/return, sidebar opening, compact Settings availability,
+User Guide navigation, backward/forward traversal, and an unsent draft surviving
+the Settings round trip. The verification draft was cleared without submission.
+Light appearance was not separately rechecked for the navigation change.
+Screenshot: `build-output/settings/settings-internal-page.png`. Logs:
+`/tmp/angrove-internal-settings-tests.log` and `/tmp/angrove-internal-settings-install.log`.
+
+
+### Toggle shortcuts — October 14, 2026
+
+Command-M toggles Model Tasks; Command-T toggles the conversation's secondary pane,
+retaining its floating/pinned size and swapped orientation. Command-Shift-T toggles
+the global tree, returning to the page from which it opened (or the current
+conversation when entered through the sidebar). Command-T also leaves the global
+tree when that page is active. Command-comma toggles the native Settings window,
+including when Settings has focus. Command-Shift-C retains its existing Context toggle.
+The User Guide and tree menu labels describe the toggle behavior.
+
+All eight focused shortcut tests passed, including Context popup coordination,
+floating/pinned and swapped tree reopening, global return navigation and native
+Settings window closing/reopening. The signed Release build passed and was installed
+at `/Applications/Angrove.app`. Native keyboard checks in that installed app verified
+opening and closing Model Tasks (idle), Context, the conversation tree and Settings,
+and returning from the global tree to the original conversation. Existing global-tree
+content was retained at the update prompt. No generation or queue mutations were run;
+light/dark appearance and nonempty task queue states were not separately inspected
+for this command-routing change. Logs: `/tmp/angrove-hotkey-tests.log` and
+`/tmp/angrove-hotkey-install.log`.
+
+### Full 40pt Mac page headings — October 14, 2026
+
+Page headings now render at an actual fixed 40pt in Libre Baskerville, matching the
+owner's requested app scale. `MacPageHeading.pageFont` bypasses the desktop
+`BrandTypography` cap, which had reduced even nominal 40pt tokens to 24pt. The
+previous page-size entry is superseded; section headings retain their smaller size.
+
+Mac Debug tests and signed Release build passed; both focused heading tests passed.
+The signed update is installed at `/Applications/Angrove.app`. A light Settings
+introduction render and native dark Settings layout were inspected. The conversation
+greeting wraps cleanly to two lines at 40pt with its existing width. Screenshot:
+`build-output/settings/settings-40pt.png`. Logs:
+`/tmp/angrove-heading-40-tests.log` and `/tmp/angrove-heading-40-install.log`.
+
+
+### Consistent Mac page heading size — October 14, 2026
+
+Settings, User Guide, Home, other destination titles, the welcome heading, and the
+conversation introduction now use `MacPageHeading.pageFont`, the shared 24-point
+Libre Baskerville title token. Settings and User Guide no longer apply their own
+negative tracking. Section headings and compact window chrome keep their smaller
+hierarchy; the existing reveal animations are retained.
+
+Mac Debug and signed Release builds passed. The signed update is installed at
+`/Applications/Angrove.app`; native dark Settings inspection verified the title and
+paragraph layout. Light appearance was not separately inspected for this sizing-only
+change. Screenshot: `build-output/settings/settings-matched-heading-size.png`.
+Logs: `/tmp/angrove-heading-size-build.log` and `/tmp/angrove-heading-size-install.log`.
+
+
+### Mac heading and introductory text reveal — October 14, 2026
+
+Settings and User Guide use the iPhone's large Libre Baskerville page title and
+Figtree introductory paragraph treatment. Section descriptions use the same
+paragraph typography and semantic paragraph color. Settings remains a single
+sectioned page with the guide as its sole internal subpage.
+
+Mac page, section, conversation, sidebar, dialog, empty-state and controls-popup
+headings reuse `SettingsAnimatedHeading`: staggered word opacity/blur and a small
+upward reveal. Supporting paragraphs reuse `settingsTextReveal`. Both retain the
+shared first-visible gate and Reduce Motion behavior; renamed pinned conversation
+headings also retain `ConversationHeading`'s replacement and height animation.
+The shared empty-state, Model Tasks, Context, and reader title changes are Mac-only
+branches, preserving iPhone presentation. Graph labels keep their existing tree
+entrance and rename behavior.
+
+Both native app builds and seven focused Mac tests passed, including two mounted
+heading/paragraph regressions covering the reveal gate, unchanged layout and title
+replacement. The signed Release update is installed at `/Applications/Angrove.app`.
+Light introductory typography was inspected in a focused render; native dark
+Settings inspection verified initial/scrolled sections, the guide's reveal, and
+return navigation. Reduce Motion was not separately exercised in the live app.
+Screenshot: `build-output/settings/settings-heading-update.png`. Logs:
+`/tmp/angrove-heading-tests.log`, `/tmp/angrove-heading-build.log`,
+`/tmp/angrove-heading-ios-build.log`, and `/tmp/angrove-heading-install.log`.
+
+
+### Settings page — October 14, 2026
+
+Command-comma and the sidebar Settings button open the native Settings window.
+Appearance, Conversations, Read Aloud, and Support & Privacy share one scrollable
+page with section headings and inline controls. Only User Guide opens a separate
+page, with a Settings back button and its own fresh scroll position. The guide
+covers Mac conversations, trees, navigation, and keyboard shortcuts.
+
+Theme updates the workspace and Settings immediately and persists across launches.
+Response font and text size now feed the Mac response renderer. Read Aloud uses
+the existing shared player preferences. Reset Settings asks for confirmation and
+preserves saved content; the privacy policy opens from an inline link.
+
+Mac Debug and signed Release builds passed; all five existing shortcut tests pass.
+The signed update is installed at `/Applications/Angrove.app`. Native inspection
+verified Command-comma, light/dark Settings layouts, lower-page scrolling, and
+User Guide navigation from a scrolled page with its position reset to the top.
+The original System theme was restored. No generation or destructive reset was
+performed. Screenshot: `build-output/settings/settings-dark.png`. Logs:
+`/tmp/angrove-settings-build.log`, `/tmp/angrove-settings-shortcuts.log`, and
+`/tmp/angrove-settings-install-final.log`.
+
+
+### Context keyboard shortcut — October 14, 2026
+
+Command-Shift-C toggles the conversation's Context card using the gauge button's
+existing action. From another workspace page it returns to the conversation; a
+collapsed secondary conversation pane opens first. Each request is consumed once,
+and active compaction keeps the same interaction guard as the button. The hover
+label shows `⇧⌘C` with the shared 4-point gap and 50% shortcut opacity.
+
+Both app builds and all five focused shortcut tests passed. The signed update is
+installed at `/Applications/Angrove.app`; native keyboard checks verified opening
+and closing Context with Command-Shift-C.
+
+### Model Controls hover labels — October 14, 2026
+
+Hovering a dock button shows its label above the pill, centered on that button and
+constrained to its pane. Labels match the collapsed sidebar's dark fill, typography,
+border and 0.2-second entrance/exit; Reduce Motion retains the fade. Applicable existing
+shortcuts sit beside the label with a 4-point gap and 50% opacity (Model Tasks: Command-M).
+The overlay is outside the pill's clipping and does not intercept clicks or reserve height.
+
+Both app builds and two focused placement/preference checks passed. The signed update is
+installed at `/Applications/Angrove.app`. A focused dark-mode component render shows the
+label and dimmed shortcut; live pointer hover was not separately visually inspected.
+The hover-label implementation lives in `macOS/`; its hooks in shared controls are
+compiled only for Mac, so iPhone does not compile the label helpers or shortcut text.
+
 ### Recent-page navigation — October 14, 2026
 
 Command-Shift-T opens the global Insight Tree. Command-R moves to the previous
@@ -43,9 +234,12 @@ Command-S to swap the conversation/tree panes, and Command-P to toggle their pin
 layout. Swap and Pin first open a closed secondary pane; focusing a minimized conversation
 reveals it. Existing drafts remain intact when focusing or selecting the same conversation.
 
-Command-1 through Command-9 select saved conversations in the existing Recents order
-before pin prioritization, excluding study-topic containers. Unavailable positions are
-disabled. Command-M opens the existing process-shared Model Tasks popup in the main pane
+Command-1 through Command-9 select the first nine saved conversations in the displayed
+sidebar order, including pin prioritization and excluding study-topic containers. Holding
+Command reveals their reserved number labels at 50% opacity, staggered 0.15 seconds apart;
+releasing Command or leaving the window hides them without moving the titles. Reduce Motion
+reveals them together without animation. Unavailable positions are disabled.
+Command-M opens the existing process-shared Model Tasks popup in the main pane
 or global Insights workspace. Minimize moves to Shift-Command-M. Commands target the
 workspace scene, with no live runtime or personal-store creation in the command menu.
 
@@ -340,7 +534,7 @@ The main scene is a single `Window`, so restored workspaces and New Window canno
 it. Normal launches acquire a process-lifetime file lock before opening personal stores;
 a competing local copy activates the existing process and exits. A crash releases the lock
 automatically. Design fixtures and app-hosted tests bypass ownership of the live workspace.
-Settings remains a separate window. Unsigned builds below are for build/test verification
+Settings is an internal workspace page. Unsigned builds below are for build/test verification
 and isolated fixtures, not the everyday app.
 
 Verification (October 13, 2026): Release build passed; the app and embedded code passed
@@ -962,3 +1156,66 @@ after relaunch. Light appearance preview could not be inspected because Computer
 timed out for the isolated unsigned preview. The signed update was installed at
 `/Applications/Angrove.app`. Logs: `/tmp/angrove-card-resize-native-tests.log`,
 `/tmp/angrove-card-resize-ios.log`, `/tmp/angrove-card-resize-install-verified.log`.
+
+### Image attachments and Study Topics — October 14, 2026
+
+The Mac attachment menu adds Photos… and Image File… when the runtime supports vision.
+Chosen images appear above the question with remove buttons, are submitted with it as the
+same `UploadedFile` uploads iPhone uses, and remain on the question in the transcript. Only
+readable images are accepted. The Mac target now enables user-selected read-only file access.
+
+Study Topics is no longer a placeholder: create, rename, search and delete topics, open a
+topic's conversations, and start a new conversation filed under it (⇧⌘N creates a topic).
+Deleting a topic returns its conversations to Recents. `StudyTopicCard` moved to
+`Shared/Features/StudyTopics/`. Topic Insight Trees and topic files remain iPhone-only.
+Home remains the development welcome card.
+
+### Home, Library and parity batch — October 15, 2026
+
+**Home.** `MacHomeView` reuses the iPhone dashboard's sections and on-device selectors, now in
+`Shared/Features/Home/`. Desktop layout: date, greeting and month calendar on the left with the
+Question of the Day beside them; then Where You Left Off, the listening card, Read Material,
+Getting Started and Today in History, with a discovery column (Midpoint to Explore, Loose Thread,
+Terms You Glossed Over, Quote From You). One column below 820 points. ⇧⌘H opens Home.
+Question of the Day and Today in History open a saved conversation with the iPhone's hidden
+prompt context and pinned header; the card is spent on the first question, not on opening, and
+reopening an untouched card reuses its conversation. Insights open the shared Insight card.
+The greeting uses Settings › Personalization (the iPhone's encrypted name key), then the Mac
+account's given name. Getting Started shows for the first week until the User Guide is opened.
+
+**Library.** New sidebar destination. The iPhone shelves (`LibraryHomeView`) are shared; the
+Mac reader puts the work's outline beside a 650-point text column, with previous/next chapter
+buttons and Listen. Selecting text offers Ask, Clip and Read from Here in the context menu
+(`LibrarySelectionText` has an NSTextView implementation). Ask opens a new or chosen existing
+conversation with the passage quoted. Response citation chips, Home's Read Material and the
+listening card open the reader at the passage. The generated reader documents moved from
+`iOS/LibraryDocuments/` to `Shared/LibraryDocuments/` (still gitignored; the generator's default
+output follows) so both apps bundle them; Library artwork moved to `Shared/Resources/`.
+
+**Study Topics.** Topic detail adds Insight Tree (the shared tree workspace scoped to the topic,
+saved in `StudyTopicInsightTreeStore`, with the iPhone's update prompt) and Files (images from
+Photos or Finder, removable).
+
+**Notifications and App Lock.** Settings adds Notifications (completed responses while viewing
+another page or app; daily Question of the Day reminder) and Privacy (App Lock with Touch ID or
+the account password after the grace period in the background, hidden, or with the screen
+asleep). Clicking a notification opens its conversation or Home. Unlike iPhone, an inactive
+window is not blanked.
+
+**Settings parity.** Conversations adds Question font, Conversation titles (the shared
+`ConversationTitlePolicy`) and Open Angrove to (start screen). Appearance adds conversation and
+Insight Tree backgrounds. Read Aloud adds Read answers finished elsewhere. Your Data adds export
+and import, Clear Insight Tree, and deleting conversations, clipped passages or all app data.
+`MacAppData` only removes items under `Application Support/Angrove-macOS` and
+`Caches/Angrove-macOS`, because the local Mac app is not sandboxed; the iPhone reset's Documents
+and Caches sweep must never run on the Mac. The installed model is kept, since the Mac cannot yet
+download it again. Support adds Report a Problem (the shared `BugReportSubmission`, the app's one
+outbound request) and Licenses. The Mac target now enables outgoing network connections and
+read-write user-selected files for these. The iPhone's personality, citation, memory, mapping and
+daily-focus keys are not exposed because no iPhone code reads them yet; custom instructions are
+stored on iPhone but not sent to the model. Conversation text alignment is not ported because
+the Mac transcript places questions at the trailing edge by design.
+
+**Not done.** A Mac Question of the Day widget needs a macOS widget extension with the shared app
+group and keychain access group, which requires Mac provisioning profiles. Distribution model
+delivery, signed sandbox validation and 16 GB performance checks remain open.

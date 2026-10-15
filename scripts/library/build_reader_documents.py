@@ -880,7 +880,7 @@ if __name__ == "__main__":
         "--cache", type=Path, default=ROOT / "output/library-source-cache"
     )
     parser.add_argument(
-        "--output", type=Path, default=ROOT / "iOS/LibraryDocuments"
+        "--output", type=Path, default=ROOT / "Shared/LibraryDocuments"
     )
     parser.add_argument(
         "--audit",

@@ -47,11 +47,13 @@ nonisolated enum ModelDeliveryPhase: Equatable, Sendable {
         case .downloading: "Downloading model"
         case .paused: "Download paused"
         case .verifying: "Verifying model"
-        case .ready: "Model ready"
-        case .development: ""
+        case .ready, .development: ""
         case .failed: "Model needs attention"
         }
     }
+
+    /// The ready and development states are silent; there is nothing to report.
+    var showsStatus: Bool { self != .ready && self != .development }
 
     var isBusy: Bool {
         switch self {

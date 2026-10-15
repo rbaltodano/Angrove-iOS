@@ -57,6 +57,14 @@ import SwiftUI
     var connectionConcepts: [ConceptDefinition] = []
     var quote: ConceptDefinition?
     var quoteRequest = 0
+    /// Images chosen for the next question; cleared once it is submitted.
+    var uploads: [UploadedFile] = []
+
+    func attach(_ files: [UploadedFile]) {
+        uploads.append(contentsOf: files)
+        quoteRequest += 1
+    }
+    func removeUpload(_ id: UUID) { uploads.removeAll { $0.id == id } }
 
     func attachQuote(_ concept: ConceptDefinition) {
         quote = concept
@@ -97,7 +105,9 @@ import SwiftUI
         if let restored = CurrentConversationsStore.load()?.conversations.first(where: { $0.id == id }) {
             title = restored.title
             studyTopicID = restored.studyTopicID
-            hasCustomTitle = title != "New Conversation" && title != String(restored.branches.first?.topQuestionText.prefix(80) ?? "".prefix(80))
+            let question = restored.branches.first?.topQuestionText ?? ""
+            hasCustomTitle = title != "New Conversation" && title != String(question.prefix(80))
+                && title != Self.automaticTitle(for: question)
             branches = restored.branches
             selectedBranch = branches.first?.id ?? branch.id
             promotedIDs = restored.promotedInsightIDs
@@ -174,16 +184,19 @@ import SwiftUI
         guard runtime.modelIsAvailable else { report(UnavailableAngroveModel.unavailableMessage); return false }
         guard !PersonalDataProtection.isBlocked else { report("Saved data could not be verified. Your question has been kept in the editor."); return false }
         var branch = branches[index]
+        if !branch.topQuestionSubmitted, !isPreview { MacDailyPrompt.markAnswered(branch) }
         if !branch.topQuestionSubmitted {
             branch.branchContextConcept = quote
             branch.topQuestionText = question
+            branch.topQuestionUploads = uploads
             branch.topQuestionSubmitted = true
-        } else { branch.activeChatBlocks.append(.user(question, quote, [])) }
+        } else { branch.activeChatBlocks.append(.user(question, quote, uploads)) }
         let responseIndex = branch.activeChatBlocks.count
         branch.attachedConcept = nil
         branch.activeChatBlocks.append(.text(""))
         branches[index] = branch
         quote = nil
+        uploads = []
         let submitted = connectionConcepts
         connectionConcepts = []
         enqueueResponse(branch: branch, responseIndex: responseIndex, question: question, submittedConnectionConcepts: submitted, runtime: runtime)
@@ -295,8 +308,7 @@ import SwiftUI
         guard !isPreview, !isDeleted else { return }
         var snapshot = CurrentConversationsStore.load() ?? InquiryPersistenceSnapshot(conversations: [], activeConversationID: nil)
         if !hasCustomTitle {
-            let question = branches.first?.topQuestionText ?? ""
-            title = question.isEmpty ? "New Conversation" : String(question.prefix(80))
+            title = Self.automaticTitle(for: branches.first?.topQuestionText ?? "") ?? "New Conversation"
         }
         var conversation = snapshot.conversations.first(where: { $0.id == id }) ?? InquiryConversation(id: id)
         conversation.title = title
@@ -355,6 +367,10 @@ import SwiftUI
     private func modelContext(for branch: ChatBranch, personality: ConversationPersonality) -> ConversationContext {
         let hasCompaction = branch.compactedContext?.isEmpty == false
         var blocks: [ChatBlock] = hasCompaction ? [] : [.user(branch.topQuestionText, branch.branchContextConcept, branch.topQuestionUploads)]
+        // Home prompts carry hidden context ahead of the visible question, as on iPhone.
+        if let hidden = branch.hiddenPromptContext?.trimmingCharacters(in: .whitespacesAndNewlines), !hidden.isEmpty {
+            blocks.insert(.user(hidden, nil, []), at: 0)
+        }
         blocks += branch.activeChatBlocks.dropFirst(hasCompaction ? min(branch.compactedThroughBlockCount ?? 0, branch.activeChatBlocks.count) : 0).filter { $0 != .text(questionCanceledResponseText) }
         return ConversationContext(compactedContext: branch.compactedContext, transcript: blocks, personality: personality)
     }
@@ -407,6 +423,7 @@ import SwiftUI
         branches[index] = replacement
         selectedBranch = replacement.id
         quote = nil
+        uploads = []
         connectionConcepts = []
         restoredDraft = nil
         persistConversation()
@@ -450,6 +467,13 @@ import SwiftUI
             }
         }
     }
+    /// Follows Settings › Conversation Titles, as the iPhone does: a short headline, the first
+    /// question, or nothing until the person renames the conversation.
+    static func automaticTitle(for question: String) -> String? {
+        let raw = UserDefaults.standard.string(forKey: SettingsStorageKey.conversationTitles) ?? ""
+        return ConversationTitlePolicy.title(for: question, option: ConversationTitleOption(rawValue: raw) ?? .automatic)
+    }
+
     func report(_ message: String) { errorMessage = message; showsError = true }
 
 }
@@ -468,3 +492,34 @@ extension Notification.Name {
     static let macConversationMetadataChanged = Notification.Name("angrove.mac.conversation.metadata.changed")
     static let macConversationDeleted = Notification.Name("angrove.mac.conversation.deleted")
 }
+
+/// Question of the Day and Today in History are spent by asking, not by opening the card.
+enum MacDailyPrompt {
+    static func markAnswered(_ branch: ChatBranch) {
+        guard let context = branch.hiddenPromptContext else { return }
+        if context.contains("<question of the day>"), let question = HomeQuestionOfTheDayStore.loadPending() {
+            HomeQuestionOfTheDayStore.save(question.markingAnswered())
+        } else if context.contains("<today in history>") {
+            HomeTodayInHistoryStore.markAnswered()
+        }
+    }
+
+    /// Reopens the untouched conversation a card already created instead of adding another.
+    static func conversation(for request: NewConversationRequest, in snapshot: InquiryPersistenceSnapshot) -> InquiryPersistenceSnapshot {
+        var snapshot = snapshot
+        if let existing = snapshot.conversations.first(where: {
+            ConversationDraftRetention.isUntouchedPromptDraft($0) && $0.branches.first?.pinnedHeaderQuestion == request.question
+        }) {
+            snapshot.activeConversationID = existing.id
+            return snapshot
+        }
+        var branch = ChatBranch(startingConcept: nil, hiddenPromptContext: request.promptContext.isEmpty ? nil : request.promptContext)
+        if !request.question.isEmpty { branch.pinnedHeaderQuestion = request.question }
+        var conversation = InquiryConversation(studyTopicID: request.topicID, branches: [branch])
+        if !request.question.isEmpty { conversation.title = request.question }
+        snapshot.conversations.append(conversation)
+        snapshot.activeConversationID = conversation.id
+        return snapshot
+    }
+}
+

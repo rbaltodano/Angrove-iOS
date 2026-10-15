@@ -7,6 +7,20 @@ struct MacWorkspacePage: Equatable, Hashable {
     var isFixture = false
 }
 
+/// The global tree shortcut returns to the page from which it opened.
+struct MacGlobalTreeShortcut {
+    private var returnPage: MacWorkspacePage?
+
+    mutating func toggle(from page: MacWorkspacePage, fallback: MacWorkspacePage) -> MacWorkspacePage {
+        if page.destination == .insights {
+            defer { returnPage = nil }
+            return returnPage ?? fallback
+        }
+        returnPage = page
+        return MacWorkspacePage(destination: .insights)
+    }
+}
+
 /// Five distinct recent pages, ordered oldest to newest. Traversal never changes recency.
 struct MacPageHistory: Equatable {
     static let capacity = 5

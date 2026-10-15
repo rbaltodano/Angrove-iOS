@@ -209,7 +209,7 @@ struct ModelCompletionNotificationPill: View {
         .clipShape(Capsule())
         .overlay {
             Capsule()
-                .stroke(AngroveTheme.Colors.darkBrown.opacity(0.08), lineWidth: 1)
+                .stroke(AngroveTheme.Colors.popupBorder, lineWidth: 1)
         }
     }
 }

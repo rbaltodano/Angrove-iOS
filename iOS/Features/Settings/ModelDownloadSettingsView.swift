@@ -12,7 +12,7 @@ struct ModelDownloadSettingsView: View {
                 Text("Downloading the model doesn’t upload your conversations. Keep enough free space for installation; the download and unpacking can need more room than the model file itself.")
                     .settingsParagraph()
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                if delivery.phase != .development {
+                if delivery.phase.showsStatus {
                     SettingsControlCard {
                         ModelDownloadStatusView(delivery: delivery)
                     }
@@ -30,7 +30,7 @@ struct ModelDownloadStatusView: View {
 
     @ViewBuilder
     var body: some View {
-        if delivery.phase != .development {
+        if delivery.phase.showsStatus {
             VStack(alignment: .leading, spacing: 12) {
                 Text(delivery.phase.title)
                     .font(AngroveTheme.Typography.settingsHeading)
@@ -92,8 +92,7 @@ struct ModelDownloadStatusView: View {
         case .downloading: "You can leave this page while the model downloads."
         case .paused: "iOS paused the download. Check your connection and available storage; it resumes when the system allows."
         case .verifying: "Checking the model before it can be used. This may take a little time."
-        case .ready: "The model passed its integrity check. It’s ready for on-device generation."
-        case .development: ""
+        case .ready, .development: ""
         case let .failed(reason): reason.message
         }
     }

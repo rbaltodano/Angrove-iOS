@@ -124,7 +124,7 @@ Settings subpage labels and explanatory text use semantic fonts relative to iOS 
 so they follow the iPhone's Text Size setting independently of conversation font sizing.
 
 Settings → User Guide displays a self-contained copy of the website's `guide.html` in
-`UserGuideWebsiteView`. `Resources/UserGuide.html` includes the website CSS, artwork, fonts,
+`UserGuideWebsiteView`. `Shared/Resources/UserGuide/UserGuide.html` includes the website CSS, artwork, fonts,
 and four example scripts; it performs no network requests and uses an ephemeral WebKit data
 store. The index's topic buttons push native Settings destinations, each showing only that
 topic. Back returns to the guide index; edge swipes follow the existing Settings navigation.

@@ -535,28 +535,3 @@ private func settingsRowLayout(isVertical: Bool) -> AnyLayout {
 }
 
 /// Native counterpart of the guide's word-by-word headline reveal.
-struct SettingsDetailHeading: View {
-    let title: LocalizedStringResource
-
-    var body: some View {
-        let words = String(localized: title).split(separator: " ", omittingEmptySubsequences: false)
-        let headingText = words.enumerated().reduce(Text(verbatim: "")) { text, word in
-            text + Text(verbatim: (word.offset == 0 ? "" : " ") + String(word.element))
-                .customAttribute(SettingsRevealWord(index: word.offset))
-        }
-        SettingsAnimatedHeading(
-            text: headingText,
-            wordCount: words.count,
-            accessibilityLabel: String(localized: title)
-        )
-        .font(AngroveTheme.Typography.settingsDetailTitle)
-        .tracking(AngroveTheme.Typography.settingsDetailTitleTracking)
-        .foregroundStyle(AngroveTheme.Colors.headingText)
-        .lineSpacing(AngroveTheme.Typography.settingsGuideTitleLineSpacing)
-        .multilineTextAlignment(.leading)
-        .lineLimit(words.count == 1 ? 1 : nil)
-        .minimumScaleFactor(0.75)
-        .fixedSize(horizontal: false, vertical: true)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}

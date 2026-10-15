@@ -119,7 +119,7 @@ struct SlashCommandMenu: View {
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(AngroveTheme.Colors.canvasSecondary, lineWidth: 1)
+                .stroke(AngroveTheme.Colors.popupBorder, lineWidth: 1)
         )
     }
 

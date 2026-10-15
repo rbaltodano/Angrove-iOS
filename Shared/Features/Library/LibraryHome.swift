@@ -278,10 +278,18 @@ struct LibraryHomeView: View {
             AngroveTheme.Colors.canvas.ignoresSafeArea()
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
+                    #if os(macOS)
+                    Color.clear.frame(height: 84)
+                    #else
                     Color.clear.frame(height: 72)
+                    #endif
 
                     LibraryHomeHeader()
+                        #if os(macOS)
+                        .padding(.top, 0)
+                        #else
                         .padding(.top, 24)
+                        #endif
                         .padding(.horizontal, 24)
 
                     StudyTopicsSearchField(
@@ -328,6 +336,11 @@ struct LibraryHomeView: View {
                let work = catalog.works.first(where: { $0.id == workID }) {
                 LibraryListeningCard(work: work, isPageVisible: isPageVisible,
                     onListen: { onListen(work) }) { onOpenReading(work) }
+                    #if os(macOS)
+                    // The width the card has on iPhone.
+                    .frame(maxWidth: 345, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    #endif
                     .padding(.horizontal, 24)
                     .transition(.blurFadeShrink)
             }
@@ -391,16 +404,18 @@ nonisolated struct LibraryListeningCardPlayback {
 
 struct LibraryListeningCard: View {
     let work: LibraryWork
+    var surfaceColor: Color
     var isPageVisible = true
     let action: () -> Void
     let onListen: () -> Void
     var playback: LibraryListeningCardPlayback?
     private var speech = ResponseSpeechPlayer.shared
 
-    init(work: LibraryWork, isPageVisible: Bool = true, onListen: (() -> Void)? = nil,
+    init(work: LibraryWork, surfaceColor: Color = AngroveTheme.Colors.canvasSecondary, isPageVisible: Bool = true, onListen: (() -> Void)? = nil,
          playback: LibraryListeningCardPlayback? = nil,
          action: @escaping () -> Void) {
         self.work = work
+        self.surfaceColor = surfaceColor
         self.isPageVisible = isPageVisible
         self.action = action
         self.onListen = onListen ?? action
@@ -477,7 +492,7 @@ struct LibraryListeningCard: View {
             .background(alignment: .bottomTrailing) {
                 LibraryPaintedArtwork(artwork: .forWork(work.id), isPageVisible: isPageVisible)
             }
-            .background(AngroveTheme.Colors.canvasSecondary)
+            .background(surfaceColor)
             .clipShape(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous)
@@ -642,7 +657,11 @@ private struct ClippedPassageLibraryCard: View {
 private struct LibraryHomeHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            #if os(macOS)
+            MacPageHeading(title: "The Library", font: MacPageHeading.pageFont)
+            #else
             SettingsDetailHeading(title: "The Library")
+            #endif
 
             Text("The primary sources Angrove draws on when it grounds an answer.")
                 .paragraphFont()

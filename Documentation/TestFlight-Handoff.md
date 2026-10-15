@@ -301,7 +301,7 @@ the exported app: zero blockers.
 - IPA: `../build-output/main-rc-release/export/Angrove-iOS.ipa`, SHA-256
   `f4ea6db762548f694f65b7550aaa1949c3161c4e53025d2b1279cab852eca3dd`
 
-The reader documents (`Angrove-iOS/LibraryDocuments/`) and grounding corpus are generated,
+The reader documents (`Shared/LibraryDocuments/`) and grounding corpus are generated,
 gitignored inputs. A clean checkout must regenerate them before archiving
 ([Complete Library reader](Complete-Library-Reader.md), [setup](Development-Setup.md)).
 

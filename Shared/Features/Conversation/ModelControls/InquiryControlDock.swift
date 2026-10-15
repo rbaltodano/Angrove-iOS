@@ -95,6 +95,8 @@ struct InquiryControlDock: View {
     var onContextWillOpen: () -> Void = {}
     /// Owned by the hosting screen so Context state survives control-layout changes.
     let contextCard: ContextCardState
+    /// A native host can invoke the same action as the Context gauge, once per request.
+    var contextToggleRequest: Binding<UUID?> = .constant(nil)
 
     private var cameraAction: (() -> Void)? {
         #if os(iOS)
@@ -250,6 +252,11 @@ struct InquiryControlDock: View {
             .modelControls(configuration)
             .onAppear {
                 isScrollButtonVisible = !isAtBottom
+            }
+            .onChange(of: contextToggleRequest.wrappedValue, initial: true) { _, request in
+                guard request != nil else { return }
+                contextToggleRequest.wrappedValue = nil
+                if showsContextControl { toggleContextCard() }
             }
             .onReceive(NotificationCenter.default.publisher(for: .aquinasMiniScrollButtonVisibilityChanged)) { notification in
                 guard let isVisible = notification.userInfo?["isVisible"] as? Bool else { return }
@@ -470,6 +477,9 @@ struct InquiryControlDock: View {
         }
         .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
         .accessibilityLabel("Search Insights")
+        #if os(macOS)
+        .modelControlHoverLabel("Search Insights")
+        #endif
     }
 
     private func expandedCanvasSearchBar(text: Binding<String>) -> some View {
@@ -555,6 +565,28 @@ struct InquiryControlDock: View {
                 onCamera: cameraAction
             )
         } else {
+        #if os(macOS)
+        MacActionMenu(entries: {
+            var items = [
+                MacMenuEntry("Insights", symbol: "text.bubble") { isRecentPhotosOpen = false; onOpenInsights() },
+                MacMenuEntry("Passages", symbol: "books.vertical") { isRecentPhotosOpen = false; onOpenPassages() }
+            ]
+            if LiteRTAngroveRuntime.supportsVision {
+                items += [.divider,
+                    MacMenuEntry("Photos…", symbol: "photo.on.rectangle") { showPhotoPicker = true },
+                    MacMenuEntry("Image File…", symbol: "doc") { showFilePicker = true }]
+            }
+            return items
+        }) {
+            Image(systemName: "plus")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(AngroveTheme.Colors.lightGreen)
+                .frame(width: 16, height: 16)
+        }
+        .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
+        .accessibilityLabel("Add attachment")
+        .modelControlHoverLabel("Add attachment")
+        #else
         Menu {
             Button {
                 isRecentPhotosOpen = false
@@ -569,6 +601,21 @@ struct InquiryControlDock: View {
             } label: {
                 Label("Passages", systemImage: "books.vertical")
             }
+            #if os(macOS)
+            if LiteRTAngroveRuntime.supportsVision {
+                Divider()
+                Button {
+                    showPhotoPicker = true
+                } label: {
+                    Label("Photos…", systemImage: "photo.on.rectangle")
+                }
+                Button {
+                    showFilePicker = true
+                } label: {
+                    Label("Image File…", systemImage: "doc")
+                }
+            }
+            #endif
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: 12, weight: .semibold))
@@ -577,6 +624,10 @@ struct InquiryControlDock: View {
         }
         .menuStyle(.button)
         .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
+        #if os(macOS)
+        .modelControlHoverLabel("Add attachment")
+        #endif
+        #endif
         }
     }
 
@@ -611,32 +662,13 @@ struct InquiryControlDock: View {
         }
         .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
         .accessibilityLabel("Reading controls")
+        #if os(macOS)
+        .modelControlHoverLabel("Reading controls")
+        #endif
     }
 
     private var contextButton: some View {
-        Button {
-            guard !contextCard.isCompacting else { return }
-            withAnimation(.springStandard) { isRecentPhotosOpen = false }
-            CanvasImpactFeedback(style: .medium).impactOccurred(intensity: 0.7)
-            contextCard.dragY = 0
-            if contextCard.isOpen {
-                withAnimation(.springStandard) {
-                    contextCard.isOpen = false
-                }
-                return
-            }
-            let otherWasOpen = modelTasksPopupState?.isOpen == true
-                || ResponseSpeechPlayer.shared.occupiesCardSlot
-            onContextWillOpen()
-            switchPopups(
-                otherIsOpen: otherWasOpen,
-                closeOther: {
-                    modelTasksPopupState?.isOpen = false
-                    if ResponseSpeechPlayer.shared.occupiesCardSlot { ResponseSpeechPlayer.shared.isReadingCardOpen = false }
-                },
-                openThis: { contextCard.isOpen = true }
-            )
-        } label: {
+        Button(action: toggleContextCard) {
             let contextColor = AngroveTheme.Colors.paragraphText.opacity(0.75)
             HStack(spacing: 8) {
                 ContextUsageIcon(progress: contextProgress, color: contextColor)
@@ -646,6 +678,33 @@ struct InquiryControlDock: View {
         }
         .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
         .accessibilityLabel("Conversation context")
+        #if os(macOS)
+        .modelControlHoverLabel("Conversation context", shortcut: "⇧⌘C")
+        #endif
+    }
+
+    private func toggleContextCard() {
+        guard !contextCard.isCompacting else { return }
+        withAnimation(.springStandard) { isRecentPhotosOpen = false }
+        CanvasImpactFeedback(style: .medium).impactOccurred(intensity: 0.7)
+        contextCard.dragY = 0
+        if contextCard.isOpen {
+            withAnimation(.springStandard) {
+                contextCard.isOpen = false
+            }
+            return
+        }
+        let otherWasOpen = modelTasksPopupState?.isOpen == true
+            || ResponseSpeechPlayer.shared.occupiesCardSlot
+        onContextWillOpen()
+        switchPopups(
+            otherIsOpen: otherWasOpen,
+            closeOther: {
+                modelTasksPopupState?.isOpen = false
+                if ResponseSpeechPlayer.shared.occupiesCardSlot { ResponseSpeechPlayer.shared.isReadingCardOpen = false }
+            },
+            openThis: { contextCard.isOpen = true }
+        )
     }
 
     private func handleModelStatusTap() {
@@ -723,6 +782,9 @@ struct InquiryControlDock: View {
             .foregroundColor(AngroveTheme.Colors.paragraphText.opacity(0.75))
         }
         .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
+        #if os(macOS)
+        .modelControlHoverLabel(title)
+        #endif
     }
 
     private var studyToolsButton: some View {
@@ -739,6 +801,9 @@ struct InquiryControlDock: View {
         }
         .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
         .accessibilityLabel(isStudyToolsActive ? "Close Branch" : "Branch this Insight")
+        #if os(macOS)
+        .modelControlHoverLabel(isStudyToolsActive ? "Close Branch" : "Branch this Insight")
+        #endif
     }
 
     private var selectCanvasActionButton: some View {
@@ -752,6 +817,9 @@ struct InquiryControlDock: View {
             .foregroundColor(selectedCanvasItemCount >= 1 ? AngroveTheme.Colors.lightGreen : AngroveTheme.Colors.paragraphText.opacity(0.75))
         }
         .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
+        #if os(macOS)
+        .modelControlHoverLabel(selectedCanvasItemCount >= 1 ? "Add concept to selection" : "Select")
+        #endif
     }
 
     private var clearCanvasSelectionButton: some View {
@@ -763,6 +831,9 @@ struct InquiryControlDock: View {
         }
         .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
         .accessibilityLabel("Cancel current selection")
+        #if os(macOS)
+        .modelControlHoverLabel("Cancel selection")
+        #endif
     }
 
     private var cancelCanvasAskButton: some View {
@@ -774,6 +845,9 @@ struct InquiryControlDock: View {
         }
         .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
         .accessibilityLabel("Cancel Ask")
+        #if os(macOS)
+        .modelControlHoverLabel("Cancel Ask")
+        #endif
     }
 
     @ViewBuilder
@@ -804,6 +878,9 @@ struct InquiryControlDock: View {
                 .frame(width: 16, height: 16)
         }
         .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
+        #if os(macOS)
+        .modelControlHoverLabel("Send question", shortcut: "↩")
+        #endif
     }
 
 }
@@ -821,6 +898,8 @@ private struct CanvasSearchTextField: View {
             prompt: Text("Search")
                 .foregroundColor(AngroveTheme.Colors.placeholderText)
         )
+        .textFieldStyle(.plain)
+        .focusEffectDisabled()
         .font(BrandTypography.font("Figtree-SemiBold", size: 14))
         .foregroundColor(AngroveTheme.Colors.paragraphText)
         #if os(iOS)

@@ -232,9 +232,13 @@ private struct ContextUsageCard: View {
                 VStack(alignment: .leading, spacing: 16) {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(alignment: .firstTextBaseline) {
+                            #if os(macOS)
+                            MacPageHeading(title: "Context")
+                            #else
                             Text("Context")
                                 .font(BrandTypography.font("Figtree-Bold", size: 18))
                                 .foregroundColor(AngroveTheme.Colors.headingText)
+                            #endif
                             Spacer()
                             Text("\(formatted(wordCount)) / \(formatted(wordLimit)) tokens")
                                 .font(BrandTypography.font("Figtree-Bold", size: 14))
@@ -276,7 +280,7 @@ private struct ContextUsageCard: View {
         .clipShape(RoundedRectangle(cornerRadius: isCompacting ? 22 : 36, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: isCompacting ? 22 : 36, style: .continuous)
-                .stroke(AngroveTheme.Colors.darkBrown.opacity(0.08), lineWidth: 1)
+                .stroke(AngroveTheme.Colors.popupBorder, lineWidth: 1)
         )
         .scaleEffect(hasAppeared ? 1 : 0.35, anchor: .bottom)
         .opacity(hasAppeared ? 1 : 0)

@@ -23,20 +23,28 @@ nonisolated enum LibraryArtwork: String, CaseIterable, Sendable {
     }
 }
 
+#if canImport(UIKit)
+import UIKit
+typealias LibraryArtworkImage = UIImage
+#else
+import AppKit
+typealias LibraryArtworkImage = NSImage
+#endif
+
 /// The original artwork stays visible without sprite playback or a reveal mask.
 struct LibraryPaintedArtwork: View {
-    let image: UIImage?
+    let image: LibraryArtworkImage?
     var isPageVisible: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isInViewport = false
     @State private var hasEnteredView = false
 
     init(artwork: LibraryArtwork, isPageVisible: Bool = true) {
-        image = artwork.resource("final").flatMap { UIImage(contentsOfFile: $0.path) }
+        image = artwork.resource("final").flatMap { LibraryArtworkImage(contentsOfFile: $0.path) }
         self.isPageVisible = isPageVisible
     }
 
-    init(image: UIImage?, isPageVisible: Bool = true) {
+    init(image: LibraryArtworkImage?, isPageVisible: Bool = true) {
         self.image = image
         self.isPageVisible = isPageVisible
     }
@@ -44,7 +52,7 @@ struct LibraryPaintedArtwork: View {
     var body: some View {
         GeometryReader { geometry in
             if let image {
-                Image(uiImage: image)
+                platformImage(image)
                     .resizable()
                     .frame(width: geometry.size.width,
                            height: geometry.size.width * image.size.height / image.size.width)
@@ -60,6 +68,13 @@ struct LibraryPaintedArtwork: View {
             revealIfNeeded()
         }
         .onChange(of: isPageVisible) { revealIfNeeded() }
+        #if os(macOS)
+        // Mac scroll views do not report the initial visibility, so reveal on every mount.
+        .onAppear {
+            isInViewport = true
+            revealIfNeeded()
+        }
+        #endif
     }
 
     private func revealIfNeeded() {
@@ -68,4 +83,12 @@ struct LibraryPaintedArtwork: View {
             hasEnteredView = true
         }
     }
+}
+
+private func platformImage(_ image: LibraryArtworkImage) -> Image {
+    #if canImport(UIKit)
+    Image(uiImage: image)
+    #else
+    Image(nsImage: image)
+    #endif
 }

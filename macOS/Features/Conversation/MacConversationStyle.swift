@@ -3,13 +3,14 @@ import SwiftUI
 
 /// Uses the same symbol names and context gauge as the iOS app.
 enum MacIcon: String {
-    case home, insights, conversations, topics, studyTopic
+    case home, insights, conversations, library, topics, studyTopic
     case ellipsis, settings, plus, send, statusArrow, contextRing
     var symbol: String {
         switch self {
         case .home: AppPage.home.sidebarIconName
         case .insights: AppPage.insights.sidebarIconName
         case .conversations: AppPage.openConversations.sidebarIconName
+        case .library: AppPage.library.sidebarIconName
         case .topics, .studyTopic: AppPage.studyTopics.sidebarIconName
         case .settings: AppPage.settings.sidebarIconName
         case .ellipsis: "ellipsis"
@@ -27,7 +28,7 @@ enum MacIcon: String {
     }
     var color: Color {
         switch self {
-        case .home, .insights, .conversations, .topics, .studyTopic, .send, .statusArrow:
+        case .home, .insights, .conversations, .library, .topics, .studyTopic, .send, .statusArrow:
             AngroveTheme.Colors.lightGreen
         case .plus: AngroveTheme.Colors.canvas
         default: AngroveTheme.Colors.paragraphText
@@ -56,9 +57,22 @@ struct MacIconView: View {
 enum MacConversationStyle {
     /// One size for the sidebar menu, response paragraphs, and native question editor.
     static let bodyFontSize: ConversationFontSizeOption = .medium
-    /// Matches the trailing question field in the iOS conversation.
-    static let questionMaxWidth = QuotedQuestionContainer<Text>.quotedMaxWidth
-    static let questionFontName = "LibreBaskerville-Regular"
+    /// The widest any page's content grows, matching the conversation column.
+    static let pageContentMaxWidth: CGFloat = 800
+    /// The conversation column is narrower than other pages.
+    static let conversationColumnMaxWidth: CGFloat = 600
+    /// The space above a page's content, matching the side padding.
+    static let pageTopPadding: CGFloat = 84
+    /// The space between a page's content and the left and right edges of the window.
+    static let pageHorizontalPadding: CGFloat = 84
+    /// The iOS question field's width, 50% wider for the desktop.
+    static let questionMaxWidth = QuotedQuestionContainer<Text>.quotedMaxWidth * 1.5
+    /// Settings › Question font, shared with the iPhone's input font preference.
+    static let questionFontKey = "aquinas.settings.inputFont"
+    static var usesSerifQuestions: Bool {
+        UserDefaults.standard.string(forKey: questionFontKey) != ConversationFontOption.sans.rawValue
+    }
+    static var questionFontName: String { usesSerifQuestions ? "LibreBaskerville-Regular" : "Figtree-Regular" }
     static var questionNativeFont: NSFont {
         let size = BrandTypography.pointSize(bodyFontSize.pointSize)
         return NSFont(name: questionFontName, size: size) ?? .systemFont(ofSize: size)

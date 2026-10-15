@@ -124,11 +124,7 @@ struct LibraryWordLiftAnimation {
 final class AskingTextView: UITextView {
     /// How far a reading aloud has reached into this paragraph: words before `readBefore` are read
     /// and `active`, if any, is being said.
-    struct SpeechState: Equatable {
-        var readBefore = 0
-        var active: Int?
-        static let none = SpeechState()
-    }
+    typealias SpeechState = LibrarySpeechState
 
     /// Room left above each line for a lifted word.
     static let liftHeight: CGFloat = 2

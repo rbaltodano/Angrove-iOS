@@ -27,6 +27,16 @@ enum MacSidebarConversationActions {
         return updated
     }
 
+    /// Conversations leave a deleted Study Topic for Recents; nil when none were filed under it.
+    static func unfiling(topic topicID: UUID, in snapshot: InquiryPersistenceSnapshot) -> InquiryPersistenceSnapshot? {
+        guard snapshot.conversations.contains(where: { $0.studyTopicID == topicID }) else { return nil }
+        var updated = snapshot
+        for index in updated.conversations.indices where updated.conversations[index].studyTopicID == topicID {
+            updated.conversations[index].studyTopicID = nil
+        }
+        return updated
+    }
+
     static func deleting(_ id: UUID, in snapshot: InquiryPersistenceSnapshot) -> InquiryPersistenceSnapshot {
         var updated = snapshot
         updated.conversations.removeAll { $0.id == id }
