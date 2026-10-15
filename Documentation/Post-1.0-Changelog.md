@@ -21,6 +21,15 @@ Collected from the [iOS] and [Shared] entries below.
 
 ## 2026-10-15
 
+- **[macOS] Switch models without relaunching; Model Tasks lists the real models.** The Model
+  Tasks dropdown (formerly placeholders) and Settings › Model list the models this Mac can run
+  (Gemma 4 E4B, Gemma 4 12B). A switch applies after the current task: the engine unloads, and
+  the next task loads the new package. Verified: 117 Mac tests pass, and an opt-in live test
+  answered on E4B, switched to 12B in the same process, and answered correctly (21.5 s including
+  verification and load).
+- **[Shared] `LiteRTAngroveRuntime.replaceModelStore` and a `modelSwitch` unload reason.** Used
+  only by the Mac; no iPhone behavior change.
+
 - **[Tooling] Mac eval batch and 12B results.** `MacModelEvalBatchTests` (opt-in) runs an
   Angrove-Eval set through the Mac model path, in the iPhone probe's results format. Gemma 4 12B
   scored 73/80 against E4B's 72/80 on the same Mac (held-out plus sealed-1, scorer v2). Answers

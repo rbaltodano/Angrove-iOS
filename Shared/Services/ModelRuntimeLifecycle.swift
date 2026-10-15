@@ -27,6 +27,8 @@ nonisolated enum ModelRuntimeUnloadReason: String, Sendable {
     case background
     case memoryPressure
     case criticalThermalPressure
+    /// The Mac switched models; the next lease loads the new package.
+    case modelSwitch
 }
 
 nonisolated enum ModelRuntimeRetentionPolicy: Sendable, Equatable {

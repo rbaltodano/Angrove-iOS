@@ -59,10 +59,10 @@ nonisolated enum LiteRTAngroveRuntimeError: LocalizedError, Sendable {
 actor LiteRTAngroveRuntime {
     let supportsUnloading = true
 
-    private let modelStore: LiteRTModelStore
+    private var modelStore: LiteRTModelStore
     /// This engine's KV-cache size. The iPhone always uses `maxNumTokens`; Mac model tiers
     /// pass their own (see `MacModelTier`).
-    private let contextTokens: Int
+    private var contextTokens: Int
 #if DEBUG
     /// `--litert-force-cpu` runs the full app on the CPU executor (plan C7: the simulator's
     /// Metal limits reject some packages on GPU).
@@ -164,6 +164,15 @@ actor LiteRTAngroveRuntime {
     init(modelStore: LiteRTModelStore = LiteRTModelStore(), contextTokens: Int = maxNumTokens) {
         self.modelStore = modelStore
         self.contextTokens = contextTokens
+    }
+
+    /// Points the next engine load at a different package (Mac model switching). The loaded
+    /// engine, if any, keeps running until it is unloaded; callers unload through the lifecycle
+    /// manager once no task holds a lease, so one answer never spans two models.
+    func replaceModelStore(_ store: LiteRTModelStore, contextTokens: Int) {
+        modelStore = store
+        self.contextTokens = contextTokens
+        didLogLoadedModel = false
     }
 
     /// Load and unload take the generation slot, like generation itself. The lifecycle manager

@@ -392,30 +392,20 @@ private struct MacPrivacySettings: View {
     }
 }
 
-/// Model tier choice. The running tier only changes at the next launch (one engine per process).
+/// Model choice. A switch takes effect between model tasks; Model Tasks offers the same menu.
 private struct MacModelSettings: View {
-    @AppStorage(MacModelTier.selectionKey) private var selection: MacModelTier = .standard
-    private let running = MacApplicationRuntime.shared.modelTier
-    private let options: [(MacModelTier, String)] = {
-        let memory = ProcessInfo.processInfo.physicalMemory
-        return MacModelTier.allCases.filter { $0.isEligible(physicalMemory: memory) }.map { tier in
-            (tier, tier.modelStore().hasInstalledModel() ? tier.title : "\(tier.title) (not installed)")
-        }
-    }()
+    private let runtime = MacApplicationRuntime.shared
 
     var body: some View {
         MacSettingsSection(title: "Model", description: "Choose the on-device model Angrove answers with.") {
-            MacSettingsRow(title: "Model size", description: description) {
-                MacMenuPicker(title: "Model size", selection: $selection, options: options)
+            MacSettingsRow(title: "Model size", description: runtime.modelTier.detail) {
+                MacMenuPicker(
+                    title: "Model size",
+                    selection: Binding(get: { runtime.modelTier }, set: { runtime.selectModel($0) }),
+                    options: runtime.availableTiers.map { ($0, $0.title) }
+                )
             }
         }
-    }
-
-    private var description: String {
-        if selection != running {
-            return "\(selection.detail) Angrove switches the next time you open it."
-        }
-        return selection.detail
     }
 }
 

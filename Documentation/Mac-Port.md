@@ -647,8 +647,12 @@ Local development may reference an existing verified artifact directly.
 E4B package. **Large** is stock Gemma 4 12B (`gemma-4-12B-it.litertlm`, needs LiteRT-LM
 0.17+). **Extended**, the tuned-voice E4B INT8 package, will join after its re-export. Settings
 › Model offers the tiers the Mac's installed memory allows: Large currently needs 24 GiB, a
-placeholder until it's measured on a 16 GiB Mac. The choice applies at the next launch.
-A Mac falls back to Standard when the chosen tier isn't installed. Each tier has its own
+placeholder until it's measured on a 16 GiB Mac. The Model Tasks card has the same menu.
+Switching needs no relaunch. `MacApplicationRuntime.selectModel` records the new package with
+the runtime driver, then unloads the engine through the lifecycle manager once no task holds a
+lease. It retries if a task took the runtime first. The next task loads and checksum-verifies
+the new package, so a running answer finishes on the old model and one answer never spans two.
+At launch, a Mac falls back to Standard when the chosen tier isn't installed. Each tier has its own
 manifest and SHA-256 check. Every tier keeps the 4,096-token context; raising it needs a memory
 measurement and an `AngroveContextBudget` change. LiteRT names its caches per model file, so
 the tiers share one cache folder, and launch removes the inactive tiers' caches (12B: 5.6 GB).

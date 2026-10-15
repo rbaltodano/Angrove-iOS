@@ -1,8 +1,8 @@
 import Foundation
 
 /// The Mac's on-device model choices. A Mac uses the tier chosen in Settings when its installed
-/// memory qualifies and that model is installed; otherwise it uses Standard. A change applies at
-/// the next launch, because the process keeps one runtime and one engine.
+/// memory qualifies and that model is installed; otherwise it uses Standard. A change takes
+/// effect between model tasks: the one runtime unloads its engine and loads the new package.
 /// Extended (the tuned-voice E4B INT8 package) joins once that package is re-exported.
 nonisolated enum MacModelTier: String, CaseIterable, Identifiable, Sendable {
     case standard
@@ -38,6 +38,14 @@ nonisolated enum MacModelTier: String, CaseIterable, Identifiable, Sendable {
     /// KV-cache size. Every tier keeps the iPhone's 4,096 for now: a larger window needs a memory
     /// measurement, and `AngroveContextBudget` would have to follow it.
     var contextTokens: Int { LiteRTAngroveRuntime.maxNumTokens }
+
+    /// The model's own name, shown in Model Tasks.
+    var modelName: String {
+        switch self {
+        case .standard: "Gemma 4 E4B"
+        case .large: "Gemma 4 12B"
+        }
+    }
 
     var title: String {
         switch self {

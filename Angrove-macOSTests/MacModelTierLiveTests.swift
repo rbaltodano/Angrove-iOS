@@ -32,4 +32,41 @@ struct MacModelTierLiveTests {
         #expect(response.text.contains("21") || response.text.lowercased().contains("twenty-one"))
         await runtime.unloadModelWeights()
     }
+
+    /// `TEST_RUNNER_ANGROVE_LIVE_MODEL_SWITCH=1`: answers on Standard, switches to Large in the
+    /// same process through the lifecycle manager, and answers again.
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["ANGROVE_LIVE_MODEL_SWITCH"] != nil))
+    func switchesModelsWithoutRelaunching() async throws {
+        let standard = MacModelTier.standard.modelStore()
+        let large = MacModelTier.large.modelStore()
+        let runtime = LiteRTAngroveRuntime(modelStore: standard, contextTokens: MacModelTier.standard.contextTokens)
+        let driver = VerifiedMacRuntimeDriver(
+            runtime: runtime,
+            target: .init(store: standard, url: try standard.installedModelURL(), contextTokens: MacModelTier.standard.contextTokens)
+        )
+        let lifecycle = ModelRuntimeLifecycleManager(driver: driver, configuration: .adaptiveOnDevice)
+        let model = LiteRTAngroveModel(runtime: runtime, groundingProvider: LazyGroundingProvider())
+        let question = ConversationContext(transcript: [.user("How many chapters are in the Gospel of John?", nil, [])])
+
+        let first = try #require(await lifecycle.acquireLease())
+        let firstAnswer = await model.respond(to: question).text
+        await lifecycle.releaseLease(first)
+        #expect(await driver.loadedFileName == MacModelTier.standard.manifest.fileName)
+
+        await driver.switchTarget(to: .init(store: large, url: try large.installedModelURL(), contextTokens: MacModelTier.large.contextTokens))
+        await lifecycle.unloadAsSoonAsIdle(reason: .modelSwitch)
+        #expect(await lifecycle.currentState() == .unloaded)
+
+        let start = Date()
+        let second = try #require(await lifecycle.acquireLease())
+        let secondAnswer = await model.respond(to: question).text
+        await lifecycle.releaseLease(second)
+        print("MacModelSwitch standard=\(firstAnswer) | large(\(Date().timeIntervalSince(start))s incl. verify+load)=\(secondAnswer)")
+        #expect(await driver.loadedFileName == MacModelTier.large.manifest.fileName)
+        #expect(await !driver.hasPendingSwitch)
+        for answer in [firstAnswer, secondAnswer] {
+            #expect(answer.contains("21") || answer.lowercased().contains("twenty-one"))
+        }
+        await lifecycle.unloadAsSoonAsIdle(reason: .modelSwitch)
+    }
 }
