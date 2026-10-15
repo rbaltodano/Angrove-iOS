@@ -21,6 +21,36 @@ Collected from the [iOS] and [Shared] entries below.
 
 ## 2026-10-15
 
+- **[macOS] Worktree page (scaffold).** New sidebar entry opening a blank, pannable canvas (no dot
+  background) with its own controls pill (Add, Type, Commands, Trash). Commands toggles a
+  Getting Started card. The Type tool (T) places bare text where you click, with a drag grip
+  before it; quoted text committed with ⌘Return becomes a bordered, resizable card answered by
+  the model, with follow-ups and the latest question pinned. Pinch or ⌘= / ⌘− / ⌘0 zoom; Escape
+  puts the Type tool down; dragging an item onto Trash deletes it. Items also move by their top
+  edge, and the page has a conversation-style title named from its first question. Conversation
+  windows use the conversation page's session and response card (thinking, reveal, Insights)
+  with sticky per-turn questions; `MacConversationState.savesConversation` keeps them out of the
+  sidebar. Follow-ups send on Return and scroll their question to the top; a clicked window
+  becomes active (2.5% larger, shadowed, above others). The page has its own Model Tasks control.
+  First command: `/rename` names the selected item with the conversation-title
+  prompt, or with text typed after it; "/" opens a command field beside the selection, and
+  commands typed after a quoted question queue behind its answer. With nothing selected,
+  `/rename` names the whole Worktree. `/define term` turns the command into an Insight card;
+  `/define` alone, or any unrecognised command, is struck through and dismissed. Labels are
+  editable in place; Insight cards are selectable; "/" opens 16pt from the selection or pointer.
+  The Type tool is gone: typing anywhere starts text beside the pointer, and clicking only selects.
+  `/summarize` writes a brief summary of the selection beside it; it and `/define` are object
+  dependent and invalid with nothing selected. Labels are green
+  italic Baskerville; pending model work breathes while queued and shimmers while running.
+  Return submits everywhere. Sidebar conversations drag onto the canvas as their chip and open
+  into a window holding a copy (last 5 turns, more on scroll up), labelled with their title.
+  Dragging a window onto the sidebar saves a copy there (named by its label, or by the model);
+  one that came from the sidebar asks whether to replace that conversation or keep both.
+  Conversation windows fade out at their bottom edge instead of cutting off.
+- **[Shared] `ModelTaskKind.labelWorktreeItem` / `.summarizeWorktreeItem` and
+  `AngroveModel.summarize`.** Mac-only task kinds and a new `SUMMARIZE_SELECTION` prompt (plain
+  prose, no structured output); no iPhone behavior change. Worktree content is not saved yet.
+
 - **[macOS] Switch models without relaunching; Model Tasks lists the real models.** The Model
   Tasks dropdown (formerly placeholders) and Settings › Model list the models this Mac can run
   (Gemma 4 E4B, Gemma 4 12B). A switch applies after the current task: the engine unloads, and

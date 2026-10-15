@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Uses the same symbol names and context gauge as the iOS app.
 enum MacIcon: String {
-    case home, insights, conversations, library, topics, studyTopic
+    case home, insights, conversations, library, topics, studyTopic, worktree
     case ellipsis, settings, plus, send, statusArrow, contextRing
     var symbol: String {
         switch self {
@@ -13,6 +13,7 @@ enum MacIcon: String {
         case .library: AppPage.library.sidebarIconName
         case .topics, .studyTopic: AppPage.studyTopics.sidebarIconName
         case .settings: AppPage.settings.sidebarIconName
+        case .worktree: "square.on.square.dashed"
         case .ellipsis: "ellipsis"
         case .plus, .statusArrow: "plus"
         case .send: "paperplane.fill"
@@ -28,7 +29,7 @@ enum MacIcon: String {
     }
     var color: Color {
         switch self {
-        case .home, .insights, .conversations, .library, .topics, .studyTopic, .send, .statusArrow:
+        case .home, .insights, .conversations, .library, .topics, .studyTopic, .worktree, .send, .statusArrow:
             AngroveTheme.Colors.lightGreen
         case .plus: AngroveTheme.Colors.canvas
         default: AngroveTheme.Colors.paragraphText

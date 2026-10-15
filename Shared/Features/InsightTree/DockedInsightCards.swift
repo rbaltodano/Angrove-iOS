@@ -315,13 +315,10 @@ private struct DockedNodeInsightLinks: View {
             } action: { _, edges in
                 scrollEdges = edges
             }
-            .overlay(alignment: .top) {
-                DockedNodeScrollFade(isTop: true)
-                    .opacity(scrollEdges.hasContentAbove ? 1 : 0)
-            }
-            .overlay(alignment: .bottom) {
-                DockedNodeScrollFade(isTop: false)
-                    .opacity(scrollEdges.hasContentBelow ? 1 : 0)
+            .mask {
+                DockedNodeScrollMask(hasContentAbove: scrollEdges.hasContentAbove,
+                                     hasContentBelow: scrollEdges.hasContentBelow,
+                                     edgeHeight: min(20, viewportHeight / 2))
             }
         } else {
             DockedNodeInsightLinkRows(
@@ -353,16 +350,22 @@ private struct DockedNodeInsightLinkRows: View {
     }
 }
 
-private struct DockedNodeScrollFade: View {
-    let isTop: Bool
+/// Fade only the links, revealing the card's own surface in every appearance.
+private struct DockedNodeScrollMask: View {
+    let hasContentAbove: Bool
+    let hasContentBelow: Bool
+    let edgeHeight: CGFloat
 
     var body: some View {
-        LinearGradient(
-            colors: [insightTreeInsightColor, insightTreeInsightColor.opacity(0)],
-            startPoint: isTop ? .top : .bottom,
-            endPoint: isTop ? .bottom : .top
-        )
-        .frame(height: 20)
+        VStack(spacing: 0) {
+            LinearGradient(colors: [.white.opacity(hasContentAbove ? 0 : 1), .white],
+                           startPoint: .top, endPoint: .bottom)
+                .frame(height: edgeHeight)
+            Rectangle().fill(.white)
+            LinearGradient(colors: [.white, .white.opacity(hasContentBelow ? 0 : 1)],
+                           startPoint: .top, endPoint: .bottom)
+                .frame(height: edgeHeight)
+        }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }

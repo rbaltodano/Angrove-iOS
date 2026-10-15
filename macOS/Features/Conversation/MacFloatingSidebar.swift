@@ -82,6 +82,7 @@ struct MacFloatingSidebar: View {
 private struct MacExpandedSidebar: View {
     private static let fixtureStudyTopics = [StudyTopic(title: "Summer Bible Study")]
     @State private var commandHeld = false
+    @State private var hoveredDestination: MacDestination?
     @State private var savedStudyTopics = StudyTopicStore.load()
     @Binding var selection: MacDestination
     let showsFixture: Bool
@@ -130,10 +131,15 @@ private struct MacExpandedSidebar: View {
                 scrollEdges = edges
             }
 
-            fade(from: .top)
-                .padding(.top, 84)
-                .frame(maxHeight: .infinity, alignment: .top)
-                .opacity(scrollEdges.top ? 1 : 0)
+            VStack(spacing: 0) {
+                // Cover the window controls and pinned header instead of leaving a gap
+                // above the gradient where scrolled rows would become visible again.
+                AngroveTheme.Colors.sideMenuSurface.frame(height: 84)
+                fade(from: .top)
+            }
+            .frame(maxHeight: .infinity, alignment: .top)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
             fade(from: .bottom)
                 .opacity(scrollEdges.bottom ? 1 : 0)
             logo
@@ -148,6 +154,9 @@ private struct MacExpandedSidebar: View {
         }
         .animation(.easeInOut(duration: 0.28), value: scrollEdges)
         .background(MacCommandKeyObserver { commandHeld = $0 })
+        .onChange(of: isPresented) { _, isPresented in
+            if !isPresented { hoveredDestination = nil }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .macConversationSaved)) { _ in
             savedStudyTopics = StudyTopicStore.load()
         }
@@ -189,7 +198,18 @@ private struct MacExpandedSidebar: View {
                         Spacer(minLength: 0)
                     }
                     .frame(height: 28)
+                    .background {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(selection == destination || hoveredDestination == destination
+                                  ? AngroveTheme.Colors.systemSelection : .clear)
+                            .padding(-8)
+                            .allowsHitTesting(false)
+                    }
                     .contentShape(Rectangle())
+                }
+                .onHover { isHovered in
+                    if isHovered { hoveredDestination = destination }
+                    else if hoveredDestination == destination { hoveredDestination = nil }
                 }
                 .accessibilityAddTraits(selection == destination ? .isSelected : [])
             }
@@ -301,6 +321,10 @@ private struct MacExpandedSidebar: View {
                     onFinishRename: { finishRename(conversation.id, $0) },
                     contextEntries: { isPresented ? MacSidebarConversationMenu.entries(for: conversation) { menuAction($0, conversation) } : [] })
                     .modifier(MacSidebarEntrance(isPresented: isPresented, delay: 0.20 + Double(index) * 0.05))
+                    // Drag a conversation onto a Worktree to place it there.
+                    .draggable(WorktreeConversationDrop.payload(conversation.id)) {
+                        MacConversationChip(title: conversation.title)
+                    }
             }
         }.font(AngroveTheme.Typography.body).foregroundStyle(AngroveTheme.Colors.paragraphText)
     }
@@ -323,8 +347,19 @@ private struct MacExpandedSidebar: View {
         HStack(spacing: 0) {
             Button { selection = .settings } label: {
                 MacIconView(icon: .settings)
+                    .background {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(selection == .settings || hoveredDestination == .settings
+                                  ? AngroveTheme.Colors.systemSelection : .clear)
+                            .padding(-12)
+                            .allowsHitTesting(false)
+                    }
                     .frame(width: 44, height: MacIcon.settings.size, alignment: .leading)
                     .contentShape(Rectangle())
+            }
+            .onHover { isHovered in
+                if isHovered { hoveredDestination = .settings }
+                else if hoveredDestination == .settings { hoveredDestination = nil }
             }
             .accessibilityLabel("Settings")
             .accessibilityAddTraits(selection == .settings ? .isSelected : [])

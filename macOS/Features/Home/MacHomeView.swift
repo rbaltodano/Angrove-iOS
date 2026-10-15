@@ -125,8 +125,6 @@ struct MacHomeView: View {
                         onOpenConversation(featuredConversation.id)
                     }
                 }
-            } else {
-                MacHomeFirstQuestion { onStart(NewConversationRequest()) }
             }
 
             if let work = listeningWork {
@@ -409,30 +407,6 @@ private struct MacHomeResumeCard: View {
         .buttonStyle(.plain)
         .macHomeHover()
         .accessibilityHint("Opens the conversation")
-    }
-}
-
-/// A fresh install has nothing to resume, so Home offers the first question instead.
-private struct MacHomeFirstQuestion: View {
-    var onStart: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HomeFigmaSectionTitle("Begin an Inquiry")
-            Text("Ask about a text, an idea, or a question you keep returning to. Your conversations and Insights will gather here.")
-                .paragraphFont()
-                .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                .lineSpacing(7)
-            Button(action: onStart) {
-                Label("New Conversation", systemImage: "square.and.pencil")
-                    .font(AngroveTheme.Typography.uiSubheading)
-                    .foregroundStyle(AngroveTheme.Colors.canvas)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 10)
-                    .background(AngroveTheme.Colors.lightGreen, in: Capsule())
-            }
-            .buttonStyle(.plain)
-        }
     }
 }
 

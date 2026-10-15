@@ -7,8 +7,8 @@ enum MacWorkspaceIdentity {
 }
 
 enum MacDestination: String, CaseIterable, Identifiable {
-    case home, insights, conversations, library, studyTopics, settings
-    static let sidebarDestinations: [Self] = [.home, .insights, .conversations, .library, .studyTopics]
+    case home, insights, conversations, library, studyTopics, worktree, settings
+    static let sidebarDestinations: [Self] = [.home, .insights, .conversations, .library, .studyTopics, .worktree]
     var id: Self { self }
     var title: LocalizedStringKey {
         switch self {
@@ -17,6 +17,7 @@ enum MacDestination: String, CaseIterable, Identifiable {
         case .conversations: "Conversations"
         case .library: "Library"
         case .studyTopics: "Study Topics"
+        case .worktree: "Worktree"
         case .settings: "Settings"
         }
     }
@@ -27,6 +28,7 @@ enum MacDestination: String, CaseIterable, Identifiable {
         case .conversations: String(localized: "Conversations")
         case .library: String(localized: "Library")
         case .studyTopics: String(localized: "Study Topics")
+        case .worktree: String(localized: "Worktree")
         case .settings: String(localized: "Settings")
         }
     }
@@ -38,6 +40,7 @@ enum MacDestination: String, CaseIterable, Identifiable {
         case .conversations: "bubble.left.and.bubble.right"
         case .library: "books.vertical"
         case .studyTopics: "books.vertical"
+        case .worktree: MacIcon.worktree.symbol
         case .settings: "gearshape"
         }
     }
@@ -48,6 +51,7 @@ enum MacDestination: String, CaseIterable, Identifiable {
         case .conversations: .conversations
         case .library: .library
         case .studyTopics: .topics
+        case .worktree: .worktree
         case .settings: .settings
         }
     }
@@ -79,6 +83,7 @@ struct MacWorkspaceView: View {
     @State private var hasAppliedStartScreen = false
     @State private var pageTransition = MacPageTransition()
     @State private var homeVinePlayback = HomeVinePlaybackController()
+    @State private var worktree = WorktreeBoard()
     private var ownsPageFade: Bool { selection == .conversations || selection == .insights }
     @Environment(\.isBootPageRevealAnimating) private var bootPageReveal
     @Environment(\.isBootRevealComplete) private var bootRevealComplete
@@ -109,6 +114,7 @@ struct MacWorkspaceView: View {
                         }, menuAction: handleConversationAction)
                     .frame(width: sidebar.width(in: geometry.size.width))
                     .clipped()
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { worktree.sidebarFrame = $0 }
                     .overlay(alignment: .trailing) {
                         MacSidebarResizeHandle(layout: $sidebar, windowWidth: geometry.size.width)
                     }
@@ -152,6 +158,8 @@ struct MacWorkspaceView: View {
                                     NotificationCenter.default.post(name: .macConversationSaved, object: nil)
                                 },
                                 onAsk: quote, queuePopup: queuePopup)
+                        } else if selection == .worktree {
+                            MacWorktreeView(board: worktree, queuePopup: queuePopup)
                         }
                     }
                     // The conversation and Insights pages fade their own content, leaving Model Controls
@@ -176,6 +184,7 @@ struct MacWorkspaceView: View {
                 .overlayPreferenceValue(MacCompactSidebarHoverKey.self) { hover in
                     MacCompactSidebarLabelOverlay(hover: sidebar.isCompact ? hover : nil)
                 }
+                .overlay(alignment: .topLeading) { WorktreeSidebarDragChip(drag: worktree.sidebarDrag) }
                 .overlayPreferenceValue(MacSidebarMenuAnchorKey.self) { anchors in
                     MacSidebarConversationMenuOverlay(conversations: conversations, menuID: $conversationMenuID,
                                                       anchors: anchors, onAction: handleConversationAction)
@@ -357,8 +366,9 @@ struct MacWorkspaceView: View {
             guard number >= 1, number <= ids.count else { return }
             navigate(to: MacWorkspacePage(destination: .conversations, conversationID: ids[number - 1]))
         case .openQueue:
-            let destination = (pageTransition.destination?.destination ?? selection) == .insights
-                ? page(for: .insights) : page(for: .conversations)
+            // Pages with their own Model Tasks control open it in place.
+            let current = pageTransition.destination?.destination ?? selection
+            let destination = [.insights, .worktree].contains(current) ? page(for: current) : page(for: .conversations)
             navigate(to: destination) {
                 withAnimation(.springStandard) { queuePopup.isOpen.toggle() }
             }

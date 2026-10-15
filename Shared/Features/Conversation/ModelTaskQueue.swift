@@ -20,6 +20,10 @@ enum ModelTaskKind: Hashable {
     /// Separate identity so labels do not suppress response seeding or persisted refresh jobs.
     case labelInsightTree
     case refreshQuestionOfTheDay
+    /// Mac Worktree: names a canvas item with the conversation-title prompt.
+    case labelWorktreeItem
+    /// Mac Worktree: a brief summary of the selected item.
+    case summarizeWorktreeItem
 
     var title: String {
         switch self {
@@ -37,6 +41,10 @@ enum ModelTaskKind: Hashable {
             return String(localized: "Update Insight Tree")
         case .refreshQuestionOfTheDay:
             return String(localized: "Consolidate information")
+        case .labelWorktreeItem:
+            return String(localized: "Label")
+        case .summarizeWorktreeItem:
+            return String(localized: "Summarize")
         }
     }
 
@@ -71,6 +79,10 @@ enum ModelTaskKind: Hashable {
             return String(localized: "Mapping...")
         case .refreshQuestionOfTheDay:
             return String(localized: "Consolidating...")
+        case .labelWorktreeItem:
+            return String(localized: "Labeling...")
+        case .summarizeWorktreeItem:
+            return String(localized: "Summarizing...")
         }
     }
 
@@ -78,7 +90,8 @@ enum ModelTaskKind: Hashable {
         switch self {
         case .userQuestion, .defineInsight:
             return .conversation
-        case .createMidpoint, .makeNode, .studyBranch, .updateInsightTree, .refreshInsightTree, .labelInsightTree:
+        case .createMidpoint, .makeNode, .studyBranch, .updateInsightTree, .refreshInsightTree, .labelInsightTree,
+             .labelWorktreeItem, .summarizeWorktreeItem:
             return .insights
         case .refreshQuestionOfTheDay:
             return .home
@@ -148,6 +161,10 @@ enum FunModelStatusCopy {
             return ["Scribbling...", "Jotting...", "Planting...", "Trimming...", "Prunning..."]
         case .refreshQuestionOfTheDay:
             return ["Packin up..."]
+        case .labelWorktreeItem:
+            return ["Naming...", "Titling..."]
+        case .summarizeWorktreeItem:
+            return ["Condensing...", "Distilling..."]
         }
     }
 

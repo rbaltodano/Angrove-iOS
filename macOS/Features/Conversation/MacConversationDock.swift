@@ -79,6 +79,12 @@ struct MacConversationDock: View {
             contextToggleRequest: contextToggleRequest,
             surfaceID: isCanvasMode ? "mac-tree" : "mac-conversation"
         )
+        .transformPreference(ModelControlsPreferenceKey.self) { configuration in
+            if isCanvasMode {
+                configuration?.showsStandardFade = false
+                configuration?.extraFade = nil
+            }
+        }
         .onChange(of: (queuePopup ?? popup).isOpen) { _, isOpen in
             if isOpen { context.reset() }
         }

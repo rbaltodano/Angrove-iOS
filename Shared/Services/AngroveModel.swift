@@ -35,6 +35,9 @@ protocol AngroveModel {
     /// Produces hidden, durable context that can replace older turns in future requests.
     func compact(_ context: ConversationContext) async -> String
 
+    /// A brief, reader-facing summary of the supplied material (the Mac Worktree's `/summarize`).
+    func summarize(_ context: ConversationContext) async throws -> String
+
     /// A definition for a tapped highlighted term, generated as it relates to this conversation
     /// (not a dictionary lookup).
     func defineTerm(
@@ -121,6 +124,10 @@ extension AngroveModel {
     }
 
     func conversationTitle(for initialQuestion: String) async throws -> String {
+        throw AngroveModelActionError.unavailable
+    }
+
+    func summarize(_ context: ConversationContext) async throws -> String {
         throw AngroveModelActionError.unavailable
     }
 

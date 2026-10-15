@@ -18,6 +18,7 @@ duplicate architecture specifications.
 | Builds, tests, device work, or Figma | [`Documentation/Development-Workflow.md`](Documentation/Development-Workflow.md) |
 | Native macOS port | [`Documentation/Mac-Port.md`](Documentation/Mac-Port.md), then the shared feature contracts |
 | Study mode | [`Documentation/Study-Tool.md`](Documentation/Study-Tool.md) |
+| Mac Worktree canvas | [`Documentation/Worktree.md`](Documentation/Worktree.md) |
 | Gemma 4 E4B QAT migration | [`Documentation/Gemma4-E4B-QAT-Plan.md`](Documentation/Gemma4-E4B-QAT-Plan.md), then its [progress ledger](Documentation/Gemma4-E4B-QAT-Progress.md) |
 
 ## Non-negotiable rules

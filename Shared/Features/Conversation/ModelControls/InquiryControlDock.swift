@@ -674,6 +674,10 @@ struct InquiryControlDock: View {
                 ContextUsageIcon(progress: contextProgress, color: contextColor)
             }
             .frame(height: 16, alignment: .center)
+            #if os(macOS)
+            // Expand the click target into the pill's padding without enlarging its layout.
+            .contentShape(Rectangle().inset(by: -14))
+            #endif
             .foregroundColor(contextColor)
         }
         .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))

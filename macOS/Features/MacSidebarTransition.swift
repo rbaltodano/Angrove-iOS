@@ -14,6 +14,7 @@ enum MacSidebarTransition {
         case .conversations: 0.30
         case .library: 0.325
         case .studyTopics: 0.35
+        case .worktree: 0.375
         case .settings: 0.40
         }
     }

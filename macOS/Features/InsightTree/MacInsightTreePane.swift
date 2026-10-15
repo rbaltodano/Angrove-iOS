@@ -60,8 +60,6 @@ struct MacInsightTreePane: View {
         }
         .canvasAppearance(background)
         .frame(minWidth: MacInsightPaneLayout.minimumContentWidth, alignment: .leading)
-        .overlay(alignment: .top) { MacConversationEdgeFade(top: true) }
-        .overlay(alignment: .bottom) { MacConversationEdgeFade(top: false) }
         .overlayPreferenceValue(ModelControlsPreferenceKey.self, alignment: .bottom) { configuration in
             if cardsAtFrameBottom && isVisible, let card = configuration?.dockedCard {
                 card.view

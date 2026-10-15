@@ -87,6 +87,8 @@ import SwiftUI
     var errorMessage: String?
     var showsError = false
     var isPreview = false
+    /// Off for Worktree conversation windows, which live on their canvas rather than in the sidebar.
+    var savesConversation = true
     private var isGlobalTree = false
 
     func configure(preview: Bool, conversationID: UUID? = nil, global: Bool = false) {
@@ -292,7 +294,7 @@ import SwiftUI
                                                            groundingSources: responseSources[key], evidenceBasis: response.evidenceBasis)
             if let i = branches.firstIndex(where: { $0.id == branchID }) { branches[i].setResponsePresentation(presentation) }
             persistConversation()
-            if !isPreview {
+            if !isPreview && savesConversation {
                 InquiryPersistenceStore.completeDetachedResponse(branchID: branchID, conversationID: id,
                     responseIndex: responseIndex, annotatedText: response.annotatedText, presentation: presentation)
             }
@@ -305,7 +307,7 @@ import SwiftUI
         branches[i].activeChatBlocks[index] = .text(text)
     }
     private func persistConversation() {
-        guard !isPreview, !isDeleted else { return }
+        guard !isPreview, !isDeleted, savesConversation else { return }
         var snapshot = CurrentConversationsStore.load() ?? InquiryPersistenceSnapshot(conversations: [], activeConversationID: nil)
         if !hasCustomTitle {
             title = Self.automaticTitle(for: branches.first?.topQuestionText ?? "") ?? "New Conversation"
@@ -322,7 +324,7 @@ import SwiftUI
         NotificationCenter.default.post(name: .macConversationSaved, object: nil)
     }
     private func enqueueSeed(question: String, answer: String, branchID: UUID, responseIndex: Int, runtime: MacApplicationRuntime) {
-        guard !isPreview else { return }
+        guard !isPreview, savesConversation else { return }
         runtime.modelTasks.enqueue(kind: .updateInsightTree, originPage: .conversation, conversationID: id, priority: .background) { [self] in
             do {
                 guard let seed = try await runtime.model.insightTreeSeedCandidate(question: question, response: answer), !Task.isCancelled else { return }

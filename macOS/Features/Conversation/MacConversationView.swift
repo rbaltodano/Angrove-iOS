@@ -174,9 +174,12 @@ struct MacConversationView: View {
                         if !uploads.isEmpty { MacAttachmentStrip(files: uploads) }
                         QuotedQuestionContainer(isEmpty: false,
                             lineHeight: MacConversationStyle.questionLineHeight,
-                            fontName: MacConversationStyle.questionFontName) {
+                            fontName: MacConversationStyle.questionFontName,
+                            maximumWidth: MacConversationStyle.questionMaxWidth) {
+                            // The same width and ink as the composer, so submitting doesn't reflow the question.
                             MacLineText(text: text, serif: MacConversationStyle.usesSerifQuestions, lineHeight: MacConversationStyle.questionLineHeight)
-                                .frame(maxWidth: MacConversationStyle.questionContentWidth(text), alignment: .leading)
+                                .foregroundStyle(AngroveTheme.Colors.primaryReadable)
+                                .frame(maxWidth: min(MacConversationStyle.questionContentWidth(text), MacConversationStyle.questionMaxWidth - 36), alignment: .leading)
                                 .textSelection(.enabled)
                         }
                     }
@@ -241,11 +244,7 @@ struct MacConversationView: View {
                 lineHeight: MacConversationStyle.questionLineHeight,
                 fontName: MacConversationStyle.questionFontName,
                 maximumWidth: MacConversationStyle.questionMaxWidth,
-                onTapToFocus: {
-                    // Re-assert focus even when the flag is already set but the editor lost the responder.
-                    isQuestionFocused = false
-                    DispatchQueue.main.async { isQuestionFocused = true }
-                }) {
+                onTapToFocus: focusQuestionField) {
                 MacCommandEditor(text: $question,
                     isFocused: Binding(get: { isQuestionFocused }, set: { isQuestionFocused = $0 }),
                     reduceMotion: reduceMotion, onSubmit: onSend,
@@ -256,6 +255,9 @@ struct MacConversationView: View {
                                       MacConversationStyle.questionMaxWidth - 36))
                     .accessibilityLabel("Ask a question")
             }
+                // Anywhere across the field's row starts typing, not only on the text itself.
+                .contentShape(Rectangle())
+                .onTapGesture { focusQuestionField() }
                 .onChange(of: question) { _, text in
                     slashQuery.text = text
                     dismissesCommands = false
@@ -297,6 +299,12 @@ struct MacConversationView: View {
                 }
             })
             .frame(maxWidth: MacConversationStyle.questionMaxWidth, alignment: .trailing)
+    }
+
+    /// Re-asserts focus even when the flag is already set but the editor has lost the responder.
+    private func focusQuestionField() {
+        isQuestionFocused = false
+        DispatchQueue.main.async { isQuestionFocused = true }
     }
 
     private func focusComposer() {
@@ -374,6 +382,8 @@ struct MacCommandEditor: NSViewRepresentable {
     let reduceMotion: Bool
     let onSubmit: () -> Void
     let onEscape: () -> Void
+    /// Which leading text counts as a command for the green sweep; the conversation's by default.
+    var recognizesCommand: (String) -> Bool = { SlashCommand.invocation(for: $0) != nil }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -406,6 +416,7 @@ struct MacCommandEditor: NSViewRepresentable {
             view.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
         }
         view.reduceMotion = reduceMotion
+        view.recognizesCommand = recognizesCommand
         view.refreshHighlight()
         if isFocused, view.window?.firstResponder !== view {
             DispatchQueue.main.async { [weak view] in
@@ -448,6 +459,7 @@ struct MacCommandEditor: NSViewRepresentable {
 
     final class Editor: NSTextView {
         var reduceMotion = false
+        var recognizesCommand: (String) -> Bool = { SlashCommand.invocation(for: $0) != nil }
         var timer: Timer?
         private var command: String?
         private var waveStart = Date.distantPast
@@ -501,7 +513,7 @@ struct MacCommandEditor: NSViewRepresentable {
                 }
             }
             let token = string.split(whereSeparator: \.isWhitespace).first.map(String.init)
-            let next = SlashCommand.invocation(for: string) != nil ? token?.lowercased() : nil
+            let next = recognizesCommand(string) ? token?.lowercased() : nil
             if next != command {
                 timer?.invalidate()
                 command = next
