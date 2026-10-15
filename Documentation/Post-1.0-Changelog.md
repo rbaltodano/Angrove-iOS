@@ -21,6 +21,12 @@ Collected from the [iOS] and [Shared] entries below.
 
 ## 2026-10-15
 
+- **[Tooling] Mac eval batch and 12B results.** `MacModelEvalBatchTests` (opt-in) runs an
+  Angrove-Eval set through the Mac model path, in the iPhone probe's results format. Gemma 4 12B
+  scored 73/80 against E4B's 72/80 on the same Mac (held-out plus sealed-1, scorer v2). Answers
+  took 19.7 s median against 7.5 s. No measurable accuracy gain; see Angrove-Eval `RESULTS.md`.
+  New frozen acceptance set `sealed-3` (Angrove-Eval `2a356aa`), unused.
+
 - **[macOS] Model tiers: Standard (E4B) and Large (Gemma 4 12B).** Settings › Model picks the
   tier, gated by installed memory (Large: 24 GiB placeholder). The choice applies at the next
   launch and falls back to Standard when the chosen tier isn't installed. Each tier has its own
