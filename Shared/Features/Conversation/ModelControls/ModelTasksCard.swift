@@ -32,28 +32,49 @@ struct ModelTasksCard: View {
         #endif
     }
 
+    private var taskCounter: some View {
+        Text("\(modelTasks.completedTasks.count) of \(modelTasks.totalCount)")
+            .font(BrandTypography.font("Figtree-Regular", size: 14))
+            .monospacedDigit()
+    }
+
+    private var cardCornerRadius: CGFloat {
+        #if os(macOS)
+        24
+        #else
+        36
+        #endif
+    }
+
     private let rowExitDuration = 0.4
     private let rowExitStagger = 0.15
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
-                #if os(macOS)
-                MacPageHeading(title: "Model Tasks")
-                #else
                 Text("Model Tasks")
                     .font(BrandTypography.font("Figtree-Bold", size: 18))
                     .foregroundColor(AngroveTheme.Colors.headingText)
-                #endif
 
+                #if os(macOS)
+                Spacer()
+                // Tasks replace the model selector while they run, and the selector returns when they finish.
+                ZStack(alignment: .trailing) {
+                    if modelTasks.allTasks.isEmpty {
+                        ModelPicker()
+                            .transition(reduceMotion ? .opacity : .blurFade)
+                    } else {
+                        taskCounter
+                            .transition(reduceMotion ? .opacity : .blurFade)
+                    }
+                }
+                .animation(reduceMotion ? nil : .springStandard, value: modelTasks.allTasks.isEmpty)
+                #else
                 if !modelTasks.allTasks.isEmpty {
                     Spacer()
-
-                    Text("\(modelTasks.completedTasks.count) of \(modelTasks.totalCount)")
-                        .font(BrandTypography.font("Figtree-Regular", size: 14))
-                        .monospacedDigit()
-                        .transition(.opacity)
+                    taskCounter
                 }
+                #endif
             }
 
             #if os(iOS)
@@ -122,12 +143,16 @@ struct ModelTasksCard: View {
         .foregroundColor(AngroveTheme.Colors.paragraphText.opacity(0.75))
         .animation(.springLively, value: modelTasks.allTasks)
         .frame(maxWidth: .infinity, alignment: .leading)
+        #if os(macOS)
+        .padding(28)
+        #else
         .padding(32)
+        #endif
         .frame(width: 355)
         .background(AngroveTheme.Colors.canvasSecondary)
-        .clipShape(RoundedRectangle(cornerRadius: 36, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 36, style: .continuous)
+            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
                 .stroke(AngroveTheme.Colors.popupBorder, lineWidth: 1)
         )
         .onChange(of: modelTasks.allTasks.count) { oldCount, newCount in
@@ -149,6 +174,36 @@ struct ModelTasksCard: View {
         }
     }
 }
+
+#if os(macOS)
+/// The model new tasks use, with a menu of the models this Mac can run. Choosing one switches
+/// after the current task finishes (`MacApplicationRuntime.selectModel`).
+private struct ModelPicker: View {
+    private let runtime = MacApplicationRuntime.shared
+
+    var body: some View {
+        MacActionMenu(entries: {
+            runtime.availableTiers.map { tier in
+                MacMenuEntry(
+                    LocalizedStringResource(stringLiteral: tier.modelName),
+                    symbol: tier == runtime.modelTier ? "checkmark" : ""
+                ) { runtime.selectModel(tier) }
+            }
+        }) {
+            HStack(spacing: 6) {
+                Text(runtime.modelTier.modelName)
+                    .font(BrandTypography.font("Figtree-Bold", size: 12))
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+            }
+            .foregroundColor(AngroveTheme.Colors.paragraphText.opacity(0.75))
+            .contentShape(Rectangle())
+        }
+        .pointerStyle(.link)
+        .accessibilityLabel("Model: \(runtime.modelTier.modelName)")
+    }
+}
+#endif
 
 private struct ModelTaskRow: View {
     let task: ModelTaskSnapshot
