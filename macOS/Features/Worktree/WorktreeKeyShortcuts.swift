@@ -15,7 +15,7 @@ struct WorktreeKeyShortcuts: NSViewRepresentable {
     /// A Tools card shortcut (⌘H, ⌘R, ⌘S, ⌘D, ⇧⌘K). Taken even while typing: it is a command,
     /// not text, and on this page it wins over the menus' use of the same keys (⌘H is Hide).
     let onTool: (WorktreeTool) -> Void
-    /// + or − with something selected or hovered resizes it; returns whether it did.
+    /// ⌘+ or ⌘− with something selected, edited or hovered resizes it; returns whether it did.
     let onResize: (_ growing: Bool) -> Bool
 
     let onUndo: () -> Void
@@ -65,6 +65,14 @@ struct WorktreeKeyShortcuts: NSViewRepresentable {
                 if key == "/", modifiers.isEmpty, !event.isARepeat {
                     return self.onSlash?(isTyping) == true ? nil : event
                 }
+                // ⌘+ and ⌘− resize what is selected, else edited, else hovered, even while typing;
+                // with nothing to resize they zoom the canvas below.
+                let growing: Bool? = switch key {
+                case "+", "=": true
+                case "-", "_": false
+                default: nil
+                }
+                if modifiers == .command, let growing, self.onResize?(growing) == true { return nil }
                 if modifiers == .command, key == "z" {
                     let redo = event.modifierFlags.contains(.shift)
                     if isTyping, let manager = self.window?.firstResponder?.undoManager,
@@ -84,14 +92,6 @@ struct WorktreeKeyShortcuts: NSViewRepresentable {
                     return nil
                 }
                 guard modifiers.isEmpty else { return event }
-                // + and − (either row or the keypad) resize what is selected or hovered; with
-                // nothing to resize they type, as any key does.
-                let growing: Bool? = switch key {
-                case "+", "=": true
-                case "-", "_": false
-                default: nil
-                }
-                if let growing, self.onResize?(growing) == true { return nil }
                 let editKey: EditKey? = switch event.keyCode {
                 case 36, 76: .submit
                 case 51: .delete

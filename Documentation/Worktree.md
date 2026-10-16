@@ -18,8 +18,8 @@ short commands, shortcuts, clicking a tool, or dragging — and it should just w
 | --- | --- |
 | `WorktreeLibrary.swift` | Saved documents (`WorktreeDocument`), the store, and the open board |
 | `MacWorktreeHomeView.swift` | The page: Worktree cards, empty state, New Worktree, opening and closing |
-| `MacWorktreeView.swift` | One canvas: camera (pan, pinch, ⌘-scroll, ⌘= / ⌘− / ⌘0), title, docked cards, placement, tool actions |
-| `WorktreeKeyShortcuts.swift` | The canvas key monitor: typing, `/`, tool shortcuts, + / −, zoom, undo, fast-typing keys |
+| `MacWorktreeView.swift` | One canvas: camera (pan, pinch, ⌘-scroll, ⌘= / ⌘− with nothing to resize, ⌘0), title, docked cards, placement, tool actions |
+| `WorktreeKeyShortcuts.swift` | The canvas key monitor: typing, `/`, tool shortcuts, ⌘+ / ⌘− resize, zoom, undo, fast-typing keys |
 | `WorktreeControlDock.swift` | The controls pill: Add, Tools, Model Tasks, Trash |
 | `WorktreeBoard.swift` | All canvas state and actions: items, selection, command field, model work, resize, sidebar copy/replace |
 | `WorktreeItemView.swift` | One item: note, question window, Insight card, summary, heading, photo; grip, label, selection lift |
@@ -156,10 +156,10 @@ points, then fades in over 0.15s, and stays while resizing.
 - **Press glow:** pressing a resize edge or corner ripples the dot grid from the press and lights
   the outline to 75%: a soft-edged circle grows from the press over 0.15s (instantly with Reduce
   Motion), holds while dragging, and fades over 0.3s on release.
-- **+ and −** (either row or the keypad), when not typing, grow or shrink what is selected, else
-  hovered, by 10% about its centre: notes and headings change their box, photos scale with their
-  crop, and windows that have a size resize. Insight cards keep their size. With nothing to
-  resize, the key types as usual.
+- **⌘+ and ⌘−** grow or shrink what is selected, else being edited, else hovered, by 10% about its
+  centre, even while typing: notes and headings change their box, photos scale with their crop,
+  and windows that have a size resize. Insight cards keep their size. With nothing to resize they
+  zoom the canvas, as before; ⌘0 still resets the zoom.
 - Sizes save with the item; each drag or key press is one undoable action.
 
 `WorktreeCanvasPointer` tracks the pointer in canvas space but publishes only `nearIDs`, which

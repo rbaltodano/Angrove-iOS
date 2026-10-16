@@ -334,7 +334,7 @@ struct MacWorktreeView: View {
             .onEnded { _ in pinchStart = nil }
     }
 
-    /// ⌘= and ⌘− step around the viewport centre; ⌘0 returns to 100%.
+    /// ⌘= and ⌘− (when nothing is there to resize) step around the viewport centre; ⌘0 returns to 100%.
     private func zoom(_ step: WorktreeKeyShortcuts.Zoom) {
         let center = CGPoint(x: viewport.width / 2, y: viewport.height / 2)
         let target: CGFloat = switch step {
@@ -437,8 +437,7 @@ struct MacWorktreeView: View {
     }
 
     private func resizeTargets(growing: Bool) -> Bool {
-        // A field that has not taken focus yet still gets the key, as text.
-        guard pendingPhotos.isEmpty, activeTool == nil, !board.isCommandOpen, board.editingID == nil else { return false }
+        guard pendingPhotos.isEmpty, activeTool == nil else { return false }
         return board.resize(board.shortcutTargets, growing: growing)
     }
 
