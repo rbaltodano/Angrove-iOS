@@ -57,11 +57,36 @@ struct MacWorktreeCommandTests {
         #expect(WorktreeCommandParser.parse("/heading", requiresQuotes: true).commands == [.heading(nil)])
     }
 
-    @Test func helpListsEveryCommandItRecognises() {
-        #expect(WorktreeCommandParser.parse("/help", requiresQuotes: true).commands == [.help])
+    @Test func helpIsRetiredAndTheGuideStillParses() {
+        #expect(WorktreeCommandParser.parse("/help", requiresQuotes: true).commands.isEmpty)
         for entry in WorktreeCommandGuide.entries {
             #expect(WorktreeCommandParser.commandRanges(in: entry.name).count == 1)
         }
+    }
+
+    @Test func shortFormsRunTheSameCommands() {
+        #expect(WorktreeCommandParser.parse("/h The Early Church", requiresQuotes: true).commands == [.heading("The Early Church")])
+        #expect(WorktreeCommandParser.parse("/r", requiresQuotes: true).commands == [.label(nil)])
+        #expect(WorktreeCommandParser.parse("/s /D grace", requiresQuotes: true).commands == [.summarize, .define("grace")])
+        #expect(WorktreeCommandParser.parse("/f", requiresQuotes: true).commands == [.file])
+        #expect(WorktreeCommandParser.parse("/file", requiresQuotes: true).commands == [.file])
+        // Only standing alone: "and/or" and "w/s" stay text.
+        #expect(WorktreeCommandParser.commandRanges(in: "and/or w/s /sx").isEmpty)
+    }
+
+    @Test func everyToolCommandParsesAndShortcutsMatchTheCard() {
+        for tool in WorktreeTool.allCases {
+            guard let command = tool.command else { continue }
+            #expect(WorktreeCommandParser.commandRanges(in: command.full).count == 1)
+            #expect(WorktreeCommandParser.commandRanges(in: command.short).count == 1)
+        }
+        #expect(WorktreeTool.forShortcut(key: "H", shift: true) == .heading)
+        #expect(WorktreeTool.forShortcut(key: "h", shift: false) == nil)
+        #expect(WorktreeTool.forShortcut(key: "r", shift: false) == .rename)
+        #expect(WorktreeTool.forShortcut(key: "s", shift: false) == .summarize)
+        #expect(WorktreeTool.forShortcut(key: "s", shift: true) == nil)
+        #expect(WorktreeTool.forShortcut(key: "d", shift: false) == .define)
+        #expect(WorktreeTool.forShortcut(key: "k", shift: true) == .file)
     }
 
     @MainActor @Test func recognisedCommandsTurnGreen() {

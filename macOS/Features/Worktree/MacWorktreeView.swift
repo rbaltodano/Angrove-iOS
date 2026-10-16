@@ -19,6 +19,9 @@ struct MacWorktreeView: View {
     @State private var pointerBox = WorktreePointer()
     @State private var picker: WorktreePicker?
     @State private var showsTrash = false
+    @State private var showsTools = false
+    /// A tool picked up from the Tools card, following the pointer until a click places it.
+    @State private var activeTool: WorktreeTool?
     @State private var showsPhotoPicker = false
     @State private var pendingPhotos: [WorktreePhotoAsset] = []
     @State private var photoLoadID = UUID()
@@ -53,7 +56,7 @@ struct MacWorktreeView: View {
                     .frame(width: size.width, height: size.height)
                 if board.items.isEmpty && !board.isCommandOpen {
                     AngroveEmptyState(systemImage: MacIcon.worktree.symbol, title: "A blank canvas",
-                        message: "Start typing anywhere to add a note. Open with a quotation mark and press Enter to ask a question. Type /help for a list of commands.")
+                        message: "Start typing anywhere to add a note. Open with a quotation mark and press Enter to ask a question. Open Tools for every command and shortcut.")
                         .frame(width: size.width, height: size.height)
                         .allowsHitTesting(false)
                         .transition(.opacity)
@@ -108,6 +111,16 @@ struct MacWorktreeView: View {
                         camera.offset.height += delta.height
                     })
                     .id(photo.id)
+                    .frame(width: size.width, height: size.height)
+                    .zIndex(10)
+                } else if let tool = activeTool {
+                    WorktreeToolPlacement(tool: tool, scale: camera.scale, onPlace: { click, origin in
+                        place(tool, click: worldPoint(click, in: size), origin: worldPoint(origin, in: size))
+                    }, onPan: { delta in
+                        camera.offset.width += delta.width
+                        camera.offset.height += delta.height
+                    })
+                    .id(tool)
                     .frame(width: size.width, height: size.height)
                     .zIndex(10)
                 }
@@ -175,21 +188,29 @@ struct MacWorktreeView: View {
                     WorktreeTrashCard(board: board)
                         .transition(.bottomDockCard)
                 }
+                if showsTools {
+                    WorktreeToolsCard(onChoose: pickUp)
+                        .transition(.bottomDockCard)
+                }
                 WorktreeControlDock(board: board, modelTasks: runtime.modelTasks, addEntries: addEntries,
-                    toggleModelTasks: {
-                        withAnimation(.springStandard) { showsTrash = false; queuePopup.isOpen.toggle() }
+                    toggleTools: {
+                        withAnimation(.springStandard) { queuePopup.isOpen = false; showsTrash = false; showsTools.toggle() }
+                    }, toggleModelTasks: {
+                        withAnimation(.springStandard) { showsTrash = false; showsTools = false; queuePopup.isOpen.toggle() }
                     }, toggleTrash: {
-                        withAnimation(.springStandard) { queuePopup.isOpen = false; showsTrash.toggle() }
+                        withAnimation(.springStandard) { queuePopup.isOpen = false; showsTools = false; showsTrash.toggle() }
                     })
             }
             .padding(24)
         }
-        .background(WorktreeKeyShortcuts(onCharacters: typeOnCanvas, onEditKey: editPendingField, onEscape: escape, onZoom: zoom, onSlash: openCommand, onUndo: { board.undo() }, onRedo: { board.redo() }))
+        .background(WorktreeKeyShortcuts(onCharacters: typeOnCanvas, onEditKey: editPendingField, onEscape: escape, onZoom: zoom, onSlash: openCommand, onTool: useShortcut, onUndo: { board.undo() }, onRedo: { board.redo() }))
+        .onChange(of: board.fileRequest) { _, _ in openFiles() }
         .onChange(of: camera.scale) { _, _ in rememberViewport() }
         .onChange(of: camera.offset) { _, _ in rememberViewport() }
         .onDisappear {
             photoLoadID = UUID()
             pendingPhotos = []
+            activeTool = nil
             rememberViewport(); board.endEditing(); onSave()
         }
         .modifier(MacAttachmentPickers(showsFiles: $showsFilePicker, showsPhotos: $showsPhotoPicker) { files in
@@ -224,6 +245,7 @@ struct MacWorktreeView: View {
         board.endEditing()
         board.closeCommand()
         queuePopup.isOpen = false
+        activeTool = nil
         Task { @MainActor in
             let photos = await Task.detached(priority: .userInitiated) {
                 files.compactMap { file -> WorktreePhotoAsset? in
@@ -277,7 +299,7 @@ struct MacWorktreeView: View {
     /// Typing on the canvas starts a text field beside the pointer, holding what was typed.
     /// Keys that arrive before the new field takes focus are added to it.
     private func typeOnCanvas(_ characters: String) -> Bool {
-        guard pendingPhotos.isEmpty else { return true }
+        guard pendingPhotos.isEmpty, activeTool == nil else { return true }
         // A command field just opened by "/" takes focus a moment later; keys typed meanwhile
         // belong to it, not to new canvas text (which would deselect and close it).
         if board.isCommandOpen, board.editingID == board.commandFieldID, !board.isCommandStruck {
@@ -351,6 +373,8 @@ struct MacWorktreeView: View {
     private func escape() -> Bool {
         if showsTrash { withAnimation(.springStandard) { showsTrash = false }; return true }
         if !pendingPhotos.isEmpty { pendingPhotos = []; photoLoadID = UUID(); return true }
+        if activeTool != nil { activeTool = nil; return true }
+        if showsTools { withAnimation(.springStandard) { showsTools = false }; return true }
         if queuePopup.isOpen { withAnimation(.springStandard) { queuePopup.isOpen = false }; return true }
         if !board.selection.isEmpty { board.select(nil); return true }
         return false
@@ -373,11 +397,66 @@ struct MacWorktreeView: View {
     /// "/" with a selection opens beside it, even from another text field. Otherwise, when not
     /// typing, it opens beside the hovered item, or by the pointer for the whole Worktree.
     private func openCommand(fromTextField: Bool) -> Bool {
-        guard pendingPhotos.isEmpty else { return true }
+        guard pendingPhotos.isEmpty, activeTool == nil else { return true }
         if board.editingID == board.commandFieldID { return false }
         if !board.commandSelection.isEmpty { return board.openCommand() }
         guard !fromTextField else { return false }
         return board.openCommand(freeOrigin: typingOrigin)
+    }
+
+    /// A row of the Tools card: Add File opens the file browser; the rest follow the pointer.
+    private func pickUp(_ tool: WorktreeTool) {
+        withAnimation(.springStandard) { showsTools = false }
+        guard tool != .file else { openFiles(); return }
+        board.endEditing()
+        board.closeCommand()
+        activeTool = tool
+    }
+
+    /// The file browser, pictures only for now; chosen pictures follow the pointer to be placed.
+    private func openFiles() {
+        activeTool = nil
+        showsFilePicker = true
+    }
+
+    /// A tool's shortcut runs on what is selected, else edited, else hovered, as if its command had
+    /// been typed there; with nothing to act on, the typed command waits by the pointer.
+    private func useShortcut(_ tool: WorktreeTool) {
+        guard pendingPhotos.isEmpty else { return }
+        activeTool = nil
+        if tool == .file { openFiles(); return }
+        board.runTool(tool, on: board.shortcutTargets, freeOrigin: typingOrigin, runtime: runtime)
+    }
+
+    /// A click with a picked-up tool. Text, Question and Heading land where the preview sat, ready
+    /// to type. Rename, Summarize and Define act on what was clicked; Define on empty canvas
+    /// waits for a term there, and the others stay picked up until something is clicked.
+    private func place(_ tool: WorktreeTool, click: CGPoint, origin: CGPoint) {
+        switch tool {
+        case .text:
+            board.select(nil)
+            board.addText(at: origin)
+        case .question:
+            board.select(nil)
+            board.addText(at: origin, text: "“")
+        case .heading:
+            board.select(nil)
+            board.addHeadingField(at: origin)
+        case .rename, .summarize, .define:
+            if let id = board.item(at: click) {
+                board.select(id)
+                board.runTool(tool, on: [id], freeOrigin: origin, runtime: runtime)
+            } else if tool == .define {
+                board.select(nil)
+                board.runTool(tool, on: [], freeOrigin: origin, runtime: runtime)
+            } else {
+                return
+            }
+        case .file:
+            openFiles()
+            return
+        }
+        activeTool = nil
     }
 
 }
@@ -393,6 +472,9 @@ private struct WorktreeKeyShortcuts: NSViewRepresentable {
     let onZoom: (Zoom) -> Void
     /// "/" opens the selected item's command field; returns whether something was selected.
     let onSlash: (_ fromTextField: Bool) -> Bool
+    /// A Tools card shortcut (⌘R, ⌘S, ⌘D, ⇧⌘H, ⇧⌘K). Taken even while typing: it is a command,
+    /// not text, and on this page it wins over the app menu's use of the same keys.
+    let onTool: (WorktreeTool) -> Void
 
     let onUndo: () -> Void
     let onRedo: () -> Void
@@ -404,6 +486,7 @@ private struct WorktreeKeyShortcuts: NSViewRepresentable {
         view.onEscape = onEscape
         view.onZoom = onZoom
         view.onSlash = onSlash
+        view.onTool = onTool
         view.onUndo = onUndo
         view.onRedo = onRedo
     }
@@ -415,6 +498,7 @@ private struct WorktreeKeyShortcuts: NSViewRepresentable {
         var onEscape: (() -> Bool)?
         var onZoom: ((Zoom) -> Void)?
         var onSlash: ((Bool) -> Bool)?
+        var onTool: ((WorktreeTool) -> Void)?
         var onUndo: (() -> Void)?
         var onRedo: (() -> Void)?
         private var monitor: Any?
@@ -429,6 +513,11 @@ private struct WorktreeKeyShortcuts: NSViewRepresentable {
                 let modifiers = event.modifierFlags.intersection([.command, .control, .option])
                 let key = event.charactersIgnoringModifiers?.lowercased()
                 let isTyping = self.window?.firstResponder is NSText
+                if modifiers == .command, let key,
+                   let tool = WorktreeTool.forShortcut(key: key, shift: event.modifierFlags.contains(.shift)) {
+                    if !event.isARepeat { self.onTool?(tool) }
+                    return nil
+                }
                 if key == "/", modifiers.isEmpty, !event.isARepeat {
                     return self.onSlash?(isTyping) == true ? nil : event
                 }
@@ -473,11 +562,12 @@ private struct WorktreeKeyShortcuts: NSViewRepresentable {
     }
 }
 
-/// The Worktree's model controls: add, Model Tasks and Trash. Commands are listed by `/help`.
+/// The Worktree's model controls: Add, Tools, Model Tasks and Trash. Tools lists every command.
 private struct WorktreeControlDock: View {
     let board: WorktreeBoard
     let modelTasks: ModelTaskQueue
     let addEntries: () -> [MacMenuEntry]
+    let toggleTools: () -> Void
     let toggleModelTasks: () -> Void
     let toggleTrash: () -> Void
     @State private var isPressed = false
@@ -494,6 +584,16 @@ private struct WorktreeControlDock: View {
             .buttonStyle(FloatingControlButtonStyle(isPressed: $isPressed))
             .accessibilityLabel("Add")
             .modelControlHoverLabel("Add")
+
+            Button(action: toggleTools) {
+                label("Tools", icon: Image(systemName: "command")
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(width: 12, height: 12)
+                    .accessibilityHidden(true))
+                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
+            }
+            .accessibilityHint("Show every tool, command and shortcut")
+            .modelControlHoverLabel("Tools")
 
             ModelStatusButton(modelTasks: modelTasks, action: toggleModelTasks, controlIsPressed: $isPressed)
 

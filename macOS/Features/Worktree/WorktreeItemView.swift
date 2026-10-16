@@ -716,7 +716,7 @@ private struct WorktreeRevealedText: View {
     }
 }
 
-/// `/help`: every command in accent green, each a row that opens onto its explanation.
+/// A command list card from the retired `/help`, kept so Worktrees that have one still show it.
 private struct WorktreeHelpCard: View {
     @State private var expanded: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

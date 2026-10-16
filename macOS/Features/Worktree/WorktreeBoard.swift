@@ -25,7 +25,7 @@ enum WorktreeWork: Equatable { case queued, running }
         var labelID = UUID()
         /// Made by `/heading`: 40pt Baskerville text.
         var isHeading = false
-        /// Made by `/help`: the command list card.
+        /// A command list card from the retired `/help`, still shown in Worktrees that have one.
         var isHelp = false
         /// A picture placed from the "+" menu.
         var image: UploadedFile?
@@ -513,15 +513,15 @@ enum WorktreeWork: Equatable { case queued, running }
         return selected
     }
 
-    func openCommand(freeOrigin: CGPoint? = nil) -> Bool {
-        let targets = commandSelection
+    func openCommand(freeOrigin: CGPoint? = nil, text: String = "/", targets chosen: [UUID]? = nil) -> Bool {
+        let targets = chosen ?? commandSelection
         guard !targets.isEmpty || freeOrigin != nil else { return false }
         withAnimation(.springQuick) {
             commandInvocationID = UUID()
             commandTargets = targets
             commandTargetID = targets.last
             commandFreeOrigin = targets.isEmpty ? freeOrigin : nil
-            commandText = "/"
+            commandText = text
             isCommandStruck = false
             editingID = commandFieldID
         }
@@ -529,6 +529,54 @@ enum WorktreeWork: Equatable { case queued, running }
     }
 
     var isCommandOpen: Bool { commandTargetID != nil || commandFreeOrigin != nil }
+
+    /// What a tool's shortcut acts on: what is selected, else the item being edited, else the
+    /// hovered item. Unlike "/", a hovered item never takes over from the selection.
+    var shortcutTargets: [UUID] {
+        let selected = selection.filter { id in items.contains { $0.id == id } }
+        if !selected.isEmpty { return selected }
+        if let editingID, let item = items.first(where: { [$0.id, $0.followUpID, $0.labelID].contains(editingID) }) {
+            return [item.id]
+        }
+        if let hoveredID, items.contains(where: { $0.id == hoveredID }) { return [hoveredID] }
+        return []
+    }
+
+    /// A tool's shortcut, or a tool clicked onto something: its command appears in the field as if
+    /// typed. With something to act on it then runs; with nothing it waits, so a term or text can
+    /// follow. `/file` is opened by the page, which owns the file browser.
+    func runTool(_ tool: WorktreeTool, on targets: [UUID], freeOrigin: CGPoint, runtime: MacApplicationRuntime) {
+        guard let command = tool.command, tool != .file else { return }
+        let typed = targets.isEmpty ? command.full + " " : command.full
+        guard openCommand(freeOrigin: freeOrigin, text: typed, targets: targets), !targets.isEmpty else { return }
+        let invocation = commandInvocationID
+        Task { @MainActor [self] in
+            // Long enough to read the command before it gives way to its work.
+            try? await Task.sleep(for: .milliseconds(280))
+            guard commandInvocationID == invocation, isCommandOpen else { return }
+            submitCommand(runtime: runtime)
+        }
+    }
+
+    /// The topmost item whose frame contains a world point.
+    func item(at point: CGPoint) -> UUID? {
+        let ordered = items.filter { !selection.contains($0.id) } + items.filter { selection.contains($0.id) }
+        return ordered.last { frame(of: $0.id)?.contains(point) == true }?.id
+    }
+
+    /// The Heading tool: an empty heading at `origin`, ready to type into. Left empty, it goes away.
+    func addHeadingField(at origin: CGPoint) {
+        beginHistoryAction()
+        defer { endHistoryAction() }
+        endEditing()
+        var heading = Item(origin: origin)
+        heading.isHeading = true
+        items.append(heading)
+        editingID = heading.id
+    }
+
+    /// Bumped by `/file`; the page opens its file browser in response.
+    var fileRequest = 0
 
     func closeCommand(animated: Bool = true) {
         guard isCommandOpen else { return }
@@ -583,7 +631,7 @@ enum WorktreeWork: Equatable { case queued, running }
             return !targets.contains(where: \.isHeading)
                 && (text != nil || !material(for: ids).isEmpty)
         case .summarize: return !material(for: ids).isEmpty
-        case .label, .help: return true
+        case .label, .file: return true
         }
     }
 
@@ -621,10 +669,8 @@ enum WorktreeWork: Equatable { case queued, running }
                 guard let place = next else { continue }
                 addHeading(text, from: ids, at: place, runtime: runtime)
                 next = CGPoint(x: place.x, y: place.y + 72)
-            case .help:
-                guard let place = next else { continue }
-                addHelp(at: place)
-                next = CGPoint(x: place.x, y: place.y + 72)
+            case .file:
+                fileRequest += 1
             }
         }
     }
@@ -718,15 +764,6 @@ enum WorktreeWork: Equatable { case queued, running }
             picture.image = file
             withAnimation(.springStandard) { items.append(picture) }
         }
-    }
-
-    /// The `/help` card of every command.
-    func addHelp(at origin: CGPoint) {
-        beginHistoryAction()
-        defer { endHistoryAction() }
-        var help = Item(origin: origin)
-        help.isHelp = true
-        withAnimation(.springStandard) { items.append(help) }
     }
 
     /// Places an Insight card at `origin` and asks the model for the definition, in the context

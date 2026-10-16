@@ -14,11 +14,12 @@ a second after each change, when leaving, and at quit, to the encrypted file-bac
 | --- | --- |
 | `WorktreeLibrary.swift` | Saved documents (`WorktreeDocument`), the store, and the open board |
 | `MacWorktreeHomeView.swift` | The page: Worktree cards, empty state, New Worktree, opening and closing |
-| `MacWorktreeView.swift` | Canvas camera (pan, pinch, ⌘-scroll, ⌘= / ⌘− / ⌘0), keyboard routing, title, controls pill, Commands card |
+| `MacWorktreeView.swift` | Canvas camera (pan, pinch, ⌘-scroll, ⌘= / ⌘− / ⌘0), keyboard routing and tool shortcuts, title, controls pill |
+| `WorktreeToolsCard.swift` | The Tools card and a picked-up tool's pointer preview (`WorktreeToolPlacement`) |
 | `WorktreeBoard.swift` | All canvas state and actions: items, selection, command field, model work, sidebar copy/replace |
 | `WorktreeItemView.swift` | One item: plain text, question window, Insight card, summary; grip, resize edges, label, selection lift |
 | `WorktreeTextEditor.swift` | Borderless `NSTextView` for canvas text, labels and the command field, with the command sweep |
-| `WorktreeCommands.swift` | `/rename`, `/define`, `/summarize` parsing (tested in `MacWorktreeCommandTests`) |
+| `WorktreeCommands.swift` | Command parsing, short forms, and `WorktreeTool` (tested in `MacWorktreeCommandTests`) |
 | `WorktreeConversationDrop.swift` | Sidebar ⇄ canvas drag payload and the conversation chip |
 
 ## Interaction
@@ -42,8 +43,8 @@ a second after each change, when leaving, and at quit, to the encrypted file-bac
 - **Trash:** drag an item by its grip onto the controls' Trash to delete it.
 - **Dot grid:** the Insight Tree's grid with its drifting field off, so the dots rest invisible.
   Selecting something, or something finishing, sends one Insight-hover pulse from it.
-- **Empty canvas:** an Insight Tree–style empty state explains typing, questions and `/help`.
-- **Controls:** Add, Model Tasks and Trash. Add (+) is the conversation's menu: Insights and
+- **Empty canvas:** an Insight Tree–style empty state explains typing, questions and the Tools card.
+- **Controls:** Add, Tools, Model Tasks and Trash. Add (+) is the conversation's menu: Insights and
   Passages place cards from the library; Photos… and Image File… place pictures.
 - **Fast typing:** keys typed before a just-opened field takes focus (letters, Return, Delete,
   Esc) act on that field, so a quickly typed command still runs.
@@ -64,7 +65,11 @@ turn green with the composer's sweep. Commands can follow a question
 | `/define [term]` | Only without a term | Defines the targeted material, or the typed term in its context. Existing Insights need an explicit term. |
 | `/summarize` | Yes | Writes a brief summary (`AngroveModel.summarize`) of the selection beside it, as editable text. |
 | `/heading [Text]` | Only without text | Adds a heading from the target or supplied text; existing headings cannot be targeted again. |
-| `/help` | No | Places a 500pt card listing every command; each row opens onto its explanation (`WorktreeCommandGuide`). |
+| `/file` | No | Opens the file browser (pictures only for now); chosen pictures follow the pointer to be placed. |
+
+Each command has a one-letter short form: `/h`, `/r`, `/s`, `/d`, `/f`. Like the full names, they
+only count standing alone, so `and/or` stays text. `/help` is retired; Worktrees that already hold
+its card still show it.
 
 Unrecognised commands, misformed ones (bare `/define` with no target), and selection-dependent commands with
 nothing selected are struck through, then blur away; nothing runs.
@@ -183,3 +188,39 @@ Canvas-item removal and command-field dismissal emit a dot-grid ripple at their 
 including invalid commands, lone slash/quote drafts and inline definition errors. Invalid command
 text and its strike-through use accent red. Definition error text reveals in accent red and
 remains for 1.5 seconds after its reveal before the blur/fade dismissal.
+
+
+## Tools — October 16, 2026
+
+**Tools** (⌘ symbol) in the controls opens a docked card listing Text, Question, Heading, Rename,
+Summarize, Define and Add File with their commands and shortcuts. Tools, Model Tasks and Trash open
+one at a time.
+
+| Tool | Short | Command | Shortcut |
+| --- | --- | --- | --- |
+| Heading | `/h` | `/heading` | ⇧⌘H |
+| Rename | `/r` | `/rename` | ⌘R |
+| Summarize | `/s` | `/summarize` | ⌘S |
+| Define | `/d` | `/define` | ⌘D |
+| Add File | `/f` | `/file` | ⇧⌘K |
+
+**Shortcuts** act on what is selected, else the item being edited, else the hovered item. A
+hovered item never overrides the selection, unlike `/`. The command appears in the command field
+as if typed, then runs. With nothing to act on, the command waits typed by the pointer
+(`/define `) for a term or text. Shortcuts are taken even while typing in a field. On the Worktree
+page they win over the app menu: ⇧⌘H adds a heading here rather than opening Home. App-wide, Swap
+Panes moved to ⇧⌘S and Previous Page lost ⌘R for now.
+
+**Clicking a row** picks the tool up. A 50% preview follows the pointer with the photo
+placement's spring trail and tilt, styled like what it makes: “Text” and “Question” as a note,
+“Heading” at the heading's font, size and color, scaled with the canvas zoom. Rename, Summarize
+and Define show **Click on something to …**. A click places the tool and puts it down:
+
+- Text, Question and Heading open an editable note (a question starts with “) or heading where
+  the preview sat. An empty one goes away when editing ends.
+- Rename, Summarize and Define act on the clicked item, as their shortcut would. On empty canvas,
+  Define opens `/define ` there for a term; Rename and Summarize stay picked up.
+- Add File opens the file browser instead of following the pointer.
+
+Escape puts a picked-up tool down, then closes the Tools card. Dragging or scrolling pans as
+during photo placement; leaving the page puts the tool down.

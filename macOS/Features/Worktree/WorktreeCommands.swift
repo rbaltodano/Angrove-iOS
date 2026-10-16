@@ -10,15 +10,15 @@ enum WorktreeCommand: Equatable {
     case summarize
     /// A 40pt heading of the text after it; without text there is nothing to set.
     case heading(String?)
-    /// A card listing every command, each opening onto its explanation.
-    case help
+    /// Opens the file browser (pictures only, for now) and places what is chosen.
+    case file
 
     /// Object dependent: acts on the selected item, so it is invalid with nothing selected.
     var isObjectDependent: Bool {
         switch self {
         case .define(let term): term == nil
         case .summarize: true
-        case .label, .heading, .help: false
+        case .label, .heading, .file: false
         }
     }
 }
@@ -30,9 +30,16 @@ struct WorktreeInput: Equatable {
 }
 
 enum WorktreeCommandParser {
-    private static let names: Set<String> = ["/rename", "/define", "/summarize", "/heading", "/help"]
+    /// Each command word, and its one-letter short form, by full name.
+    static let aliases: [String: String] = [
+        "/rename": "/rename", "/r": "/rename",
+        "/define": "/define", "/d": "/define",
+        "/summarize": "/summarize", "/s": "/summarize",
+        "/heading": "/heading", "/h": "/heading",
+        "/file": "/file", "/f": "/file",
+    ]
     /// A recognised command word, standing alone between whitespace.
-    private static let token = try! NSRegularExpression(pattern: #"(?<![^\s])/(?:rename|define|summarize|heading|help)(?![^\s])"#,
+    private static let token = try! NSRegularExpression(pattern: #"(?<![^\s])/(?:rename|define|summarize|heading|file|r|d|s|h|f)(?![^\s])"#,
                                                         options: [.caseInsensitive])
 
     /// Ranges of recognised command words, for highlighting.
@@ -67,14 +74,14 @@ enum WorktreeCommandParser {
             case "/define": input.commands.append(.define(value))
             case "/summarize": input.commands.append(.summarize)
             case "/heading": input.commands.append(.heading(value))
-            case "/help": input.commands.append(.help)
+            case "/file": input.commands.append(.file)
             default: input.commands.append(.label(value)) // /rename
             }
         }
         for word in rest.split(whereSeparator: \.isWhitespace).map(String.init) {
-            if names.contains(word.lowercased()) {
+            if let full = aliases[word.lowercased()] {
                 flush()
-                name = word.lowercased()
+                name = full
                 words = []
             } else {
                 words.append(word)
@@ -85,7 +92,7 @@ enum WorktreeCommandParser {
     }
 }
 
-/// What `/help` lists, in order.
+/// What a `/help` card placed before the Tools card replaced it lists, in order.
 enum WorktreeCommandGuide {
     struct Entry: Identifiable {
         let name: String
@@ -98,6 +105,71 @@ enum WorktreeCommandGuide {
         Entry(name: "/define", explanation: String(localized: "Defines the material you hover or select, or defines the term typed after the command in that material’s context. An existing Insight needs an explicit term. With a typed term, no selection is required.")),
         Entry(name: "/summarize", explanation: String(localized: "Writes a brief summary of what you hover or have selected, read together, and places it beside it.")),
         Entry(name: "/heading", explanation: String(localized: "Adds a heading from the hovered or selected material, or from text typed after the command. Existing headings cannot be headed again.")),
-        Entry(name: "/help", explanation: String(localized: "Shows this list. Commands can follow a question in quotation marks, and run in the order typed.")),
+        Entry(name: "/file", explanation: String(localized: "Opens the file browser and places the pictures you choose where you click.")),
     ]
+}
+
+/// The Tools card's rows: each can be clicked to place it on the canvas, typed as a command
+/// (full or short), or run with its shortcut.
+enum WorktreeTool: String, CaseIterable, Identifiable {
+    case text, question, heading, rename, summarize, define, file
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .text: String(localized: "Text")
+        case .question: String(localized: "Question")
+        case .heading: String(localized: "Heading")
+        case .rename: String(localized: "Rename")
+        case .summarize: String(localized: "Summarize")
+        case .define: String(localized: "Define")
+        case .file: String(localized: "Add File")
+        }
+    }
+
+    /// The full command and its short form; Text and Question have none.
+    var command: (full: String, short: String)? {
+        switch self {
+        case .text, .question: nil
+        case .heading: ("/heading", "/h")
+        case .rename: ("/rename", "/r")
+        case .summarize: ("/summarize", "/s")
+        case .define: ("/define", "/d")
+        case .file: ("/file", "/f")
+        }
+    }
+
+    /// The key pressed with Command, and whether Shift is held too.
+    var shortcut: (key: String, shift: Bool)? {
+        switch self {
+        case .text, .question: nil
+        case .heading: ("h", true)
+        case .rename: ("r", false)
+        case .summarize: ("s", false)
+        case .define: ("d", false)
+        case .file: ("k", true)
+        }
+    }
+
+    /// The tool a Command-key press runs on the Worktree page, if any.
+    static func forShortcut(key: String, shift: Bool) -> WorktreeTool? {
+        allCases.first { $0.shortcut.map { $0.key == key.lowercased() && $0.shift == shift } ?? false }
+    }
+
+    /// Acts on something clicked rather than placing new material where the click lands.
+    var needsTarget: Bool { self == .rename || self == .summarize || self == .define }
+
+    /// What follows the pointer while the tool is being placed.
+    var placementPrompt: String {
+        switch self {
+        case .text: String(localized: "Text")
+        case .question: String(localized: "“Question")
+        case .heading: String(localized: "Heading")
+        case .rename: String(localized: "Click on something to rename")
+        case .summarize: String(localized: "Click on something to summarize")
+        case .define: String(localized: "Click on something to define")
+        case .file: ""
+        }
+    }
 }

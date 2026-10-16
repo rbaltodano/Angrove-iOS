@@ -72,15 +72,15 @@ struct MacWorkspaceCommands: Commands {
             Button("Home") { target?.send(.openHome) }
                 .keyboardShortcut("h", modifiers: [.command, .shift])
                 .disabled(target == nil)
+            // Command-R is the Worktree's Rename for now; Previous Page has no shortcut until it gets a new one.
             Button("Previous Page") { target?.send(.goBack) }
-                .keyboardShortcut("r")
                 .disabled(target?.canGoBack != true)
             Button("Next Page") { target?.send(.goForward) }
                 .keyboardShortcut("r", modifiers: [.command, .shift])
                 .disabled(target?.canGoForward != true)
             Divider()
             Button("Swap Panes") { target?.send(.swapPanes) }
-                .keyboardShortcut("s")
+                .keyboardShortcut("s", modifiers: [.command, .shift])
                 .disabled(target == nil)
             Button("Pin / Unpin Panes") { target?.send(.pinPanes) }
                 .keyboardShortcut("p")

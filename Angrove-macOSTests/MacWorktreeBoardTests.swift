@@ -348,6 +348,68 @@ struct MacWorktreeBoardTests {
         #expect(!board.isCommandStruck)
     }
 
+    @Test func toolShortcutsPreferTheSelectionOverTheHoveredItem() {
+        let board = WorktreeBoard()
+        let first = WorktreeBoard.Item(origin: .zero, text: "First")
+        let second = WorktreeBoard.Item(origin: CGPoint(x: 400, y: 0), text: "Second")
+        board.items = [first, second]
+        board.setHovered(second.id, true)
+        #expect(board.shortcutTargets == [second.id])
+        board.select(first.id)
+        #expect(board.shortcutTargets == [first.id])
+        // "/" still follows the pointer.
+        #expect(board.commandSelection == [second.id])
+    }
+
+    @Test func toolShortcutWithATargetTypesAndRunsItsCommand() async throws {
+        let runtime = MacApplicationRuntime(testModel: WorktreeTestModel(), queue: ModelTaskQueue())
+        let board = WorktreeBoard()
+        let note = WorktreeBoard.Item(origin: .zero, text: "Grace perfects nature.")
+        board.items = [note]
+        board.itemSizes[note.id] = CGSize(width: 200, height: 44)
+        board.runTool(.heading, on: [note.id], freeOrigin: .zero, runtime: runtime)
+        #expect(board.commandText == "/heading")
+        #expect(board.commandTargets == [note.id])
+        try await wait { !board.isCommandOpen }
+        #expect(board.items.contains { $0.isHeading })
+    }
+
+    @Test func toolShortcutWithNothingToActOnWaitsForInput() async throws {
+        let runtime = MacApplicationRuntime(testModel: WorktreeTestModel(), queue: ModelTaskQueue())
+        let board = WorktreeBoard()
+        board.runTool(.define, on: [], freeOrigin: CGPoint(x: 10, y: 20), runtime: runtime)
+        #expect(board.commandText == "/define ")
+        #expect(board.commandOrigin == CGPoint(x: 10, y: 20))
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(board.isCommandOpen)
+        #expect(!board.isCommandStruck)
+    }
+
+    @Test func fileCommandAsksThePageForTheFileBrowser() {
+        let runtime = MacApplicationRuntime(testModel: WorktreeTestModel(), queue: ModelTaskQueue())
+        let board = WorktreeBoard()
+        #expect(board.openCommand(freeOrigin: .zero))
+        board.commandText = "/f"
+        board.submitCommand(runtime: runtime)
+        #expect(board.fileRequest == 1)
+        #expect(!board.isCommandOpen)
+    }
+
+    @Test func clickedItemIsFoundByItsFrameAndEmptyHeadingsGoAway() {
+        let board = WorktreeBoard()
+        let note = WorktreeBoard.Item(origin: CGPoint(x: 100, y: 100), text: "Note")
+        board.items = [note]
+        board.itemSizes[note.id] = CGSize(width: 120, height: 44)
+        #expect(board.item(at: CGPoint(x: 150, y: 110)) == note.id)
+        #expect(board.item(at: CGPoint(x: 400, y: 400)) == nil)
+        board.addHeadingField(at: CGPoint(x: 0, y: 300))
+        let heading = try? #require(board.items.last)
+        #expect(heading?.isHeading == true)
+        #expect(board.editingID == heading?.id)
+        board.endEditing()
+        #expect(!board.items.contains { $0.isHeading })
+    }
+
     private func post(_ characters: String, keyCode: UInt16, to window: NSWindow) {
         for type in [NSEvent.EventType.keyDown, .keyUp] {
             guard let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,

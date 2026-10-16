@@ -494,12 +494,12 @@ private struct MacHotKeys: View {
             MacSettingsSection(title: "Insight Tree", description: "Connect ideas and explore what they mean.") {
                 MacSettingsRow(title: "Explore your tree", description: "Command-T toggles the conversation’s secondary pane. Select an idea to see its card, save it, quote it, or study it. Command-Shift-T toggles the global tree and returns to your previous page.") { Text("⌘T · ⇧⌘T") }
                 Divider()
-                MacSettingsRow(title: "Arrange your workspace", description: "Command-S swaps the conversation and tree. Command-P pins or unpins the panes.") { Text("⌘S · ⌘P") }
+                MacSettingsRow(title: "Arrange your workspace", description: "Command-Shift-S swaps the conversation and tree. Command-P pins or unpins the panes.") { Text("⇧⌘S · ⌘P") }
             }
             MacSettingsSection(title: "Navigation & Model Tasks", description: "Move around without losing your place.") {
-                MacSettingsRow(title: "Recent pages", description: "Command-R goes back and Command-Shift-R goes forward. Command-1 through Command-9 selects a recent conversation.") { Text("⌘R · ⇧⌘R") }
+                MacSettingsRow(title: "Recent pages", description: "Command-Shift-R goes forward. Command-1 through Command-9 selects a recent conversation.") { Text("⇧⌘R · ⌘1–9") }
                 Divider()
-                MacSettingsRow(title: "Home", description: "Command-Shift-H opens Home: your month at a glance, the Question of the Day, and where you left off.") { Text("⇧⌘H") }
+                MacSettingsRow(title: "Home", description: "Command-Shift-H opens Home: your month at a glance, the Question of the Day, and where you left off. On a Worktree it adds a heading instead.") { Text("⇧⌘H") }
                 Divider()
                 MacSettingsRow(title: "Model Tasks", description: "Command-M toggles the task queue. Review pending work, cancel a task, or change the order of upcoming tasks.") { Text("⌘M") }
             }

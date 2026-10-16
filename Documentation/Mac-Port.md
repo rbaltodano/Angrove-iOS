@@ -50,7 +50,7 @@ captures, so these focused renders are the visual review artifacts. Logs:
 Settings is now a native workspace destination, reached by the sidebar gear or
 Command-comma, with the sidebar and main window retained. Command-comma returns
 to the previous page when Settings is already open. Settings participates in the
-five-page history, including Command-R / Shift-Command-R traversal. Both expanded
+five-page history (Previous Page currently has no shortcut; Shift-Command-R goes forward). Both expanded
 and compact sidebars provide Settings. The separate SwiftUI Settings scene and its
 window-toggle helper were removed.
 
