@@ -21,6 +21,10 @@ Collected from the [iOS] and [Shared] entries below.
 
 ## 2026-10-16
 
+- **[macOS] Worktree box spotlight.** Boxes on notes, headings and photos reveal within 48pt (was
+  84pt), and only the part inside a 48pt circle around the pointer shows. Item side grips are accent
+  green at 50%, matching the boxes.
+
 - **[macOS] Compile fixes for the Worktree Tools commits (b9a52e4…14658c9).** `WorktreeTextEditor.lineHeight`
   is `nonisolated` so `WorktreeTextBoxResize.frame` can use it as a default; the undo shortcut test
   places an Insight now that the `/help` card is gone. No behavior change.

@@ -24,14 +24,14 @@ struct MacWorktreeTextBoxTests {
                                          y: 10 + 56 - WorktreeTextEditor.lineHeight))
     }
 
-    @Test func boxShowsWithin84ScreenPointsAtAnyZoom() {
+    @Test func boxShowsWithin48ScreenPointsAtAnyZoom() {
         let rect = CGRect(x: 0, y: 0, width: 100, height: 40)
         #expect(WorktreeTextBoxResize.isNear(CGPoint(x: 50, y: 20), to: rect, zoom: 1))
-        #expect(WorktreeTextBoxResize.isNear(CGPoint(x: 184, y: 20), to: rect, zoom: 1))
-        #expect(!WorktreeTextBoxResize.isNear(CGPoint(x: 185, y: 20), to: rect, zoom: 1))
-        // At 2×, 84 screen points is 42 canvas points.
-        #expect(WorktreeTextBoxResize.isNear(CGPoint(x: 142, y: 20), to: rect, zoom: 2))
-        #expect(!WorktreeTextBoxResize.isNear(CGPoint(x: 150, y: 20), to: rect, zoom: 2))
+        #expect(WorktreeTextBoxResize.isNear(CGPoint(x: 148, y: 20), to: rect, zoom: 1))
+        #expect(!WorktreeTextBoxResize.isNear(CGPoint(x: 149, y: 20), to: rect, zoom: 1))
+        // At 2×, 48 screen points is 24 canvas points.
+        #expect(WorktreeTextBoxResize.isNear(CGPoint(x: 124, y: 20), to: rect, zoom: 2))
+        #expect(!WorktreeTextBoxResize.isNear(CGPoint(x: 126, y: 20), to: rect, zoom: 2))
         #expect(!WorktreeTextBoxResize.isNear(nil, to: rect, zoom: 1))
     }
 
@@ -43,10 +43,15 @@ struct MacWorktreeTextBoxTests {
         let pointer = WorktreeCanvasPointer()
         pointer.update(world: CGPoint(x: 400, y: 20), board: board, zoom: 1)
         #expect(pointer.nearIDs.isEmpty)
-        pointer.update(world: CGPoint(x: 150, y: 20), board: board, zoom: 1)
+        #expect(pointer.nearWorld == nil)
+        // 40 points right of the box (within 48): near, with the pointer in box coordinates.
+        pointer.update(world: CGPoint(x: 140, y: 20), board: board, zoom: 1)
         #expect(pointer.nearIDs == [note.id])
+        #expect(pointer.spotlight(for: note.id, board: board) == CGPoint(x: 140, y: 20))
         pointer.update(world: nil, board: board, zoom: 1)
         #expect(pointer.nearIDs.isEmpty)
+        #expect(pointer.nearWorld == nil)
+        #expect(pointer.spotlight(for: note.id, board: board) == nil)
     }
 
     @MainActor @Test func plusAndMinusResizeAboutTheCentre() {

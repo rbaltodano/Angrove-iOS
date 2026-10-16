@@ -1,11 +1,12 @@
 import SwiftUI
 
-/// The pointer in canvas (world) space, and the items whose boxes it is near. The position itself
-/// is not observed; `nearIDs` changes only when the pointer crosses a box's 84-point line, so
-/// moving the mouse re-renders nothing until a box should fade in or out.
+/// The pointer in canvas (world) space, and the items whose boxes it is near. `nearIDs` changes
+/// only when the pointer crosses a box's 48-point line. `nearWorld` follows the pointer only while
+/// some box is near, and only near boxes read it, so elsewhere moving the mouse re-renders nothing.
 @MainActor @Observable final class WorktreeCanvasPointer {
     @ObservationIgnored private(set) var world: CGPoint?
     private(set) var nearIDs: Set<UUID> = []
+    private(set) var nearWorld: CGPoint?
 
     func update(world: CGPoint?, board: WorktreeBoard, zoom: CGFloat) {
         self.world = world
@@ -16,15 +17,24 @@ import SwiftUI
             }
         }
         if near != nearIDs { nearIDs = near }
+        let spot = near.isEmpty ? nil : world
+        if spot != nearWorld { nearWorld = spot }
+    }
+
+    /// The pointer in an item's box coordinates while it is near that box; `inset` is the box's
+    /// distance inside the item's frame (a photo's box hugs the picture).
+    func spotlight(for itemID: UUID, board: WorktreeBoard, inset: CGFloat = 0) -> CGPoint? {
+        guard nearIDs.contains(itemID), let world = nearWorld, let frame = board.frame(of: itemID) else { return nil }
+        return CGPoint(x: world.x - frame.minX - inset, y: world.y - frame.minY - inset)
     }
 }
 
 /// A note's, heading's or photo's box, as Figma draws a layer's: a frame with a square at each
-/// corner. Its edges and corners resize it. Brand green at 50%, shown only while the pointer is
-/// within 84 screen points of it.
+/// corner. Its edges and corners resize it. Brand green at 50%, shown only within 48 screen points
+/// of the pointer: just the part of the box inside that circle.
 enum WorktreeTextBoxResize {
     static let minimumWidth: CGFloat = 40
-    static let revealDistance: CGFloat = 84
+    static let revealDistance: CGFloat = 48
 
     /// The note's new origin and text size. Width wraps the text; height is a minimum, so text
     /// never overflows. Translation is in screen points.
@@ -64,6 +74,8 @@ struct WorktreeBoxChrome: View {
     let zoom: CGFloat
     let isVisible: Bool
     let press: WorktreeBoxPress
+    /// The pointer in box coordinates while near: only the box within `revealDistance` of it shows.
+    var spotlight: CGPoint? = nil
 
     private static let square: CGFloat = 7
     private static let corners: [WorktreePhotoHandle] = [.topLeft, .topRight, .bottomLeft, .bottomRight]
@@ -81,6 +93,7 @@ struct WorktreeBoxChrome: View {
                         .position(corner.point(in: size))
                 }
             }
+            .mask(alignment: .topLeading) { reveal }
             .opacity(isVisible || press.point != nil ? 1 : 0)
             .animation(.easeOut(duration: 0.15), value: isVisible || press.point != nil)
             illumination
@@ -88,6 +101,22 @@ struct WorktreeBoxChrome: View {
         .frame(width: size.width, height: size.height, alignment: .topLeading)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// A circle of `revealDistance` screen points around the pointer; the whole box while resizing
+    /// or when no pointer is near.
+    @ViewBuilder private var reveal: some View {
+        if let spotlight, press.point == nil {
+            let radius = WorktreeTextBoxResize.revealDistance / zoom
+            Circle()
+                .fill(RadialGradient(stops: [.init(color: .white, location: 0), .init(color: .white, location: 0.85),
+                                             .init(color: .clear, location: 1)],
+                                     center: .center, startRadius: 0, endRadius: radius))
+                .frame(width: radius * 2, height: radius * 2)
+                .position(spotlight)
+        } else {
+            Rectangle()
+        }
     }
 
     private var illumination: some View {
@@ -233,7 +262,8 @@ struct WorktreeTextBox: View {
             let size = geometry.size
             let isVisible = start != nil || pointer.nearIDs.contains(item.id)
             ZStack(alignment: .topLeading) {
-                WorktreeBoxChrome(size: size, zoom: zoom, isVisible: isVisible, press: press)
+                WorktreeBoxChrome(size: size, zoom: zoom, isVisible: isVisible, press: press,
+                                  spotlight: pointer.spotlight(for: item.id, board: board))
                 ForEach(WorktreePhotoHandle.allCases.filter { $0 != .top }, id: \.self) { handle in
                     handleArea(handle, in: size)
                 }

@@ -101,7 +101,8 @@ struct WorktreePhotoResizeHandles: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             let isVisible = start != nil || pointer?.nearIDs.contains(item.id) == true
-            WorktreeBoxChrome(size: size, zoom: zoom, isVisible: isVisible, press: press)
+            WorktreeBoxChrome(size: size, zoom: zoom, isVisible: isVisible, press: press,
+                              spotlight: pointer?.spotlight(for: item.id, board: board, inset: WorktreeItemView.textPadding))
             // With a move, the top edge and the grip above it move the photo instead of cropping.
             ForEach(WorktreePhotoHandle.allCases.filter { move == nil || $0 != .top }, id: \.self) { handle in
                 let corner = handle.corner

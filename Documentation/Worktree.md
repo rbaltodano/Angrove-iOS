@@ -143,8 +143,10 @@ Escape puts a tool down; dragging or scrolling pans; leaving the page puts it do
 
 Notes, headings and photos draw a Figma-style box: a 1pt outline with a 7pt square at each corner
 in accent green at 50%, constant on screen at any zoom. A photo's box hugs the picture; a note's or
-heading's includes its 8pt padding. The box is invisible until the pointer is within 84 screen
-points, then fades in over 0.15s, and stays while resizing.
+heading's includes its 8pt padding. The box is invisible until the pointer is within 48 screen
+points; then only the part of it inside a 48-point circle around the pointer shows (the rest stays
+at 0%), fading in over 0.15s. While resizing, the whole box shows. An item's side grip is the same
+accent green at 50%.
 
 - **Move:** the canvas grip, turned on its side, sits centred 8pt above the top line, hidden until
   the box shows and glowing (75%, soft green shadow) while hovered or dragged. Dragging it, or
@@ -166,9 +168,10 @@ points, then fades in over 0.15s, and stays while resizing.
   zoom the canvas, as before; ⌘0 still resets the zoom.
 - Sizes save with the item; each drag or key press is one undoable action.
 
-`WorktreeCanvasPointer` tracks the pointer in canvas space but publishes only `nearIDs`, which
-changes when the pointer crosses a box's 84-point line, so moving the mouse re-renders nothing
-until a box should appear or disappear.
+`WorktreeCanvasPointer` tracks the pointer in canvas space. It publishes `nearIDs`, which changes
+when the pointer crosses a box's 48-point line, and `nearWorld`, which follows the pointer only
+while some box is near and is read only by near boxes (for their spotlight). Elsewhere, moving the
+mouse re-renders nothing.
 
 ## Photos
 

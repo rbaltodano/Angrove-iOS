@@ -228,7 +228,8 @@ struct WorktreeItemView: View, Equatable {
             .renderingMode(.template)
             .resizable()
             .frame(width: Self.gripSize.width, height: Self.gripSize.height)
-            .foregroundStyle(AngroveTheme.Colors.primaryBrown.opacity(0.5))
+            // Accent green at 50%, matching the box and its top grip.
+            .foregroundStyle(AngroveTheme.Colors.lightGreen.opacity(0.5))
             .padding(6)
             .contentShape(Rectangle())
             .opacity(isEditing || isHovered || isGripHovered || dragStart != nil ? 1 : 0)
