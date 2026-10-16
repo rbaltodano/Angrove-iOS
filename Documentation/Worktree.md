@@ -212,12 +212,13 @@ page they win over the app menu: ⇧⌘H adds a heading here rather than opening
 Panes moved to ⇧⌘S and Previous Page lost ⌘R for now.
 
 **Clicking a row** picks the tool up. A 50% preview follows the pointer with the photo
-placement's spring trail and tilt, styled like what it makes: “Text” and “Question” as a note,
+placement's spring trail and tilt, styled like what it makes: “Text” and an opening “ as a note,
 “Heading” at the heading's font, size and color, scaled with the canvas zoom. Rename, Summarize
 and Define show **Click on something to …**. A click places the tool and puts it down:
 
-- Text, Question and Heading open an editable note (a question starts with “) or heading where
-  the preview sat. An empty one goes away when editing ends.
+- Text, Question and Heading open an active, editable note or heading where the preview sat.
+  Question places the “ as if it were typed there, so a lone quote fades as usual. An empty note
+  or heading goes away when editing ends.
 - Rename, Summarize and Define act on the clicked item, as their shortcut would. On empty canvas,
   Define opens `/define ` there for a term; Rename and Summarize stay picked up.
 - Add File opens the file browser instead of following the pointer.

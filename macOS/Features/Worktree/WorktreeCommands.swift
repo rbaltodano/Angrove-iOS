@@ -164,7 +164,7 @@ enum WorktreeTool: String, CaseIterable, Identifiable {
     var placementPrompt: String {
         switch self {
         case .text: String(localized: "Text")
-        case .question: String(localized: "“Question")
+        case .question: "“"
         case .heading: String(localized: "Heading")
         case .rename: String(localized: "Click on something to rename")
         case .summarize: String(localized: "Click on something to summarize")
