@@ -83,7 +83,7 @@ struct MacWorkspaceView: View {
     @State private var hasAppliedStartScreen = false
     @State private var pageTransition = MacPageTransition()
     @State private var homeVinePlayback = HomeVinePlaybackController()
-    @State private var worktree = WorktreeBoard()
+    @State private var worktrees = WorktreeLibrary()
     private var ownsPageFade: Bool { selection == .conversations || selection == .insights }
     @Environment(\.isBootPageRevealAnimating) private var bootPageReveal
     @Environment(\.isBootRevealComplete) private var bootRevealComplete
@@ -114,7 +114,7 @@ struct MacWorkspaceView: View {
                         }, menuAction: handleConversationAction)
                     .frame(width: sidebar.width(in: geometry.size.width))
                     .clipped()
-                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { worktree.sidebarFrame = $0 }
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { WorktreeBoard.sidebarFrame = $0 }
                     .overlay(alignment: .trailing) {
                         MacSidebarResizeHandle(layout: $sidebar, windowWidth: geometry.size.width)
                     }
@@ -159,7 +159,7 @@ struct MacWorkspaceView: View {
                                 },
                                 onAsk: quote, queuePopup: queuePopup)
                         } else if selection == .worktree {
-                            MacWorktreeView(board: worktree, queuePopup: queuePopup)
+                            MacWorktreeHomeView(library: worktrees, queuePopup: queuePopup)
                         }
                     }
                     // The conversation and Insights pages fade their own content, leaving Model Controls
@@ -184,7 +184,7 @@ struct MacWorkspaceView: View {
                 .overlayPreferenceValue(MacCompactSidebarHoverKey.self) { hover in
                     MacCompactSidebarLabelOverlay(hover: sidebar.isCompact ? hover : nil)
                 }
-                .overlay(alignment: .topLeading) { WorktreeSidebarDragChip(drag: worktree.sidebarDrag) }
+                .overlay(alignment: .topLeading) { WorktreeSidebarDragChip(drag: worktrees.openBoard?.sidebarDrag) }
                 .overlayPreferenceValue(MacSidebarMenuAnchorKey.self) { anchors in
                     MacSidebarConversationMenuOverlay(conversations: conversations, menuID: $conversationMenuID,
                                                       anchors: anchors, onAction: handleConversationAction)

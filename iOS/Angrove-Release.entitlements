@@ -8,7 +8,7 @@
 	<true/>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.com.ryanbaltodano.Aquinas-iOS</string>
+		<string>$(ANGROVE_APP_GROUP)</string>
 	</array>
 </dict>
 </plist>

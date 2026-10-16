@@ -49,7 +49,19 @@ final class AngroveApplicationRuntime {
 #else
         let modelStore = defaultModelStore
 #endif
-        if modelStore.usesAppleHostedDelivery || modelStore.hasInstalledModel() {
+        if BonsaiModelFlag.isEnabled, let bonsai = BonsaiModelFlag.installedModelURL() {
+            // Developer flag: Ternary Bonsai 2 9B on llama.cpp in place of Gemma 4 E4B.
+            let runtime = LlamaAngroveRuntime(modelURL: bonsai)
+            let lifecycle = ModelRuntimeLifecycleManager(driver: runtime, configuration: .adaptiveOnDevice)
+            model = LiteRTAngroveModel(runtime: runtime, groundingProvider: LazyGroundingProvider())
+            modelTasks = ModelTaskQueue(runtimeLifecycle: lifecycle)
+            isOnDevice = true
+#if DEBUG
+            if ProcessInfo.processInfo.arguments.contains(BonsaiDeviceProbe.argument) {
+                Task.detached(priority: .userInitiated) { await BonsaiDeviceProbe.run(runtime: runtime) }
+            }
+#endif
+        } else if modelStore.usesAppleHostedDelivery || modelStore.hasInstalledModel() {
             let runtime = LiteRTAngroveRuntime(modelStore: modelStore)
             var configuration = ModelRuntimeLifecycleConfiguration.adaptiveOnDevice
 #if DEBUG

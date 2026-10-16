@@ -36,6 +36,12 @@ struct MacHomeTests {
         #expect(third.activeConversationID != first.activeConversationID)
     }
 
+    @Test func resumePreviewShowsLinkLabelsAsPlainText() {
+        let text = "The [Sermon on the Mount](aq://sermon-on-the-mount) in the [Gospel of Matthew](aq://gospel-of-matthew) is **important**."
+        #expect(MacHomePreviewText.plainText(from: text) == "The Sermon on the Mount in the Gospel of Matthew is important.")
+        #expect(MacHomePreviewText.plainText(from: "Ordinary text\nNext line.") == "Ordinary text\nNext line.")
+    }
+
     @Test func homeShortcutTargetsHome() {
         var request: MacShortcutRequest?
         let target = MacWorkspaceCommandTarget(request: .init(get: { request }, set: { request = $0 }), recentConversationIDs: [])

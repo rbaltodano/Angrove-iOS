@@ -83,6 +83,18 @@ final class LiteRTDeviceProbeModel {
         didStart = true
         LiteRTProbeLogCapture.shared.start()
 
+        if let benchModel = LiteRTProbeArguments.value(
+            after: "--bonsai-bench",
+            in: ProcessInfo.processInfo.arguments
+        ) {
+            phase = .generating
+            detail = "Benchmarking llama.cpp engine settings."
+            await BonsaiEngineBench.run(modelDocument: benchModel)
+            phase = .completed
+            detail = "Engine benchmark finished; see bonsai-bench-result.json."
+            return
+        }
+
         if let evalFile = LiteRTProbeArguments.value(
             after: "--litert-eval-batch",
             in: ProcessInfo.processInfo.arguments
@@ -90,7 +102,13 @@ final class LiteRTDeviceProbeModel {
             phase = .generating
             detail = "Running the eval set through the production path."
             do {
-                await LiteRTEvalBatchProbe.run(modelURL: try Self.locateModel(), evalFile: evalFile)
+                // `--bonsai-model-document <file>` runs a Bonsai GGUF (4B or 9B) from Documents.
+                let bonsaiDocument = LiteRTProbeArguments.value(
+                    after: "--bonsai-model-document", in: ProcessInfo.processInfo.arguments
+                ).flatMap { name in Self.documentsDirectory?.appending(path: name) }
+                let bonsai = bonsaiDocument
+                    ?? (BonsaiModelFlag.isEnabled ? BonsaiModelFlag.installedModelURL() : nil)
+                await LiteRTEvalBatchProbe.run(modelURL: try bonsai ?? Self.locateModel(), evalFile: evalFile)
                 phase = .completed
                 detail = "Eval batch finished; see litert-eval-results.jsonl."
             } catch {

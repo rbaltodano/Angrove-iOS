@@ -3,7 +3,7 @@ import SwiftUI
 /// One placed piece of Worktree text. Plain text until a quoted question is committed, then a
 /// bordered, resizable card that holds the conversation. The drag grip sits just before the
 /// text, invisible until the text is hovered or being edited.
-struct WorktreeItemView: View {
+struct WorktreeItemView: View, Equatable {
     let board: WorktreeBoard
     let item: WorktreeBoard.Item
     let scale: CGFloat
@@ -24,15 +24,25 @@ struct WorktreeItemView: View {
     private static let gripSize = CGSize(width: 7.5, height: 12)
     private static let gripSpacing: CGFloat = 8
 
+    /// Only the inputs: board state the view reads is tracked by observation.
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        MainActor.assumeIsolated { lhs.item == rhs.item && lhs.scale == rhs.scale && lhs.board === rhs.board }
+    }
+
     private var isEditing: Bool { board.editingID == item.id }
     private var padding: CGFloat { isOpen ? Self.cardPadding : Self.textPadding }
     private var isOverTrash: Bool { board.trashTargetID == item.id }
     private var isOverSidebar: Bool { board.sidebarDrag?.id == item.id }
     /// A question opens into a card once any sidebar-chip arrival has finished.
     private var opensAsCard: Bool { item.isQuestion && item.arrivalTitle == nil }
-    private var isSelectable: Bool { item.isQuestion || item.isInsight }
-    private var isActive: Bool { isSelectable && board.activeID == item.id }
+    private var isSelectable: Bool { item.isQuestion || item.isInsight || item.isHeading || item.image != nil }
+    private var isActive: Bool { isSelectable && board.selection.contains(item.id) }
     private static let labelFont = NSFont(name: "LibreBaskerville-Italic", size: 28) ?? .systemFont(ofSize: 28)
+    private static let labelDisplayFont = Font.custom("LibreBaskerville-Italic", fixedSize: 28)
+    private static let headingFont = NSFont(name: "LibreBaskerville-Regular", size: 40) ?? .systemFont(ofSize: 40)
+    private static let headingLineHeight: CGFloat = 56
+    /// The first line's height, for centring the grip on it.
+    private var firstLineHeight: CGFloat { item.isHeading ? Self.headingLineHeight : WorktreeTextEditor.lineHeight }
 
     var body: some View {
         content
@@ -60,15 +70,23 @@ struct WorktreeItemView: View {
             .overlay { if item.isQuestion { WorktreeResizeEdges(board: board, item: item, scale: scale) } }
             .overlay(alignment: .topLeading) { grip }
             .overlay(alignment: .topLeading) { label }
-            .onHover { isHovered = $0 }
+            .onHover { hovering in
+                isHovered = hovering
+                // Hovering is enough to aim a command at an item.
+                board.setHovered(item.id, hovering)
+            }
             .onGeometryChange(for: CGSize.self) { $0.size } action: { board.itemSizes[item.id] = $0 }
             // The card grows outward so its first line stays where it was typed.
             .offset(x: -padding, y: -padding)
             // Clicking a conversation window or Insight card selects it: it lifts slightly above the
             // canvas. Plain text keeps its clicks for editing.
-            .simultaneousGesture(TapGesture().onEnded { board.select(item.id) }, including: isSelectable ? .all : .none)
-            // Selectable items lift 0.5% on hover and 1% once selected.
-            .scaleEffect(isActive ? 1.01 : isSelectable && isHovered ? 1.005 : 1)
+            // ⇧- or ⌘-click adds to the selection.
+            .simultaneousGesture(TapGesture().onEnded {
+                if !NSEvent.modifierFlags.intersection([.shift, .command]).isEmpty { board.toggleSelection(item.id) }
+                else { board.select(item.id) }
+            }, including: isSelectable ? .all : .none)
+            // Photos lift 5% on hover or selection; other selectable items lift 2% on hover.
+            .scaleEffect(item.image != nil ? (isActive || isHovered ? 1.05 : 1) : isActive ? 1.05 : isSelectable && isHovered ? 1.02 : 1)
             .animation(.springQuick, value: isActive)
             .animation(.springQuick, value: isHovered)
             .opacity(isOverTrash ? 0.5 : isOverSidebar ? 0 : 1)
@@ -88,11 +106,19 @@ struct WorktreeItemView: View {
         if item.isInsight {
             WorktreeInsightContent(board: board, item: item)
         } else if item.isSummarizing {
-            Text(verbatim: "/summarize")
+            Text(item.isHeading ? "Heading…" : "Summarizing…")
                 .font(BrandTypography.font("Figtree-Regular", size: 14))
                 .frame(height: WorktreeTextEditor.lineHeight)
                 .modifier(WorktreeWorkStyle(work: item.outputWork))
                 .transition(.blurFade)
+        } else if item.revealsSummary && !isEditing {
+            WorktreeSummaryReveal(text: item.text, onComplete: {
+                board.update(item.id) { $0.revealsSummary = false }
+            }, onEdit: {
+                board.update(item.id) { $0.revealsSummary = false }
+                board.editingID = item.id
+            })
+            .transition(.blurFade)
         } else if let title = item.arrivalTitle {
             // The chip's text inside the item's own (chip-coloured) background.
             Text(title)
@@ -107,6 +133,27 @@ struct WorktreeItemView: View {
                 WorktreeQuestionCard(board: board, item: item, session: session, runtime: runtime, isOpen: isOpen)
                     .transition(.blurFade)
             }
+        } else if let image = item.image {
+            WorktreeImage(board: board, item: item, file: image, zoom: scale * (isActive || isHovered ? 1.05 : 1))
+        } else if item.isHelp {
+            WorktreeHelpCard()
+                .transition(.scale(scale: 0.9, anchor: .topLeading).combined(with: .blurFade))
+        } else if item.isHeading && !isEditing {
+            // Shown word by word, as page titles arrive. A click selects it; a double-click edits.
+            WorktreeRevealedText(text: item.text, font: MacPageHeading.pageFont, color: AngroveTheme.Colors.headingText,
+                                 editsOnDoubleClick: true) {
+                // Editing keeps the selection, so the heading's size doesn't change under the cursor.
+                board.editingID = item.id
+            }
+            .transition(.blurFade)
+        } else if item.isHeading {
+            WorktreeTextEditor(text: board.binding(item.id, \.text), isEditing: isEditing,
+                maxWidth: 720, color: AngroveTheme.Colors.headingText,
+                textFont: Self.headingFont, textLineHeight: Self.headingLineHeight,
+                onBeginEditing: { board.editingID = item.id },
+                onEndEditing: { if board.editingID == item.id { board.endEditing() } },
+                onCommit: { board.endEditing() },
+                onEscape: { board.endEditing() })
         } else {
             WorktreeTextEditor(text: board.binding(item.id, \.text), isEditing: isEditing,
                 highlightsCommands: true,
@@ -115,6 +162,13 @@ struct WorktreeItemView: View {
                 onCommit: { board.commit(item.id, runtime: runtime) },
                 onEscape: { board.endEditing() })
                 .transition(.blurFade)
+                // A lone quotation mark left untouched fades away.
+                .task(id: item.text) {
+                    guard ["\"", "\u{201C}"].contains(item.text.trimmingCharacters(in: .whitespacesAndNewlines)) else { return }
+                    try? await Task.sleep(for: .seconds(3))
+                    guard !Task.isCancelled else { return }
+                    withAnimation(.easeOut(duration: 0.3)) { board.delete(item.id) }
+                }
         }
     }
 
@@ -124,9 +178,16 @@ struct WorktreeItemView: View {
         ZStack(alignment: .bottomLeading) {
             if let work = item.labelWork {
                 Text("Labeling...")
-                    .font(BrandTypography.font("LibreBaskerville-Italic", size: 28))
+                    .font(Self.labelDisplayFont)
                     .modifier(WorktreeWorkStyle(work: work))
                     .transition(.blurFade)
+            } else if let label = item.label, board.editingID != item.labelID {
+                // A true 28pt, matching the editor (the brand helper caps Mac sizes at 24).
+                WorktreeRevealedText(text: label, font: Self.labelDisplayFont,
+                                     color: AngroveTheme.Colors.lightGreen) {
+                    board.editingID = item.labelID
+                }
+                .transition(.blurFade)
             } else if item.label != nil {
                 WorktreeTextEditor(text: board.binding(item.id, \.labelText), isEditing: board.editingID == item.labelID,
                     submitsOnReturn: true, maxWidth: 640, color: AngroveTheme.Colors.lightGreen,
@@ -136,8 +197,6 @@ struct WorktreeItemView: View {
                     onCommit: { board.finishLabelEditing(item.id) },
                     onEscape: { board.finishLabelEditing(item.id) })
                     .fixedSize()
-                    // A new label from a command blurs in; typing doesn't remount the field.
-                    .id(item.labelRevision)
                     .transition(.blurFade)
             }
         }
@@ -159,7 +218,7 @@ struct WorktreeItemView: View {
             .gesture(moveGesture)
             // Just before the text itself; a card's grip sits just outside its border.
             .offset(x: (isOpen ? 0 : padding) - (Self.gripSize.width + Self.gripSpacing + 6),
-                    y: padding + (WorktreeTextEditor.lineHeight - Self.gripSize.height) / 2 - 6)
+                    y: padding + (firstLineHeight - Self.gripSize.height) / 2 - 6)
             .accessibilityLabel("Move")
     }
 
@@ -167,15 +226,16 @@ struct WorktreeItemView: View {
         // Global space so the pointer can be compared with the Trash control's frame.
         DragGesture(minimumDistance: 1, coordinateSpace: .global)
             .onChanged { value in
+                if dragStart == nil { board.beginHistoryAction() }
                 let start = dragStart ?? item.origin
                 dragStart = start
-                board.update(item.id) {
-                    $0.origin = CGPoint(x: start.x + value.translation.width / scale,
-                                        y: start.y + value.translation.height / scale)
-                }
+                // 8pt snapping and 84pt guide overhang, in screen points.
+                board.move(item.id, to: CGPoint(x: start.x + value.translation.width / scale,
+                                                y: start.y + value.translation.height / scale),
+                           threshold: 8 / scale, overhang: 84 / scale)
                 board.trashTargetID = board.trashFrame.insetBy(dx: -12, dy: -12).contains(value.location) ? item.id : nil
                 // Over the sidebar, a conversation started here becomes the sidebar's chip.
-                if board.sidebarFrame.contains(value.location), let title = board.sidebarTitle(for: item.id) {
+                if WorktreeBoard.sidebarFrame.contains(value.location), let title = board.sidebarTitle(for: item.id) {
                     if board.sidebarDrag == nil {
                         withAnimation(.springQuick) { board.sidebarDrag = .init(id: item.id, title: title, location: value.location) }
                     } else {
@@ -186,8 +246,10 @@ struct WorktreeItemView: View {
                 }
             }
             .onEnded { _ in
+                defer { board.endHistoryAction() }
                 let start = dragStart
                 dragStart = nil
+                board.endMove()
                 if board.trashTargetID == item.id {
                     withAnimation(.springQuick) { board.delete(item.id) }
                 } else if board.sidebarDrag?.id == item.id {
@@ -314,6 +376,8 @@ private struct WorktreeQuestionCard: View {
             try? await Task.sleep(for: .milliseconds(600))
             canLoadEarlier = true
         }
+        // A finished answer pulses the dot grid once.
+        .onChange(of: session.completedResponseCount) { _, _ in board.pulse(item.id) }
         // A new question (not earlier turns loading) scrolls to the top of the window.
         .onChange(of: allTurns.count) { old, new in
             guard new > old, new > 1, let latest = allTurns.last?.question else { return }
@@ -465,7 +529,9 @@ private struct WorktreePinnedQuestion: View {
                 .textSelection(.enabled)
         }
             .padding(.vertical, 5)
-            .background(AngroveTheme.Colors.canvas)
+            // Reaches above the question so nothing scrolling under it shows in the gap to the
+            // window's top edge; the scroll view clips the overhang.
+            .background { AngroveTheme.Colors.canvas.padding(.top, -60) }
             .background(alignment: .bottom) {
                 LinearGradient(colors: [AngroveTheme.Colors.canvas, AngroveTheme.Colors.canvas.opacity(0)],
                                startPoint: .top, endPoint: .bottom)
@@ -518,6 +584,7 @@ private struct WorktreeResizeEdges: View {
     private func resize(_ position: FrameResizePosition, current currentSize: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .named(MacWorktreeView.canvasSpace))
             .onChanged { value in
+                if start == nil { board.beginHistoryAction() }
                 let begin = start ?? (item.origin, item.size ?? currentSize)
                 start = begin
                 let dx = value.translation.width / scale, dy = value.translation.height / scale
@@ -532,7 +599,7 @@ private struct WorktreeResizeEdges: View {
                 }
                 board.update(item.id) { $0.size = size; $0.origin = origin }
             }
-            .onEnded { _ in start = nil }
+            .onEnded { _ in start = nil; board.endHistoryAction() }
     }
 
 }
@@ -545,10 +612,13 @@ private struct WorktreeInsightContent: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            if let insight = item.insight {
+            if let term = item.definitionFailureTerm {
+                WorktreeDefinitionFailure(term: term) { board.dismissDefinitionFailure(item.id) }
+                    .transition(.blurFade)
+            } else if let insight = item.insight {
                 // The card's own shadow shows only while it is selected.
                 InsightLibraryCard(insight: insight, isSaved: board.savedInsightIDs.contains(insight.id),
-                    shadowOpacity: board.activeID == item.id ? WorktreeSelectionShadow.opacity : 0,
+                    shadowOpacity: board.selection.contains(item.id) ? WorktreeSelectionShadow.opacity : 0,
                     onQuote: {
                         guard let session = item.sourceID.flatMap({ id in board.items.first { $0.id == id } })?.session else { return }
                         session.attachQuote(insight)
@@ -557,8 +627,8 @@ private struct WorktreeInsightContent: View {
                     onToggleSaved: { board.toggleSaved(insight) })
                     .fixedSize(horizontal: false, vertical: true)
                     .transition(.scale(scale: 0.6, anchor: .topLeading).combined(with: .blurFade))
-            } else if let term = item.definingTerm {
-                Text(verbatim: "/define \(term)")
+            } else if item.definingTerm != nil {
+                Text("Defining...")
                     .font(BrandTypography.font("Figtree-Regular", size: 14))
                     .frame(height: WorktreeTextEditor.lineHeight)
                     .modifier(WorktreeWorkStyle(work: item.outputWork))
@@ -574,20 +644,28 @@ struct WorktreeCommandField: View {
     let runtime: MacApplicationRuntime
 
     var body: some View {
-        // Struck commands dim so the green line reads across them.
+        // Invalid commands and their strike-through use the shared error color.
         WorktreeTextEditor(text: Bindable(board).commandText, isEditing: board.editingID == board.commandFieldID,
             submitsOnReturn: true, maxWidth: 320,
-            color: board.isCommandStruck ? AngroveTheme.Colors.placeholderText : AngroveTheme.Colors.headingText,
+            color: board.isCommandStruck ? AngroveTheme.Colors.accentRed : AngroveTheme.Colors.headingText,
             highlightsCommands: !board.isCommandStruck,
             onBeginEditing: { board.editingID = board.commandFieldID },
             onEndEditing: { if board.editingID == board.commandFieldID, !board.isCommandStruck { board.closeCommand() } },
             onCommit: { board.submitCommand(runtime: runtime) },
             onEscape: { board.closeCommand() })
             .fixedSize()
+            .onGeometryChange(for: CGSize.self) { $0.size } action: { board.commandFieldSize = $0 }
+            // A lone "/" left untouched fades away.
+            .task(id: board.commandText) {
+                guard board.commandText == "/" else { return }
+                try? await Task.sleep(for: .seconds(3))
+                guard !Task.isCancelled, board.commandText == "/", !board.isCommandStruck else { return }
+                board.closeCommand()
+            }
             // `/define` with nothing to define: the Insight underline, drawn through the middle.
             .overlay(alignment: .leading) {
                 Rectangle()
-                    .fill(AngroveTheme.Colors.lightGreen)
+                    .fill(AngroveTheme.Colors.accentRed)
                     .frame(height: 1)
                     .scaleEffect(x: board.isCommandStruck ? 1 : 0, y: 1, anchor: .leading)
                     .allowsHitTesting(false)
@@ -616,5 +694,125 @@ struct WorktreeSelectionShadow: ViewModifier {
 
     func body(content: Content) -> some View {
         content.shadow(color: AngroveTheme.Colors.dropShadow.opacity(isSelected ? Self.opacity : 0), radius: 24, x: 0, y: 16)
+    }
+}
+
+/// Finished heading or label text, revealed one word at a time like a page title on arrival.
+/// A new text reveals again; clicking it starts editing.
+private struct WorktreeRevealedText: View {
+    let text: String
+    let font: Font
+    let color: Color
+    var editsOnDoubleClick = false
+    let onEdit: () -> Void
+
+    var body: some View {
+        SettingsAnimatedHeading(title: text, font: font, color: color, revealsOnAppear: true)
+            .id(text)
+            .fixedSize()
+            .contentShape(Rectangle())
+            .onTapGesture(count: editsOnDoubleClick ? 2 : 1, perform: onEdit)
+            .pointerStyle(editsOnDoubleClick ? nil : .horizontalText)
+    }
+}
+
+/// `/help`: every command in accent green, each a row that opens onto its explanation.
+private struct WorktreeHelpCard: View {
+    @State private var expanded: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(WorktreeCommandGuide.entries.enumerated()), id: \.element.id) { index, entry in
+                if index > 0 { Divider().overlay(AngroveTheme.Colors.hairline) }
+                row(entry)
+            }
+        }
+        .padding(.horizontal, 28)
+        .padding(.vertical, 12)
+        .frame(width: 500, alignment: .leading)
+        .background(AngroveTheme.Colors.canvasSecondary, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).stroke(AngroveTheme.Colors.popupBorder, lineWidth: 1))
+    }
+
+    private func row(_ entry: WorktreeCommandGuide.Entry) -> some View {
+        let isOpen = expanded == entry.id
+        return VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .springStandard) {
+                    expanded = isOpen ? nil : entry.id
+                }
+            } label: {
+                HStack {
+                    Text(verbatim: entry.name)
+                        .font(BrandTypography.font("Figtree-Bold", size: 14))
+                        .foregroundStyle(AngroveTheme.Colors.lightGreen)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(AngroveTheme.Colors.lightGreen)
+                        .rotationEffect(.degrees(isOpen ? 90 : 0))
+                }
+                .frame(height: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(isOpen ? Text("Expanded") : Text("Collapsed"))
+
+            if isOpen {
+                Text(entry.explanation)
+                    .font(BrandTypography.font("Figtree-Regular", size: 14))
+                    .lineSpacing(WorktreeTextEditor.lineHeight - 17)
+                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, 12)
+                    .transition(.blurFade)
+            }
+        }
+    }
+}
+
+/// A picture fits within 1000 × 1000 canvas points, keeping its proportions.
+private struct WorktreeImage: View {
+    let board: WorktreeBoard
+    let item: WorktreeBoard.Item
+    let file: UploadedFile
+    let zoom: CGFloat
+    @State private var image: NSImage?
+    @State private var hasLanded = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let size = item.size ?? image.map {
+            WorktreePhotoGeometry.fitted($0.size, rotation: 0, maximum: 1000)
+        } ?? CGSize(width: 320, height: 240)
+        let layout = image.map { WorktreePhotoGeometry.covering($0.size, frame: size) }
+            ?? WorktreePhotoLayout(contentSize: size)
+        ZStack(alignment: .topLeading) {
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .frame(width: layout.contentSize.width, height: layout.contentSize.height)
+                    .offset(x: layout.offset.x, y: layout.offset.y)
+            } else {
+                AngroveTheme.Colors.canvasSecondary
+            }
+        }
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(board.selection.contains(item.id) ? AngroveTheme.Colors.lightGreen : AngroveTheme.Colors.popupBorder, lineWidth: 1))
+        .scaleEffect(hasLanded || reduceMotion ? 1 : 0.98)
+        .overlay {
+            if image != nil {
+                WorktreePhotoResizeHandles(board: board, item: item, size: size, layout: layout, zoom: zoom)
+            }
+        }
+        .task(id: file.id) {
+            guard let data = file.imageData else { return }
+            image = await Task.detached(priority: .userInitiated) { NSImage(data: data) }.value
+            await Task.yield()
+            withAnimation(reduceMotion ? nil : .springLively) { hasLanded = true }
+        }
+        .accessibilityLabel(file.name)
     }
 }

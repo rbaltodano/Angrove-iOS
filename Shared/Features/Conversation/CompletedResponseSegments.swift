@@ -18,6 +18,7 @@ struct CompletedResponseSegments: View {
     let onInlineInsightQuote: ((ConceptDefinition) -> Void)?
     let onInlineInsightFork: ((ConceptDefinition) -> Void)?
     let onInlineInsightToggleSaved: ((ConceptDefinition) -> Void)?
+    @Environment(\.completedResponseTextColor) private var textColor
     @Environment(\.openURL) private var openURL
     @Environment(\.speechSource) private var speechSource
 
@@ -109,7 +110,7 @@ struct CompletedResponseSegments: View {
             ForEach(Array(words.enumerated()), id: \.offset) { idx, word in
                 let headingText = styledText(for: word, baseFont: headingFont(for: level), allowsInlineMarkdown: false)
                 headingText
-                    .foregroundColor(AngroveTheme.Colors.headingText)
+                    .foregroundColor(textColor ?? AngroveTheme.Colors.headingText)
                     .responseWordMenu(token: word, onReadFromHere: readFromHere(globalWordStart + idx)) {
                         displayedTokenLocation(forWordAt: globalWordStart + idx)
                     }
@@ -154,7 +155,7 @@ struct CompletedResponseSegments: View {
                 HStack(alignment: .top, spacing: 10) {
                     Text(marker(index))
                         .font(responseFont.textFont(size: conversationFontSize))
-                        .foregroundColor(AngroveTheme.Colors.bodyText)
+                        .foregroundColor(textColor ?? AngroveTheme.Colors.bodyText)
                         .frame(minWidth: 22, alignment: .trailing)
                         .opacity(available > itemStart ? 1 : 0)
 
@@ -251,7 +252,7 @@ struct CompletedResponseSegments: View {
                 allowsInlineMarkdown: true
             )
             bodyText
-                .foregroundColor(AngroveTheme.Colors.bodyText)
+                .foregroundColor(textColor ?? AngroveTheme.Colors.bodyText)
                 .responseWordMenu(token: word, onReadFromHere: readFromHere(globalWordIndex)) {
                     displayedTokenLocation(forWordAt: globalWordIndex)
                 }
@@ -370,4 +371,17 @@ struct CompletedResponseSegments: View {
         return nil
     }
 
+}
+
+
+/// Optional color for status/error text that reuses the completed-answer word reveal.
+private struct CompletedResponseTextColorKey: EnvironmentKey {
+    static let defaultValue: Color? = nil
+}
+
+extension EnvironmentValues {
+    var completedResponseTextColor: Color? {
+        get { self[CompletedResponseTextColorKey.self] }
+        set { self[CompletedResponseTextColorKey.self] = newValue }
+    }
 }

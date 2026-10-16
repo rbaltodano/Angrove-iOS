@@ -353,6 +353,15 @@ private struct MacHomeGreeting: View {
 
 // MARK: - Cards
 
+enum MacHomePreviewText {
+    static func plainText(from text: String) -> String {
+        let prose = InlineInsightMarkup.plainText(from: text)
+        guard let parsed = try? AttributedString(markdown: prose,
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) else { return prose }
+        return String(parsed.characters)
+    }
+}
+
 private struct MacHomeResumeCard: View {
     let conversation: InquiryConversation
     let latestText: String
@@ -378,7 +387,7 @@ private struct MacHomeResumeCard: View {
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 }
-                Text(InlineInsightMarkup.plainText(from: latestText))
+                Text(verbatim: MacHomePreviewText.plainText(from: latestText))
                     .paragraphFont()
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
                     .lineSpacing(6)

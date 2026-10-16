@@ -3,7 +3,7 @@ import Foundation
 /// Only question text is shared. Its separate Keychain key gives the extension no access to
 /// conversations or Insights. After-first-unlock accessibility supports the Lock Screen widget.
 nonisolated enum DailyQuestionWidgetStore {
-    static let appGroup = "group.com.ryanbaltodano.Aquinas-iOS"
+    static let appGroup = AngroveAppGroup.identifier
     static let kind = "AngroveQuestionOfTheDay"
     private static let key = "angrove.widget.latestQuestion.v1"
 

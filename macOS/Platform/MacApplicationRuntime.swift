@@ -39,9 +39,21 @@ import Observation
         modelTier = tier
         let store = stores[tier] ?? tier.modelStore()
         let installed = try? store.installedModelURL()
-        modelURL = installed
-        modelIsAvailable = installed != nil
-        if let installed {
+        let bonsai = BonsaiModelFlag.isEnabled ? BonsaiModelFlag.installedModelURL() : nil
+        modelURL = bonsai ?? installed
+        modelIsAvailable = bonsai != nil || installed != nil
+        if let bonsai {
+            // Developer flag: Ternary Bonsai 2 9B on llama.cpp. Tier switching stays with LiteRT.
+            let runtime = LlamaAngroveRuntime(
+                modelURL: bonsai,
+                contextTokens: max(tier.contextTokens, LlamaAngroveRuntime.defaultContextTokens)
+            )
+            let lifecycle = ModelRuntimeLifecycleManager(driver: runtime, configuration: .adaptiveOnDevice)
+            driver = nil
+            self.lifecycle = lifecycle
+            modelTasks = ModelTaskQueue(runtimeLifecycle: lifecycle)
+            model = LiteRTAngroveModel(runtime: runtime, groundingProvider: LazyGroundingProvider())
+        } else if let installed {
             let native = LiteRTAngroveRuntime(modelStore: store, contextTokens: tier.contextTokens)
             let driver = VerifiedMacRuntimeDriver(
                 runtime: native,

@@ -70,6 +70,8 @@ struct MacSettingsView: View {
 struct MacBackCapsule: View {
     let title: String
     var isPadded = true
+    /// Off where Escape already has a job, such as the Worktree canvas deselecting.
+    var leavesOnEscape = true
     let action: () -> Void
 
     var body: some View {
@@ -93,7 +95,7 @@ struct MacBackCapsule: View {
         }
         .buttonStyle(.plain)
         .pulsesOnChange(of: title, anchor: .leading)
-        .keyboardShortcut(.cancelAction)
+        .keyboardShortcut(leavesOnEscape ? .cancelAction : nil)
         .background(Button("", action: action).keyboardShortcut("[", modifiers: .command)
             .opacity(0).allowsHitTesting(false).accessibilityHidden(true))
         .padding(.top, isPadded ? 24 : 0)

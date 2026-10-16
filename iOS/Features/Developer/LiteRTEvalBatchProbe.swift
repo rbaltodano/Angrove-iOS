@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import UIKit
 
 /// `--litert-eval-batch <file>`: runs every case of a frozen eval-set JSONL file (plan C8)
 /// through the production `LiteRTAngroveModel` with one loaded runtime, as a user would meet it.
@@ -32,6 +33,26 @@ enum LiteRTEvalBatchProbe {
         /// The model's native thought lines when the run enables thinking; empty otherwise.
         let thinking: [String]
         let error: String?
+        /// Every Bonsai engine call this case made (audits and retries included).
+        var runtimeGenerations: [LlamaAngroveRuntime.GenerationStats]? = nil
+        /// Device conditions, so phone runs can be matched and thermal effects seen.
+        var device: CaseDevice? = nil
+    }
+
+    struct CaseDevice: Encodable {
+        /// Seconds from the start of the first case.
+        let startOffsetSeconds: Double
+        let thermalStateStart: String
+        let thermalStateEnd: String
+        let batteryLevelStart: Float
+        let batteryLevelEnd: Float
+        let batteryState: String
+        let memoryAfter: LiteRTProbeMemory.Sample
+    }
+
+    struct ThermalTransition: Encodable {
+        let offsetSeconds: Double
+        let state: String
     }
 
     struct Summary: Encodable {
@@ -51,6 +72,14 @@ enum LiteRTEvalBatchProbe {
         var failedCount = 0
         var activation: LiteRTProbeReport.Activation?
         var error: String?
+        var engine = "litert"
+        var bonsaiSamplingProfile = "notApplicable"
+        var conversationPromptStyle = "standard"
+        var followUpRouting = "standard"
+        var caseGapSeconds = 0.0
+        var thermalStateAtStart = ""
+        var thermalTransitions: [ThermalTransition] = []
+        var memoryAfterLoad: LiteRTProbeMemory.Sample?
     }
 
     static func run(modelURL: URL, evalFile: String) async {
@@ -88,35 +117,106 @@ enum LiteRTEvalBatchProbe {
                 .map { try JSONDecoder().decode(EvalCase.self, from: Data($0.utf8)) }
                 .filter { only?.contains($0.id) ?? true }
 
-            let runtime = LiteRTAngroveRuntime(
-                modelStore: try LiteRTModelOverride.developmentStore(for: modelURL)
-            )
-            if usesCPU {
-#if DEBUG
-                await runtime.configureEvidenceExperimentCPU()
-#endif
+            let runtime: any AngroveTextRuntime
+            var bonsaiRuntime: LlamaAngroveRuntime?
+            let promptStyleName = LiteRTProbeArguments.value(after: "--litert-eval-prompt-style", in: arguments) ?? "standard"
+            guard let promptStyle = LiteRTAngroveModel.ConversationPromptStyle(rawValue: promptStyleName) else {
+                throw ProbeOptionError.unknown("--litert-eval-prompt-style \(promptStyleName)")
             }
-#if DEBUG
-            if arguments.contains("--litert-eval-sampled") {
-                await runtime.configureEvidenceConversationSampling(
-                    LiteRTSampling(topK: 40, topP: 0.95, temperature: 0.2, seed: 7, isStructured: false)
+            let routingName = LiteRTProbeArguments.value(after: "--litert-eval-followup-routing", in: arguments) ?? "standard"
+            guard let routing = LiteRTAngroveModel.FollowUpRouting(rawValue: routingName) else {
+                throw ProbeOptionError.unknown("--litert-eval-followup-routing \(routingName)")
+            }
+            summary.conversationPromptStyle = promptStyleName
+            summary.followUpRouting = routingName
+            if modelURL.pathExtension == "gguf" {
+                // A Ternary Bonsai 2 GGUF: the same pipeline through llama.cpp.
+                let profileName = LiteRTProbeArguments.value(after: "--bonsai-profile", in: arguments) ?? "caller"
+                guard let profile = LlamaAngroveRuntime.SamplingProfile(rawValue: profileName) else {
+                    throw ProbeOptionError.unknown("--bonsai-profile \(profileName)")
+                }
+                let llama = LlamaAngroveRuntime(modelURL: modelURL, samplingProfile: profile, recordsGenerationStats: true)
+                bonsaiRuntime = llama
+                runtime = llama
+                summary.engine = "llama.cpp"
+                summary.bonsaiSamplingProfile = profileName
+            } else {
+                guard promptStyle == .standard else {
+                    throw ProbeOptionError.unknown("the compact prompt applies to Bonsai GGUF runs only")
+                }
+                let liteRT = LiteRTAngroveRuntime(
+                    modelStore: try LiteRTModelOverride.developmentStore(for: modelURL)
                 )
-            }
+                if usesCPU {
+#if DEBUG
+                    await liteRT.configureEvidenceExperimentCPU()
 #endif
+                }
+#if DEBUG
+                if arguments.contains("--litert-eval-sampled") {
+                    await liteRT.configureEvidenceConversationSampling(
+                        LiteRTSampling(topK: 40, topP: 0.95, temperature: 0.2, seed: 7, isStructured: false)
+                    )
+                }
+#endif
+                runtime = liteRT
+            }
+            UIDevice.current.isBatteryMonitoringEnabled = true
+            // A long run must not be suspended by auto-lock partway through.
+            UIApplication.shared.isIdleTimerDisabled = true
+            defer { UIApplication.shared.isIdleTimerDisabled = false }
+            let runStart = ContinuousClock.now
+            summary.thermalStateAtStart = Self.thermalName(ProcessInfo.processInfo.thermalState)
+            let thermalObserver = NotificationCenter.default.addObserver(
+                forName: ProcessInfo.thermalStateDidChangeNotification, object: nil, queue: .main
+            ) { _ in
+                MainActor.assumeIsolated {
+                    thermalLog.append(ThermalTransition(
+                        offsetSeconds: seconds(since: runStart),
+                        state: thermalName(ProcessInfo.processInfo.thermalState)
+                    ))
+                }
+            }
+            defer { NotificationCenter.default.removeObserver(thermalObserver) }
+
             let clock = ContinuousClock.now
             try await runtime.loadModelWeights()
             summary.loadSeconds = seconds(since: clock)
+            summary.memoryAfterLoad = LiteRTProbeMemory.sample()
             let model = LiteRTAngroveModel(
                 runtime: runtime,
-                groundingProvider: try MiniLMGroundingProvider()
+                groundingProvider: try MiniLMGroundingProvider(),
+                conversationPromptStyle: promptStyle,
+                followUpRouting: routing
             )
+            // `--litert-eval-case-gap-seconds <n>` spaces cases so workloads can be matched.
+            let gap = LiteRTProbeArguments.value(after: "--litert-eval-case-gap-seconds", in: arguments)
+                .flatMap(Double.init) ?? 0
+            summary.caseGapSeconds = gap
+            let caseStart = ContinuousClock.now
+            _ = await bonsaiRuntime?.takeGenerationStats()
 
-            for evalCase in cases {
-                let result = await run(evalCase, model: model)
+            for (index, evalCase) in cases.enumerated() {
+                if index > 0, gap > 0 { try? await Task.sleep(for: .seconds(gap)) }
+                let offset = seconds(since: caseStart)
+                let thermalStart = Self.thermalName(ProcessInfo.processInfo.thermalState)
+                let batteryStart = UIDevice.current.batteryLevel
+                var result = await run(evalCase, model: model)
+                result.runtimeGenerations = await bonsaiRuntime?.takeGenerationStats()
+                result.device = CaseDevice(
+                    startOffsetSeconds: offset,
+                    thermalStateStart: thermalStart,
+                    thermalStateEnd: Self.thermalName(ProcessInfo.processInfo.thermalState),
+                    batteryLevelStart: batteryStart,
+                    batteryLevelEnd: UIDevice.current.batteryLevel,
+                    batteryState: Self.batteryName(UIDevice.current.batteryState),
+                    memoryAfter: LiteRTProbeMemory.sample()
+                )
                 summary.caseCount += 1
                 if result.error != nil { summary.failedCount += 1 }
                 if let resultsURL { append(result, to: resultsURL) }
             }
+            summary.thermalTransitions = thermalLog
         } catch {
             summary.error = String(reflecting: error)
         }
@@ -135,6 +235,35 @@ enum LiteRTEvalBatchProbe {
 
     private static let thinkingEnabled = ProcessInfo.processInfo.arguments
         .contains("--litert-eval-thinking")
+
+    private enum ProbeOptionError: LocalizedError {
+        case unknown(String)
+        var errorDescription: String? {
+            switch self { case .unknown(let option): "Unsupported probe option: \(option)" }
+        }
+    }
+
+    private static var thermalLog: [ThermalTransition] = []
+
+    private static func thermalName(_ state: ProcessInfo.ThermalState) -> String {
+        switch state {
+        case .nominal: "nominal"
+        case .fair: "fair"
+        case .serious: "serious"
+        case .critical: "critical"
+        @unknown default: "unknown"
+        }
+    }
+
+    private static func batteryName(_ state: UIDevice.BatteryState) -> String {
+        switch state {
+        case .charging: "charging"
+        case .full: "full"
+        case .unplugged: "unplugged"
+        case .unknown: "unknown"
+        @unknown default: "unknown"
+        }
+    }
 
     private static func run(_ evalCase: EvalCase, model: LiteRTAngroveModel) async -> CaseResult {
         var transcript: [ChatBlock] = evalCase.turns.map { turn in

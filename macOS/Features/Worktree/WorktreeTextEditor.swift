@@ -65,6 +65,7 @@ struct WorktreeTextEditor: NSViewRepresentable {
         view.highlightsCommands = highlightsCommands
         view.reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         if view.string != text, !view.hasMarkedText() {
+            view.undoManager?.removeAllActions()
             view.string = text
             view.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
         }
@@ -112,6 +113,13 @@ struct WorktreeTextEditor: NSViewRepresentable {
     }
 
     final class Editor: NSTextView {
+        private let editingUndoManager: UndoManager = {
+            let manager = UndoManager()
+            manager.levelsOfUndo = 20
+            return manager
+        }()
+        override var undoManager: UndoManager? { editingUndoManager }
+
         var placeholder: String? { didSet { if placeholder != oldValue { needsDisplay = true } } }
         var placeholderAlignment: NSTextAlignment = .left
         var baseColor: NSColor = .textColor

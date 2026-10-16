@@ -33,6 +33,9 @@ struct AnimatedDotGridBackground: View, Animatable {
     var settledScale:  CGFloat
     var dragOffset:    CGSize = .zero
     var ripples:       [RippleTrigger] = []
+    /// The drifting blob field. Without it the dots rest invisible and show only in ripples,
+    /// and the grid stops redrawing while none are running.
+    var showsIdleField: Bool = true
 
     // Tells SwiftUI which values to interpolate during withAnimation.
     var animatableData: AnimatablePair<AnimatablePair<CGFloat, CGFloat>, CGFloat> {
@@ -81,7 +84,7 @@ struct AnimatedDotGridBackground: View, Animatable {
     var body: some View {
         // TimelineView drives the noise field at display refresh rate.
         // Animatable drives the camera interpolation at the same rate during springs.
-        TimelineView(.animation) { timeline in
+        TimelineView(.animation(minimumInterval: nil, paused: !showsIdleField && !hasLiveRipple)) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
             let eo = effectiveOffset
             let es = settledScale
@@ -151,14 +154,10 @@ struct AnimatedDotGridBackground: View, Animatable {
                             }
                         }
 
-                        let opacity = min(
-                            (Self.blobOpacity(
-                                worldX: Double(wx),
-                                worldY: Double(wy),
-                                time: t
-                            ) + boost) * opacityScale,
-                            0.85
-                        )
+                        let idle = showsIdleField
+                            ? Self.blobOpacity(worldX: Double(wx), worldY: Double(wy), time: t) : 0
+                        let opacity = min((idle + boost) * opacityScale, 0.85)
+                        guard opacity > 0.001 else { continue }
 
                         let rect = CGRect(
                             x: sx - dotRadius, y: sy - dotRadius,
@@ -172,6 +171,12 @@ struct AnimatedDotGridBackground: View, Animatable {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .allowsHitTesting(false)
+    }
+
+    /// Whether a ripple could still be running (the longest lasts about 4.5 seconds).
+    private var hasLiveRipple: Bool {
+        let now = Date().timeIntervalSinceReferenceDate
+        return ripples.contains { now - $0.startTime < 5 }
     }
 
     /// The drifting brightness field, in grid world units (16 per dot).

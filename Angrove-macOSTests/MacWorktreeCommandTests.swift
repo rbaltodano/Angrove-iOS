@@ -46,7 +46,22 @@ struct MacWorktreeCommandTests {
         let commands = WorktreeCommandParser.parse("/summarize /rename", requiresQuotes: true).commands
         #expect(commands == [.summarize, .label(nil)])
         #expect(commands.map(\.isObjectDependent) == [true, false])
-        #expect(WorktreeCommand.define("grace").isObjectDependent)
+        #expect(!WorktreeCommand.define("grace").isObjectDependent)
+        #expect(WorktreeCommand.define(nil).isObjectDependent)
+    }
+
+    @Test func headingTakesItsTextAndNeedsNoSelection() {
+        let commands = WorktreeCommandParser.parse("/heading The Early Church", requiresQuotes: true).commands
+        #expect(commands == [.heading("The Early Church")])
+        #expect(!commands[0].isObjectDependent)
+        #expect(WorktreeCommandParser.parse("/heading", requiresQuotes: true).commands == [.heading(nil)])
+    }
+
+    @Test func helpListsEveryCommandItRecognises() {
+        #expect(WorktreeCommandParser.parse("/help", requiresQuotes: true).commands == [.help])
+        for entry in WorktreeCommandGuide.entries {
+            #expect(WorktreeCommandParser.commandRanges(in: entry.name).count == 1)
+        }
     }
 
     @MainActor @Test func recognisedCommandsTurnGreen() {

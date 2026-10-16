@@ -4,16 +4,21 @@ import Foundation
 enum WorktreeCommand: Equatable {
     /// `/rename`: text after the command names the item; without it the model writes the label.
     case label(String?)
-    /// Makes an Insight card for the term; without one there is nothing to define.
+    /// Defines the typed term, or the selected material when no term follows.
     case define(String?)
     /// A brief summary of the selected object.
     case summarize
+    /// A 40pt heading of the text after it; without text there is nothing to set.
+    case heading(String?)
+    /// A card listing every command, each opening onto its explanation.
+    case help
 
     /// Object dependent: acts on the selected item, so it is invalid with nothing selected.
     var isObjectDependent: Bool {
         switch self {
-        case .define, .summarize: true
-        case .label: false
+        case .define(let term): term == nil
+        case .summarize: true
+        case .label, .heading, .help: false
         }
     }
 }
@@ -25,9 +30,9 @@ struct WorktreeInput: Equatable {
 }
 
 enum WorktreeCommandParser {
-    private static let names: Set<String> = ["/rename", "/define", "/summarize"]
+    private static let names: Set<String> = ["/rename", "/define", "/summarize", "/heading", "/help"]
     /// A recognised command word, standing alone between whitespace.
-    private static let token = try! NSRegularExpression(pattern: #"(?<![^\s])/(?:rename|define|summarize)(?![^\s])"#,
+    private static let token = try! NSRegularExpression(pattern: #"(?<![^\s])/(?:rename|define|summarize|heading|help)(?![^\s])"#,
                                                         options: [.caseInsensitive])
 
     /// Ranges of recognised command words, for highlighting.
@@ -61,6 +66,8 @@ enum WorktreeCommandParser {
             switch name {
             case "/define": input.commands.append(.define(value))
             case "/summarize": input.commands.append(.summarize)
+            case "/heading": input.commands.append(.heading(value))
+            case "/help": input.commands.append(.help)
             default: input.commands.append(.label(value)) // /rename
             }
         }
@@ -76,4 +83,21 @@ enum WorktreeCommandParser {
         flush()
         return input
     }
+}
+
+/// What `/help` lists, in order.
+enum WorktreeCommandGuide {
+    struct Entry: Identifiable {
+        let name: String
+        let explanation: String
+        var id: String { name }
+    }
+
+    static let entries: [Entry] = [
+        Entry(name: "/rename", explanation: String(localized: "Names what you hover or have selected (each, if several), or the whole Worktree when nothing is. The model writes the name, or type your own right after the command.")),
+        Entry(name: "/define", explanation: String(localized: "Defines the material you hover or select, or defines the term typed after the command in that material’s context. An existing Insight needs an explicit term. With a typed term, no selection is required.")),
+        Entry(name: "/summarize", explanation: String(localized: "Writes a brief summary of what you hover or have selected, read together, and places it beside it.")),
+        Entry(name: "/heading", explanation: String(localized: "Adds a heading from the hovered or selected material, or from text typed after the command. Existing headings cannot be headed again.")),
+        Entry(name: "/help", explanation: String(localized: "Shows this list. Commands can follow a question in quotation marks, and run in the order typed.")),
+    ]
 }

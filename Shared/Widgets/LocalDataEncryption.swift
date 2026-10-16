@@ -40,7 +40,7 @@ nonisolated struct LocalDataCipher {
     static let widget = LocalDataCipher { create in
         try LocalDataKeychain.key(
             service: "com.angrove.widget-data.v1",
-            accessGroup: "group.com.ryanbaltodano.Aquinas-iOS",
+            accessGroup: AngroveAppGroup.identifier,
             accessible: kSecAttrAccessibleAfterFirstUnlock,
             create: create
         )

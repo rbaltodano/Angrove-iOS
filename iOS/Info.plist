@@ -5,7 +5,7 @@
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>BAAppGroupID</key>
-	<string>group.com.ryanbaltodano.Aquinas-iOS</string>
+	<string>$(ANGROVE_APP_GROUP)</string>
 	<key>BAHasManagedAssetPacks</key>
 	<true/>
 	<key>BAUsesAppleHosting</key>

@@ -47,6 +47,16 @@ Collected from the [iOS] and [Shared] entries below.
   Dragging a window onto the sidebar saves a copy there (named by its label, or by the model);
   one that came from the sidebar asks whether to replace that conversation or keep both.
   Conversation windows fade out at their bottom edge instead of cutting off.
+  Worktrees now save: the page lists them as cards and opens each canvas. New `/heading`
+  command; headings and labels reveal word by word. The canvas has the dot grid, invisible at
+  rest, pulsing once on selection or completion, and an empty state. `/help` places an accordion card
+  of every command, replacing the Commands control. The + control is a menu (Note, Question,
+  Heading, Commands). Fixed fast-typed commands losing their Return. Dragged items snap to each other with
+  Figma-style alignment guides; headings are selectable. Commands act on the hovered item;
+  ⇧/⌘-click selects several. The + menu matches conversations (Insights, Passages, Photos, Image
+  File). Lone "/" or quotation marks fade away. Faster canvas rendering while panning.
+- **[Shared] `AnimatedDotGridBackground.showsIdleField`.** Defaults to the existing drifting field;
+  no iPhone behavior change.
 - **[Shared] `ModelTaskKind.labelWorktreeItem` / `.summarizeWorktreeItem` and
   `AngroveModel.summarize`.** Mac-only task kinds and a new `SUMMARIZE_SELECTION` prompt (plain
   prose, no structured output); no iPhone behavior change. Worktree content is not saved yet.

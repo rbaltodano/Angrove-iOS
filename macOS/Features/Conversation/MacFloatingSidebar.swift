@@ -138,10 +138,13 @@ private struct MacExpandedSidebar: View {
                 fade(from: .top)
             }
             .frame(maxHeight: .infinity, alignment: .top)
+            .opacity(scrollEdges.top ? 1 : 0)
+            .animation(.easeInOut(duration: 0.14), value: scrollEdges.top)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
             fade(from: .bottom)
                 .opacity(scrollEdges.bottom ? 1 : 0)
+                .animation(.easeInOut(duration: 0.28), value: scrollEdges.bottom)
             logo
                 .modifier(MacSidebarEntrance(isPresented: isPresented, delay: 0.15, duration: 0.32, offset: 24))
                 .padding(.horizontal, MacSidebarLayout.contentInset)
@@ -152,7 +155,6 @@ private struct MacExpandedSidebar: View {
                 .padding(.bottom, MacSidebarLayout.contentInset)
                 .modifier(MacSidebarEntrance(isPresented: isPresented, delay: 0.20))
         }
-        .animation(.easeInOut(duration: 0.28), value: scrollEdges)
         .background(MacCommandKeyObserver { commandHeld = $0 })
         .onChange(of: isPresented) { _, isPresented in
             if !isPresented { hoveredDestination = nil }

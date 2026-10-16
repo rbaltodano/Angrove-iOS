@@ -8,15 +8,35 @@ struct MacWorktreeView: View {
     static let canvasSpace = "WorktreeCanvas"
     let board: WorktreeBoard
     let queuePopup: ModelTasksPopupState
+    /// Saves the board; called shortly after each change and when leaving.
+    var onSave: () -> Void = {}
     @State private var camera = CanvasScrollTransform(scale: 1, offset: .zero)
     @GestureState private var drag: CGSize = .zero
     @State private var pinchStart: CanvasScrollTransform?
     @State private var viewport: CGSize = .zero
-    /// The pointer over the canvas; typing starts 16pt to its right.
-    @State private var pointer: CGPoint?
+    /// The pointer over the canvas; typing starts 16pt to its right. Held outside SwiftUI state:
+    /// it is only read on a keypress, so mouse movement never re-renders the canvas.
+    @State private var pointerBox = WorktreePointer()
+    @State private var picker: WorktreePicker?
+    @State private var showsTrash = false
+    @State private var showsPhotoPicker = false
+    @State private var pendingPhotos: [WorktreePhotoAsset] = []
+    @State private var photoLoadID = UUID()
+    @State private var showsFilePicker = false
+    /// Where "+" menu choices land: the middle of the view when the menu opened.
+    @State private var placementOrigin = CGPoint.zero
+    private var pointer: CGPoint? { pointerBox.location }
     private static let zoomLimits: ClosedRange<CGFloat> = 0.28...2.6
-    @State private var showsCommands = false
-    private let runtime = MacApplicationRuntime.shared
+    var runtime = MacApplicationRuntime.shared
+
+    init(board: WorktreeBoard, queuePopup: ModelTasksPopupState,
+         onSave: @escaping () -> Void = {}, runtime: MacApplicationRuntime = .shared) {
+        self.board = board
+        self.queuePopup = queuePopup
+        self.onSave = onSave
+        self.runtime = runtime
+        _camera = State(initialValue: board.viewport.transform)
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -26,33 +46,89 @@ struct MacWorktreeView: View {
                     .contentShape(Rectangle())
                     .gesture(panGesture)
                     .onTapGesture(coordinateSpace: .local) { location in tapCanvas(at: location, in: size) }
-                ForEach(board.items) { item in
-                    let point = screenPoint(item.origin, in: size)
-                    WorktreeItemView(board: board, item: item, scale: camera.scale, runtime: runtime)
-                        .fixedSize()
-                        .scaleEffect(camera.scale, anchor: .topLeading)
-                        .offset(x: point.x, y: point.y)
-                        .zIndex(board.activeID == item.id ? 1 : 0)
+                // The Insight Tree's dots, resting invisible: they only pulse once when something
+                // is selected or finishes.
+                AnimatedDotGridBackground(settledOffset: camera.offset, settledScale: camera.scale,
+                                          dragOffset: drag, ripples: board.ripples, showsIdleField: false)
+                    .frame(width: size.width, height: size.height)
+                if board.items.isEmpty && !board.isCommandOpen {
+                    AngroveEmptyState(systemImage: MacIcon.worktree.symbol, title: "A blank canvas",
+                        message: "Start typing anywhere to add a note. Open with a quotation mark and press Enter to ask a question. Type /help for a list of commands.")
+                        .frame(width: size.width, height: size.height)
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
                 }
-                if let origin = board.commandOrigin {
-                    let point = screenPoint(origin, in: size)
-                    WorktreeCommandField(board: board, runtime: runtime)
-                        .scaleEffect(camera.scale, anchor: .topLeading)
-                        .offset(x: point.x, y: point.y)
-                        .zIndex(2)
-                        .transition(.blurFade)
+                // One world layer moved by the camera: panning changes only this layer's transform,
+                // so item views aren't recomputed per frame.
+                ZStack(alignment: .topLeading) {
+                    ForEach(board.items) { item in
+                        WorktreeItemView(board: board, item: item, scale: camera.scale, runtime: runtime)
+                            .equatable()
+                            .fixedSize()
+                            .offset(x: item.origin.x, y: item.origin.y)
+                            .zIndex(board.selection.contains(item.id) ? 1 : 0)
+                            .transition(.blurFade)
+                    }
+                    if let origin = board.commandOrigin {
+                        WorktreeCommandField(board: board, runtime: runtime)
+                            .offset(x: origin.x, y: origin.y)
+                            .zIndex(2)
+                            .transition(.blurFade)
+                    }
+                }
+                .frame(width: 0, height: 0, alignment: .topLeading)
+                .scaleEffect(camera.scale, anchor: .topLeading)
+                .offset(x: size.width / 2 + camera.offset.width + drag.width,
+                        y: size.height / 2 + camera.offset.height + drag.height)
+                ForEach(board.guides) { guide in
+                    let from = screenPoint(guide.axis == .vertical ? CGPoint(x: guide.position, y: guide.start)
+                                                                   : CGPoint(x: guide.start, y: guide.position), in: size)
+                    let to = screenPoint(guide.axis == .vertical ? CGPoint(x: guide.position, y: guide.end)
+                                                                 : CGPoint(x: guide.end, y: guide.position), in: size)
+                    WorktreeGuideLine(axis: guide.axis)
+                        .frame(width: guide.axis == .vertical ? 1 : to.x - from.x,
+                               height: guide.axis == .vertical ? to.y - from.y : 1)
+                        .position(x: (from.x + to.x) / 2, y: (from.y + to.y) / 2)
+                        .transition(.asymmetric(insertion: .modifier(active: WorktreeGuideDraw(axis: guide.axis, progress: 0),
+                                                                     identity: WorktreeGuideDraw(axis: guide.axis, progress: 1)),
+                                                removal: .opacity))
+                        .zIndex(3)
+                        .allowsHitTesting(false)
                 }
                 MacCanvasScrollInput { delta, flags, anchor in
                     camera.apply(delta: delta, command: flags.contains(.command), shift: flags.contains(.shift),
                                  anchor: anchor, viewport: size)
                 }
+                if let photo = pendingPhotos.first {
+                    WorktreePhotoPlacement(asset: photo, onPlace: { location in
+                        board.placePhoto(photo.file, size: photo.placedSize, at: worldPoint(location, in: size))
+                        pendingPhotos.removeFirst()
+                    }, onPan: { delta in
+                        camera.offset.width += delta.width
+                        camera.offset.height += delta.height
+                    })
+                    .id(photo.id)
+                    .frame(width: size.width, height: size.height)
+                    .zIndex(10)
+                }
             }
             .coordinateSpace(name: Self.canvasSpace)
             .onContinuousHover(coordinateSpace: .local) { phase in
-                if case .active(let location) = phase { pointer = location } else { pointer = nil }
+                if case .active(let location) = phase { pointerBox.location = location } else { pointerBox.location = nil }
             }
             .simultaneousGesture(pinchGesture(in: size))
             .dropDestination(for: String.self) { payloads, location in
+                let restored = payloads.compactMap { WorktreeTrashDrop.itemID(in: $0, boardID: board.documentID) }
+                if !restored.isEmpty {
+                    var didRestore = false
+                    withAnimation(.springStandard) {
+                        for (offset, id) in restored.enumerated() {
+                            let point = CGPoint(x: location.x + CGFloat(offset) * 24, y: location.y + CGFloat(offset) * 24)
+                            didRestore = board.restoreFromTrash(id, at: worldPoint(point, in: size)) || didRestore
+                        }
+                    }
+                    return didRestore
+                }
                 let ids = payloads.compactMap(WorktreeConversationDrop.conversationID(in:))
                 guard !ids.isEmpty else { return false }
                 for (offset, id) in ids.enumerated() {
@@ -94,32 +170,45 @@ struct MacWorktreeView: View {
                 if queuePopup.isOpen {
                     ModelTasksCard(modelTasks: runtime.modelTasks, popupState: queuePopup)
                         .transition(.bottomDockCard)
-                } else if showsCommands {
-                    WorktreeCommandsCard()
-                        .transition(.scale(scale: 0.96, anchor: .bottom).combined(with: .opacity))
                 }
-                WorktreeControlDock(board: board, modelTasks: runtime.modelTasks, showsCommands: showsCommands,
+                if showsTrash {
+                    WorktreeTrashCard(board: board)
+                        .transition(.bottomDockCard)
+                }
+                WorktreeControlDock(board: board, modelTasks: runtime.modelTasks, addEntries: addEntries,
                     toggleModelTasks: {
-                        withAnimation(.springStandard) {
-                            queuePopup.isOpen.toggle()
-                            if queuePopup.isOpen { showsCommands = false }
-                        }
-                    }) {
-                    withAnimation(.springStandard) {
-                        showsCommands.toggle()
-                        if showsCommands { queuePopup.isOpen = false }
-                    }
-                }
+                        withAnimation(.springStandard) { showsTrash = false; queuePopup.isOpen.toggle() }
+                    }, toggleTrash: {
+                        withAnimation(.springStandard) { queuePopup.isOpen = false; showsTrash.toggle() }
+                    })
             }
             .padding(24)
         }
-        .background(WorktreeKeyShortcuts(onCharacters: typeOnCanvas, onEscape: escape, onZoom: zoom, onSlash: openCommand))
-        .onDisappear { board.endEditing() }
+        .background(WorktreeKeyShortcuts(onCharacters: typeOnCanvas, onEditKey: editPendingField, onEscape: escape, onZoom: zoom, onSlash: openCommand, onUndo: { board.undo() }, onRedo: { board.redo() }))
+        .onChange(of: camera.scale) { _, _ in rememberViewport() }
+        .onChange(of: camera.offset) { _, _ in rememberViewport() }
+        .onDisappear {
+            photoLoadID = UUID()
+            pendingPhotos = []
+            rememberViewport(); board.endEditing(); onSave()
+        }
+        .modifier(MacAttachmentPickers(showsFiles: $showsFilePicker, showsPhotos: $showsPhotoPicker) { files in
+            preparePhotos(files)
+        })
+        .sheet(item: $picker) { kind in
+            WorktreePickerSheet(kind: kind) { concept in
+                picker = nil
+                board.addInsight(concept, at: placementOrigin)
+            } onCancel: { picker = nil }
+        }
+        .background(WorktreeAutosave(board: board, onSave: onSave))
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in rememberViewport(); onSave() }
+        .animation(.easeOut(duration: 0.3), value: board.items.isEmpty)
         .alert("Replace Conversation?", isPresented: Binding(get: { board.pendingReplacement != nil },
                                                              set: { if !$0 { board.pendingReplacement = nil } }),
                presenting: board.pendingReplacement) { replacement in
             Button("Replace") { board.replaceOriginal(with: replacement.id) }
-            Button("Keep Both") { board.saveCopy(of: replacement.id, runtime: runtime) }
+            Button("Keep Both") { board.saveCopy(of: replacement.id, runtime: runtime, keepingBoth: true) }
             Button("Cancel", role: .cancel) {}
         } message: { replacement in
             Text("Replace “\(replacement.title)” in the sidebar with this window’s version, or keep both?")
@@ -127,6 +216,29 @@ struct MacWorktreeView: View {
         .alert("Angrove", isPresented: Binding(get: { board.errorMessage != nil }, set: { if !$0 { board.errorMessage = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(board.errorMessage ?? "") }
+    }
+
+    private func preparePhotos(_ files: [UploadedFile]) {
+        let request = UUID()
+        photoLoadID = request
+        board.endEditing()
+        board.closeCommand()
+        queuePopup.isOpen = false
+        Task { @MainActor in
+            let photos = await Task.detached(priority: .userInitiated) {
+                files.compactMap { file -> WorktreePhotoAsset? in
+                    guard let data = file.imageData, let image = NSImage(data: data), image.isValid else { return nil }
+                    let upright = UploadedFile(id: file.id, name: file.name, imageData: data, rotationDegrees: 0)
+                    return WorktreePhotoAsset(file: upright, image: image)
+                }
+            }.value
+            guard photoLoadID == request else { return }
+            pendingPhotos = photos
+        }
+    }
+
+    private func rememberViewport() {
+        board.viewport = WorktreeViewport(scale: camera.scale, offset: camera.offset)
     }
 
     private var panGesture: some Gesture {
@@ -150,7 +262,6 @@ struct MacWorktreeView: View {
     }
 
     private func tapCanvas(at location: CGPoint, in size: CGSize) {
-        dismissCommands()
         if queuePopup.isOpen { withAnimation(.springStandard) { queuePopup.isOpen = false } }
         board.select(nil)
         board.endEditing()
@@ -166,6 +277,7 @@ struct MacWorktreeView: View {
     /// Typing on the canvas starts a text field beside the pointer, holding what was typed.
     /// Keys that arrive before the new field takes focus are added to it.
     private func typeOnCanvas(_ characters: String) -> Bool {
+        guard pendingPhotos.isEmpty else { return true }
         // A command field just opened by "/" takes focus a moment later; keys typed meanwhile
         // belong to it, not to new canvas text (which would deselect and close it).
         if board.isCommandOpen, board.editingID == board.commandFieldID, !board.isCommandStruck {
@@ -212,52 +324,99 @@ struct MacWorktreeView: View {
                                                                height: centered.y - (centered.y - start.offset.height) * ratio))
     }
 
+    /// Return, Delete and Escape typed into a field that hasn't taken focus yet (just opened by
+    /// "/" or by typing) act on it, so fast typing never loses the keystroke that submits.
+    private func editPendingField(_ key: WorktreeKeyShortcuts.EditKey) -> Bool {
+        if board.isCommandOpen, board.editingID == board.commandFieldID, !board.isCommandStruck {
+            switch key {
+            case .submit: board.submitCommand(runtime: runtime)
+            case .delete:
+                board.commandText.removeLast()
+                if board.commandText.isEmpty { board.closeCommand() }
+            case .cancel: board.closeCommand()
+            }
+            return true
+        }
+        guard let id = board.editingID, let item = board.items.first(where: { $0.id == id }),
+              !item.isQuestion, !item.isInsight else { return false }
+        switch key {
+        case .submit: item.isHeading ? board.endEditing() : board.commit(id, runtime: runtime)
+        case .delete: board.update(id) { if !$0.text.isEmpty { $0.text.removeLast() } }
+        case .cancel: board.endEditing()
+        }
+        return true
+    }
+
     /// Escape closes a card first, then deselects. Returns whether it was used.
     private func escape() -> Bool {
+        if showsTrash { withAnimation(.springStandard) { showsTrash = false }; return true }
+        if !pendingPhotos.isEmpty { pendingPhotos = []; photoLoadID = UUID(); return true }
         if queuePopup.isOpen { withAnimation(.springStandard) { queuePopup.isOpen = false }; return true }
-        if showsCommands { dismissCommands(); return true }
-        if board.activeID != nil { board.select(nil); return true }
+        if !board.selection.isEmpty { board.select(nil); return true }
         return false
     }
 
-    /// "/" with an item selected opens beside it, even from another text field. With nothing
-    /// selected it starts beside the pointer, acting on the whole Worktree, when not typing.
+    /// The "+" menu: each starts something in the middle of the view.
+    /// The "+" menu matches a conversation's: Insights and Passages place cards, Photos and
+    /// Image File place pictures, all in the middle of the view.
+    private func addEntries() -> [MacMenuEntry] {
+        placementOrigin = worldPoint(CGPoint(x: viewport.width / 2 - 160, y: viewport.height / 2 - 80), in: viewport)
+        return [
+            MacMenuEntry("Insights", symbol: "text.bubble") { picker = .insights },
+            MacMenuEntry("Passages", symbol: "books.vertical") { picker = .passages },
+            .divider,
+            MacMenuEntry("Photos…", symbol: "photo.on.rectangle") { showsPhotoPicker = true },
+            MacMenuEntry("Image File…", symbol: "doc") { showsFilePicker = true },
+        ]
+    }
+
+    /// "/" with a selection opens beside it, even from another text field. Otherwise, when not
+    /// typing, it opens beside the hovered item, or by the pointer for the whole Worktree.
     private func openCommand(fromTextField: Bool) -> Bool {
-        if board.activeID != nil { return board.editingID == board.commandFieldID ? false : board.openCommand() }
+        guard pendingPhotos.isEmpty else { return true }
+        if board.editingID == board.commandFieldID { return false }
+        if !board.commandSelection.isEmpty { return board.openCommand() }
         guard !fromTextField else { return false }
         return board.openCommand(freeOrigin: typingOrigin)
     }
 
-    private func dismissCommands() {
-        guard showsCommands else { return }
-        withAnimation(.springStandard) { showsCommands = false }
-    }
 }
 
 /// Canvas keys, ignored while text is being edited anywhere in the window (except "/" with a
 /// selection): typed characters start text, Escape deselects, ⌘= / ⌘− / ⌘0 zoom.
 private struct WorktreeKeyShortcuts: NSViewRepresentable {
     enum Zoom { case `in`, out, reset }
+    enum EditKey { case submit, delete, cancel }
     let onCharacters: (String) -> Bool
+    let onEditKey: (EditKey) -> Bool
     let onEscape: () -> Bool
     let onZoom: (Zoom) -> Void
     /// "/" opens the selected item's command field; returns whether something was selected.
     let onSlash: (_ fromTextField: Bool) -> Bool
 
+    let onUndo: () -> Void
+    let onRedo: () -> Void
+
     func makeNSView(context: Context) -> Monitor { Monitor() }
     func updateNSView(_ view: Monitor, context: Context) {
         view.onCharacters = onCharacters
+        view.onEditKey = onEditKey
         view.onEscape = onEscape
         view.onZoom = onZoom
         view.onSlash = onSlash
+        view.onUndo = onUndo
+        view.onRedo = onRedo
     }
     static func dismantleNSView(_ view: Monitor, coordinator: ()) { view.stop() }
 
     final class Monitor: NSView {
         var onCharacters: ((String) -> Bool)?
+        var onEditKey: ((EditKey) -> Bool)?
         var onEscape: (() -> Bool)?
         var onZoom: ((Zoom) -> Void)?
         var onSlash: ((Bool) -> Bool)?
+        var onUndo: (() -> Void)?
+        var onRedo: (() -> Void)?
         private var monitor: Any?
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
@@ -273,6 +432,13 @@ private struct WorktreeKeyShortcuts: NSViewRepresentable {
                 if key == "/", modifiers.isEmpty, !event.isARepeat {
                     return self.onSlash?(isTyping) == true ? nil : event
                 }
+                if modifiers == .command, key == "z" {
+                    let redo = event.modifierFlags.contains(.shift)
+                    if isTyping, let manager = self.window?.firstResponder?.undoManager,
+                       redo ? manager.canRedo : manager.canUndo { return event }
+                    if redo { self.onRedo?() } else { self.onUndo?() }
+                    return nil
+                }
                 guard !isTyping else { return event }
                 let zoom: Zoom? = switch key {
                 case "=", "+": .in
@@ -285,6 +451,13 @@ private struct WorktreeKeyShortcuts: NSViewRepresentable {
                     return nil
                 }
                 guard modifiers.isEmpty else { return event }
+                let editKey: EditKey? = switch event.keyCode {
+                case 36, 76: .submit
+                case 51: .delete
+                case 53: .cancel
+                default: nil
+                }
+                if let editKey, self.onEditKey?(editKey) == true { return nil }
                 if event.keyCode == 53 { return self.onEscape?() == true ? nil : event }
                 // Printable text only: no control, arrow or function keys.
                 guard let characters = event.characters, !characters.isEmpty,
@@ -300,42 +473,38 @@ private struct WorktreeKeyShortcuts: NSViewRepresentable {
     }
 }
 
-/// The Worktree's model controls: add, Model Tasks, Commands and Trash.
+/// The Worktree's model controls: add, Model Tasks and Trash. Commands are listed by `/help`.
 private struct WorktreeControlDock: View {
     let board: WorktreeBoard
     let modelTasks: ModelTaskQueue
-    let showsCommands: Bool
+    let addEntries: () -> [MacMenuEntry]
     let toggleModelTasks: () -> Void
-    let toggleCommands: () -> Void
+    let toggleTrash: () -> Void
     @State private var isPressed = false
     private var isTrashTargeted: Bool { board.trashTargetID != nil }
 
     var body: some View {
         HStack(spacing: 24) {
-            Button {} label: {
+            MacActionMenu(entries: addEntries) {
                 icon("WorktreePlus", width: 10, height: 10)
                     .foregroundStyle(AngroveTheme.Colors.lightGreen)
+                    .frame(width: 21, height: 21)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(FloatingControlButtonStyle(isPressed: $isPressed))
             .accessibilityLabel("Add")
             .modelControlHoverLabel("Add")
 
             ModelStatusButton(modelTasks: modelTasks, action: toggleModelTasks, controlIsPressed: $isPressed)
 
-            Button(action: toggleCommands) {
-                label("Commands", icon: icon("WorktreeCommand", width: 12, height: 12))
-                    .foregroundStyle(showsCommands ? AngroveTheme.Colors.lightGreen : AngroveTheme.Colors.paragraphText)
-            }
-            .accessibilityAddTraits(showsCommands ? .isSelected : [])
-            .modelControlHoverLabel(showsCommands ? "Hide Commands" : "Show Commands")
-
-            Button {} label: {
+            Button(action: toggleTrash) {
                 label("Trash", icon: icon("WorktreeTrash", width: 10, height: 12))
                     .foregroundStyle(isTrashTargeted ? AngroveTheme.Colors.accentRed : AngroveTheme.Colors.paragraphText)
                     .scaleEffect(isTrashTargeted ? 1.12 : 1)
                     .animation(.springLively, value: isTrashTargeted)
             }
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { board.trashFrame = $0 }
-            .accessibilityHint("Drag text here to delete it")
+            .accessibilityHint("Open recently deleted items, or drag an item here to delete it")
             .modelControlHoverLabel("Trash")
         }
         .buttonStyle(FloatingControlButtonStyle(isPressed: $isPressed))
@@ -367,59 +536,96 @@ private struct WorktreeControlDock: View {
     }
 }
 
-/// Getting-started help opened from Commands.
-private struct WorktreeCommandsCard: View {
-    private static let paragraph = BrandTypography.font("Figtree-Regular", size: 14)
-    private static let emphasis = BrandTypography.font("Figtree-Bold", size: 14)
-    /// Figtree 14 at the design's 2× line height.
-    private static let lineSpacing: CGFloat = 14
+/// An accent-green alignment guide, faded over its first and last quarter.
+private struct WorktreeGuideLine: View {
+    let axis: WorktreeGuide.Axis
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 28) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Getting Started with \(Text("Worktrees").font(BrandTypography.font("LibreBaskerville-Italic", size: 18)).foregroundStyle(AngroveTheme.Colors.lightGreen))")
-                    .font(BrandTypography.font("LibreBaskerville-Regular", size: 18))
-                    .foregroundStyle(AngroveTheme.Colors.headingText)
-                Text("Scratchpad is a space to explore ideas in a more open space. The main way to interact is with commands, to use commands on a specific element, click it to \(highlight("Select"))")
+        let green = AngroveTheme.Colors.lightGreen
+        // Held at 25% so guides stay quiet.
+        Rectangle().fill(LinearGradient(stops: [
+            .init(color: green.opacity(0), location: 0), .init(color: green, location: 0.25),
+            .init(color: green, location: 0.75), .init(color: green.opacity(0), location: 1)
+        ], startPoint: axis == .vertical ? .top : .leading, endPoint: axis == .vertical ? .bottom : .trailing))
+            .opacity(0.25)
+    }
+}
+
+/// A guide draws itself from its centre outward.
+private struct WorktreeGuideDraw: ViewModifier {
+    let axis: WorktreeGuide.Axis
+    let progress: CGFloat
+
+    func body(content: Content) -> some View {
+        content.scaleEffect(x: axis == .horizontal ? progress : 1, y: axis == .vertical ? progress : 1, anchor: .center)
+    }
+}
+
+/// Not observed: see `MacWorktreeView.pointerBox`.
+private final class WorktreePointer {
+    var location: CGPoint?
+}
+
+/// Saves about a second after the board's saved content changes. Kept apart from the canvas so
+/// panning and zooming never recompute the board's fingerprint.
+private struct WorktreeAutosave: View {
+    private struct SaveKey: Equatable {
+        let content: Int
+        let viewport: WorktreeViewport
+    }
+    let board: WorktreeBoard
+    let onSave: () -> Void
+
+    var body: some View {
+        Color.clear
+            .task(id: SaveKey(content: board.saveSignature, viewport: board.viewport)) {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { return }
+                onSave()
+            }
+    }
+}
+
+enum WorktreePicker: String, Identifiable {
+    case insights, passages
+    var id: String { rawValue }
+}
+
+/// Choose a saved Insight or clipped passage to place on the canvas as a card.
+private struct WorktreePickerSheet: View {
+    let kind: WorktreePicker
+    let onPick: (ConceptDefinition) -> Void
+    let onCancel: () -> Void
+
+    private var concepts: [ConceptDefinition] {
+        kind == .insights ? InsightLibraryStore.load() : ClippedPassageStore.load()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            MacPageHeading(title: kind == .insights ? "Insights" : "Clipped Passages")
+            let concepts = concepts
+            if concepts.isEmpty {
+                Text(kind == .insights ? "No saved Insights yet." : "No clipped passages yet.")
+                    .font(AngroveTheme.Typography.body)
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(concepts) { concept in
+                            Button(concept.isLibraryQuote ? concept.word : concept.word.capitalized) { onPick(concept) }
+                                .buttonStyle(.plain)
+                                .font(AngroveTheme.Typography.body)
+                                .foregroundStyle(AngroveTheme.Colors.lightGreen)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
-
-            VStack(alignment: .leading, spacing: 4) {
-                heading("Ask a question:")
-                Text("To ask a question, start typing anywhere, open your question with quotation marks, and press \(highlight("Enter")) to submit.")
-                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
-            }
-
-            VStack(alignment: .leading, spacing: 16) {
-                heading("Useful commands:")
-                command("/rename", "Will generate a label for whatever you have selected. If you want to label manually, type it right after this command.")
-                command("/summarize", "Will generate a brief summary of the selected object")
-                command("/define", "Will generate an Insight card of whatever is being selected. If you want to define a specific term, type the term right after this command.")
-            }
-
-            Text("Commands can be strung together, the model will complete them in the order that they have been typed.")
-                .foregroundStyle(AngroveTheme.Colors.paragraphText)
+            Button("Cancel", role: .cancel, action: onCancel)
         }
-        .font(Self.paragraph)
-        .lineSpacing(Self.lineSpacing)
-        .fixedSize(horizontal: false, vertical: true)
         .padding(28)
-        .frame(width: 500, alignment: .leading)
-        .background(AngroveTheme.Colors.canvasSecondary, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).stroke(AngroveTheme.Colors.popupBorder, lineWidth: 1))
-    }
-
-    private func highlight(_ text: LocalizedStringKey) -> Text {
-        Text(text).font(Self.emphasis).foregroundStyle(AngroveTheme.Colors.lightGreen)
-    }
-
-    private func heading(_ text: LocalizedStringKey) -> some View {
-        Text(text).font(Self.emphasis).foregroundStyle(AngroveTheme.Colors.headingText)
-    }
-
-    private func command(_ name: String, _ detail: LocalizedStringKey) -> some View {
-        Text("\(Text(verbatim: name).font(Self.emphasis).foregroundStyle(AngroveTheme.Colors.lightGreen)) \(Text(detail))")
-            .foregroundStyle(AngroveTheme.Colors.headingText)
-            .padding(.leading, 16)
+        .frame(width: 380, height: 420)
+        .background(AngroveTheme.Colors.canvas)
     }
 }
