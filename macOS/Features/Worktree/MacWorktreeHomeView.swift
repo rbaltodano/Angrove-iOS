@@ -12,7 +12,7 @@ struct MacWorktreeHomeView: View {
             MacWorktreeView(board: board, queuePopup: queuePopup, onSave: { library.save(board) })
                 .id(board.documentID)
                 .overlay(alignment: .topLeading) {
-                    MacBackCapsule(title: String(localized: "Worktrees"), leavesOnEscape: false) {
+                    MacBackCapsule(title: String(localized: "Boards"), leavesOnEscape: false) {
                         withAnimation(reduceMotion ? nil : .springStandard) { library.close() }
                     }
                 }
@@ -26,15 +26,15 @@ struct MacWorktreeHomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: AngroveTheme.Spacing.cardPadding) {
                 HStack(alignment: .firstTextBaseline) {
-                    MacPageHeading(title: "Worktrees", font: MacPageHeading.pageFont)
+                    MacPageHeading(title: "Boards", font: MacPageHeading.pageFont)
                     Spacer()
-                    Button("New Worktree", systemImage: "plus", action: create)
+                    Button("New Board", systemImage: "plus", action: create)
                         .keyboardShortcut("n", modifiers: [.command, .shift])
-                        .help("New Worktree (⇧⌘N)")
+                        .help("New Board (⇧⌘N)")
                 }
                 if library.documents.isEmpty {
-                    AngroveEmptyState(systemImage: MacIcon.worktree.symbol, title: "Worktrees will gather here",
-                        message: "A Worktree is an open canvas for notes, questions and commands. Make one to begin.")
+                    AngroveEmptyState(systemImage: MacIcon.worktree.symbol, title: "Boards will gather here",
+                        message: "A Board is an open canvas for notes, questions and commands. Make one to begin.")
                         .padding(.top, 48)
                 } else {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 20, alignment: .top)], spacing: 20) {
@@ -53,7 +53,7 @@ struct MacWorktreeHomeView: View {
             .frame(maxWidth: .infinity)
         }
         .background(AngroveTheme.Colors.canvas)
-        .alert("Delete Worktree?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })) {
+        .alert("Delete Board?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })) {
             Button("Cancel", role: .cancel) { pendingDelete = nil }
             Button("Delete", role: .destructive) {
                 if let document = pendingDelete { withAnimation(.springStandard) { library.delete(document.id) } }
@@ -107,7 +107,7 @@ private struct WorktreeCard: View {
                         .frame(width: 22, height: 22)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Worktree options")
+                .accessibilityLabel("Board options")
             }
             Text(summary)
                 .font(.custom("Figtree-Regular", size: 14))

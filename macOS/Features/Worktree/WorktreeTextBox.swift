@@ -84,20 +84,18 @@ struct WorktreeBoxChrome: View {
     private var color: Color { AngroveTheme.Colors.lightGreen.opacity(0.5) }
 
     var body: some View {
+        let isPressed = press.point != nil
         ZStack(alignment: .topLeading) {
-            ZStack(alignment: .topLeading) {
-                Rectangle().strokeBorder(color, lineWidth: 1 / zoom)
-                ForEach(Self.corners, id: \.self) { corner in
-                    Rectangle()
-                        .fill(AngroveTheme.Colors.canvas)
-                        .overlay(Rectangle().strokeBorder(color, lineWidth: 1 / zoom))
-                        .frame(width: Self.square / zoom, height: Self.square / zoom)
-                        .position(corner.point(in: size))
-                }
-            }
-            .mask(alignment: .topLeading) { reveal }
-            .opacity(isVisible || press.point != nil ? 1 : 0)
-            .animation(.easeOut(duration: 0.15), value: isVisible || press.point != nil)
+            // Near the pointer: just the part of the box inside its spotlight.
+            outline
+                .mask(alignment: .topLeading) { reveal }
+                .opacity(isVisible && !isPressed ? 1 : 0)
+                .animation(isPressed ? .easeInOut(duration: 0.5) : .easeOut(duration: 0.15), value: isVisible && !isPressed)
+            // Pressed to resize: the whole box fades up slowly, over half a second, as the
+            // spotlight hands over to it (so the spotlit part never doubles up).
+            outline
+                .opacity(isPressed ? 1 : 0)
+                .animation(.easeInOut(duration: isPressed ? 0.5 : 0.3), value: isPressed)
             illumination
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
@@ -105,10 +103,23 @@ struct WorktreeBoxChrome: View {
         .accessibilityHidden(true)
     }
 
-    /// A circle of `revealDistance` screen points around the pointer; the whole box while resizing
-    /// or when no pointer is near.
+    private var outline: some View {
+        ZStack(alignment: .topLeading) {
+            Rectangle().strokeBorder(color, lineWidth: 1 / zoom)
+            ForEach(Self.corners, id: \.self) { corner in
+                Rectangle()
+                    .fill(AngroveTheme.Colors.canvas)
+                    .overlay(Rectangle().strokeBorder(color, lineWidth: 1 / zoom))
+                    .frame(width: Self.square / zoom, height: Self.square / zoom)
+                    .position(corner.point(in: size))
+            }
+        }
+    }
+
+    /// A circle of `revealDistance` screen points around the pointer, or the whole box when no
+    /// pointer is near.
     @ViewBuilder private var reveal: some View {
-        if let spotlight, press.point == nil {
+        if let spotlight {
             let radius = WorktreeTextBoxResize.revealDistance / zoom
             // Full strength to 24 screen points, then a 24-point soft edge out to the 48-point rim.
             let solid = (WorktreeTextBoxResize.revealDistance - WorktreeTextBoxResize.spotlightFeather)

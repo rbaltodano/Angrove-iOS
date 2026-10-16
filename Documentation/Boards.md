@@ -1,10 +1,14 @@
-# Worktree (macOS)
+# Boards (macOS)
+
+Called Boards everywhere a person sees them. In code the feature keeps its original name:
+`Worktree*` types, `macOS/Features/Worktree/`, `MacDestination.worktree`, and the
+`angrove.worktrees.v1` store, so saved Boards still open.
 
 A free-form canvas page for exploring ideas with notes, questions, headings, photos and commands.
 Mac only, opened from the sidebar (`MacDestination.worktree`). Code lives in
 `macOS/Features/Worktree/`.
 
-The page opens on saved Worktrees shown as cards (`MacWorktreeHomeView`); a card opens its
+The page opens on saved Boards shown as cards (`MacWorktreeHomeView`); a card opens its
 canvas. `WorktreeLibrary` holds the saved documents and the open `WorktreeBoard`. Boards save about
 a second after each change, when leaving, and at quit, to the encrypted file-backed personal store
 (`WorktreeStore`, under `Aquinas/Worktree`). Model work still in progress is not saved.
@@ -17,7 +21,7 @@ short commands, shortcuts, clicking a tool, or dragging — and it should just w
 | File | Owns |
 | --- | --- |
 | `WorktreeLibrary.swift` | Saved documents (`WorktreeDocument`), the store, and the open board |
-| `MacWorktreeHomeView.swift` | The page: Worktree cards, empty state, New Worktree, opening and closing |
+| `MacWorktreeHomeView.swift` | The page: Board cards, empty state, New Board, opening and closing |
 | `MacWorktreeView.swift` | One canvas: camera (pan, pinch, ⌘-scroll, ⌘= / ⌘− with nothing to resize, ⌘0), title, docked cards, placement, tool actions |
 | `WorktreeKeyShortcuts.swift` | The canvas key monitor: typing, `/`, tool shortcuts, ⌘+ / ⌘− resize, zoom, undo, fast-typing keys |
 | `WorktreeControlDock.swift` | The controls pill: Add, Tools, Model Tasks, Trash |
@@ -55,7 +59,7 @@ short commands, shortcuts, clicking a tool, or dragging — and it should just w
   tool (`WorktreePanSurface`): an open hand over everything, closing while you drag to pan. Clicks
   never reach items while it is held. Releasing Space, leaving the window or the page lets go. A
   just-opened field that has not taken focus yet still gets the space as text.
-- **Place:** each Worktree remembers its pan and zoom across page changes and launches.
+- **Place:** each Board remembers its pan and zoom across page changes and launches.
 
 ## Questions and windows
 
@@ -71,7 +75,7 @@ browser-style resizing (sides, bottom, bottom corners) and drag by the grip or t
 ## Commands
 
 Typing `/` opens a command field 32pt right of what it acts on: the hovered item (hovering within
-a multi-selection keeps the group), else the selection, else (by the pointer) the whole Worktree.
+a multi-selection keeps the group), else the selection, else (by the pointer) the whole Board.
 With something selected, `/` opens even from another text field. `/rename` names each target;
 `/define` and `/summarize` read them together. A lone `/` (or a lone quotation mark in a note) left
 for three seconds fades away. Recognised commands turn green with the composer's sweep. Commands
@@ -80,13 +84,13 @@ can follow a question (`"…" /rename /summarize`) and queue behind its answer.
 | Command | Short | Needs a target | Does |
 | --- | --- | --- | --- |
 | `/heading [Text]` | `/h` | Only without text | Adds a heading from the target or the supplied text; an existing heading cannot be targeted. |
-| `/rename [Text]` | `/r` | No | Labels the target with the conversation-title prompt, or sets the typed label. With nothing targeted it names the Worktree. |
+| `/rename [Text]` | `/r` | No | Labels the target with the conversation-title prompt, or sets the typed label. With nothing targeted it names the Board. |
 | `/summarize` | `/s` | Yes | Writes a brief summary (`AngroveModel.summarize`) beside the target as an editable note. |
 | `/define [term]` | `/d` | Only without a term | Defines the target (inferring a short subject for a photo or long selection), or the typed term in its context. An existing Insight needs an explicit term. |
 | `/file` | `/f` | No | Opens the file browser (pictures only for now); chosen pictures follow the pointer to be placed. |
 
 Short forms, like full names, count only standing alone, so `and/or` stays text. `/help` is
-retired; Worktrees that already hold its card still show it.
+retired; Boards that already hold its card still show it.
 
 Unrecognised commands, misformed ones (bare `/define` with no target) and target-dependent
 commands with nothing targeted are struck through in accent red, then blur away; nothing runs.
@@ -121,7 +125,7 @@ and Add File with their commands and shortcuts.
 **Shortcuts** act on what is selected, else the item being edited, else the hovered item; unlike
 `/`, hovering never overrides the selection. The command appears in the field as if typed, then
 runs. With nothing to act on, it waits typed by the pointer (`/define `) for a term or text.
-Shortcuts are taken even while typing. On the Worktree page they win over the menus: ⌘H adds a
+Shortcuts are taken even while typing. On the Board page they win over the menus: ⌘H adds a
 heading instead of hiding the app (⇧⌘H is still Home). App-wide, Swap Panes is ⇧⌘S and Previous
 Page has no shortcut for now.
 
@@ -146,7 +150,7 @@ in accent green at 50%, constant on screen at any zoom. A photo's box hugs the p
 heading's includes its 8pt padding. The box is invisible until the pointer is within 48 screen
 points; then only the part of it inside a 48-point circle around the pointer shows (the rest stays
 at 0%), at full strength to 24 points and fading out over a 24-point soft edge. It fades in over
-0.15s. While resizing, the whole box shows. An item's side grip is the same
+0.15s. Pressing an edge or corner to resize fades the whole box up over 0.5s. An item's side grip is the same
 accent green at 50%.
 
 - **Move:** the canvas grip, turned on its side, sits centred 8pt above the top line, hidden until
@@ -207,7 +211,7 @@ showing its old copy until it is reopened.
 ## Trash
 
 Drag an item by a grip onto the controls' Trash to delete it. Click Trash for a docked card (28pt
-padding and corners) with a Trash heading and Empty action. Each Worktree keeps its ten newest
+padding and corners) with a Trash heading and Empty action. Each Board keeps its ten newest
 deleted items, newest first; the oldest is discarded when an eleventh arrives. Rows have 12pt
 horizontal and 8pt vertical padding, 16pt corners, type icons with accessibility labels, two equal
 columns with a 24pt gap, and a 50% primary-canvas hover background. Notes show their text,
@@ -219,8 +223,8 @@ Pending model work and empty drafts never enter Trash.
 
 ## History
 
-⌘Z undoes and ⇧⌘Z redoes up to 20 canvas actions per open Worktree: adding, deleting, moving,
+⌘Z undoes and ⇧⌘Z redoes up to 20 canvas actions per open Board: adding, deleting, moving,
 resizing, renaming, completed definitions and summaries, and finished text edits. A drag, resize
 or key-press resize is one action. Text fields use native undo while editing (also 20 deep); when
 it runs out, the shortcuts reach canvas history. Camera movement never enters history. Closing a
-Worktree clears its history, and redoing a model result never re-runs generation.
+Board clears its history, and redoing a model result never re-runs generation.

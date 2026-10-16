@@ -101,7 +101,7 @@ enum WorktreeCommandGuide {
     }
 
     static let entries: [Entry] = [
-        Entry(name: "/rename", explanation: String(localized: "Names what you hover or have selected (each, if several), or the whole Worktree when nothing is. The model writes the name, or type your own right after the command.")),
+        Entry(name: "/rename", explanation: String(localized: "Names what you hover or have selected (each, if several), or the whole Board when nothing is. The model writes the name, or type your own right after the command.")),
         Entry(name: "/define", explanation: String(localized: "Defines the material you hover or select, or defines the term typed after the command in that material’s context. An existing Insight needs an explicit term. With a typed term, no selection is required.")),
         Entry(name: "/summarize", explanation: String(localized: "Writes a brief summary of what you hover or have selected, read together, and places it beside it.")),
         Entry(name: "/heading", explanation: String(localized: "Adds a heading from the hovered or selected material, or from text typed after the command. Existing headings cannot be headed again.")),

@@ -46,7 +46,7 @@ struct WorktreeTrashCard: View {
                 withAnimation(reduceMotion ? nil : .springStandard) { board.emptyTrash() }
             }
         } message: {
-            Text("All items in this Worktree’s Trash will be permanently deleted. This cannot be undone.")
+            Text("All items in this Board’s Trash will be permanently deleted. This cannot be undone.")
         }
     }
 }

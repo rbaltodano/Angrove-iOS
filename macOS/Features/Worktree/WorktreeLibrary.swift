@@ -17,7 +17,7 @@ struct WorktreeDocument: Codable, Identifiable, Equatable {
     var displayTitle: String {
         if let title, !title.isEmpty { return title }
         let question = items.lazy.compactMap { $0.branches?.first?.topQuestionText }.first { !$0.isEmpty }
-        return question.flatMap(MacConversationState.automaticTitle(for:)) ?? String(localized: "Untitled Worktree")
+        return question.flatMap(MacConversationState.automaticTitle(for:)) ?? String(localized: "Untitled Board")
     }
 }
 

@@ -21,6 +21,11 @@ Collected from the [iOS] and [Shared] entries below.
 
 ## 2026-10-16
 
+- **[macOS] Worktree is now called Boards.** The sidebar, page heading, "New Board" button, empty
+  state, delete prompt, Trash and command copy say Board; the docs are `Documentation/Boards.md`.
+  Code names and storage keep `Worktree`, so saved Boards still open. Pressing a box edge to resize
+  fades the whole box up over 0.5s.
+
 - **[macOS] Worktree box spotlight.** Boxes on notes, headings and photos reveal within 48pt (was
   84pt), and only the part inside a 48pt circle around the pointer shows, with a 24pt soft edge. Item side grips are accent
   green at 50%, matching the boxes.

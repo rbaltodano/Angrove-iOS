@@ -17,7 +17,7 @@ enum MacDestination: String, CaseIterable, Identifiable {
         case .conversations: "Conversations"
         case .library: "Library"
         case .studyTopics: "Study Topics"
-        case .worktree: "Worktree"
+        case .worktree: "Boards"
         case .settings: "Settings"
         }
     }
@@ -28,7 +28,7 @@ enum MacDestination: String, CaseIterable, Identifiable {
         case .conversations: String(localized: "Conversations")
         case .library: String(localized: "Library")
         case .studyTopics: String(localized: "Study Topics")
-        case .worktree: String(localized: "Worktree")
+        case .worktree: String(localized: "Boards")
         case .settings: String(localized: "Settings")
         }
     }
