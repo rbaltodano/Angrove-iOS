@@ -145,7 +145,8 @@ Notes, headings and photos draw a Figma-style box: a 1pt outline with a 7pt squa
 in accent green at 50%, constant on screen at any zoom. A photo's box hugs the picture; a note's or
 heading's includes its 8pt padding. The box is invisible until the pointer is within 48 screen
 points; then only the part of it inside a 48-point circle around the pointer shows (the rest stays
-at 0%), fading in over 0.15s. While resizing, the whole box shows. An item's side grip is the same
+at 0%), at full strength to 24 points and fading out over a 24-point soft edge. It fades in over
+0.15s. While resizing, the whole box shows. An item's side grip is the same
 accent green at 50%.
 
 - **Move:** the canvas grip, turned on its side, sits centred 8pt above the top line, hidden until

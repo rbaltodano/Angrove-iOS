@@ -22,7 +22,7 @@ Collected from the [iOS] and [Shared] entries below.
 ## 2026-10-16
 
 - **[macOS] Worktree box spotlight.** Boxes on notes, headings and photos reveal within 48pt (was
-  84pt), and only the part inside a 48pt circle around the pointer shows. Item side grips are accent
+  84pt), and only the part inside a 48pt circle around the pointer shows, with a 24pt soft edge. Item side grips are accent
   green at 50%, matching the boxes.
 
 - **[macOS] Compile fixes for the Worktree Tools commits (b9a52e4…14658c9).** `WorktreeTextEditor.lineHeight`

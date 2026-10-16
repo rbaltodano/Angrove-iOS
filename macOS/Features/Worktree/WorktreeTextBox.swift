@@ -35,6 +35,8 @@ import SwiftUI
 enum WorktreeTextBoxResize {
     static let minimumWidth: CGFloat = 40
     static let revealDistance: CGFloat = 48
+    /// The spotlight's soft edge, in screen points, inside `revealDistance`.
+    static let spotlightFeather: CGFloat = 24
 
     /// The note's new origin and text size. Width wraps the text; height is a minimum, so text
     /// never overflows. Translation is in screen points.
@@ -108,8 +110,11 @@ struct WorktreeBoxChrome: View {
     @ViewBuilder private var reveal: some View {
         if let spotlight, press.point == nil {
             let radius = WorktreeTextBoxResize.revealDistance / zoom
+            // Full strength to 24 screen points, then a 24-point soft edge out to the 48-point rim.
+            let solid = (WorktreeTextBoxResize.revealDistance - WorktreeTextBoxResize.spotlightFeather)
+                / WorktreeTextBoxResize.revealDistance
             Circle()
-                .fill(RadialGradient(stops: [.init(color: .white, location: 0), .init(color: .white, location: 0.85),
+                .fill(RadialGradient(stops: [.init(color: .white, location: 0), .init(color: .white, location: solid),
                                              .init(color: .clear, location: 1)],
                                      center: .center, startRadius: 0, endRadius: radius))
                 .frame(width: radius * 2, height: radius * 2)
