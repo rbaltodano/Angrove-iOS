@@ -85,16 +85,23 @@ enum WorktreePhotoResize {
 }
 
 /// Side handles change the crop; corner handles scale the entire cropped photo proportionally.
+/// The photo's box (`WorktreeBoxChrome`) hugs the picture and fades in near the pointer.
 struct WorktreePhotoResizeHandles: View {
     let board: WorktreeBoard
     let item: WorktreeBoard.Item
     let size: CGSize
     let layout: WorktreePhotoLayout
     let zoom: CGFloat
+    var pointer: WorktreeCanvasPointer? = nil
     @State private var start: WorktreePhotoFrame?
+    @State private var press = WorktreeBoxPress()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack(alignment: .topLeading) {
+            WorktreeBoxChrome(size: size, zoom: zoom,
+                isVisible: start != nil || WorktreeTextBoxResize.isNear(pointer?.world, to: board.frame(of: item.id), zoom: zoom),
+                press: press)
             ForEach(WorktreePhotoHandle.allCases, id: \.self) { handle in
                 let corner = handle.corner
                 let width = corner ? 16.0 : handle.horizontal ? 8.0 : max(0, size.width - 32)
@@ -106,7 +113,13 @@ struct WorktreePhotoResizeHandles: View {
                     .position(position(handle))
                     .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named(MacWorktreeView.canvasSpace))
                         .onChanged { value in
-                            if start == nil { board.select(item.id); board.beginHistoryAction() }
+                            if start == nil {
+                                board.select(item.id)
+                                board.beginHistoryAction()
+                                press.begin(board: board, itemID: item.id, world: pointer?.world,
+                                            inset: WorktreeItemView.textPadding)
+                                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { press.glow = 1 }
+                            }
                             let initial = start ?? WorktreePhotoFrame(origin: item.origin, size: size, layout: layout)
                             start = initial
                             let frame = WorktreePhotoResize.frame(from: initial, handle: handle,
@@ -115,7 +128,11 @@ struct WorktreePhotoResizeHandles: View {
                                 $0.origin = frame.origin; $0.size = frame.size; $0.photoLayout = frame.layout
                             }
                         }
-                        .onEnded { _ in start = nil; board.endHistoryAction() })
+                        .onEnded { _ in
+                            start = nil
+                            withAnimation(.easeOut(duration: 0.3)) { press.point = nil } completion: { press.glow = 0 }
+                            board.endHistoryAction()
+                        })
                     .accessibilityLabel(corner ? "Resize photo proportionally" : "Crop photo")
             }
         }

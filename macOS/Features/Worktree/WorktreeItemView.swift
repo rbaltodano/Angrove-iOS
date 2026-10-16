@@ -75,7 +75,12 @@ struct WorktreeItemView: View, Equatable {
                     .gesture(moveGesture)
             }
             .overlay { if item.isQuestion { WorktreeResizeEdges(board: board, item: item, scale: scale) } }
-            .overlay { if isNote, let pointer { WorktreeTextBox(board: board, item: item, zoom: scale, pointer: pointer) } }
+            .overlay {
+                if let pointer, isNote || (item.isHeading && !item.isSummarizing) {
+                    WorktreeTextBox(board: board, item: item, zoom: scale, pointer: pointer,
+                                    minimumHeight: item.isHeading ? Self.headingLineHeight : WorktreeTextEditor.lineHeight)
+                }
+            }
             .overlay(alignment: .topLeading) { grip }
             .overlay(alignment: .topLeading) { label }
             .onHover { hovering in
@@ -142,26 +147,29 @@ struct WorktreeItemView: View, Equatable {
                     .transition(.blurFade)
             }
         } else if let image = item.image {
-            WorktreeImage(board: board, item: item, file: image, zoom: scale * (isActive || isHovered ? 1.05 : 1))
+            WorktreeImage(board: board, item: item, file: image, zoom: scale * (isActive || isHovered ? 1.05 : 1), pointer: pointer)
         } else if item.isHelp {
             WorktreeHelpCard()
                 .transition(.scale(scale: 0.9, anchor: .topLeading).combined(with: .blurFade))
         } else if item.isHeading && !isEditing {
             // Shown word by word, as page titles arrive. A click selects it; a double-click edits.
             WorktreeRevealedText(text: item.text, font: MacPageHeading.pageFont, color: AngroveTheme.Colors.headingText,
-                                 editsOnDoubleClick: true) {
+                                 editsOnDoubleClick: true, width: item.size?.width) {
                 // Editing keeps the selection, so the heading's size doesn't change under the cursor.
                 board.editingID = item.id
             }
+            .frame(minHeight: item.size?.height, alignment: .topLeading)
             .transition(.blurFade)
         } else if item.isHeading {
             WorktreeTextEditor(text: board.binding(item.id, \.text), isEditing: isEditing,
-                maxWidth: 720, color: AngroveTheme.Colors.headingText,
+                fillsWidth: item.size != nil, maxWidth: item.size?.width ?? 720, color: AngroveTheme.Colors.headingText,
                 textFont: Self.headingFont, textLineHeight: Self.headingLineHeight,
                 onBeginEditing: { board.editingID = item.id },
                 onEndEditing: { if board.editingID == item.id { board.endEditing() } },
                 onCommit: { board.endEditing() },
                 onEscape: { board.endEditing() })
+                .frame(width: item.size?.width, alignment: .topLeading)
+                .frame(minHeight: item.size?.height, alignment: .topLeading)
         } else {
             // A resized note wraps at its box's width and is at least its box's height.
             WorktreeTextEditor(text: board.binding(item.id, \.text), isEditing: isEditing,
@@ -716,12 +724,15 @@ private struct WorktreeRevealedText: View {
     let font: Font
     let color: Color
     var editsOnDoubleClick = false
+    /// A resized heading wraps at its box's width.
+    var width: CGFloat? = nil
     let onEdit: () -> Void
 
     var body: some View {
         SettingsAnimatedHeading(title: text, font: font, color: color, revealsOnAppear: true)
             .id(text)
-            .fixedSize()
+            .frame(width: width, alignment: .leading)
+            .fixedSize(horizontal: width == nil, vertical: true)
             .contentShape(Rectangle())
             .onTapGesture(count: editsOnDoubleClick ? 2 : 1, perform: onEdit)
             .pointerStyle(editsOnDoubleClick ? nil : .horizontalText)
@@ -790,6 +801,7 @@ private struct WorktreeImage: View {
     let item: WorktreeBoard.Item
     let file: UploadedFile
     let zoom: CGFloat
+    var pointer: WorktreeCanvasPointer? = nil
     @State private var image: NSImage?
     @State private var hasLanded = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -816,7 +828,7 @@ private struct WorktreeImage: View {
         .scaleEffect(hasLanded || reduceMotion ? 1 : 0.98)
         .overlay {
             if image != nil {
-                WorktreePhotoResizeHandles(board: board, item: item, size: size, layout: layout, zoom: zoom)
+                WorktreePhotoResizeHandles(board: board, item: item, size: size, layout: layout, zoom: zoom, pointer: pointer)
             }
         }
         .task(id: file.id) {

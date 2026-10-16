@@ -15,7 +15,7 @@ a second after each change, when leaving, and at quit, to the encrypted file-bac
 | `WorktreeLibrary.swift` | Saved documents (`WorktreeDocument`), the store, and the open board |
 | `MacWorktreeHomeView.swift` | The page: Worktree cards, empty state, New Worktree, opening and closing |
 | `MacWorktreeView.swift` | Canvas camera (pan, pinch, ⌘-scroll, ⌘= / ⌘− / ⌘0), keyboard routing and tool shortcuts, title, controls pill |
-| `WorktreeTextBox.swift` | A note's Figma-style text box: resize edges and corners, shown near the pointer |
+| `WorktreeTextBox.swift` | The Figma-style box (`WorktreeBoxChrome`) for notes, headings and photos; note and heading resizing |
 | `WorktreeToolsCard.swift` | The Tools card and a picked-up tool's pointer preview (`WorktreeToolPlacement`) |
 | `WorktreeBoard.swift` | All canvas state and actions: items, selection, command field, model work, sidebar copy/replace |
 | `WorktreeItemView.swift` | One item: plain text, question window, Insight card, summary; grip, resize edges, label, selection lift |
@@ -241,4 +241,10 @@ from the press point and lights the whole outline to 75%: a soft-edged circle gr
 over 0.15s (instantly with Reduce Motion), holds while dragging, and fades back over 0.3s on
 release. The size saves with the note and each drag is one undoable
 action. The pointer's canvas position lives in `WorktreeCanvasPointer`, observed only by these
-boxes. Headings, windows, Insights and photos keep their own chrome.
+boxes.
+
+Headings get the same box and resizing, with a one-line minimum of 56pt; a resized heading wraps
+at its box's width both while revealed and while editing. Photos get the box too, hugging the
+picture rather than its padding; their edges and corners keep the photo behaviour (crop, and
+proportional scale), and pressing one ripples the dot grid and lights the outline the same way.
+Windows and Insight cards keep their own chrome.
