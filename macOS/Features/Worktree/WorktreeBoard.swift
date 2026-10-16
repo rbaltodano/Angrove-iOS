@@ -16,7 +16,7 @@ enum WorktreeWork: Equatable { case queued, running }
         /// The conversation behind a question card: the same session the conversation page uses,
         /// kept out of the sidebar.
         var session: MacConversationState?
-        /// Set once the person resizes a question card; until then it fits its content.
+        /// Set once the person resizes a question card or a note's text box; until then it fits its content.
         var size: CGSize?
         var followUp = ""
         /// Set by `/rename`; shown above the item.

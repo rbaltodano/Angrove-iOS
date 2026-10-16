@@ -15,6 +15,7 @@ a second after each change, when leaving, and at quit, to the encrypted file-bac
 | `WorktreeLibrary.swift` | Saved documents (`WorktreeDocument`), the store, and the open board |
 | `MacWorktreeHomeView.swift` | The page: Worktree cards, empty state, New Worktree, opening and closing |
 | `MacWorktreeView.swift` | Canvas camera (pan, pinch, ⌘-scroll, ⌘= / ⌘− / ⌘0), keyboard routing and tool shortcuts, title, controls pill |
+| `WorktreeTextBox.swift` | A note's Figma-style text box: resize edges and corners, shown near the pointer |
 | `WorktreeToolsCard.swift` | The Tools card and a picked-up tool's pointer preview (`WorktreeToolPlacement`) |
 | `WorktreeBoard.swift` | All canvas state and actions: items, selection, command field, model work, sidebar copy/replace |
 | `WorktreeItemView.swift` | One item: plain text, question window, Insight card, summary; grip, resize edges, label, selection lift |
@@ -226,3 +227,15 @@ and Define show **Click on something to …**. A click places the tool and puts 
 
 Escape puts a picked-up tool down, then closes the Tools card. Dragging or scrolling pans as
 during photo placement; leaving the page puts the tool down.
+
+
+## Note text boxes
+
+Plain notes draw a Figma-style text box: a 1pt frame with a 7pt square at each corner, in accent
+green at 50%, both constant on screen at any zoom. It is invisible until the pointer is within 84
+screen points of the note, then fades in (0.15s); it stays while resizing. Side edges set the
+wrap width (the left edge keeps the right side fixed), top and bottom set a minimum height, and
+corners do both. Width is at least 40pt and height one line; text never overflows, so a box
+shorter than its text grows to fit. The size saves with the note and each drag is one undoable
+action. The pointer's canvas position lives in `WorktreeCanvasPointer`, observed only by these
+boxes. Headings, windows, Insights and photos keep their own chrome.

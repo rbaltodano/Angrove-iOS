@@ -8,6 +8,8 @@ struct WorktreeItemView: View, Equatable {
     let item: WorktreeBoard.Item
     let scale: CGFloat
     let runtime: MacApplicationRuntime
+    /// Where the pointer is on the canvas; a note's box fades in near it.
+    var pointer: WorktreeCanvasPointer? = nil
     @State private var isHovered = false
     @State private var isGripHovered = false
     @State private var dragStart: CGPoint?
@@ -26,7 +28,7 @@ struct WorktreeItemView: View, Equatable {
 
     /// Only the inputs: board state the view reads is tracked by observation.
     nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
-        MainActor.assumeIsolated { lhs.item == rhs.item && lhs.scale == rhs.scale && lhs.board === rhs.board }
+        MainActor.assumeIsolated { lhs.item == rhs.item && lhs.scale == rhs.scale && lhs.board === rhs.board && lhs.pointer === rhs.pointer }
     }
 
     private var isEditing: Bool { board.editingID == item.id }
@@ -36,6 +38,11 @@ struct WorktreeItemView: View, Equatable {
     /// A question opens into a card once any sidebar-chip arrival has finished.
     private var opensAsCard: Bool { item.isQuestion && item.arrivalTitle == nil }
     private var isSelectable: Bool { item.isQuestion || item.isInsight || item.isHeading || item.image != nil }
+    /// A plain note: it gets a resizable text box, as a Figma text layer does.
+    private var isNote: Bool {
+        !item.isQuestion && !item.isInsight && !item.isHeading && item.image == nil && !item.isSummarizing
+            && !item.isHelp && item.arrivalTitle == nil && item.definitionFailureTerm == nil
+    }
     private var isActive: Bool { isSelectable && board.selection.contains(item.id) }
     private static let labelFont = NSFont(name: "LibreBaskerville-Italic", size: 28) ?? .systemFont(ofSize: 28)
     private static let labelDisplayFont = Font.custom("LibreBaskerville-Italic", fixedSize: 28)
@@ -68,6 +75,7 @@ struct WorktreeItemView: View, Equatable {
                     .gesture(moveGesture)
             }
             .overlay { if item.isQuestion { WorktreeResizeEdges(board: board, item: item, scale: scale) } }
+            .overlay { if isNote, let pointer { WorktreeTextBox(board: board, item: item, zoom: scale, pointer: pointer) } }
             .overlay(alignment: .topLeading) { grip }
             .overlay(alignment: .topLeading) { label }
             .onHover { hovering in
@@ -155,12 +163,16 @@ struct WorktreeItemView: View, Equatable {
                 onCommit: { board.endEditing() },
                 onEscape: { board.endEditing() })
         } else {
+            // A resized note wraps at its box's width and is at least its box's height.
             WorktreeTextEditor(text: board.binding(item.id, \.text), isEditing: isEditing,
+                fillsWidth: item.size != nil, maxWidth: item.size?.width ?? 480,
                 highlightsCommands: true,
                 onBeginEditing: { board.editingID = item.id },
                 onEndEditing: { if board.editingID == item.id { board.endEditing() } },
                 onCommit: { board.commit(item.id, runtime: runtime) },
                 onEscape: { board.endEditing() })
+                .frame(width: item.size?.width, alignment: .topLeading)
+                .frame(minHeight: item.size?.height, alignment: .topLeading)
                 .transition(.blurFade)
                 // A lone quotation mark left untouched fades away.
                 .task(id: item.text) {

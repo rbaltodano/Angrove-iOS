@@ -17,6 +17,8 @@ struct MacWorktreeView: View {
     /// The pointer over the canvas; typing starts 16pt to its right. Held outside SwiftUI state:
     /// it is only read on a keypress, so mouse movement never re-renders the canvas.
     @State private var pointerBox = WorktreePointer()
+    /// The pointer in world space, observed only by note boxes that fade in near it.
+    @State private var canvasPointer = WorktreeCanvasPointer()
     @State private var picker: WorktreePicker?
     @State private var showsTrash = false
     @State private var showsTools = false
@@ -65,7 +67,7 @@ struct MacWorktreeView: View {
                 // so item views aren't recomputed per frame.
                 ZStack(alignment: .topLeading) {
                     ForEach(board.items) { item in
-                        WorktreeItemView(board: board, item: item, scale: camera.scale, runtime: runtime)
+                        WorktreeItemView(board: board, item: item, scale: camera.scale, runtime: runtime, pointer: canvasPointer)
                             .equatable()
                             .fixedSize()
                             .offset(x: item.origin.x, y: item.origin.y)
@@ -127,7 +129,13 @@ struct MacWorktreeView: View {
             }
             .coordinateSpace(name: Self.canvasSpace)
             .onContinuousHover(coordinateSpace: .local) { phase in
-                if case .active(let location) = phase { pointerBox.location = location } else { pointerBox.location = nil }
+                if case .active(let location) = phase {
+                    pointerBox.location = location
+                    canvasPointer.world = worldPoint(location, in: size)
+                } else {
+                    pointerBox.location = nil
+                    canvasPointer.world = nil
+                }
             }
             .simultaneousGesture(pinchGesture(in: size))
             .dropDestination(for: String.self) { payloads, location in
