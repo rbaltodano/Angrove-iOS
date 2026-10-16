@@ -48,6 +48,11 @@ struct WorktreeTextBox: View {
     let zoom: CGFloat
     let pointer: WorktreeCanvasPointer
     @State private var start: (origin: CGPoint, size: CGSize)?
+    /// Where the resize was pressed, in the box's own coordinates; a 75% glow ripples out from it
+    /// around the whole outline and holds until release.
+    @State private var pressPoint: CGPoint?
+    @State private var glow: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let square: CGFloat = 7
     private var color: Color { AngroveTheme.Colors.lightGreen.opacity(0.5) }
@@ -72,11 +77,59 @@ struct WorktreeTextBox: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
 
+                illumination(in: size)
+
                 ForEach(WorktreePhotoHandle.allCases, id: \.self) { handle in
                     handleArea(handle, in: size)
                 }
             }
         }
+    }
+
+    /// The outline and corner squares at 75%, revealed by a soft-edged circle growing from the
+    /// press until it covers the whole box.
+    private func illumination(in size: CGSize) -> some View {
+        let reach = hypot(size.width, size.height) * 1.25
+        // Another 50% over the 50% outline composites to 75%.
+        let bright = AngroveTheme.Colors.lightGreen.opacity(0.5)
+        return ZStack(alignment: .topLeading) {
+            Rectangle().strokeBorder(bright, lineWidth: 1 / zoom)
+            ForEach([WorktreePhotoHandle.topLeft, .topRight, .bottomLeft, .bottomRight], id: \.self) { corner in
+                Rectangle()
+                    .strokeBorder(bright, lineWidth: 1 / zoom)
+                    .frame(width: Self.square / zoom, height: Self.square / zoom)
+                    .position(position(corner, in: size))
+            }
+        }
+        .mask(alignment: .topLeading) {
+            Circle()
+                .fill(RadialGradient(stops: [.init(color: .white, location: 0), .init(color: .white, location: 0.7),
+                                             .init(color: .clear, location: 1)],
+                                     center: .center, startRadius: 0, endRadius: reach))
+                .frame(width: reach * 2, height: reach * 2)
+                .scaleEffect(glow, anchor: .center)
+                .position(pressPoint ?? CGPoint(x: size.width / 2, y: size.height / 2))
+        }
+        .opacity(pressPoint == nil ? 0 : 1)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    /// Pressing a resize edge: the outline lights up from the press and the dot grid ripples there.
+    private func beginGlow(at world: CGPoint?) {
+        guard let world, let frame = board.frame(of: item.id) else {
+            pressPoint = CGPoint(x: 0, y: 0)
+            glow = 1
+            return
+        }
+        board.pulse(at: world)
+        pressPoint = CGPoint(x: world.x - frame.minX, y: world.y - frame.minY)
+        glow = 0
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.45)) { glow = 1 }
+    }
+
+    private func endGlow() {
+        withAnimation(.easeOut(duration: 0.3)) { pressPoint = nil } completion: { glow = 0 }
     }
 
     private func handleArea(_ handle: WorktreePhotoHandle, in size: CGSize) -> some View {
@@ -92,6 +145,7 @@ struct WorktreeTextBox: View {
                 .onChanged { value in
                     if start == nil {
                         board.beginHistoryAction()
+                        beginGlow(at: pointer.world)
                         // The text's own size: the measured frame less the note's padding.
                         let padding = WorktreeItemView.textPadding * 2
                         start = (item.origin, item.size ?? CGSize(width: max(0, size.width - padding),
@@ -102,7 +156,7 @@ struct WorktreeTextBox: View {
                                                            translation: value.translation, zoom: zoom)
                     board.update(item.id) { $0.origin = frame.origin; $0.size = frame.size }
                 }
-                .onEnded { _ in start = nil; board.endHistoryAction() })
+                .onEnded { _ in start = nil; endGlow(); board.endHistoryAction() })
             .accessibilityLabel("Resize text box")
     }
 
