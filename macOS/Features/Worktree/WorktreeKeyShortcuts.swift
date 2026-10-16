@@ -2,7 +2,8 @@ import AppKit
 import SwiftUI
 
 /// Canvas keys, ignored while text is being edited anywhere in the window (except "/" with a
-/// selection): typed characters start text, Escape deselects, ⌘= / ⌘− / ⌘0 zoom.
+/// selection): typed characters start text, Escape deselects, ⌘= / ⌘− / ⌘0 zoom, and holding
+/// Space grabs the canvas to pan.
 struct WorktreeKeyShortcuts: NSViewRepresentable {
     enum Zoom { case `in`, out, reset }
     enum EditKey { case submit, delete, cancel }
@@ -17,6 +18,9 @@ struct WorktreeKeyShortcuts: NSViewRepresentable {
     let onTool: (WorktreeTool) -> Void
     /// ⌘+ or ⌘− with something selected, edited or hovered resizes it; returns whether it did.
     let onResize: (_ growing: Bool) -> Bool
+    /// Space held outside a text field: the canvas becomes a grab tool until it is released.
+    /// Returns whether the press was taken (a field that has not taken focus yet gets the space).
+    let onSpace: (_ isDown: Bool) -> Bool
 
     let onUndo: () -> Void
     let onRedo: () -> Void
@@ -30,6 +34,7 @@ struct WorktreeKeyShortcuts: NSViewRepresentable {
         view.onSlash = onSlash
         view.onTool = onTool
         view.onResize = onResize
+        view.onSpace = onSpace
         view.onUndo = onUndo
         view.onRedo = onRedo
     }
@@ -43,6 +48,9 @@ struct WorktreeKeyShortcuts: NSViewRepresentable {
         var onSlash: ((Bool) -> Bool)?
         var onTool: ((WorktreeTool) -> Void)?
         var onResize: ((Bool) -> Bool)?
+        var onSpace: ((Bool) -> Bool)?
+        private var isSpacePanning = false
+        private var resignObserver: NSObjectProtocol?
         var onUndo: (() -> Void)?
         var onRedo: (() -> Void)?
         private var monitor: Any?
@@ -51,12 +59,30 @@ struct WorktreeKeyShortcuts: NSViewRepresentable {
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             stop()
-            guard window != nil else { return }
-            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let window else { return }
+            // Leaving the window lets go of the grab tool, since its key-up would never arrive.
+            resignObserver = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification,
+                                                                    object: window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.endSpacePan() }
+            }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
                 guard let self, event.window === self.window, !self.isHiddenOrHasHiddenAncestor else { return event }
+                if event.type == .keyUp {
+                    guard event.keyCode == 49, self.isSpacePanning else { return event }
+                    self.endSpacePan()
+                    return nil
+                }
                 let modifiers = event.modifierFlags.intersection([.command, .control, .option])
                 let key = event.charactersIgnoringModifiers?.lowercased()
                 let isTyping = self.window?.firstResponder is NSText
+                // Space, as in Figma: hold to grab and pan; repeats are swallowed while held.
+                if event.keyCode == 49, modifiers.isEmpty, !isTyping {
+                    if self.isSpacePanning { return nil }
+                    if !event.isARepeat, self.onSpace?(true) == true {
+                        self.isSpacePanning = true
+                        return nil
+                    }
+                }
                 if modifiers == .command, let key,
                    let tool = WorktreeTool.forShortcut(key: key, shift: event.modifierFlags.contains(.shift)) {
                     if !event.isARepeat { self.onTool?(tool) }
@@ -107,9 +133,18 @@ struct WorktreeKeyShortcuts: NSViewRepresentable {
                 return self.onCharacters?(characters) == true ? nil : event
             }
         }
+        private func endSpacePan() {
+            guard isSpacePanning else { return }
+            isSpacePanning = false
+            _ = onSpace?(false)
+        }
+
         func stop() {
             if let monitor { NSEvent.removeMonitor(monitor) }
             monitor = nil
+            if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
+            resignObserver = nil
+            endSpacePan()
         }
     }
 }

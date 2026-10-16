@@ -51,6 +51,10 @@ short commands, shortcuts, clicking a tool, or dragging — and it should just w
 - **Controls:** Add, Tools, Model Tasks and Trash; their cards open one at a time. Add (+) is the
   conversation's menu: Insights and Passages place cards from the library; Photos… and Image
   File… place pictures.
+- **Space to pan:** as in Figma, holding Space outside a text field turns the canvas into a grab
+  tool (`WorktreePanSurface`): an open hand over everything, closing while you drag to pan. Clicks
+  never reach items while it is held. Releasing Space, leaving the window or the page lets go. A
+  just-opened field that has not taken focus yet still gets the space as text.
 - **Place:** each Worktree remembers its pan and zoom across page changes and launches.
 
 ## Questions and windows

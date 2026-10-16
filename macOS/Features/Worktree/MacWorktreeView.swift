@@ -24,6 +24,8 @@ struct MacWorktreeView: View {
     @State private var showsTools = false
     /// A tool picked up from the Tools card, following the pointer until a click places it.
     @State private var activeTool: WorktreeTool?
+    /// Space is held: the canvas is a grab tool, panning on drag.
+    @State private var isSpacePanning = false
     @State private var showsPhotoPicker = false
     @State private var pendingPhotos: [WorktreePhotoAsset] = []
     @State private var photoLoadID = UUID()
@@ -126,6 +128,14 @@ struct MacWorktreeView: View {
                     .frame(width: size.width, height: size.height)
                     .zIndex(10)
                 }
+                if isSpacePanning {
+                    WorktreePanSurface { delta in
+                        camera.offset.width += delta.width
+                        camera.offset.height += delta.height
+                    }
+                    .frame(width: size.width, height: size.height)
+                    .zIndex(11)
+                }
             }
             .coordinateSpace(name: Self.canvasSpace)
             .onContinuousHover(coordinateSpace: .local) { phase in
@@ -211,7 +221,7 @@ struct MacWorktreeView: View {
             }
             .padding(24)
         }
-        .background(WorktreeKeyShortcuts(onCharacters: typeOnCanvas, onEditKey: editPendingField, onEscape: escape, onZoom: zoom, onSlash: openCommand, onTool: useShortcut, onResize: resizeTargets, onUndo: { board.undo() }, onRedo: { board.redo() }))
+        .background(WorktreeKeyShortcuts(onCharacters: typeOnCanvas, onEditKey: editPendingField, onEscape: escape, onZoom: zoom, onSlash: openCommand, onTool: useShortcut, onResize: resizeTargets, onSpace: spacePan, onUndo: { board.undo() }, onRedo: { board.redo() }))
         .onChange(of: board.fileRequest) { _, _ in openFiles() }
         .onChange(of: camera.scale) { _, _ in rememberViewport() }
         .onChange(of: camera.offset) { _, _ in rememberViewport() }
@@ -219,6 +229,7 @@ struct MacWorktreeView: View {
             photoLoadID = UUID()
             pendingPhotos = []
             activeTool = nil
+            isSpacePanning = false
             rememberViewport(); board.endEditing(); onSave()
         }
         .modifier(MacAttachmentPickers(showsFiles: $showsFilePicker, showsPhotos: $showsPhotoPicker) { files in
@@ -434,6 +445,15 @@ struct MacWorktreeView: View {
         activeTool = nil
         if tool == .file { openFiles(); return }
         board.runTool(tool, on: board.shortcutTargets, freeOrigin: typingOrigin, runtime: runtime)
+    }
+
+    /// Space down grabs the canvas; a just-opened field that has not taken focus yet gets the
+    /// space as text instead.
+    private func spacePan(isDown: Bool) -> Bool {
+        guard isDown else { isSpacePanning = false; return true }
+        guard board.editingID == nil else { return false }
+        isSpacePanning = true
+        return true
     }
 
     private func resizeTargets(growing: Bool) -> Bool {

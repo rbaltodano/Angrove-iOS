@@ -169,3 +169,48 @@ struct WorktreePhotoPointerSurface: NSViewRepresentable {
         }
     }
 }
+
+/// Holding Space, as in Figma: the whole canvas becomes a grab tool. The open hand shows over
+/// everything; dragging closes it and pans. Clicks never reach the items beneath.
+struct WorktreePanSurface: NSViewRepresentable {
+    let onPan: (CGSize) -> Void
+
+    func makeNSView(context: Context) -> Surface { Surface() }
+    func updateNSView(_ view: Surface, context: Context) { view.onPan = onPan }
+
+    final class Surface: NSView {
+        var onPan: ((CGSize) -> Void)?
+        private var previous: CGPoint?
+        override var isFlipped: Bool { true }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            window?.invalidateCursorRects(for: self)
+            // Show the hand at once, without waiting for the pointer to move; restore the arrow
+            // when Space is let go.
+            if window != nil { NSCursor.openHand.set() } else { NSCursor.arrow.set() }
+        }
+
+        override func resetCursorRects() {
+            addCursorRect(bounds, cursor: previous == nil ? .openHand : .closedHand)
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            previous = convert(event.locationInWindow, from: nil)
+            NSCursor.closedHand.set()
+            window?.invalidateCursorRects(for: self)
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            let point = convert(event.locationInWindow, from: nil)
+            if let previous { onPan?(CGSize(width: point.x - previous.x, height: point.y - previous.y)) }
+            previous = point
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            previous = nil
+            NSCursor.openHand.set()
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+}
