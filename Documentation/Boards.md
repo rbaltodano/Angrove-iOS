@@ -111,8 +111,10 @@ capture their targets, and an old dismissal cannot close a newly opened command 
 
 ## Tools and shortcuts
 
-**Tools** (⌘ symbol) opens a docked card listing Text, Question, Heading, Rename, Summarize, Define
-and Add File with their commands and shortcuts.
+**Tools** (⌘ symbol) opens a docked card listing Text, Question, Heading, Rename, Summarize and
+Define with their commands and shortcuts. Rows highlight on hover like the "…" menu's. Add File is
+in the "+" menu instead (Image File…, shown with ⇧⌘K); ⇧⌘K and `/file` still open it. Clicking
+anywhere on the canvas while Tools, Trash or Model Tasks is open closes it.
 
 | Tool | Shortcut |
 | --- | --- |
@@ -129,18 +131,15 @@ Shortcuts are taken even while typing. On the Board page they win over the menus
 heading instead of hiding the app (⇧⌘H is still Home). App-wide, Swap Panes is ⇧⌘S and Previous
 Page has no shortcut for now.
 
-**Clicking a tool** picks it up: a 50% preview follows the pointer with the photo placement's
-spring trail and tilt, styled like what it makes — “Text” and an opening “ as a note, “Heading” in
-the heading's font, size and color (scaled with the zoom), and **Click on something to …** for
-Rename, Summarize and Define. A click places it:
+**Clicking a tool** picks it up: a label like the controls' hover labels follows the pointer on a
+spring, saying what a click does — **Click to add Text**, **Click to add Question**, **Click to add
+Heading**, **Click to rename**, **Click to summarize**, **Click to define**. A click places it:
 
 - Text, Question and Heading open an active note or heading where the preview sat. Question places
   the “ as if typed, so a lone quote fades as usual. An empty note or heading goes away when
   editing ends.
 - Rename, Summarize and Define act on the clicked item, as their shortcut would. On empty canvas,
   Define opens `/define ` there; Rename and Summarize stay picked up.
-- Add File opens the file browser.
-
 Escape puts a tool down; dragging or scrolling pans; leaving the page puts it down.
 
 ## Boxes, moving and resizing

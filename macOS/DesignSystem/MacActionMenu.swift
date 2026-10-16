@@ -10,12 +10,16 @@ struct MacMenuEntry: Identifiable {
     var enabled = true
     var separator = false
     var isNavigationBack = false
+    /// Shown dimmed at the trailing edge, as a native menu shows a key equivalent.
+    var shortcut: String?
     var children: [MacMenuEntry] = []
     var action: () -> Void = {}
 
-    init(_ title: LocalizedStringResource, symbol: String = "", destructive: Bool = false, enabled: Bool = true, action: @escaping () -> Void) {
+    init(_ title: LocalizedStringResource, symbol: String = "", destructive: Bool = false, enabled: Bool = true,
+         shortcut: String? = nil, action: @escaping () -> Void) {
         self.title = String(localized: title)
         self.symbol = symbol
+        self.shortcut = shortcut
         self.destructive = destructive
         self.enabled = enabled
         self.action = action
@@ -114,6 +118,7 @@ private struct MacMenuRow: View {
                 else { Color.clear.frame(width: 16, height: 16).accessibilityHidden(true) }
                 Text(entry.title).fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
+                if let shortcut = entry.shortcut { Text(verbatim: shortcut).opacity(0.5).padding(.leading, 12) }
                 if !entry.children.isEmpty { Image(systemName: "chevron.right") }
             }
             .font(AngroveTheme.Typography.body)

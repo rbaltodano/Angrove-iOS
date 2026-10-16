@@ -157,18 +157,22 @@ enum WorktreeTool: String, CaseIterable, Identifiable {
         allCases.first { $0.shortcut.map { $0.key == key.lowercased() && $0.shift == shift } ?? false }
     }
 
+    /// The Tools card's rows. Add File lives in the "+" menu (⇧⌘K and `/file` still work).
+    static var cardTools: [WorktreeTool] { allCases.filter { $0 != .file } }
+
     /// Acts on something clicked rather than placing new material where the click lands.
     var needsTarget: Bool { self == .rename || self == .summarize || self == .define }
 
-    /// What follows the pointer while the tool is being placed.
+    /// The label that follows the pointer while the tool is picked up: "Click to add …" for what
+    /// it places, "Click to …" for what it acts on.
     var placementPrompt: String {
         switch self {
-        case .text: String(localized: "Text")
-        case .question: "“"
-        case .heading: String(localized: "Heading")
-        case .rename: String(localized: "Click on something to rename")
-        case .summarize: String(localized: "Click on something to summarize")
-        case .define: String(localized: "Click on something to define")
+        case .text: String(localized: "Click to add Text")
+        case .question: String(localized: "Click to add Question")
+        case .heading: String(localized: "Click to add Heading")
+        case .rename: String(localized: "Click to rename")
+        case .summarize: String(localized: "Click to summarize")
+        case .define: String(localized: "Click to define")
         case .file: ""
         }
     }

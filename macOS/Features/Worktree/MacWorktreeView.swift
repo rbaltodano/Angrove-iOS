@@ -102,6 +102,14 @@ struct MacWorktreeView: View {
                         .zIndex(3)
                         .allowsHitTesting(false)
                 }
+                // With Tools, Trash or Model Tasks open, a click anywhere on the canvas (items
+                // included) just closes it, as clicking outside a popover does.
+                if hasOpenCard {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { closeCards() }
+                        .zIndex(4)
+                }
                 MacCanvasScrollInput { delta, flags, anchor in
                     camera.apply(delta: delta, command: flags.contains(.command), shift: flags.contains(.shift),
                                  anchor: anchor, viewport: size)
@@ -302,8 +310,15 @@ struct MacWorktreeView: View {
                 y: (screen.y - size.height / 2 - camera.offset.height) / camera.scale)
     }
 
+    /// Whether Tools, Trash or Model Tasks is open above the controls.
+    private var hasOpenCard: Bool { showsTools || showsTrash || queuePopup.isOpen }
+
+    private func closeCards() {
+        withAnimation(.springStandard) { showsTools = false; showsTrash = false; queuePopup.isOpen = false }
+    }
+
     private func tapCanvas(at location: CGPoint, in size: CGSize) {
-        if queuePopup.isOpen { withAnimation(.springStandard) { queuePopup.isOpen = false } }
+        if hasOpenCard { closeCards() }
         board.select(nil)
         board.endEditing()
     }
@@ -409,7 +424,7 @@ struct MacWorktreeView: View {
             MacMenuEntry("Passages", symbol: "books.vertical") { picker = .passages },
             .divider,
             MacMenuEntry("Photos…", symbol: "photo.on.rectangle") { showsPhotoPicker = true },
-            MacMenuEntry("Image File…", symbol: "doc") { showsFilePicker = true },
+            MacMenuEntry("Image File…", symbol: "doc", shortcut: "⇧⌘K") { openFiles() },
         ]
     }
 

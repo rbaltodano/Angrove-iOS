@@ -21,6 +21,10 @@ Collected from the [iOS] and [Shared] entries below.
 
 ## 2026-10-16
 
+- **[macOS] Board Tools polish.** Tools rows highlight on hover; a picked-up tool shows a hover-style
+  label ("Click to add Heading", "Click to summarize"); Add File moved to the "+" menu (with ⇧⌘K
+  shown); clicking the canvas closes an open Tools, Trash or Model Tasks card.
+
 - **[macOS] Worktree is now called Boards.** The sidebar, page heading, "New Board" button, empty
   state, delete prompt, Trash and command copy say Board; the docs are `Documentation/Boards.md`.
   Code names and storage keep `Worktree`, so saved Boards still open. Pressing a box edge to resize

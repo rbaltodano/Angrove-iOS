@@ -6,14 +6,13 @@ struct WorktreeToolsCard: View {
     let onChoose: (WorktreeTool) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            ForEach(WorktreeTool.allCases) { tool in
-                Button { onChoose(tool) } label: { row(tool) }
-                    .buttonStyle(.plain)
-                    .accessibilityHint(tool == .file ? "Opens the file browser" : "Click the canvas to place it")
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(WorktreeTool.cardTools) { tool in
+                WorktreeToolRow(tool: tool) { onChoose(tool) } label: { row(tool) }
             }
         }
-        .padding(28)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 22)
         .frame(width: 500, alignment: .leading)
         .background(AngroveTheme.Colors.canvasSecondary, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).stroke(AngroveTheme.Colors.popupBorder, lineWidth: 1))
@@ -63,6 +62,26 @@ struct WorktreeToolsCard: View {
     }
 }
 
+/// A Tools row: highlighted on hover like a row of the "…" menu, so it reads as clickable.
+private struct WorktreeToolRow<Label: View>: View {
+    let tool: WorktreeTool
+    let action: () -> Void
+    @ViewBuilder let label: Label
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            label
+                .padding(.horizontal, 8)
+                .background(isHovered ? AngroveTheme.Colors.systemSelection : .clear,
+                            in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .accessibilityHint(tool.needsTarget ? "Click something on the canvas" : "Click the canvas to place it")
+    }
+}
+
 /// A command or key, in a light-green keycap.
 private struct WorktreeKeyChip<Content: View>: View {
     @ViewBuilder let content: Content
@@ -78,9 +97,8 @@ private struct WorktreeKeyChip<Content: View>: View {
     }
 }
 
-/// A picked-up tool following the pointer, like a photo being placed: a 50% preview of what it
-/// makes (or what to click), with the photo's spring trail and tilt. A click places it; dragging
-/// or scrolling pans the canvas.
+/// A picked-up tool following the pointer: a label like the controls' hover labels saying what a
+/// click does, trailing on the photo's spring. A click places it; dragging or scrolling pans.
 struct WorktreeToolPlacement: View {
     let tool: WorktreeTool
     /// The canvas zoom, so placed text previews at the size it will land.
@@ -90,11 +108,10 @@ struct WorktreeToolPlacement: View {
     var onPan: (CGSize) -> Void = { _ in }
     @State private var pointer: CGPoint?
     @State private var position = CGPoint.zero
-    @State private var tilt: Double = 2
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Placed material starts 16pt right of the pointer with its first line centred on it, as
-    /// typing on the canvas does.
+    /// typing on the canvas does; the label sits there too.
     private func origin(for point: CGPoint) -> CGPoint {
         CGPoint(x: point.x + 16, y: point.y - firstLineHeight / 2)
     }
@@ -102,75 +119,35 @@ struct WorktreeToolPlacement: View {
     private var firstLineHeight: CGFloat {
         switch tool {
         case .heading: Self.headingLineHeight * scale
-        case .rename: 40
         case .text, .question: WorktreeTextEditor.lineHeight * scale
         default: WorktreeTextEditor.lineHeight
         }
     }
 
     private static let headingLineHeight: CGFloat = 56
+    /// The hover label's height.
+    private static let labelHeight: CGFloat = 36
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             WorktreePhotoPointerSurface(onMove: follow, onPlace: { onPlace($0, origin(for: $0)) }, onPan: onPan)
             if pointer != nil {
-                let at = origin(for: position)
-                preview
-                    .opacity(0.5)
-                    .fixedSize()
-                    .rotationEffect(.degrees(reduceMotion ? 2 : tilt), anchor: .leading)
-                    .offset(x: at.x, y: at.y)
+                MacModelControlHoverLabel(help: MacModelControlHelp(title: tool.placementPrompt, shortcut: nil))
+                    .offset(x: position.x + 16, y: position.y - Self.labelHeight / 2)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
             }
         }
-        .task(id: pointer) {
-            guard pointer != nil else { return }
-            do { try await Task.sleep(for: .milliseconds(120)) } catch { return }
-            withAnimation(reduceMotion ? nil : .springLively) { tilt = 2 }
-        }
-        .accessibilityLabel(Text(tool.needsTarget ? tool.placementPrompt : String(localized: "Click to place \(tool.title). Press Escape to cancel.")))
-    }
-
-    /// Styled as what the tool makes: a note, a heading, a label; or plain guidance to click.
-    @ViewBuilder private var preview: some View {
-        switch tool {
-        case .heading:
-            Text(tool.placementPrompt)
-                .font(MacPageHeading.pageFont)
-                .foregroundStyle(AngroveTheme.Colors.headingText)
-                .frame(height: Self.headingLineHeight)
-                .scaleEffect(scale, anchor: .topLeading)
-                .frame(height: Self.headingLineHeight * scale, alignment: .topLeading)
-        case .text, .question:
-            Text(tool.placementPrompt)
-                .font(BrandTypography.font("Figtree-Regular", size: 14))
-                .foregroundStyle(AngroveTheme.Colors.headingText)
-                .frame(height: WorktreeTextEditor.lineHeight)
-                .scaleEffect(scale, anchor: .topLeading)
-                .frame(height: WorktreeTextEditor.lineHeight * scale, alignment: .topLeading)
-        case .rename:
-            Text(tool.placementPrompt)
-                .font(.custom("LibreBaskerville-Italic", fixedSize: 28))
-                .foregroundStyle(AngroveTheme.Colors.lightGreen)
-                .frame(height: 40)
-        default:
-            Text(tool.placementPrompt)
-                .font(BrandTypography.font("Figtree-Regular", size: 14))
-                .foregroundStyle(AngroveTheme.Colors.headingText)
-                .frame(height: WorktreeTextEditor.lineHeight)
-        }
+        .accessibilityLabel(Text("\(tool.placementPrompt). Press Escape to cancel."))
     }
 
     private func follow(_ next: CGPoint?) {
         guard let next else { pointer = nil; return }
-        let previous = pointer
+        // Trails the pointer on a spring once it has appeared; jumps there on the first move.
+        let isFollowing = pointer != nil
         pointer = next
-        if let previous {
-            withAnimation(reduceMotion ? nil : .springLively) {
-                position = next
-                if next.x != previous.x { tilt = next.x > previous.x ? 3 : 1 }
-            }
+        if isFollowing {
+            withAnimation(reduceMotion ? nil : .springLively) { position = next }
         } else {
             position = next
         }
