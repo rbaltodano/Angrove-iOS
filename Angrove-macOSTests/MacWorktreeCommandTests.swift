@@ -80,8 +80,9 @@ struct MacWorktreeCommandTests {
             #expect(WorktreeCommandParser.commandRanges(in: command.full).count == 1)
             #expect(WorktreeCommandParser.commandRanges(in: command.short).count == 1)
         }
-        #expect(WorktreeTool.forShortcut(key: "H", shift: true) == .heading)
-        #expect(WorktreeTool.forShortcut(key: "h", shift: false) == nil)
+        #expect(WorktreeTool.forShortcut(key: "H", shift: false) == .heading)
+        // Shift-Command-H stays Home.
+        #expect(WorktreeTool.forShortcut(key: "h", shift: true) == nil)
         #expect(WorktreeTool.forShortcut(key: "r", shift: false) == .rename)
         #expect(WorktreeTool.forShortcut(key: "s", shift: false) == .summarize)
         #expect(WorktreeTool.forShortcut(key: "s", shift: true) == nil)

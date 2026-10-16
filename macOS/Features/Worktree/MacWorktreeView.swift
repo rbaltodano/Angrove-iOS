@@ -472,8 +472,8 @@ private struct WorktreeKeyShortcuts: NSViewRepresentable {
     let onZoom: (Zoom) -> Void
     /// "/" opens the selected item's command field; returns whether something was selected.
     let onSlash: (_ fromTextField: Bool) -> Bool
-    /// A Tools card shortcut (⌘R, ⌘S, ⌘D, ⇧⌘H, ⇧⌘K). Taken even while typing: it is a command,
-    /// not text, and on this page it wins over the app menu's use of the same keys.
+    /// A Tools card shortcut (⌘H, ⌘R, ⌘S, ⌘D, ⇧⌘K). Taken even while typing: it is a command,
+    /// not text, and on this page it wins over the menus' use of the same keys (⌘H is Hide).
     let onTool: (WorktreeTool) -> Void
 
     let onUndo: () -> Void

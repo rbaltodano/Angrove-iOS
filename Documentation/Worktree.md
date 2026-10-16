@@ -198,7 +198,7 @@ one at a time.
 
 | Tool | Short | Command | Shortcut |
 | --- | --- | --- | --- |
-| Heading | `/h` | `/heading` | ⇧⌘H |
+| Heading | `/h` | `/heading` | ⌘H |
 | Rename | `/r` | `/rename` | ⌘R |
 | Summarize | `/s` | `/summarize` | ⌘S |
 | Define | `/d` | `/define` | ⌘D |
@@ -208,7 +208,8 @@ one at a time.
 hovered item never overrides the selection, unlike `/`. The command appears in the command field
 as if typed, then runs. With nothing to act on, the command waits typed by the pointer
 (`/define `) for a term or text. Shortcuts are taken even while typing in a field. On the Worktree
-page they win over the app menu: ⇧⌘H adds a heading here rather than opening Home. App-wide, Swap
+page they win over the menus: ⌘H adds a heading here instead of hiding the app (⇧⌘H is
+still Home). App-wide, Swap
 Panes moved to ⇧⌘S and Previous Page lost ⌘R for now.
 
 **Clicking a row** picks the tool up. A 50% preview follows the pointer with the photo

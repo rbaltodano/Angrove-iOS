@@ -144,7 +144,7 @@ enum WorktreeTool: String, CaseIterable, Identifiable {
     var shortcut: (key: String, shift: Bool)? {
         switch self {
         case .text, .question: nil
-        case .heading: ("h", true)
+        case .heading: ("h", false)
         case .rename: ("r", false)
         case .summarize: ("s", false)
         case .define: ("d", false)

@@ -499,7 +499,7 @@ private struct MacHotKeys: View {
             MacSettingsSection(title: "Navigation & Model Tasks", description: "Move around without losing your place.") {
                 MacSettingsRow(title: "Recent pages", description: "Command-Shift-R goes forward. Command-1 through Command-9 selects a recent conversation.") { Text("⇧⌘R · ⌘1–9") }
                 Divider()
-                MacSettingsRow(title: "Home", description: "Command-Shift-H opens Home: your month at a glance, the Question of the Day, and where you left off. On a Worktree it adds a heading instead.") { Text("⇧⌘H") }
+                MacSettingsRow(title: "Home", description: "Command-Shift-H opens Home: your month at a glance, the Question of the Day, and where you left off.") { Text("⇧⌘H") }
                 Divider()
                 MacSettingsRow(title: "Model Tasks", description: "Command-M toggles the task queue. Review pending work, cancel a task, or change the order of upcoming tasks.") { Text("⌘M") }
             }
