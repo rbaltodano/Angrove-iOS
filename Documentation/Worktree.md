@@ -238,7 +238,7 @@ wrap width (the left edge keeps the right side fixed), top and bottom set a mini
 corners do both. Width is at least 40pt and height one line; text never overflows, so a box
 shorter than its text grows to fit. Pressing an edge or corner sends one dot-grid ripple
 from the press point and lights the whole outline to 75%: a soft-edged circle grows from the press
-over 0.45s (instantly with Reduce Motion), holds while dragging, and fades back over 0.3s on
+over 0.15s (instantly with Reduce Motion), holds while dragging, and fades back over 0.3s on
 release. The size saves with the note and each drag is one undoable
 action. The pointer's canvas position lives in `WorktreeCanvasPointer`, observed only by these
 boxes. Headings, windows, Insights and photos keep their own chrome.

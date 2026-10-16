@@ -125,7 +125,7 @@ struct WorktreeTextBox: View {
         board.pulse(at: world)
         pressPoint = CGPoint(x: world.x - frame.minX, y: world.y - frame.minY)
         glow = 0
-        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.45)) { glow = 1 }
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { glow = 1 }
     }
 
     private func endGlow() {
