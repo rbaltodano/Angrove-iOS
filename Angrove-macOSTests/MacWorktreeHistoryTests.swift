@@ -147,7 +147,8 @@ struct MacWorktreeHistoryTests {
         window.contentView = host
         defer { window.contentView = nil; window.close() }
         host.layoutSubtreeIfNeeded()
-        board.addHelp(at: .zero)
+        // One undoable add with no text editing (the `/help` card it used was replaced by the Tools card).
+        board.addInsight(ConceptDefinition(word: "Grace", partOfSpeech: "", pronunciation: "", meaning: "Test", example: ""), at: .zero)
         try await Task.sleep(for: .milliseconds(100))
         for flags: NSEvent.ModifierFlags in [.command, [.command, .shift]] {
             let event = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags,

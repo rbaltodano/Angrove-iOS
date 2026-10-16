@@ -19,6 +19,12 @@ Collected from the [iOS] and [Shared] entries below.
   privacy are unchanged; this prepares for larger models on Mac. The app download grows by
   about 17 MB. *(Pending iPhone device validation before release.)*
 
+## 2026-10-16
+
+- **[macOS] Compile fixes for the Worktree Tools commits (b9a52e4…14658c9).** `WorktreeTextEditor.lineHeight`
+  is `nonisolated` so `WorktreeTextBoxResize.frame` can use it as a default; the undo shortcut test
+  places an Insight now that the `/help` card is gone. No behavior change.
+
 ## 2026-10-15
 
 - **[macOS] Worktree page (scaffold).** New sidebar entry opening a blank, pannable canvas (no dot

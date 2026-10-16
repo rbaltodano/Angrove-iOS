@@ -24,7 +24,7 @@ struct WorktreeTextEditor: NSViewRepresentable {
 
     static let font = NSFont(name: "Figtree-Regular", size: 14) ?? .systemFont(ofSize: 14)
     /// The design's 2× line height for Figtree 14.
-    static let lineHeight: CGFloat = 28
+    nonisolated static let lineHeight: CGFloat = 28
     private var naturalLineHeight: CGFloat { ceil(textFont.ascender - textFont.descender + textFont.leading) }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
