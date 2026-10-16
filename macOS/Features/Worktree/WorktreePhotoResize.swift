@@ -93,16 +93,17 @@ struct WorktreePhotoResizeHandles: View {
     let layout: WorktreePhotoLayout
     let zoom: CGFloat
     var pointer: WorktreeCanvasPointer? = nil
+    var move: WorktreeBoxMove? = nil
     @State private var start: WorktreePhotoFrame?
     @State private var press = WorktreeBoxPress()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            WorktreeBoxChrome(size: size, zoom: zoom,
-                isVisible: start != nil || WorktreeTextBoxResize.isNear(pointer?.world, to: board.frame(of: item.id), zoom: zoom),
-                press: press)
-            ForEach(WorktreePhotoHandle.allCases, id: \.self) { handle in
+            let isVisible = start != nil || pointer?.nearIDs.contains(item.id) == true
+            WorktreeBoxChrome(size: size, zoom: zoom, isVisible: isVisible, press: press)
+            // With a move, the top edge and the grip above it move the photo instead of cropping.
+            ForEach(WorktreePhotoHandle.allCases.filter { move == nil || $0 != .top }, id: \.self) { handle in
                 let corner = handle.corner
                 let width = corner ? 16.0 : handle.horizontal ? 8.0 : max(0, size.width - 32)
                 let height = corner ? 16.0 : handle.horizontal ? max(0, size.height - 32) : 8.0
@@ -110,7 +111,7 @@ struct WorktreePhotoResizeHandles: View {
                     .frame(width: width, height: height)
                     .contentShape(Rectangle())
                     .pointerStyle(.frameResize(position: handle.cursor))
-                    .position(position(handle))
+                    .position(handle.point(in: size))
                     .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named(MacWorktreeView.canvasSpace))
                         .onChanged { value in
                             if start == nil {
@@ -135,20 +136,11 @@ struct WorktreePhotoResizeHandles: View {
                         })
                     .accessibilityLabel(corner ? "Resize photo proportionally" : "Crop photo")
             }
+            if let move {
+                WorktreeBoxTopEdge(width: size.width, zoom: zoom, move: move)
+                WorktreeBoxGrip(width: size.width, zoom: zoom, isVisible: isVisible, move: move)
+            }
         }
         .frame(width: size.width, height: size.height)
-    }
-
-    private func position(_ handle: WorktreePhotoHandle) -> CGPoint {
-        switch handle {
-        case .left: CGPoint(x: 0, y: size.height / 2)
-        case .right: CGPoint(x: size.width, y: size.height / 2)
-        case .top: CGPoint(x: size.width / 2, y: 0)
-        case .bottom: CGPoint(x: size.width / 2, y: size.height)
-        case .topLeft: .zero
-        case .topRight: CGPoint(x: size.width, y: 0)
-        case .bottomLeft: CGPoint(x: 0, y: size.height)
-        case .bottomRight: CGPoint(x: size.width, y: size.height)
-        }
     }
 }

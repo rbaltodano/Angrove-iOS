@@ -575,6 +575,46 @@ enum WorktreeWork: Equatable { case queued, running }
         editingID = heading.id
     }
 
+    /// + and −: grows or shrinks each item 10% about its centre, as one undoable action. Notes and
+    /// headings change their box (text keeps its size and rewraps); photos scale with their crop;
+    /// windows resize. Insights and help cards keep their size. Returns whether anything changed.
+    @discardableResult
+    func resize(_ ids: [UUID], growing: Bool) -> Bool {
+        let factor: CGFloat = growing ? 1.1 : 1 / 1.1
+        var changed = false
+        beginHistoryAction()
+        defer { endHistoryAction() }
+        for id in ids {
+            guard let item = items.first(where: { $0.id == id }), !item.isInsight, !item.isHelp,
+                  !item.isSummarizing, item.arrivalTitle == nil else { continue }
+            // A window's size is only known once set; text and photos fall back to their measured frame.
+            let padding = WorktreeItemView.textPadding
+            let measured = item.isQuestion ? nil
+                : itemSizes[id].map { CGSize(width: max(0, $0.width - padding * 2), height: max(0, $0.height - padding * 2)) }
+            guard let current = item.size ?? measured, current.width > 0, current.height > 0 else { continue }
+            let minimum: CGSize = item.image != nil ? CGSize(width: 32, height: 32)
+                : item.isQuestion ? CGSize(width: 240, height: 140)
+                : CGSize(width: WorktreeTextBoxResize.minimumWidth, height: item.isHeading ? 56 : WorktreeTextEditor.lineHeight)
+            let scale = max(factor, minimum.width / current.width, minimum.height / current.height)
+            guard scale != 1 else { continue }
+            let next = CGSize(width: current.width * scale, height: current.height * scale)
+            withAnimation(.springQuick) {
+                update(id) {
+                    $0.origin.x -= (next.width - current.width) / 2
+                    $0.origin.y -= (next.height - current.height) / 2
+                    $0.size = next
+                    if let layout = $0.photoLayout {
+                        $0.photoLayout = WorktreePhotoLayout(
+                            contentSize: CGSize(width: layout.contentSize.width * scale, height: layout.contentSize.height * scale),
+                            offset: CGPoint(x: layout.offset.x * scale, y: layout.offset.y * scale))
+                    }
+                }
+            }
+            changed = true
+        }
+        return changed
+    }
+
     /// Bumped by `/file`; the page opens its file browser in response.
     var fileRequest = 0
 

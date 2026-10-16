@@ -1,9 +1,22 @@
 import SwiftUI
 
-/// The pointer in canvas (world) space. Observed only by the text boxes that fade in near it, so
-/// pointer movement never re-renders the rest of the canvas.
+/// The pointer in canvas (world) space, and the items whose boxes it is near. The position itself
+/// is not observed; `nearIDs` changes only when the pointer crosses a box's 84-point line, so
+/// moving the mouse re-renders nothing until a box should fade in or out.
 @MainActor @Observable final class WorktreeCanvasPointer {
-    var world: CGPoint?
+    @ObservationIgnored private(set) var world: CGPoint?
+    private(set) var nearIDs: Set<UUID> = []
+
+    func update(world: CGPoint?, board: WorktreeBoard, zoom: CGFloat) {
+        self.world = world
+        var near = Set<UUID>()
+        if world != nil {
+            for item in board.items where WorktreeTextBoxResize.isNear(world, to: board.frame(of: item.id), zoom: zoom) {
+                near.insert(item.id)
+            }
+        }
+        if near != nearIDs { nearIDs = near }
+    }
 }
 
 /// A note's, heading's or photo's box, as Figma draws a layer's: a frame with a square at each
@@ -137,12 +150,78 @@ extension WorktreePhotoHandle {
     }
 }
 
+/// Moving an item from its box: the item's own move, so snapping, Trash and the sidebar still work.
+struct WorktreeBoxMove {
+    let changed: (DragGesture.Value) -> Void
+    let ended: () -> Void
+}
+
+/// The box's move grip: the canvas grip turned on its side, centred 8pt above the top line.
+/// Hidden until the pointer is near; it glows while hovered or dragged. Its drag, like the top
+/// edge's, moves the item and never resizes it.
+struct WorktreeBoxGrip: View {
+    let width: CGFloat
+    let zoom: CGFloat
+    let isVisible: Bool
+    let move: WorktreeBoxMove
+    @State private var isHovered = false
+    @State private var isDragging = false
+
+    private static let size = CGSize(width: 7.5, height: 12)
+    private static let gap: CGFloat = 8
+
+    var body: some View {
+        let isLit = isHovered || isDragging
+        Image("WorktreeGrip")
+            .renderingMode(.template)
+            .resizable()
+            .frame(width: Self.size.width / zoom, height: Self.size.height / zoom)
+            .rotationEffect(.degrees(90))
+            .foregroundStyle(AngroveTheme.Colors.lightGreen.opacity(isLit ? 0.75 : 0.5))
+            .shadow(color: AngroveTheme.Colors.lightGreen.opacity(isLit ? 0.6 : 0), radius: 4 / zoom)
+            // A comfortable target around the small glyph.
+            .frame(width: 28 / zoom, height: 20 / zoom)
+            .contentShape(Rectangle())
+            .opacity(isVisible || isLit ? 1 : 0)
+            .animation(.easeOut(duration: 0.15), value: isVisible || isLit)
+            .animation(.easeOut(duration: 0.15), value: isLit)
+            .onHover { isHovered = $0 }
+            .pointerStyle(isDragging ? .grabActive : .grabIdle)
+            .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                .onChanged { isDragging = true; move.changed($0) }
+                .onEnded { _ in isDragging = false; move.ended() })
+            // Rotated, the grip is 12 wide and 7.5 tall; its centre sits 8pt plus half that above the line.
+            .position(x: width / 2, y: -(Self.gap + Self.size.width / 2) / zoom)
+            .accessibilityLabel("Move")
+    }
+}
+
+/// The top edge between the corners moves the item rather than resizing it.
+struct WorktreeBoxTopEdge: View {
+    let width: CGFloat
+    let zoom: CGFloat
+    let move: WorktreeBoxMove
+
+    var body: some View {
+        Color.clear
+            .frame(width: max(0, width - 12 / zoom), height: 8 / zoom)
+            .contentShape(Rectangle())
+            .pointerStyle(.grabIdle)
+            .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                .onChanged(move.changed)
+                .onEnded { _ in move.ended() })
+            .position(x: width / 2, y: 0)
+            .accessibilityHidden(true)
+    }
+}
+
 /// A note's or heading's box. Edges set the wrap width and a minimum height; corners do both.
 struct WorktreeTextBox: View {
     let board: WorktreeBoard
     let item: WorktreeBoard.Item
     let zoom: CGFloat
     let pointer: WorktreeCanvasPointer
+    let move: WorktreeBoxMove
     /// One line: 28pt for a note, 56pt for a heading.
     var minimumHeight: CGFloat = WorktreeTextEditor.lineHeight
     @State private var start: (origin: CGPoint, size: CGSize)?
@@ -152,13 +231,14 @@ struct WorktreeTextBox: View {
     var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
+            let isVisible = start != nil || pointer.nearIDs.contains(item.id)
             ZStack(alignment: .topLeading) {
-                WorktreeBoxChrome(size: size, zoom: zoom,
-                    isVisible: start != nil || WorktreeTextBoxResize.isNear(pointer.world, to: board.frame(of: item.id), zoom: zoom),
-                    press: press)
-                ForEach(WorktreePhotoHandle.allCases, id: \.self) { handle in
+                WorktreeBoxChrome(size: size, zoom: zoom, isVisible: isVisible, press: press)
+                ForEach(WorktreePhotoHandle.allCases.filter { $0 != .top }, id: \.self) { handle in
                     handleArea(handle, in: size)
                 }
+                WorktreeBoxTopEdge(width: size.width, zoom: zoom, move: move)
+                WorktreeBoxGrip(width: size.width, zoom: zoom, isVisible: isVisible, move: move)
             }
         }
     }

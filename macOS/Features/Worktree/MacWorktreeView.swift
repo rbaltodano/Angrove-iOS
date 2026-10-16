@@ -131,10 +131,10 @@ struct MacWorktreeView: View {
             .onContinuousHover(coordinateSpace: .local) { phase in
                 if case .active(let location) = phase {
                     pointerBox.location = location
-                    canvasPointer.world = worldPoint(location, in: size)
+                    canvasPointer.update(world: worldPoint(location, in: size), board: board, zoom: camera.scale)
                 } else {
                     pointerBox.location = nil
-                    canvasPointer.world = nil
+                    canvasPointer.update(world: nil, board: board, zoom: camera.scale)
                 }
             }
             .simultaneousGesture(pinchGesture(in: size))
@@ -211,7 +211,7 @@ struct MacWorktreeView: View {
             }
             .padding(24)
         }
-        .background(WorktreeKeyShortcuts(onCharacters: typeOnCanvas, onEditKey: editPendingField, onEscape: escape, onZoom: zoom, onSlash: openCommand, onTool: useShortcut, onUndo: { board.undo() }, onRedo: { board.redo() }))
+        .background(WorktreeKeyShortcuts(onCharacters: typeOnCanvas, onEditKey: editPendingField, onEscape: escape, onZoom: zoom, onSlash: openCommand, onTool: useShortcut, onResize: resizeTargets, onUndo: { board.undo() }, onRedo: { board.redo() }))
         .onChange(of: board.fileRequest) { _, _ in openFiles() }
         .onChange(of: camera.scale) { _, _ in rememberViewport() }
         .onChange(of: camera.offset) { _, _ in rememberViewport() }
@@ -436,6 +436,12 @@ struct MacWorktreeView: View {
         board.runTool(tool, on: board.shortcutTargets, freeOrigin: typingOrigin, runtime: runtime)
     }
 
+    private func resizeTargets(growing: Bool) -> Bool {
+        // A field that has not taken focus yet still gets the key, as text.
+        guard pendingPhotos.isEmpty, activeTool == nil, !board.isCommandOpen, board.editingID == nil else { return false }
+        return board.resize(board.shortcutTargets, growing: growing)
+    }
+
     /// A click with a picked-up tool. Text, Question and Heading land where the preview sat, ready
     /// to type. Rename, Summarize and Define act on what was clicked; Define on empty canvas
     /// waits for a term there, and the others stay picked up until something is clicked.
@@ -467,181 +473,6 @@ struct MacWorktreeView: View {
         activeTool = nil
     }
 
-}
-
-/// Canvas keys, ignored while text is being edited anywhere in the window (except "/" with a
-/// selection): typed characters start text, Escape deselects, ⌘= / ⌘− / ⌘0 zoom.
-private struct WorktreeKeyShortcuts: NSViewRepresentable {
-    enum Zoom { case `in`, out, reset }
-    enum EditKey { case submit, delete, cancel }
-    let onCharacters: (String) -> Bool
-    let onEditKey: (EditKey) -> Bool
-    let onEscape: () -> Bool
-    let onZoom: (Zoom) -> Void
-    /// "/" opens the selected item's command field; returns whether something was selected.
-    let onSlash: (_ fromTextField: Bool) -> Bool
-    /// A Tools card shortcut (⌘H, ⌘R, ⌘S, ⌘D, ⇧⌘K). Taken even while typing: it is a command,
-    /// not text, and on this page it wins over the menus' use of the same keys (⌘H is Hide).
-    let onTool: (WorktreeTool) -> Void
-
-    let onUndo: () -> Void
-    let onRedo: () -> Void
-
-    func makeNSView(context: Context) -> Monitor { Monitor() }
-    func updateNSView(_ view: Monitor, context: Context) {
-        view.onCharacters = onCharacters
-        view.onEditKey = onEditKey
-        view.onEscape = onEscape
-        view.onZoom = onZoom
-        view.onSlash = onSlash
-        view.onTool = onTool
-        view.onUndo = onUndo
-        view.onRedo = onRedo
-    }
-    static func dismantleNSView(_ view: Monitor, coordinator: ()) { view.stop() }
-
-    final class Monitor: NSView {
-        var onCharacters: ((String) -> Bool)?
-        var onEditKey: ((EditKey) -> Bool)?
-        var onEscape: (() -> Bool)?
-        var onZoom: ((Zoom) -> Void)?
-        var onSlash: ((Bool) -> Bool)?
-        var onTool: ((WorktreeTool) -> Void)?
-        var onUndo: (() -> Void)?
-        var onRedo: (() -> Void)?
-        private var monitor: Any?
-        override func hitTest(_ point: NSPoint) -> NSView? { nil }
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            stop()
-            guard window != nil else { return }
-            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-                guard let self, event.window === self.window, !self.isHiddenOrHasHiddenAncestor else { return event }
-                let modifiers = event.modifierFlags.intersection([.command, .control, .option])
-                let key = event.charactersIgnoringModifiers?.lowercased()
-                let isTyping = self.window?.firstResponder is NSText
-                if modifiers == .command, let key,
-                   let tool = WorktreeTool.forShortcut(key: key, shift: event.modifierFlags.contains(.shift)) {
-                    if !event.isARepeat { self.onTool?(tool) }
-                    return nil
-                }
-                if key == "/", modifiers.isEmpty, !event.isARepeat {
-                    return self.onSlash?(isTyping) == true ? nil : event
-                }
-                if modifiers == .command, key == "z" {
-                    let redo = event.modifierFlags.contains(.shift)
-                    if isTyping, let manager = self.window?.firstResponder?.undoManager,
-                       redo ? manager.canRedo : manager.canUndo { return event }
-                    if redo { self.onRedo?() } else { self.onUndo?() }
-                    return nil
-                }
-                guard !isTyping else { return event }
-                let zoom: Zoom? = switch key {
-                case "=", "+": .in
-                case "-": .out
-                case "0": .reset
-                default: nil
-                }
-                if modifiers == .command, let zoom {
-                    self.onZoom?(zoom)
-                    return nil
-                }
-                guard modifiers.isEmpty else { return event }
-                let editKey: EditKey? = switch event.keyCode {
-                case 36, 76: .submit
-                case 51: .delete
-                case 53: .cancel
-                default: nil
-                }
-                if let editKey, self.onEditKey?(editKey) == true { return nil }
-                if event.keyCode == 53 { return self.onEscape?() == true ? nil : event }
-                // Printable text only: no control, arrow or function keys.
-                guard let characters = event.characters, !characters.isEmpty,
-                      characters.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) && !(0xF700...0xF8FF).contains($0.value) })
-                else { return event }
-                return self.onCharacters?(characters) == true ? nil : event
-            }
-        }
-        func stop() {
-            if let monitor { NSEvent.removeMonitor(monitor) }
-            monitor = nil
-        }
-    }
-}
-
-/// The Worktree's model controls: Add, Tools, Model Tasks and Trash. Tools lists every command.
-private struct WorktreeControlDock: View {
-    let board: WorktreeBoard
-    let modelTasks: ModelTaskQueue
-    let addEntries: () -> [MacMenuEntry]
-    let toggleTools: () -> Void
-    let toggleModelTasks: () -> Void
-    let toggleTrash: () -> Void
-    @State private var isPressed = false
-    private var isTrashTargeted: Bool { board.trashTargetID != nil }
-
-    var body: some View {
-        HStack(spacing: 24) {
-            MacActionMenu(entries: addEntries) {
-                icon("WorktreePlus", width: 10, height: 10)
-                    .foregroundStyle(AngroveTheme.Colors.lightGreen)
-                    .frame(width: 21, height: 21)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(FloatingControlButtonStyle(isPressed: $isPressed))
-            .accessibilityLabel("Add")
-            .modelControlHoverLabel("Add")
-
-            Button(action: toggleTools) {
-                label("Tools", icon: Image(systemName: "command")
-                    .font(.system(size: 11, weight: .semibold))
-                    .frame(width: 12, height: 12)
-                    .accessibilityHidden(true))
-                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
-            }
-            .accessibilityHint("Show every tool, command and shortcut")
-            .modelControlHoverLabel("Tools")
-
-            ModelStatusButton(modelTasks: modelTasks, action: toggleModelTasks, controlIsPressed: $isPressed)
-
-            Button(action: toggleTrash) {
-                label("Trash", icon: icon("WorktreeTrash", width: 10, height: 12))
-                    .foregroundStyle(isTrashTargeted ? AngroveTheme.Colors.accentRed : AngroveTheme.Colors.paragraphText)
-                    .scaleEffect(isTrashTargeted ? 1.12 : 1)
-                    .animation(.springLively, value: isTrashTargeted)
-            }
-            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { board.trashFrame = $0 }
-            .accessibilityHint("Open recently deleted items, or drag an item here to delete it")
-            .modelControlHoverLabel("Trash")
-        }
-        .buttonStyle(FloatingControlButtonStyle(isPressed: $isPressed))
-        .padding(.horizontal, 32)
-        .padding(.vertical, 24)
-        .background(AngroveTheme.Colors.canvasSecondary)
-        .clipShape(Capsule())
-        .overlay(Capsule().stroke(AngroveTheme.Colors.popupBorder, lineWidth: 1))
-        .modelControlHoverPill()
-        .modifier(FloatingControlPressFeedback(isButtonPressed: isPressed))
-        .modelControlHoverOverlay(isVisible: true)
-    }
-
-    private func icon(_ name: String, width: CGFloat, height: CGFloat) -> some View {
-        Image(name)
-            .renderingMode(.template)
-            .resizable()
-            .frame(width: width, height: height)
-            .accessibilityHidden(true)
-    }
-
-    private func label(_ title: LocalizedStringKey, icon: some View) -> some View {
-        HStack(spacing: 8) {
-            icon
-            Text(title).font(BrandTypography.font("Figtree-SemiBold", size: 14))
-        }
-        .frame(minHeight: 21)
-        .contentShape(Rectangle())
-    }
 }
 
 /// An accent-green alignment guide, faded over its first and last quarter.

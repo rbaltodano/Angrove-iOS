@@ -34,4 +34,36 @@ struct MacWorktreeTextBoxTests {
         #expect(!WorktreeTextBoxResize.isNear(CGPoint(x: 150, y: 20), to: rect, zoom: 2))
         #expect(!WorktreeTextBoxResize.isNear(nil, to: rect, zoom: 1))
     }
+
+    @MainActor @Test func pointerOnlyPublishesWhenABoxCrossesItsLine() {
+        let board = WorktreeBoard()
+        let note = WorktreeBoard.Item(origin: CGPoint(x: 8, y: 8), text: "Note")
+        board.items = [note]
+        board.itemSizes[note.id] = CGSize(width: 100, height: 44)
+        let pointer = WorktreeCanvasPointer()
+        pointer.update(world: CGPoint(x: 400, y: 20), board: board, zoom: 1)
+        #expect(pointer.nearIDs.isEmpty)
+        pointer.update(world: CGPoint(x: 150, y: 20), board: board, zoom: 1)
+        #expect(pointer.nearIDs == [note.id])
+        pointer.update(world: nil, board: board, zoom: 1)
+        #expect(pointer.nearIDs.isEmpty)
+    }
+
+    @MainActor @Test func plusAndMinusResizeAboutTheCentre() {
+        let board = WorktreeBoard()
+        var note = WorktreeBoard.Item(origin: CGPoint(x: 100, y: 100), text: "Note")
+        note.size = CGSize(width: 200, height: 100)
+        var card = WorktreeBoard.Item(origin: .zero)
+        card.insight = ConceptDefinition(word: "grace", partOfSpeech: "", pronunciation: "", meaning: "A gift.", example: "")
+        board.items = [note, card]
+        #expect(board.resize([note.id], growing: true))
+        let grown = board.items[0]
+        #expect(abs(grown.size!.width - 220) < 0.001)
+        #expect(abs(grown.origin.x - 90) < 0.001)
+        #expect(abs(grown.origin.y - 95) < 0.001)
+        #expect(board.resize([note.id], growing: false))
+        #expect(abs(board.items[0].size!.width - 200) < 0.001)
+        // Insight cards keep their size.
+        #expect(!board.resize([card.id], growing: true))
+    }
 }

@@ -77,7 +77,7 @@ struct WorktreeItemView: View, Equatable {
             .overlay { if item.isQuestion { WorktreeResizeEdges(board: board, item: item, scale: scale) } }
             .overlay {
                 if let pointer, isNote || (item.isHeading && !item.isSummarizing) {
-                    WorktreeTextBox(board: board, item: item, zoom: scale, pointer: pointer,
+                    WorktreeTextBox(board: board, item: item, zoom: scale, pointer: pointer, move: boxMove,
                                     minimumHeight: item.isHeading ? Self.headingLineHeight : WorktreeTextEditor.lineHeight)
                 }
             }
@@ -147,7 +147,7 @@ struct WorktreeItemView: View, Equatable {
                     .transition(.blurFade)
             }
         } else if let image = item.image {
-            WorktreeImage(board: board, item: item, file: image, zoom: scale * (isActive || isHovered ? 1.05 : 1), pointer: pointer)
+            WorktreeImage(board: board, item: item, file: image, zoom: scale * (isActive || isHovered ? 1.05 : 1), pointer: pointer, move: boxMove)
         } else if item.isHelp {
             WorktreeHelpCard()
                 .transition(.scale(scale: 0.9, anchor: .topLeading).combined(with: .blurFade))
@@ -245,43 +245,50 @@ struct WorktreeItemView: View, Equatable {
     private var moveGesture: some Gesture {
         // Global space so the pointer can be compared with the Trash control's frame.
         DragGesture(minimumDistance: 1, coordinateSpace: .global)
-            .onChanged { value in
-                if dragStart == nil { board.beginHistoryAction() }
-                let start = dragStart ?? item.origin
-                dragStart = start
-                // 8pt snapping and 84pt guide overhang, in screen points.
-                board.move(item.id, to: CGPoint(x: start.x + value.translation.width / scale,
-                                                y: start.y + value.translation.height / scale),
-                           threshold: 8 / scale, overhang: 84 / scale)
-                board.trashTargetID = board.trashFrame.insetBy(dx: -12, dy: -12).contains(value.location) ? item.id : nil
-                // Over the sidebar, a conversation started here becomes the sidebar's chip.
-                if WorktreeBoard.sidebarFrame.contains(value.location), let title = board.sidebarTitle(for: item.id) {
-                    if board.sidebarDrag == nil {
-                        withAnimation(.springQuick) { board.sidebarDrag = .init(id: item.id, title: title, location: value.location) }
-                    } else {
-                        board.sidebarDrag?.location = value.location
-                    }
-                } else if board.sidebarDrag != nil {
-                    withAnimation(.springQuick) { board.sidebarDrag = nil }
-                }
+            .onChanged(moveChanged)
+            .onEnded { _ in moveEnded() }
+    }
+
+    /// Moving from a box's grip or top edge, as from the item's own grip.
+    private var boxMove: WorktreeBoxMove { WorktreeBoxMove(changed: moveChanged, ended: moveEnded) }
+
+    private func moveChanged(_ value: DragGesture.Value) {
+        if dragStart == nil { board.beginHistoryAction() }
+        let start = dragStart ?? item.origin
+        dragStart = start
+        // 8pt snapping and 84pt guide overhang, in screen points.
+        board.move(item.id, to: CGPoint(x: start.x + value.translation.width / scale,
+                                        y: start.y + value.translation.height / scale),
+                   threshold: 8 / scale, overhang: 84 / scale)
+        board.trashTargetID = board.trashFrame.insetBy(dx: -12, dy: -12).contains(value.location) ? item.id : nil
+        // Over the sidebar, a conversation started here becomes the sidebar's chip.
+        if WorktreeBoard.sidebarFrame.contains(value.location), let title = board.sidebarTitle(for: item.id) {
+            if board.sidebarDrag == nil {
+                withAnimation(.springQuick) { board.sidebarDrag = .init(id: item.id, title: title, location: value.location) }
+            } else {
+                board.sidebarDrag?.location = value.location
             }
-            .onEnded { _ in
-                defer { board.endHistoryAction() }
-                let start = dragStart
-                dragStart = nil
-                board.endMove()
-                if board.trashTargetID == item.id {
-                    withAnimation(.springQuick) { board.delete(item.id) }
-                } else if board.sidebarDrag?.id == item.id {
-                    // The sidebar gets a copy; the window springs back to where it was.
-                    withAnimation(.springStandard) {
-                        if let start { board.update(item.id) { $0.origin = start } }
-                        board.sidebarDrag = nil
-                    }
-                    board.dropOnSidebar(item.id, runtime: runtime)
-                }
-                board.trashTargetID = nil
+        } else if board.sidebarDrag != nil {
+            withAnimation(.springQuick) { board.sidebarDrag = nil }
+        }
+    }
+
+    private func moveEnded() {
+        defer { board.endHistoryAction() }
+        let start = dragStart
+        dragStart = nil
+        board.endMove()
+        if board.trashTargetID == item.id {
+            withAnimation(.springQuick) { board.delete(item.id) }
+        } else if board.sidebarDrag?.id == item.id {
+            // The sidebar gets a copy; the window springs back to where it was.
+            withAnimation(.springStandard) {
+                if let start { board.update(item.id) { $0.origin = start } }
+                board.sidebarDrag = nil
             }
+            board.dropOnSidebar(item.id, runtime: runtime)
+        }
+        board.trashTargetID = nil
     }
 }
 
@@ -802,6 +809,7 @@ private struct WorktreeImage: View {
     let file: UploadedFile
     let zoom: CGFloat
     var pointer: WorktreeCanvasPointer? = nil
+    var move: WorktreeBoxMove? = nil
     @State private var image: NSImage?
     @State private var hasLanded = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -828,7 +836,7 @@ private struct WorktreeImage: View {
         .scaleEffect(hasLanded || reduceMotion ? 1 : 0.98)
         .overlay {
             if image != nil {
-                WorktreePhotoResizeHandles(board: board, item: item, size: size, layout: layout, zoom: zoom, pointer: pointer)
+                WorktreePhotoResizeHandles(board: board, item: item, size: size, layout: layout, zoom: zoom, pointer: pointer, move: move)
             }
         }
         .task(id: file.id) {
