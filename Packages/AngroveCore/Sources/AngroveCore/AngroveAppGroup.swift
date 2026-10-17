@@ -6,10 +6,10 @@ import Foundation
 /// to `group.com.ryanbaltodano.Aquinas-iOS`, while a disposable probe build with its own bundle
 /// IDs (`…Aquinas-iOS.ModelProbe`, see `ANGROVE_BUNDLE_ID` in the project) resolves to its own
 /// group, so it can never read or change production's shared data. The Mac keeps the literal.
-nonisolated enum AngroveAppGroup {
-    static let production = "group.com.ryanbaltodano.Aquinas-iOS"
+public nonisolated enum AngroveAppGroup {
+    public static let production = "group.com.ryanbaltodano.Aquinas-iOS"
 
-    static let identifier: String = {
+    public static let identifier: String = {
         #if os(iOS)
         identifier(forBundleIdentifier: Bundle.main.bundleIdentifier)
         #else
@@ -21,7 +21,7 @@ nonisolated enum AngroveAppGroup {
     private static let extensionSuffixes = [".ModelDownloader", ".QuestionOfTheDay"]
     private static let productionAppID = "com.ryanbaltodano.Aquinas-iOS"
 
-    static func identifier(forBundleIdentifier bundleID: String?) -> String {
+    public static func identifier(forBundleIdentifier bundleID: String?) -> String {
         // Test runners and anything unexpected keep the production group, as before.
         guard let bundleID, bundleID.hasPrefix(productionAppID) else { return production }
         let suffix = extensionSuffixes.first { bundleID.hasSuffix($0) }

@@ -2,47 +2,11 @@ import BackgroundAssets
 import Foundation
 import System
 
-/// Versioned pack IDs and paths prevent a later model update from replacing the model that a
-/// live engine is using. Changing the model requires a new ID/path and an app manifest change.
-nonisolated struct AngroveModelAssetPack: Sendable, Equatable {
-    let id: String
-    let path: String
-    let manifest: LiteRTModelManifest
+/// Every pack this app ships: E4B, plus any the platform adds (`ModelPlatformPolicy`).
+extension AngroveModelAssetPack {
+    nonisolated static var all: [AngroveModelAssetPack] { [.e4b] + ModelPlatformPolicy.current.additionalPacks }
 
-    /// Gemma 4 E4B, essential on first install and update (`AssetPacks/Gemma4-E4B.json`, and
-    /// `AssetPacks/Mac-Gemma4-E4B.json` for the Mac app).
-    static let e4b = AngroveModelAssetPack(
-        id: "angrove-gemma4-e4b-0b2a8980",
-        path: "Models/angrove-gemma4-e4b-0b2a8980/gemma-4-E4B-it.litertlm",
-        manifest: .angrove
-    )
-
-    #if os(macOS)
-    // Mac-only packs. To ship another model: add its pack here (ID and path end in its digest
-    // prefix), list it in `all`, give it a `MacModelTier`, and add an `AssetPacks/Mac-*.json`
-    // manifest with the same ID and path. Delivery, download state and receipts follow the pack.
-
-    /// The Mac's Large tier, Gemma 4 12B, downloaded on demand (`AssetPacks/Mac-Gemma4-12B.json`).
-    static let gemma12B = AngroveModelAssetPack(
-        id: "angrove-gemma4-12b-58fd31b7",
-        path: "Models/angrove-gemma4-12b-58fd31b7/gemma-4-12B-it.litertlm",
-        // Stock litert-community/gemma-4-12B-it-litert-lm package. Needs LiteRT-LM 0.17+.
-        manifest: LiteRTModelManifest(
-            fileName: "gemma-4-12B-it.litertlm",
-            byteCount: 6_883_278_368,
-            sha256: "58fd31b778ca2c21c80d634fb34fc5a89d11d563a38dfd3cbf1b40dbf252a8b6"
-        )
-    )
-    static let all = [e4b, gemma12B]
-    #else
-    static let all = [e4b]
-    #endif
-
-    /// The iPhone's one pack; existing call sites read these.
-    static var id: String { e4b.id }
-    static var path: String { e4b.path }
-
-    static func pack(for manifest: LiteRTModelManifest) -> AngroveModelAssetPack? {
+    nonisolated static func pack(for manifest: LiteRTModelManifest) -> AngroveModelAssetPack? {
         all.first { $0.manifest == manifest }
     }
 }
@@ -62,23 +26,9 @@ nonisolated struct AppleHostedModelAssets: ManagedModelAssetProviding {
     var pack: AngroveModelAssetPack = .e4b
 
     static func isAvailableLocally(_ pack: AngroveModelAssetPack = .e4b) -> Bool {
-        #if os(macOS)
-        guard canUseAppleHosting else { return false }
-        #endif
+        guard ModelPlatformPolicy.current.canUseAppleHosting() else { return false }
         return AssetPackManager.shared.assetPackIsAvailableLocally(withID: pack.id)
     }
-
-    #if os(macOS)
-    /// Whether this Mac build may call Background Assets. `AssetPackManager` trapped on the first
-    /// call in a development-signed build (2026-10-17) rather than reporting an error, so only
-    /// App Store and TestFlight installs (which carry a store receipt) use it, plus builds run
-    /// with `ANGROVE_BACKGROUND_ASSETS_DEVELOPMENT=1` against Apple's `ba-serve` mock server.
-    static let canUseAppleHosting: Bool = {
-        if ProcessInfo.processInfo.environment["ANGROVE_BACKGROUND_ASSETS_DEVELOPMENT"] == "1" { return true }
-        let receipt = Bundle.main.bundleURL.appending(path: "Contents/_MASReceipt/receipt")
-        return FileManager.default.fileExists(atPath: receipt.path)
-    }()
-    #endif
 
     func availableModelURL() async throws -> URL {
         try await availableModelURL(onStatus: { _ in })
@@ -86,9 +36,7 @@ nonisolated struct AppleHostedModelAssets: ManagedModelAssetProviding {
 
     func availableModelURL(onStatus: @escaping @Sendable (ModelDeliveryPhase) async -> Void) async throws -> URL {
         try Task.checkCancellation()
-        #if os(macOS)
-        guard Self.canUseAppleHosting else { throw LiteRTModelStoreError.modelMissing }
-        #endif
+        guard ModelPlatformPolicy.current.canUseAppleHosting() else { throw LiteRTModelStoreError.modelMissing }
         let manager = AssetPackManager.shared
         let pack = self.pack
         await onStatus(.waiting)

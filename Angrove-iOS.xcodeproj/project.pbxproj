@@ -5,6 +5,14 @@
 	};
 	objectVersion = 77;
 	objects = {
+		BA0000000000000000000002 = { isa = XCSwiftPackageProductDependency; package = BA0000000000000000000001; productName = AngroveCore; };
+		BA0000000000000000000003 = { isa = PBXBuildFile; productRef = BA0000000000000000000002; };
+		BA0000000000000000000004 = { isa = XCSwiftPackageProductDependency; package = BA0000000000000000000001; productName = AngroveCore; };
+		BA0000000000000000000005 = { isa = PBXBuildFile; productRef = BA0000000000000000000004; };
+		BA0000000000000000000006 = { isa = XCSwiftPackageProductDependency; package = BA0000000000000000000001; productName = AngroveCore; };
+		BA0000000000000000000007 = { isa = PBXBuildFile; productRef = BA0000000000000000000006; };
+		BA0000000000000000000008 = { isa = XCSwiftPackageProductDependency; package = BA0000000000000000000001; productName = AngroveCore; };
+		BA0000000000000000000009 = { isa = PBXBuildFile; productRef = BA0000000000000000000008; };
 		E01400000000000000000004 = { isa = PBXFileSystemSynchronizedBuildFileExceptionSet; membershipExceptions = (AGENTS.md, README.md, Info.plist, Entitlements/Angrove-macOS.entitlements, Entitlements/AngroveMacWidgets.entitlements, Entitlements/AngroveMacModelDownloader.entitlements,); target = C50000000000000000000001; };
 		E01400000000000000000001 = { isa = PBXFileSystemSynchronizedRootGroup; path = Shared; sourceTree = "<group>"; exceptions = (E01400000000000000000002, E01400000000000000000003,); };
 		E01400000000000000000002 = { isa = PBXFileSystemSynchronizedBuildFileExceptionSet; membershipExceptions = (AGENTS.md, README.md,); target = D61EFA742F8AAB5B0081D843; };
@@ -361,7 +369,7 @@
 		CF0400000000000000000000 = { isa = PBXFileReference; lastKnownFileType = folder.icon; path = "Shared/AngroveAppIcon.icon"; sourceTree = SOURCE_ROOT; };
 		CF0400000000000000000001 = { isa = PBXBuildFile; fileRef = CF0400000000000000000000; };
 
-		C50000000000000000000001 = { isa = PBXNativeTarget; name = "Angrove-macOS"; productName = "Angrove-macOS"; productType = "com.apple.product-type.application"; productReference = C50000000000000000000002; buildConfigurationList = C50000000000000000000007; buildPhases = (C50000000000000000000004, C50000000000000000000005, C50000000000000000000006, B8000000000000000000000D, B9000000000000000000000C,); dependencies = (B8000000000000000000000E, B9000000000000000000000D,); buildRules = (); fileSystemSynchronizedGroups = (E01400000000000000000001, C50000000000000000000003,); packageProductDependencies = (C5000000000000000000000A, A20000000000000000000006, A20000000000000000000009, B70000000000000000000001,); };
+		C50000000000000000000001 = { isa = PBXNativeTarget; name = "Angrove-macOS"; productName = "Angrove-macOS"; productType = "com.apple.product-type.application"; productReference = C50000000000000000000002; buildConfigurationList = C50000000000000000000007; buildPhases = (C50000000000000000000004, C50000000000000000000005, C50000000000000000000006, B8000000000000000000000D, B9000000000000000000000C,); dependencies = (B8000000000000000000000E, B9000000000000000000000D,); buildRules = (); fileSystemSynchronizedGroups = (E01400000000000000000001, C50000000000000000000003,); packageProductDependencies = (C5000000000000000000000A, A20000000000000000000006, A20000000000000000000009, B70000000000000000000001, BA0000000000000000000004,); };
 		C50000000000000000000002 = { isa = PBXFileReference; explicitFileType = wrapper.application; path = "Angrove-macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		C50000000000000000000003 = { isa = PBXFileSystemSynchronizedRootGroup; path = "macOS"; sourceTree = "<group>"; exceptions = (E01400000000000000000004,); };
 		CF0300000000000000000000 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Shared/DesignSystem/QuotedQuestionContainer.swift"; sourceTree = SOURCE_ROOT; };
@@ -499,7 +507,7 @@
 
 
                                               ); runOnlyForDeploymentPostprocessing = 0; };
-		C50000000000000000000005 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (CE0000000000000000000002,CE0000000000000000000001,C5000000000000000000000B,B70000000000000000000002,); runOnlyForDeploymentPostprocessing = 0; };
+		C50000000000000000000005 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (CE0000000000000000000002,CE0000000000000000000001,C5000000000000000000000B,B70000000000000000000002,BA0000000000000000000005,); runOnlyForDeploymentPostprocessing = 0; };
 		C50000000000000000000028 = { isa = PBXFileReference; lastKnownFileType = file; path = "Shared/Fonts/Figtree-Bold.ttf"; sourceTree = SOURCE_ROOT; };
 		C50000000000000000000029 = { isa = PBXBuildFile; fileRef = C50000000000000000000028; };
 		C5000000000000000000002A = { isa = PBXFileReference; lastKnownFileType = file; path = "Shared/Fonts/Figtree-ExtraBold.ttf"; sourceTree = SOURCE_ROOT; };
@@ -583,9 +591,9 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
         B30000000000000000000001 = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; path = AngroveWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
         B30000000000000000000002 = {isa = PBXFileSystemSynchronizedRootGroup; path = AngroveWidgets; sourceTree = "<group>"; exceptions = (B30000000000000000000003,B80000000000000000000003,); };
         B30000000000000000000003 = {isa = PBXFileSystemSynchronizedBuildFileExceptionSet; membershipExceptions = (Info.plist,); target = B30000000000000000000004; };
-        B30000000000000000000004 = {isa = PBXNativeTarget; buildConfigurationList = B30000000000000000000008; buildPhases = (B30000000000000000000005, B30000000000000000000006, B30000000000000000000007,); buildRules = (); dependencies = (); fileSystemSynchronizedGroups = (B30000000000000000000002,B3000000000000000000000B,); name = AngroveWidgets; productName = AngroveWidgets; productReference = B30000000000000000000001; productType = "com.apple.product-type.app-extension"; };
+        B30000000000000000000004 = {isa = PBXNativeTarget; buildConfigurationList = B30000000000000000000008; buildPhases = (B30000000000000000000005, B30000000000000000000006, B30000000000000000000007,); buildRules = (); dependencies = (); fileSystemSynchronizedGroups = (B30000000000000000000002,B3000000000000000000000B,); name = AngroveWidgets; packageProductDependencies = (BA0000000000000000000006,); productName = AngroveWidgets; productReference = B30000000000000000000001; productType = "com.apple.product-type.app-extension"; };
         B30000000000000000000005 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
-        B30000000000000000000006 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+        B30000000000000000000006 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (BA0000000000000000000007,); runOnlyForDeploymentPostprocessing = 0; };
         B30000000000000000000007 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
         B30000000000000000000008 = {isa = XCConfigurationList; buildConfigurations = (B30000000000000000000009,B3000000000000000000000A,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
         B3000000000000000000000B = {isa = PBXFileSystemSynchronizedRootGroup; path = "Shared/Widgets"; sourceTree = "<group>"; };
@@ -594,9 +602,9 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
         B3000000000000000000000E = {isa = PBXTargetDependency; target = B30000000000000000000004; };
         B80000000000000000000001 = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; path = AngroveMacWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
         B80000000000000000000003 = {isa = PBXFileSystemSynchronizedBuildFileExceptionSet; membershipExceptions = (Info.plist,); target = B80000000000000000000004; };
-        B80000000000000000000004 = {isa = PBXNativeTarget; buildConfigurationList = B80000000000000000000008; buildPhases = (B80000000000000000000005, B80000000000000000000006, B80000000000000000000007,); buildRules = (); dependencies = (); fileSystemSynchronizedGroups = (B30000000000000000000002,B3000000000000000000000B,); name = AngroveMacWidgets; productName = AngroveMacWidgets; productReference = B80000000000000000000001; productType = "com.apple.product-type.app-extension"; };
+        B80000000000000000000004 = {isa = PBXNativeTarget; buildConfigurationList = B80000000000000000000008; buildPhases = (B80000000000000000000005, B80000000000000000000006, B80000000000000000000007,); buildRules = (); dependencies = (); fileSystemSynchronizedGroups = (B30000000000000000000002,B3000000000000000000000B,); name = AngroveMacWidgets; packageProductDependencies = (BA0000000000000000000008,); productName = AngroveMacWidgets; productReference = B80000000000000000000001; productType = "com.apple.product-type.app-extension"; };
         B80000000000000000000005 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
-        B80000000000000000000006 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+        B80000000000000000000006 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (BA0000000000000000000009,); runOnlyForDeploymentPostprocessing = 0; };
         B80000000000000000000007 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
         B80000000000000000000008 = {isa = XCConfigurationList; buildConfigurations = (B80000000000000000000009,B8000000000000000000000A,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
         B80000000000000000000009 = {isa = XCBuildConfiguration; name = Debug; buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; ARCHS = arm64; CODE_SIGN_ENTITLEMENTS = macOS/Entitlements/AngroveMacWidgets.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = 7XG2DHY989; ENABLE_APP_SANDBOX = YES; ENABLE_HARDENED_RUNTIME = YES; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = AngroveWidgets/Info.plist; INFOPLIST_KEY_CFBundleDisplayName = "Question of the Day"; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)","@executable_path/../Frameworks","@executable_path/../../../../Frameworks",); MACOSX_DEPLOYMENT_TARGET = 27.0; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = "com.ryanbaltodano.Angrove.macOS.QuestionOfTheDay"; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = macosx; SKIP_INSTALL = YES; SUPPORTED_PLATFORMS = macosx; SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) ANGROVE_WIDGET"; SWIFT_VERSION = 5.0; }; };
@@ -672,6 +680,7 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
 			buildActionMask = 2147483647;
 			files = (
 				A20000000000000000000001 /* LiteRTLM in Frameworks */,
+				BA0000000000000000000003 /* AngroveCore in Frameworks */,
 				A20000000000000000000004 /* MisakiSwift in Frameworks */,
 				A20000000000000000000007 /* onnxruntime in Frameworks */,
 				A2000000000000000000000C /* llama in Frameworks */,
@@ -760,6 +769,7 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
 			name = "Angrove-iOS";
 			packageProductDependencies = (
 				A20000000000000000000003 /* LiteRTLM */,
+				BA0000000000000000000002 /* AngroveCore */,
 				A20000000000000000000006 /* MisakiSwift */,
 				A20000000000000000000009 /* onnxruntime */,
 				A2000000000000000000000B /* llama */,
@@ -798,6 +808,7 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				A20000000000000000000002 /* XCLocalSwiftPackageReference "Vendor/LiteRTLM" */,
+				BA0000000000000000000001 /* XCLocalSwiftPackageReference "Packages/AngroveCore" */,
 				A20000000000000000000005 /* XCLocalSwiftPackageReference "Vendor/MisakiSwift" */,
 				A2000000000000000000000A /* XCLocalSwiftPackageReference "Vendor/LlamaCpp" */,
 				A20000000000000000000008 /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */,
@@ -1199,6 +1210,10 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
+		BA0000000000000000000001 /* XCLocalSwiftPackageReference "Packages/AngroveCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/AngroveCore;
+		};
 		A20000000000000000000002 /* XCLocalSwiftPackageReference "Vendor/LiteRTLM" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Vendor/LiteRTLM;

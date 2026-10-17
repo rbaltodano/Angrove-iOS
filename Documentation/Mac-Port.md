@@ -1270,8 +1270,8 @@ calls it from App Store/TestFlight installs (store receipt present) or with
 download row reports that the pack isn't available.
 
 **Adding a desktop model.**
-1. Add an `AngroveModelAssetPack` in the Mac-only block of `Shared/Services/AppleHostedModelDelivery.swift`
-   (ID and path end in the digest's first 8 characters) and list it in `all`.
+1. Add an `AngroveModelAssetPack` in `macOS/Platform/ModelPlatformPolicy+Mac.swift` (ID and path
+   end in the digest's first 8 characters) and list it in that file's `additionalPacks`.
 2. Add a `MacModelTier` case returning that pack, with its memory floor, title and detail.
 3. Add `AssetPacks/Mac-<name>.json` with the same ID and destination path, `"platforms": ["macOS"]`
    and `"onDemand": {}` (or essential for the default model). `MacModelDeliveryTests` checks the

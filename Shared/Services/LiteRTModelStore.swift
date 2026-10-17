@@ -5,24 +5,6 @@
 
 import Foundation
 
-nonisolated struct LiteRTModelManifest: Sendable, Equatable {
-    // Gemma 4 E4B instruction-tuned, LiteRT Community standard package (M4-Ls in the E4B
-    // migration ledger). Mixed INT4/INT2/INT8 weights, consistent with QAT, but Google hasn't
-    // confirmed its provenance, so it's labelled "LiteRT Community" rather than "QAT" (plan D8).
-    // Not fine-tuned. Text-only here (see LiteRTAngroveRuntime).
-    // Rollback: the fine-tuned E2B package, "gemma-4-E2B-it.litertlm",
-    // 3_862_121_696 bytes, SHA-256 9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282.
-    static let angrove = LiteRTModelManifest(
-        fileName: "gemma-4-E4B-it.litertlm",
-        byteCount: 3_659_530_240,
-        sha256: "0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0"
-    )
-
-    let fileName: String
-    let byteCount: Int64
-    let sha256: String
-}
-
 nonisolated enum LiteRTModelStoreError: LocalizedError, Sendable {
     case modelMissing
     case invalidModelSize(expected: Int64, actual: Int64)
@@ -65,22 +47,13 @@ nonisolated struct LiteRTModelStore: Sendable {
     }
 
     func preparedModelURL() async throws -> URL {
-#if os(macOS)
-        // A verified local copy comes first in every build: development artifacts, or a Mac that
-        // was set up before Apple hosting. Distribution installs have none and use their pack.
-        if let local = try? installedModelURL() { return local }
+        // A verified local copy: development artifacts (both apps), or a Mac set up before Apple
+        // hosting. Distribution installs have none and use their pack.
+        if ModelPlatformPolicy.current.prefersLocalCopy, let local = try? installedModelURL() { return local }
         guard usesAppleHostedDelivery, let delivery = AppleHostedModelDelivery.delivery(for: manifest) else {
             return try installedModelURL()
         }
         return try await delivery.prepareModel(manifest: manifest)
-#else
-#if DEBUG
-        // Keep source-checkout development and diagnostic overrides usable without an uploaded pack.
-        if let local = try? installedModelURL() { return local }
-#endif
-        guard usesAppleHostedDelivery else { return try installedModelURL() }
-        return try await AppleHostedModelDelivery.shared.prepareModel(manifest: manifest)
-#endif
     }
 
     func installedModelURL() throws -> URL {
@@ -124,11 +97,7 @@ nonisolated struct LiteRTModelStore: Sendable {
         ).first else {
             throw LiteRTModelStoreError.cacheUnavailable
         }
-        #if os(macOS)
-        var directory = root.appending(path: "Angrove-macOS/LiteRTLM")
-        #else
-        var directory = root.appending(path: "LiteRTLM")
-        #endif
+        var directory = root.appending(path: ModelPlatformPolicy.current.storagePath("LiteRTLM"))
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--litert-sustained-probe"),
            Bundle.main.bundleIdentifier == "com.ryanbaltodano.Aquinas-iOS.ModelProbe" {
@@ -150,11 +119,7 @@ nonisolated struct LiteRTModelStore: Sendable {
         ).first else {
             throw LiteRTModelStoreError.modelMissing
         }
-        #if os(macOS)
-        let directory = root.appending(path: "Angrove-macOS/Models")
-        #else
-        let directory = root.appending(path: "Models")
-        #endif
+        let directory = root.appending(path: ModelPlatformPolicy.current.storagePath("Models"))
         try FileManager.default.createDirectory(
             at: directory,
             withIntermediateDirectories: true
@@ -189,13 +154,8 @@ nonisolated struct LiteRTModelStore: Sendable {
             for: .applicationSupportDirectory,
             in: .userDomainMask
         ).first {
-            #if os(macOS)
-            let root = applicationSupport.appending(path: "Angrove-macOS")
-            #else
-            let root = applicationSupport
-            #endif
-            return root
-                .appending(path: "Models")
+            return applicationSupport
+                .appending(path: ModelPlatformPolicy.current.storagePath("Models"))
                 .appending(path: manifest.fileName)
         }
         return nil

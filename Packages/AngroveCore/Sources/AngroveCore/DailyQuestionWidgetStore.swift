@@ -2,12 +2,12 @@ import Foundation
 
 /// Only question text is shared. Its separate Keychain key gives the extension no access to
 /// conversations or Insights. After-first-unlock accessibility supports the Lock Screen widget.
-nonisolated enum DailyQuestionWidgetStore {
-    static let appGroup = AngroveAppGroup.identifier
-    static let kind = "AngroveQuestionOfTheDay"
+public nonisolated enum DailyQuestionWidgetStore {
+    public static let appGroup = AngroveAppGroup.identifier
+    public static let kind = "AngroveQuestionOfTheDay"
     private static let key = "angrove.widget.latestQuestion.v1"
 
-    static func migrate(defaults: UserDefaults? = UserDefaults(suiteName: appGroup), cipher: LocalDataCipher = .widget) throws {
+    public static func migrate(defaults: UserDefaults? = UserDefaults(suiteName: appGroup), cipher: LocalDataCipher = .widget) throws {
         guard let defaults else { return }
         if let data = defaults.data(forKey: key) {
             _ = try cipher.open(data, context: key)
@@ -18,7 +18,7 @@ nonisolated enum DailyQuestionWidgetStore {
         }
     }
 
-    static func load(defaults: UserDefaults? = UserDefaults(suiteName: appGroup), cipher: LocalDataCipher = .widget) -> String? {
+    public static func load(defaults: UserDefaults? = UserDefaults(suiteName: appGroup), cipher: LocalDataCipher = .widget) -> String? {
         do {
             try migrate(defaults: defaults, cipher: cipher)
             guard let data = defaults?.data(forKey: key),
@@ -29,7 +29,7 @@ nonisolated enum DailyQuestionWidgetStore {
     }
 
     /// Drops an unreadable shared question. The app writes a new one with the next daily question.
-    static func discard(defaults: UserDefaults? = UserDefaults(suiteName: appGroup)) {
+    public static func discard(defaults: UserDefaults? = UserDefaults(suiteName: appGroup)) {
         defaults?.removeObject(forKey: key)
         confirmedLock.withLock { confirmed = nil }
     }
@@ -40,7 +40,7 @@ nonisolated enum DailyQuestionWidgetStore {
     nonisolated(unsafe) private static var confirmed: (text: String, ciphertext: Data)?
 
     @discardableResult
-    static func save(_ text: String, defaults: UserDefaults? = UserDefaults(suiteName: appGroup), cipher: LocalDataCipher = .widget) -> Bool {
+    public static func save(_ text: String, defaults: UserDefaults? = UserDefaults(suiteName: appGroup), cipher: LocalDataCipher = .widget) -> Bool {
         guard let defaults, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
         if let confirmed = confirmedLock.withLock({ confirmed }), confirmed.text == text,
            defaults.data(forKey: key) == confirmed.ciphertext {

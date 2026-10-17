@@ -1,5 +1,5 @@
 import Testing
-@testable import AngroveMac
+@testable import AngroveCore
 
 /// The iPhone app's App Group follows its bundle ID, so a probe build can't share production's
 /// widget data or Keychain key. Production must resolve exactly as before.

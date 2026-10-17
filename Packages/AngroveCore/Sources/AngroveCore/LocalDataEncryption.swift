@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 import Security
 
-nonisolated enum LocalDataEncryptionError: LocalizedError {
+public nonisolated enum LocalDataEncryptionError: LocalizedError {
     case keychain(OSStatus)
     case missingKey
     case invalidKey
@@ -10,7 +10,7 @@ nonisolated enum LocalDataEncryptionError: LocalizedError {
     /// Writes are paused after an integrity failure until startup validation succeeds again.
     case storageClosed
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .missingKey: "The encryption key is missing. Restore the app together with its Keychain from an encrypted device backup. Your saved files have been preserved."
         case .keychain: "Your encrypted data is temporarily unavailable. Unlock your iPhone and try again."
@@ -22,22 +22,22 @@ nonisolated enum LocalDataEncryptionError: LocalizedError {
 
 /// Versioned authenticated encryption. The context prevents swapping ciphertext between stores.
 /// Keys are never stored beside the data, synchronized, logged, or embedded in the app binary.
-nonisolated struct LocalDataCipher {
-    static let family = Data("ANGROVE-ENC\u{0}".utf8)
-    static let header = Data("ANGROVE-ENC\u{0}1\u{0}".utf8)
+public nonisolated struct LocalDataCipher {
+    public static let family = Data("ANGROVE-ENC\u{0}".utf8)
+    public static let header = Data("ANGROVE-ENC\u{0}1\u{0}".utf8)
     #if os(macOS)
-    static let personalService = "com.angrove.mac-personal-data.v1"
+    public static let personalService = "com.angrove.mac-personal-data.v1"
     #else
-    static let personalService = "com.angrove.personal-data.v1"
+    public static let personalService = "com.angrove.personal-data.v1"
     #endif
     /// Every personal read and write opens or seals with this key, so it is held in memory while
     /// protected data is available rather than fetched from the Keychain each time. The app purges
     /// it when the device locks (`LocalDataKeychain.purgeCachedKeys()`), so lookups then fail
     /// exactly as an uncached `kSecAttrAccessibleWhenUnlocked` lookup would.
-    static let personal = LocalDataCipher { create in
+    public static let personal = LocalDataCipher { create in
         try LocalDataKeychain.cachedKey(service: personalService, create: create)
     }
-    static let widget = LocalDataCipher { create in
+    public static let widget = LocalDataCipher { create in
         try LocalDataKeychain.key(
             service: "com.angrove.widget-data.v1",
             accessGroup: AngroveAppGroup.identifier,
@@ -46,24 +46,28 @@ nonisolated struct LocalDataCipher {
         )
     }
 
-    let keyProvider: (_ create: Bool) throws -> SymmetricKey
+    public let keyProvider: (_ create: Bool) throws -> SymmetricKey
 
-    static func isEncrypted(_ data: Data) -> Bool { data.starts(with: family) }
+    public init(keyProvider: @escaping (_ create: Bool) throws -> SymmetricKey) {
+        self.keyProvider = keyProvider
+    }
 
-    func seal(_ data: Data, context: String) throws -> Data {
+    public static func isEncrypted(_ data: Data) -> Bool { data.starts(with: family) }
+
+    public func seal(_ data: Data, context: String) throws -> Data {
         let box = try AES.GCM.seal(data, using: keyProvider(true), authenticating: Data(context.utf8))
         guard let combined = box.combined else { throw LocalDataEncryptionError.invalidEnvelope }
         return Self.header + combined
     }
 
-    func open(_ data: Data, context: String) throws -> Data {
+    public func open(_ data: Data, context: String) throws -> Data {
         guard data.starts(with: Self.header) else { throw LocalDataEncryptionError.invalidEnvelope }
         let box = try AES.GCM.SealedBox(combined: data.dropFirst(Self.header.count))
         return try AES.GCM.open(box, using: keyProvider(false), authenticating: Data(context.utf8))
     }
 }
 
-nonisolated enum LocalDataKeychain {
+public nonisolated enum LocalDataKeychain {
     // Serializes creation within a process; errSecDuplicateItem handles app/extension races.
     private static let lock = NSLock()
     nonisolated(unsafe) private static var cachedKeys: [String: SymmetricKey] = [:]
@@ -72,7 +76,7 @@ nonisolated enum LocalDataKeychain {
 
     /// `key(service:create:)` for the default access group and accessibility, remembered after
     /// the first successful lookup until `purgeCachedKeys()` or `remove(service:)`.
-    static func cachedKey(service: String, create: Bool) throws -> SymmetricKey {
+    public static func cachedKey(service: String, create: Bool) throws -> SymmetricKey {
         let (cached, generation) = lock.withLock { (cachedKeys[service], cacheGeneration) }
         if let cached { return cached }
         let key = try key(service: service, create: create)
@@ -81,11 +85,11 @@ nonisolated enum LocalDataKeychain {
     }
 
     /// Forgets every cached key. Called when protected data is about to become unavailable.
-    static func purgeCachedKeys() {
+    public static func purgeCachedKeys() {
         lock.withLock { cachedKeys.removeAll(); cacheGeneration &+= 1 }
     }
 
-    static func key(
+    public static func key(
         service: String,
         accessGroup: String? = nil,
         accessible: CFString = kSecAttrAccessibleWhenUnlocked,
@@ -140,7 +144,7 @@ nonisolated enum LocalDataKeychain {
 
     /// Deletes an unusable key so a fresh start can create a new one. Only called after the
     /// person chooses to set their unreadable data aside.
-    static func remove(service: String, accessGroup: String? = nil) throws {
+    public static func remove(service: String, accessGroup: String? = nil) throws {
         try lock.withLock {
             cachedKeys.removeValue(forKey: service)
             cacheGeneration &+= 1

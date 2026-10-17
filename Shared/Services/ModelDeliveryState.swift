@@ -26,11 +26,7 @@ nonisolated enum ModelDeliveryFailure: Equatable, Sendable {
     var message: LocalizedStringResource {
         switch self {
         case .network: "The model download was interrupted. Check your connection and try again."
-        #if os(macOS)
-        case .storage: "There isn’t enough space to download the model. Free up storage on this Mac, then retry. Installation may need more space than the model file."
-        #else
-        case .storage: "There isn’t enough space to download the model. Free up storage in iPhone Settings, then retry. Installation may need more space than the 3.66 GB model file."
-        #endif
+        case .storage: ModelPlatformPolicy.current.storageFailureMessage
         case .integrity: "The downloaded model didn’t pass its integrity check. It won’t be used. Retry to check the installed pack again. If this continues, contact support."
         case .unavailable: "The model pack isn’t available yet. Check your connection and retry. If this continues, contact support."
         case .other: "The model couldn’t be prepared. Retry, or contact support if this continues."
@@ -113,12 +109,7 @@ final class ModelDeliveryState {
 
     func refreshAvailability() async {
         guard preparation == nil, phase == .checking else { return }
-#if os(macOS)
-        // A verified local copy (development, or a Mac set up before Apple hosting) is used first.
-        if MacModelLocalCopy.isInstalled(pack.manifest) { phase = .development; return }
-#elseif DEBUG
-        if LiteRTModelStore().hasInstalledModel() { phase = .development; return }
-#endif
+        if ModelPlatformPolicy.current.hasLocalCopy(pack.manifest) { phase = .development; return }
         let pack = self.pack
         let available = await Task.detached(priority: .utility) {
             AppleHostedModelAssets.isAvailableLocally(pack)

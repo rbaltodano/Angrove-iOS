@@ -6,6 +6,8 @@ The canonical repository remains `~/Developer/Aquinas-iOS-main` on `main`. Both 
 Aquinas-iOS-main/
   iOS/                    iPhone-only source and resources
   macOS/                  Mac-only source and resources
+  Packages/AngroveCore/   Swift package linked by both apps and both widgets:
+                          encryption, App Group, widget store, model manifests
   Shared/                 source and resources compiled by both apps
     DesignSystem/
     Features/
@@ -13,12 +15,13 @@ Aquinas-iOS-main/
     Navigation/
     Persistence/
     Services/
-    Widgets/              also compiled by the iPhone widget extension
+    Widgets/              also compiled by both widget extensions
   Angrove-iOS.xcodeproj/
   Angrove-iOSTests/
   Angrove-macOSTests/
-  AngroveWidgets/          iPhone widget extension
-  AngroveModelDownloader/ iPhone download extension
+  AngroveWidgets/          widget source (iPhone and Mac widget targets)
+  AngroveModelDownloader/ download extension source (iPhone and Mac)
+  AssetPacks/             Apple-hosted model pack manifests
   Vendor/
   Documentation/
 ```
@@ -39,7 +42,31 @@ Attach `~/Developer/Aquinas-iOS-main` as a secondary folder to each project when
 
 Both native targets include the same Xcode synchronized `Shared` group. A common source edit is read by both targets on their next build, and newly added Swift files in this group are discovered automatically. There is no mirror script, branch merge or file copying between these three folders. Platform edits stay in `iOS` or `macOS`. Shared changes can affect both apps; use a platform adapter for behavior that should differ.
 
-This migration keeps common types inside each app's existing Swift module. A separate Swift package can be introduced later if module boundaries justify it; it is not required for sharing. Widget encryption and question helpers live in `Shared/Widgets`, also referenced by the widget target.
+## AngroveCore package (October 17, 2026)
+
+`Packages/AngroveCore` holds the lowest, platform-neutral layer: `LocalDataCipher` and
+`LocalDataKeychain`, `AngroveAppGroup`, `DailyQuestionWidgetStore` and its link, and the
+`LiteRTModelManifest` / `AngroveModelAssetPack` data types. It may not import UIKit, AppKit or
+SwiftUI, and only `public` declarations are visible to the apps, so the compiler enforces the
+boundary. `Shared/Widgets/AngroveCoreExport.swift` re-exports it, so app and widget code uses
+these types without imports. Its tests run without an app or simulator:
+
+```sh
+cd Packages/AngroveCore && swift test
+```
+
+More of `Shared` (models, persistence, the model runtime) can move in later steps once no other
+work has uncommitted edits in those files. Move leaf types first; anything moved must become
+`public` where the apps use it.
+
+## Platform differences
+
+Prefer a small policy value over `#if os(…)` in Shared code. `ModelPlatformPolicy`
+(`Shared/Services`) describes how on-device models differ; each app defines
+`ModelPlatformPolicy.current` in its own folder (`iOS/Services/ModelPlatformPolicy+iOS.swift`,
+`macOS/Platform/ModelPlatformPolicy+Mac.swift`). The Mac's extra model packs, its
+`Angrove-macOS` storage folder and its Background Assets guard live there. A one-line `#if` is
+still fine; reach for a policy when a file gathers several.
 
 ## Build and test
 

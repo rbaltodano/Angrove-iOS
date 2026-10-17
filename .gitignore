@@ -34,7 +34,9 @@ build-output/
 
 # Swift Package Manager
 .swiftpm/
-Packages/
+# Ignore SwiftPM edit-mode checkouts, but keep the project's own packages.
+/Packages/*
+!/Packages/AngroveCore/
 Package.resolved
 
 # CocoaPods

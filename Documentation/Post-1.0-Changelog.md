@@ -21,6 +21,19 @@ Collected from the [iOS] and [Shared] entries below.
 
 ## 2026-10-17
 
+- **[Shared] AngroveCore package and platform policy; no iPhone behavior change.** Encryption
+  (`LocalDataCipher`, `LocalDataKeychain`), `AngroveAppGroup`, the widget's question store and
+  link, and the model manifest and pack types moved from `Shared/Widgets` and `Shared/Services`
+  into `Packages/AngroveCore`, linked by both apps and both widgets and tested with `swift test`.
+  `ModelPlatformPolicy` replaces the Mac branches in the model store and delivery code; the
+  iPhone's policy keeps its storage paths, Debug-only local model and E4B-only packs. One edge:
+  a non-E4B manifest on an iPhone Release build now reports the model missing instead of trying
+  the E4B pack (no shipping code uses one). Verified: iPhone simulator and Mac builds, 8 package
+  tests (`swift test`), 29 focused Mac tests, and the full signed iPhone suite: 587 passed; the 12
+  failures are timing tests that also fail on unchanged `main` under full-suite load, or pass
+  when their suites run alone (30/30). The full iPhone suite also stalls at a photo-layout test
+  on unchanged `main`.
+
 - **[macOS] Question of the Day widget.** New `AngroveMacWidgets` extension (small and medium,
   desktop and Notification Center) built from the iPhone widget's source. Clicking it starts the
   saved question's conversation, or opens Home before there is one. The Mac app and widget now
