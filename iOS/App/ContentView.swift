@@ -153,6 +153,7 @@ struct ContentView: View {
     /// Reported up by `StudyTopicsView` so the global Model Controls bar can render its pill
     /// while that page's own selection/canvas/confirmation state stays owned locally there.
     @State private var studyTopicsControls = StudyTopicsPageControls()
+    @State private var definitionRequest: ConversationDefinitionRequest?
     @State private var modelCompletionNotifications = ModelCompletionNotificationCenter()
     @State private var pendingPageReturnAction: (() -> Void)?
     @State private var questionOfTheDay = HomeQuestionOfTheDayStore.loadPending()
@@ -745,6 +746,7 @@ struct ContentView: View {
             sideMenuActiveConversationID: $sideMenuActiveConversationID,
             requestedConversationID: $requestedConversationID,
             newConversationRequests: newConversationRequests,
+            definitionRequest: $definitionRequest,
             deletedConversationID: $deletedConversationID,
             requestedForkConcept: $requestedForkConcept,
             insightConversationQuoteRequest: $insightConversationQuoteRequest,

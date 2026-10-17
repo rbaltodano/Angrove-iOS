@@ -30,6 +30,14 @@ struct ConversationInsightWord: Identifiable, Equatable {
     }
 }
 
+/// A complete handoff survives removal of the conversation page and its definition cache.
+struct ConversationDefinitionRequest: Identifiable, Equatable {
+    let id = UUID()
+    let conversationID: UUID?
+    let word: ConversationInsightWord
+    let definition: ConceptDefinition
+}
+
 @MainActor
 @Observable
 final class ConversationDefinitionState {
@@ -56,6 +64,11 @@ final class ConversationDefinitionState {
                   !completedWords.contains(where: { $0.id == word.id }) {
             completedWords.append(word)
         }
+    }
+
+    func presentCompletedDefinition(_ request: ConversationDefinitionRequest) {
+        definitionsByKey[request.word.id] = request.definition
+        activeWord = request.word
     }
 
     func takeNextCompletedWord() -> ConversationInsightWord? {
@@ -86,6 +99,7 @@ struct CurrentConversationView: View {
     @Binding var sideMenuActiveConversationID: UUID?
     @Binding var requestedConversationID:      UUID?
     let newConversationRequests: NewConversationRequests
+    @Binding var definitionRequest: ConversationDefinitionRequest?
     @Binding var deletedConversationID:        UUID?
     @Binding var requestedForkConcept:         ConceptDefinition?
     @Binding var insightConversationQuoteRequest: InsightConversationQuoteRequest?
@@ -1063,6 +1077,10 @@ struct CurrentConversationView: View {
             if let request = conversationNodeFocusRequest {
                 openConversationNodeFocus(request)
             }
+            openRequestedDefinition()
+        }
+        .onChange(of: definitionRequest?.id) { _, _ in
+            openRequestedDefinition()
         }
         // Save branches back into the active conversation on every change, then persist.
         // saveCurrentConversation + publishShellMenuState are cheap (memory only).
@@ -2347,14 +2365,35 @@ struct CurrentConversationView: View {
     }
 
     private func postDefinitionCompletedNotification(_ word: ConversationInsightWord) {
-        let title = definitionState.definitionsByKey[word.id]?.word ?? word.text.capitalized
-        modelCompletionNotifications?.post(title: title, kind: .insightDefinition) {
-            onRequestConversationPage()
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(250))
-                guard definitionState.definitionsByKey[word.id] != nil else { return }
-                presentDefinition(word)
+        guard let definition = definitionState.definitionsByKey[word.id] else { return }
+        let request = ConversationDefinitionRequest(
+            conversationID: session.activeConversationID,
+            word: word,
+            definition: definition
+        )
+        // Capture the payload and shell binding, never the departing view's local state.
+        let requestBinding = $definitionRequest
+        let openPage = onRequestConversationPage
+        modelCompletionNotifications?.post(title: definition.word, kind: .insightDefinition) {
+            requestBinding.wrappedValue = request
+            openPage()
+        }
+    }
+
+    private func openRequestedDefinition() {
+        guard let request = definitionRequest else { return }
+        definitionRequest = nil
+        if let conversationID = request.conversationID,
+           conversationID != session.activeConversationID {
+            guard let conversation = session.conversations.first(where: { $0.id == conversationID }) else {
+                return
             }
+            switchToConversation(conversation)
+        }
+        // Notification taps replace the current card immediately, including in Canvas Mode.
+        modelTasksPopupState.reset()
+        withAnimation(.springStandard) {
+            definitionState.presentCompletedDefinition(request)
         }
     }
 
