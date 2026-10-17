@@ -14,9 +14,9 @@ archive through its own export pipeline.
 
 ## Candidate
 
-- Angrove version 1.0, build 6; production bundle ID `com.ryanbaltodano.Aquinas-iOS`.
+- Angrove stable replacement version pending upload.0, build 6; production bundle ID `com.ryanbaltodano.Aquinas-iOS`.
 - Stable Xcode 27.0 (27A266a); iPhone-only, minimum iOS 26.4, existing performance capability retained.
-- Production model: Gemma 4 E4B, Apple-hosted essential pack `angrove-gemma4-e4b-0b2a8980`, version 1.
+- Production model: Gemma 4 E4B, Apple-hosted essential pack `angrove-gemma4-e4b-0b2a8980`, stable replacement version pending upload.
 - The model is absent from the distribution app bundle. The Debug-only Bonsai flag remains disabled in Release.
 - Archive: `build/testflight-build6/Angrove-build6-final.xcarchive`.
 - Distribution IPA: `build/testflight-build6/export-final/Angrove-iOS.ipa` (289,767,951 bytes).
@@ -54,7 +54,7 @@ The signed everyday Mac app was refreshed at `/Applications/Angrove.app` using t
 
 ## Owner walkthrough after Apple processing
 
-1. In App Store Connect, open Angrove → TestFlight → iOS Builds and confirm version 1.0 build 6
+1. In App Store Connect, open Angrove → TestFlight → iOS Builds and confirm stable replacement version pending upload.0 build 6
    completes processing. If Apple reports a warning or error, resolve it before review.
 2. Install build 6 from TestFlight without deleting the existing app. Confirm model readiness,
    a normal answer, an Insight notification opening its card, and offline use after installation.
@@ -71,7 +71,7 @@ The signed everyday Mac app was refreshed at `/Applications/Angrove.app` using t
 
 No sign-in is required. Angrove runs its AI generation, source retrieval and Insight Tree locally
 on supported iPhones. Version 1.0 build 6 uses an essential Apple-hosted Gemma model asset pack
-(`angrove-gemma4-e4b-0b2a8980`, version 1; approximately 3.66 GB). Internet access is needed for
+(`angrove-gemma4-e4b-0b2a8980`; approximately 3.66 GB). Internet access is needed for
 initial delivery. If interrupted, open Settings → On-device Model to check status and retry.
 
 After installation, start a conversation and ask a philosophy, theology or history question.
@@ -81,3 +81,26 @@ the Insight Library and conversation tree. Open source citations to inspect Libr
 After model preparation, generation and retrieval work offline. AI output may contain mistakes.
 Optional support reports are sent only by the person’s explicit action; conversations are not
 sent to a remote inference service. Reviewer contact fields are already populated separately.
+
+## Asset-pack review blocker and stable replacement — October 17, 19:23 EDT
+
+The owner’s App Store Connect screenshot rejected asset-pack version 1 because it was created
+with a beta Managed Background Assets tool. TestFlight readiness did not establish App Store
+review eligibility. Build 6’s app binary was built with stable Xcode and is unaffected by this
+packaging-only correction.
+
+Repackaged the identical pinned Gemma file with stable Xcode’s `ba-package 2.0`:
+`build/asset-packs/Gemma4-E4B-stable-20261017.aar` (3,129,706,547 bytes), SHA-256
+`1fcb6b0730c1e80a5cc4f83e5c42a5b5bcb3f136e1bc9a113fac0c45ea3b9ce4`.
+The embedded Manifest.json explicitly records `toolsVersion.isBeta: false`.
+The pack ID, essential policy, destination path and model contents are unchanged. Corrected
+its source path after the workspace move and made release packaging reject beta tool versions.
+A negative check with `2.0-beta` exits before packaging and creates no archive.
+
+Upload remains pending: the prior API key was not found in the conventional/local task credential
+locations. Owner can add this `.aar` to Apple Transporter, select Angrove and click Deliver.
+Apple will assign the replacement pack version on upload. Once processed, select that stable
+version for App Review instead of version 1. No new app build is needed solely for this identical
+model pack replacement. Actual Apple processing and review eligibility must still be verified.
+
+[Apple: beta-packaged asset packs cannot be added for review](https://developer.apple.com/help/app-store-connect/manage-submissions-to-app-review/submit-apple-hosted-asset-packs/).

@@ -64,6 +64,11 @@ def main() -> None:
     parser.add_argument('--sha256', help='Pinned SHA-256 for --manifest')
     parser.add_argument('--source', type=Path, help='Read the model from this path instead')
     args = parser.parse_args()
+    packager = subprocess.check_output(['xcrun', '--find', 'ba-package'], text=True).strip()
+    packager_version = subprocess.check_output([packager, '--version'], text=True).strip()
+    if args.output and 'beta' in packager_version.lower():
+        parser.error('App Store asset packs require a release ba-package tool; select stable Xcode with DEVELOPER_DIR')
+    print(f'Asset pack tool: {packager} ({packager_version})', flush=True)
     if args.manifest:
         if args.size is None or not args.sha256:
             parser.error('--manifest needs --size and --sha256')
@@ -75,7 +80,7 @@ def main() -> None:
     source = args.source.resolve() if args.source else ROOT / manifest['fileSelectors'][0]['fileSource']
     verify(source, expected_size, expected_sha)
     MANIFEST = staged_manifest(manifest_path, manifest, source, expected_size, expected_sha) if args.source else manifest_path
-    subprocess.run(['xcrun', 'ba-package', 'evaluate', str(MANIFEST)], cwd=ROOT, check=True)
+    subprocess.run([packager, 'evaluate', str(MANIFEST)], cwd=ROOT, check=True)
     print(f'Pinned model size/hash and {manifest_path.name} verified.')
     if args.output:
         output = args.output.resolve()
@@ -88,7 +93,7 @@ def main() -> None:
         required = expected_size * 2 + 1024 ** 3
         if shutil.disk_usage(output.parent).free < required:
             parser.error(f'Packaging needs at least {required:,} free bytes including staging/headroom')
-        subprocess.run(['xcrun', 'ba-package', 'package', str(MANIFEST), '-o', str(output)], cwd=ROOT, check=True)
+        subprocess.run([packager, 'package', str(MANIFEST), '-o', str(output)], cwd=ROOT, check=True)
         print(f'Packaged: {output}. Upload and TestFlight validation are separate steps.')
 
 
