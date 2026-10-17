@@ -76,7 +76,7 @@ struct MacBoardNotificationTests {
             let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
             host.cacheDisplay(in: host.bounds, to: bitmap)
             let png = try #require(bitmap.representation(using: .png, properties: [:]))
-            try png.write(to: URL(filePath: "/tmp/angrove-board-notification-\(scheme == .light ? "light" : "dark").png"))
+            try png.write(to: URL(filePath: NSTemporaryDirectory() + "angrove-board-notification-\(scheme == .light ? "light" : "dark").png"))
         }
     }
 

@@ -37,7 +37,7 @@ struct MacWorktreeTextBoxTests {
             #expect(distantPixelsAreHidden)
             #expect(hidden.colorAt(x: 16, y: 76) != near.colorAt(x: 16, y: 76))
             let data = try #require(near.representation(using: .png, properties: [:]))
-            try data.write(to: URL(fileURLWithPath: "/tmp/angrove-boards-hover-\(dark ? "dark" : "light").png"))
+            try data.write(to: URL(fileURLWithPath: NSTemporaryDirectory() + "angrove-boards-hover-\(dark ? "dark" : "light").png"))
         }
     }
 

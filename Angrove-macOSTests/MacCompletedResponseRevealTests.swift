@@ -67,8 +67,9 @@ struct MacCompletedResponseRevealTests {
         let host = NSHostingView(rootView: CompletedBody(state: state))
         let window = mount(host)
         defer { window.contentView = nil; window.close() }
-        try await Task.sleep(for: .milliseconds(200))
-        #expect(state.visible > 0)
+        // SwiftUI may mount after 200 ms while other render suites are active.
+        // Observe the first reveal update before checking its shared counter.
+        try await wait { state.visible > 0 }
         #expect(state.visible < 100)
         #expect(state.bodyFinishes == 0)
         host.layoutSubtreeIfNeeded()

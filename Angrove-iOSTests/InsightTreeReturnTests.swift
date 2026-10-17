@@ -163,7 +163,7 @@ struct InsightTreeReturnTests {
     }
 
     @MainActor
-    @Test("The dot grid reaches the bottom of a small phone at minimum zoom")
+    @Test("The dot grid covers a small phone when visible and hides at minimum zoom")
     func minimumZoomGridCoverage() async throws {
         let scene = try #require(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         let window = UIWindow(windowScene: scene)
@@ -172,34 +172,42 @@ struct InsightTreeReturnTests {
         let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appending(path: "InsightTreeReturnLayouts")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        for dark in [false, true] {
-            let grid = AnimatedDotGridBackground(settledOffset: CGSize(width: 327, height: -841), settledScale: 0.28)
-                .background(AngroveTheme.Colors.canvas)
-                .environment(\.colorScheme, dark ? .dark : .light)
-                .ignoresSafeArea()
-            window.overrideUserInterfaceStyle = dark ? .dark : .light
-            window.rootViewController = UIHostingController(rootView: grid)
-            window.makeKeyAndVisible()
-            try await Task.sleep(for: .milliseconds(150))
-            window.layoutIfNeeded()
-            let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
-                window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        for (scale, visible) in [(0.28, false), (0.6, true)] {
+            for dark in [false, true] {
+                let grid = AnimatedDotGridBackground(settledOffset: CGSize(width: 327, height: -841), settledScale: scale)
+                    .background(AngroveTheme.Colors.canvas)
+                    .environment(\.colorScheme, dark ? .dark : .light)
+                    .ignoresSafeArea()
+                window.overrideUserInterfaceStyle = dark ? .dark : .light
+                window.rootViewController = UIHostingController(rootView: grid)
+                window.makeKeyAndVisible()
+                try await Task.sleep(for: .milliseconds(150))
+                window.layoutIfNeeded()
+                let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                    window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+                }
+                let png = try #require(image.pngData())
+                let filename = "grid-\(scale)-\(dark ? "dark" : "light").png"
+                try png.write(to: directory.appending(path: filename))
+                Attachment.record(png, named: filename)
+                // Visible dots reach the bottom; zooming out removes their contrast.
+                let cg = try #require(image.cgImage)
+                let crop = try #require(cg.cropping(to: CGRect(x: 0, y: CGFloat(cg.height) * 0.9,
+                                                               width: CGFloat(cg.width), height: CGFloat(cg.height) * 0.09)))
+                var bytes = [UInt8](repeating: 0, count: crop.width * crop.height * 4)
+                let context = try #require(CGContext(data: &bytes, width: crop.width, height: crop.height,
+                    bitsPerComponent: 8, bytesPerRow: crop.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+                context.draw(crop, in: CGRect(x: 0, y: 0, width: crop.width, height: crop.height))
+                let reds = stride(from: 0, to: bytes.count, by: 4).map { bytes[$0] }
+                let contrast = Int(reds.max()!) - Int(reds.min()!)
+                if visible {
+                    #expect(contrast > 2)
+                } else {
+                    #expect(contrast <= 2)
+                }
             }
-            let png = try #require(image.pngData())
-            let filename = dark ? "grid-dark.png" : "grid-light.png"
-            try png.write(to: directory.appending(path: filename))
-            Attachment.record(png, named: filename)
-            // A capped field ends near y=540. Dots must produce contrast below y=700 too.
-            let cg = try #require(image.cgImage)
-            let crop = try #require(cg.cropping(to: CGRect(x: 0, y: CGFloat(cg.height) * 0.9,
-                                                           width: CGFloat(cg.width), height: CGFloat(cg.height) * 0.09)))
-            var bytes = [UInt8](repeating: 0, count: crop.width * crop.height * 4)
-            let context = try #require(CGContext(data: &bytes, width: crop.width, height: crop.height,
-                bitsPerComponent: 8, bytesPerRow: crop.width * 4, space: CGColorSpaceCreateDeviceRGB(),
-                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
-            context.draw(crop, in: CGRect(x: 0, y: 0, width: crop.width, height: crop.height))
-            let reds = stride(from: 0, to: bytes.count, by: 4).map { bytes[$0] }
-            #expect(Int(reds.max()!) - Int(reds.min()!) > 2)
         }
+
     }
 }

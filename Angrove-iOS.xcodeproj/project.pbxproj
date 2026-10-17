@@ -570,8 +570,8 @@ B40000000000000000000005 = {isa = PBXSourcesBuildPhase; buildActionMask = 214748
 B40000000000000000000006 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 B40000000000000000000007 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 B40000000000000000000008 = {isa = XCConfigurationList; buildConfigurations = (B40000000000000000000009,B4000000000000000000000A,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-B40000000000000000000009 = {isa = XCBuildConfiguration; name = Debug; buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = AngroveModelDownloader/AngroveModelDownloader.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 5; DEVELOPMENT_TEAM = 7XG2DHY989; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = AngroveModelDownloader/Info.plist; INFOPLIST_KEY_CFBundleDisplayName = "Angrove Model Downloader"; IPHONEOS_DEPLOYMENT_TARGET = 26.4; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)","@executable_path/Frameworks","@executable_path/../../Frameworks",); MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = "$(ANGROVE_BUNDLE_ID).ModelDownloader"; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SKIP_INSTALL = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; };
-B4000000000000000000000A = {isa = XCBuildConfiguration; name = Release; buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = AngroveModelDownloader/AngroveModelDownloader.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 5; DEVELOPMENT_TEAM = 7XG2DHY989; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = AngroveModelDownloader/Info.plist; INFOPLIST_KEY_CFBundleDisplayName = "Angrove Model Downloader"; IPHONEOS_DEPLOYMENT_TARGET = 26.4; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)","@executable_path/Frameworks","@executable_path/../../Frameworks",); MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = "$(ANGROVE_BUNDLE_ID).ModelDownloader"; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SKIP_INSTALL = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; };
+B40000000000000000000009 = {isa = XCBuildConfiguration; name = Debug; buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = AngroveModelDownloader/AngroveModelDownloader.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 6; DEVELOPMENT_TEAM = 7XG2DHY989; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = AngroveModelDownloader/Info.plist; INFOPLIST_KEY_CFBundleDisplayName = "Angrove Model Downloader"; IPHONEOS_DEPLOYMENT_TARGET = 26.4; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)","@executable_path/Frameworks","@executable_path/../../Frameworks",); MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = "$(ANGROVE_BUNDLE_ID).ModelDownloader"; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SKIP_INSTALL = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; };
+B4000000000000000000000A = {isa = XCBuildConfiguration; name = Release; buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = AngroveModelDownloader/AngroveModelDownloader.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 6; DEVELOPMENT_TEAM = 7XG2DHY989; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = AngroveModelDownloader/Info.plist; INFOPLIST_KEY_CFBundleDisplayName = "Angrove Model Downloader"; IPHONEOS_DEPLOYMENT_TARGET = 26.4; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)","@executable_path/Frameworks","@executable_path/../../Frameworks",); MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = "$(ANGROVE_BUNDLE_ID).ModelDownloader"; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SKIP_INSTALL = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; };
 B90000000000000000000001 = {isa = PBXFileReference; explicitFileType = "wrapper.extensionkit-extension"; path = AngroveMacModelDownloader.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 B90000000000000000000003 = {isa = PBXFileSystemSynchronizedBuildFileExceptionSet; membershipExceptions = (Info.plist,); target = B90000000000000000000004; };
 B90000000000000000000004 = {isa = PBXNativeTarget; buildConfigurationList = B90000000000000000000008; buildPhases = (B90000000000000000000005,B90000000000000000000006,B90000000000000000000007,); buildRules = (); dependencies = (); fileSystemSynchronizedGroups = (B40000000000000000000002,); name = AngroveMacModelDownloader; productName = AngroveMacModelDownloader; productReference = B90000000000000000000001; productType = "com.apple.product-type.extensionkit-extension"; };
@@ -612,8 +612,8 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
         B8000000000000000000000C = {isa = PBXBuildFile; fileRef = B80000000000000000000001; settings = {ATTRIBUTES = (RemoveHeadersOnCopy,); }; };
         B8000000000000000000000D = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 13; files = (B8000000000000000000000C,); name = "Embed App Extensions"; runOnlyForDeploymentPostprocessing = 0; };
         B8000000000000000000000E = {isa = PBXTargetDependency; target = B80000000000000000000004; };
-        B30000000000000000000009 = {isa = XCBuildConfiguration; name = Debug; buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = AngroveWidgets/AngroveWidgets.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 5; DEVELOPMENT_TEAM = 7XG2DHY989; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = AngroveWidgets/Info.plist; INFOPLIST_KEY_CFBundleDisplayName = "Question of the Day"; IPHONEOS_DEPLOYMENT_TARGET = 26.4; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)","@executable_path/Frameworks","@executable_path/../../Frameworks",); MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = "$(ANGROVE_BUNDLE_ID).QuestionOfTheDay"; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SKIP_INSTALL = YES; SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) ANGROVE_WIDGET"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; };
-        B3000000000000000000000A = {isa = XCBuildConfiguration; name = Release; buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = AngroveWidgets/AngroveWidgets.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 5; DEVELOPMENT_TEAM = 7XG2DHY989; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = AngroveWidgets/Info.plist; INFOPLIST_KEY_CFBundleDisplayName = "Question of the Day"; IPHONEOS_DEPLOYMENT_TARGET = 26.4; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)","@executable_path/Frameworks","@executable_path/../../Frameworks",); MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = "$(ANGROVE_BUNDLE_ID).QuestionOfTheDay"; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SKIP_INSTALL = YES; SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) ANGROVE_WIDGET"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; };
+        B30000000000000000000009 = {isa = XCBuildConfiguration; name = Debug; buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = AngroveWidgets/AngroveWidgets.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 6; DEVELOPMENT_TEAM = 7XG2DHY989; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = AngroveWidgets/Info.plist; INFOPLIST_KEY_CFBundleDisplayName = "Question of the Day"; IPHONEOS_DEPLOYMENT_TARGET = 26.4; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)","@executable_path/Frameworks","@executable_path/../../Frameworks",); MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = "$(ANGROVE_BUNDLE_ID).QuestionOfTheDay"; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SKIP_INSTALL = YES; SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) ANGROVE_WIDGET"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; };
+        B3000000000000000000000A = {isa = XCBuildConfiguration; name = Release; buildSettings = { APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = AngroveWidgets/AngroveWidgets.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 6; DEVELOPMENT_TEAM = 7XG2DHY989; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = AngroveWidgets/Info.plist; INFOPLIST_KEY_CFBundleDisplayName = "Question of the Day"; IPHONEOS_DEPLOYMENT_TARGET = 26.4; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)","@executable_path/Frameworks","@executable_path/../../Frameworks",); MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = "$(ANGROVE_BUNDLE_ID).QuestionOfTheDay"; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SKIP_INSTALL = YES; SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) ANGROVE_WIDGET"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; };
 
 
 /* Begin PBXBuildFile section */
@@ -914,7 +914,7 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = 7XG2DHY989;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
@@ -940,7 +940,7 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = 7XG2DHY989;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
@@ -1107,7 +1107,7 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
 				CODE_SIGN_ENTITLEMENTS = "iOS/Angrove-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = 7XG2DHY989;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1148,7 +1148,7 @@ B4000000000000000000000D = {isa = PBXTargetDependency; target = B400000000000000
                 EXCLUDED_SOURCE_FILE_NAMES = "$(inherited) LocalModels *.litertlm";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = 7XG2DHY989;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;

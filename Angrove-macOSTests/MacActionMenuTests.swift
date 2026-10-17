@@ -152,7 +152,7 @@ struct MacActionMenuTests {
             let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
             host.cacheDisplay(in: host.bounds, to: bitmap)
             let png = try #require(bitmap.representation(using: .png, properties: [:]))
-            try png.write(to: URL(filePath: "/tmp/angrove-menu-style-\(name).png"))
+            try png.write(to: URL(filePath: NSTemporaryDirectory() + "angrove-menu-style-\(name).png"))
             window.contentView = nil
             window.close()
         }

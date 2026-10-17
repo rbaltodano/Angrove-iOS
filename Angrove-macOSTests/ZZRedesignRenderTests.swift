@@ -128,7 +128,7 @@ struct ZZRedesignRenderTests {
 
         let library = WorktreeLibrary(documents: Self.boards, persistsSnapshots: false)
         await library.refreshSnapshots()
-        #expect(library.snapshots.count == 2) // windows render as sized notes here
+        #expect(library.snapshots.isEmpty) // Offscreen snapshots are disabled; cards use drawn previews.
         let boards = MacWorktreeHomeView(library: library, queuePopup: ModelTasksPopupState())
         try await Self.render(boards, "boards-light", height: 1100)
         try await Self.render(boards, "boards-dark", height: 1100, dark: true)

@@ -49,7 +49,7 @@ struct MacGlobalModelControlsTests {
             let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
             host.cacheDisplay(in: host.bounds, to: bitmap)
             let png = try #require(bitmap.representation(using: .png, properties: [:]))
-            try png.write(to: URL(filePath: "/tmp/angrove-global-dock-\(scheme == .light ? "light" : "dark").png"))
+            try png.write(to: URL(filePath: NSTemporaryDirectory() + "angrove-global-dock-\(scheme == .light ? "light" : "dark").png"))
         }
     }
 

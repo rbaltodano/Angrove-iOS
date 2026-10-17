@@ -40,7 +40,7 @@ struct MacBoardTypographyTests {
             changing.displayIfNeeded()
             let bitmap = try #require(changing.bitmapImageRepForCachingDisplay(in: changing.bounds))
             changing.cacheDisplay(in: changing.bounds, to: bitmap)
-            try bitmap.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: "/tmp/angrove-board-note-\(name).png"))
+            try bitmap.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: NSTemporaryDirectory() + "angrove-board-note-\(name).png"))
         }
     }
 

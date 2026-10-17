@@ -97,7 +97,7 @@ struct MacWorktreeTrashTests {
             let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
             host.cacheDisplay(in: host.bounds, to: bitmap)
             let data = try #require(bitmap.representation(using: .png, properties: [:]))
-            try data.write(to: URL(fileURLWithPath: "/tmp/angrove-trash-\(dark ? "dark" : "light").png"))
+            try data.write(to: URL(fileURLWithPath: NSTemporaryDirectory() + "angrove-trash-\(dark ? "dark" : "light").png"))
             window.contentView = nil
             window.close()
         }

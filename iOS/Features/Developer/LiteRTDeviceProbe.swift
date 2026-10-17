@@ -83,6 +83,7 @@ final class LiteRTDeviceProbeModel {
         didStart = true
         LiteRTProbeLogCapture.shared.start()
 
+        #if DEBUG
         if let benchModel = LiteRTProbeArguments.value(
             after: "--bonsai-bench",
             in: ProcessInfo.processInfo.arguments
@@ -94,6 +95,7 @@ final class LiteRTDeviceProbeModel {
             detail = "Engine benchmark finished; see bonsai-bench-result.json."
             return
         }
+        #endif
 
         if let evalFile = LiteRTProbeArguments.value(
             after: "--litert-eval-batch",

@@ -34,7 +34,7 @@ struct MacPageHeadingTests {
         let after = try capture(host)
         #expect(before != after)
         #expect(host.fittingSize == size)
-        try after.write(to: URL(filePath: "/tmp/angrove-heading-revealed.png"))
+        try after.write(to: URL(filePath: NSTemporaryDirectory() + "angrove-heading-revealed.png"))
     }
 
     @Test func changingAnAlreadyRevealedHeadingRevealsItsReplacement() async throws {
