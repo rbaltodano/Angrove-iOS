@@ -62,6 +62,10 @@ struct MacWorkspaceView: View {
     @State private var selection: MacDestination = MacDesignPreview.isEnabled ? .conversations : .home
     @State private var conversations = CurrentConversationsStore.load()?.conversations ?? []
     @State private var question = ""
+    @State private var completionNotifications = ModelCompletionNotificationCenter()
+    @State private var conversationBranches: [UUID: UUID] = [:]
+    @State private var pendingDefinition: MacCompletedDefinition?
+    @State private var pendingSourceReturn: MacWorkspacePage?
     @State private var conversationID = MacWorkspaceIdentity.initialConversationID(isPreview: MacDesignPreview.isEnabled,
         savedID: MacDesignPreview.isEnabled ? nil : CurrentConversationsStore.load()?.activeConversationID)
     @State private var showFixture = MacDesignPreview.isEnabled
@@ -95,7 +99,7 @@ struct MacWorkspaceView: View {
             let modelTasks = MacApplicationRuntime.shared.modelTasks
             let pendingTasks = [modelTasks.currentTask].compactMap { $0 } + modelTasks.upcomingTasks
             let loadingBranchIDs = Set(pendingTasks.compactMap { $0.kind.userQuestionBranchID })
-            GeometryReader { geometry in
+            AnyView(AnyView(GeometryReader { geometry in
                 HStack(spacing: 0) {
                     MacFloatingSidebar(selection: Binding(get: { selection }, set: { navigate(to: page(for: $0)) }), isCompact: sidebar.isCompact, showsFixture: showFixture,
                         conversations: conversations, loadingBranchIDs: loadingBranchIDs, openConversation: { id in
@@ -125,6 +129,9 @@ struct MacWorkspaceView: View {
                             MacConversationWorkspace(showsFixture: showFixture, conversationID: conversationID, question: $question,
                                 shortcutRequest: $paneShortcut, queuePopup: queuePopup, onActivity: recordPageActivity,
                                 initialQuote: pendingQuote, onInitialQuoteHandled: { pendingQuote = nil },
+                                completedDefinition: pendingDefinition, onDefinitionHandled: { pendingDefinition = nil },
+                                initialBranchID: conversationBranches[conversationID],
+                                onBranchSelectionChange: { conversationBranches[conversationID] = $0 },
                                 onNewConversation: {
                                     navigate(to: MacWorkspacePage(destination: .conversations, conversationID: UUID()))
                                 }, onOpenInsights: { navigate(to: page(for: .insights)) })
@@ -176,6 +183,10 @@ struct MacWorkspaceView: View {
                     .environment(\.homeVinePlayback, homeVinePlayback)
                     .allowsHitTesting(!pageTransition.isTransitioning)
                     .background(MacPageActivityObserver(onActivity: recordPageActivity))
+                    .overlayPreferenceValue(MacGlobalModelControlsKey.self) { controls in
+                        MacGlobalModelControlsDock(published: controls, isVisible: pageTransition.showsControls,
+                            modelTasks: modelTasks, queuePopup: queuePopup)
+                    }
                 }
                 .coordinateSpace(name: "MacWorkspace")
                 .overlay(alignment: .topLeading) {
@@ -189,7 +200,7 @@ struct MacWorkspaceView: View {
                     MacSidebarConversationMenuOverlay(conversations: conversations, menuID: $conversationMenuID,
                                                       anchors: anchors, onAction: handleConversationAction)
                 }
-            }
+            })
             .focusedSceneValue(\.macWorkspaceCommands, MacWorkspaceCommandTarget(
                 request: $shortcutRequest,
                 recentConversationIDs: MacWorkspaceCommandTarget.recentIDs(in: conversations),
@@ -200,15 +211,29 @@ struct MacWorkspaceView: View {
                 history.visit(currentPage)
                 MacApplicationRuntime.shared.modelTasks.onTaskCompleted = { task in
                     let isViewing: (UUID) -> Bool = { selection == .conversations && conversationID == $0 }
+                    postCompletedQuestion(task, isViewing: isViewing)
                     MacNotifications.postIfNeeded(for: task, isViewing: isViewing)
                     MacNotifications.readAloudIfFinishedElsewhere(task, isViewing: isViewing)
                 }
             }
-            .onDisappear { pageTransition.cancel() }
-            .onReceive(NotificationCenter.default.publisher(for: .macOpenConversation)) { notification in
-                guard let id = notification.object as? UUID else { return }
-                navigate(to: MacWorkspacePage(destination: .conversations, conversationID: id))
+            .onDisappear {
+                pageTransition.cancel()
+                completionNotifications.dismissPageReturn()
             }
+            .onChange(of: pageTransition.isTransitioning) { _, transitioning in
+                guard !transitioning, let source = pendingSourceReturn, selection == .library else { return }
+                pendingSourceReturn = nil
+                completionNotifications.schedulePageReturn(title: String(localized: "Return to Conversation"), returnPage: .conversation) {
+                    navigate(to: source)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .macOpenCompletedDefinition)) { notification in
+                guard let definition = notification.object as? MacCompletedDefinition else { return }
+                navigate(to: MacWorkspacePage(destination: .conversations, conversationID: definition.conversationID)) {
+                    pendingDefinition = definition
+                }
+            })
+            .onReceive(NotificationCenter.default.publisher(for: .macOpenConversation), perform: openConversation)
             .onReceive(NotificationCenter.default.publisher(for: .macOpenHome)) { notification in
                 if let request = notification.object as? NewConversationRequest { startConversation(request) }
                 else { navigate(to: page(for: .home)) }
@@ -243,7 +268,11 @@ struct MacWorkspaceView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .openGroundingSourceInLibrary)) { notification in
                 guard let request = notification.object as? LibraryNavigationRequest else { return }
-                navigate(to: page(for: .library)) { libraryRequest = request }
+                let source = selection == .conversations ? currentPage : nil
+                navigate(to: page(for: .library)) {
+                    libraryRequest = request
+                    pendingSourceReturn = source
+                }
             }
             .onReceive(NotificationCenter.default.publisher(for: .macConversationDeleted)) { notification in
                 guard let id = notification.object as? UUID else { return }
@@ -262,6 +291,7 @@ struct MacWorkspaceView: View {
                 }
                 conversationDrafts[id] = nil
             }
+            .environment(\.modelCompletionNotifications, completionNotifications)
             .environment(\.openModelTaskPage, { task in
                 if let id = task.conversationID {
                     navigate(to: MacWorkspacePage(destination: .conversations, conversationID: id))
@@ -292,6 +322,20 @@ struct MacWorkspaceView: View {
         }
     }
 
+    private func openConversation(_ notification: Notification) {
+        guard let id = notification.object as? UUID else { return }
+        navigate(to: MacWorkspacePage(destination: .conversations, conversationID: id))
+    }
+
+    private func postCompletedQuestion(_ task: ModelTaskSnapshot, isViewing: (UUID) -> Bool) {
+        let conversation = CurrentConversationsStore.load()?.conversations.first { $0.id == task.conversationID }
+        MacCompletionNotifications.postQuestion(task, to: completionNotifications,
+            isViewing: isViewing, isAppActive: NSApp.isActive, conversation: conversation) { id, branchID in
+                conversationBranches[id] = branchID
+                navigate(to: MacWorkspacePage(destination: .conversations, conversationID: id))
+            }
+    }
+
     private var currentPage: MacWorkspacePage {
         MacWorkspacePage(destination: selection,
             conversationID: selection == .conversations ? conversationID : nil,
@@ -307,6 +351,8 @@ struct MacWorkspaceView: View {
 
     private func navigate(to page: MacWorkspacePage, recordsVisit: Bool = true,
                           onArrival: @escaping @MainActor () -> Void = {}) {
+        pendingSourceReturn = nil
+        completionNotifications.dismissPageReturn()
         if recordsVisit { history.visit(page) }
         guard page != currentPage || pageTransition.isTransitioning else {
             onArrival()
@@ -369,12 +415,8 @@ struct MacWorkspaceView: View {
             guard number >= 1, number <= ids.count else { return }
             navigate(to: MacWorkspacePage(destination: .conversations, conversationID: ids[number - 1]))
         case .openQueue:
-            // Pages with their own Model Tasks control open it in place.
-            let current = pageTransition.destination?.destination ?? selection
-            let destination = [.insights, .worktree].contains(current) ? page(for: current) : page(for: .conversations)
-            navigate(to: destination) {
-                withAnimation(.springStandard) { queuePopup.isOpen.toggle() }
-            }
+            // The workspace dock is available on every page.
+            withAnimation(.springStandard) { queuePopup.isOpen.toggle() }
         case .openTree:
             navigate(to: page(for: .conversations)) { paneShortcut = request }
         case .focusQuestion, .swapPanes, .pinPanes, .toggleContext:

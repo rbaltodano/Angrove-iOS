@@ -21,6 +21,14 @@ Collected from the [iOS] and [Shared] entries below.
 
 ## 2026-10-17
 
+- **[Shared] Model controls, completion notifications and Insight cards (committed from another
+  session's work).** A persistent global model-controls dock on the Mac (`MacGlobalModelControls`),
+  completed-definition notifications that open after their conversation unmounts
+  (`MacCompletionNotifications`), and layout changes to the Insight sheet, library and docked
+  cards plus `CurrentConversation` on iPhone. Verified: iPhone simulator and Mac builds and the 8
+  new card, notification and controls tests. **Owner:** the iPhone-facing parts need patch-note
+  wording from whoever wrote them.
+
 - **[Shared] AngroveCore package and platform policy; no iPhone behavior change.** Encryption
   (`LocalDataCipher`, `LocalDataKeychain`), `AngroveAppGroup`, the widget's question store and
   link, and the model manifest and pack types moved from `Shared/Widgets` and `Shared/Services`

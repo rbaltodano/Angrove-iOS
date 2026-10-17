@@ -204,30 +204,9 @@ struct MacWorktreeView: View {
             }
             .allowsHitTesting(false)
         }
-        .overlay(alignment: .bottom) {
-            VStack(spacing: 16) {
-                if queuePopup.isOpen {
-                    ModelTasksCard(modelTasks: runtime.modelTasks, popupState: queuePopup)
-                        .transition(.bottomDockCard)
-                }
-                if showsTrash {
-                    WorktreeTrashCard(board: board)
-                        .transition(.bottomDockCard)
-                }
-                if showsTools {
-                    WorktreeToolsCard(onChoose: pickUp)
-                        .transition(.bottomDockCard)
-                }
-                WorktreeControlDock(board: board, modelTasks: runtime.modelTasks, addEntries: addEntries,
-                    toggleTools: {
-                        withAnimation(.springStandard) { queuePopup.isOpen = false; showsTrash = false; showsTools.toggle() }
-                    }, toggleModelTasks: {
-                        withAnimation(.springStandard) { showsTrash = false; showsTools = false; queuePopup.isOpen.toggle() }
-                    }, toggleTrash: {
-                        withAnimation(.springStandard) { queuePopup.isOpen = false; showsTools = false; showsTrash.toggle() }
-                    })
-            }
-            .padding(24)
+        .overlay {
+            Color.clear.preference(key: MacGlobalModelControlsKey.self,
+                                   value: MacGlobalModelControls(configuration: dockConfiguration))
         }
         .background(WorktreeKeyShortcuts(onCharacters: typeOnCanvas, onEditKey: editPendingField, onEscape: escape, onZoom: zoom, onSlash: openCommand, onTool: useShortcut, onResize: resizeTargets, onSpace: spacePan, onUndo: { board.undo() }, onRedo: { board.redo() }))
         .onChange(of: board.fileRequest) { _, _ in openFiles() }
@@ -264,6 +243,32 @@ struct MacWorktreeView: View {
         .alert("Angrove", isPresented: Binding(get: { board.errorMessage != nil }, set: { if !$0 { board.errorMessage = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(board.errorMessage ?? "") }
+    }
+
+    private var dockConfiguration: ModelControlsConfiguration {
+        var configuration = ModelControlsConfiguration(id: "mac-boards")
+        configuration.modelTasks = runtime.modelTasks
+        configuration.modelTasksPopupState = queuePopup
+        configuration.buttons = AnyView(WorktreeControlDock(board: board, modelTasks: runtime.modelTasks,
+            addEntries: addEntries,
+            toggleTools: {
+                withAnimation(.springStandard) { queuePopup.isOpen = false; showsTrash = false; showsTools.toggle() }
+            }, toggleModelTasks: {
+                withAnimation(.springStandard) { showsTrash = false; showsTools = false; queuePopup.isOpen.toggle() }
+            }, toggleTrash: {
+                withAnimation(.springStandard) { queuePopup.isOpen = false; showsTools = false; showsTrash.toggle() }
+            }))
+        configuration.pillHorizontalPadding = 0
+        configuration.pillVerticalPadding = 0
+        configuration.showsPillChrome = false
+        if showsTrash {
+            configuration.supplementalPopupIsOpen = true
+            configuration.supplementalPopup = AnyView(WorktreeTrashCard(board: board))
+        } else if showsTools {
+            configuration.supplementalPopupIsOpen = true
+            configuration.supplementalPopup = AnyView(WorktreeToolsCard(onChoose: pickUp))
+        }
+        return configuration
     }
 
     private func preparePhotos(_ files: [UploadedFile]) {

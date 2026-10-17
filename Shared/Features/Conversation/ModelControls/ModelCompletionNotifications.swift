@@ -34,6 +34,7 @@ final class ModelCompletionNotificationCenter {
         title: String,
         kind: ModelCompletionNotificationKind = .question,
         returnPage: AppPage? = nil,
+        postsSystemNotification: Bool = true,
         systemNotificationTitle: String? = nil,
         systemNotificationBody: String? = nil,
         openAction: @escaping @MainActor () -> Void
@@ -53,14 +54,14 @@ final class ModelCompletionNotificationCenter {
             )
         }
         #if os(iOS)
-        if kind != .pageReturn, UIApplication.shared.applicationState != .active {
+        if postsSystemNotification, kind != .pageReturn, UIApplication.shared.applicationState != .active {
             AngroveSystemNotifications.postCompletedResponse(
                 title: systemNotificationTitle ?? "Response Ready",
                 body: systemNotificationBody ?? title
             )
         }
         #else
-        if kind != .pageReturn, !NSApplication.shared.isActive {
+        if postsSystemNotification, kind != .pageReturn, !NSApplication.shared.isActive {
             AngroveSystemNotifications.postCompletedResponse(title: systemNotificationTitle ?? "Response Ready", body: systemNotificationBody ?? title)
         }
         #endif
@@ -210,6 +211,40 @@ struct ModelCompletionNotificationPill: View {
         .overlay {
             Capsule()
                 .stroke(AngroveTheme.Colors.popupBorder, lineWidth: 1)
+        }
+    }
+}
+
+/// Reuses the same completion and return pills in shared docks and native Mac Boards.
+struct ModelCompletionNotificationList: View {
+    let width: CGFloat
+    @Environment(\.modelCompletionNotifications) private var completionNotifications
+
+    var body: some View {
+        if let completionNotifications {
+            ForEach(completionNotifications.notifications) { notification in
+                Group {
+                    if notification.kind == .pageReturn {
+                        ModelControlsConfirmationPill(
+                            title: notification.title,
+                            width: width,
+                            onConfirm: { completionNotifications.open(id: notification.id) },
+                            onDecline: { completionNotifications.dismiss(id: notification.id) },
+                            iconName: (notification.returnPage ?? .conversation).sidebarIconName,
+                            showsControlBorder: true
+                        )
+                    } else {
+                        ModelCompletionNotificationPill(
+                            title: notification.title,
+                            kind: notification.kind,
+                            width: width,
+                            onOpen: { completionNotifications.open(id: notification.id) },
+                            onDismiss: { completionNotifications.dismiss(id: notification.id) }
+                        )
+                    }
+                }
+                .transition(.bottomDockCard)
+            }
         }
     }
 }

@@ -23,7 +23,9 @@ struct WorktreeItemView: View, Equatable {
     static let textPadding: CGFloat = 8
     static let cardWidth: CGFloat = 400
     static let cardMaxHeight: CGFloat = 420
-    private static let gripSize = CGSize(width: 7.5, height: 12)
+    private var gripSize: CGSize {
+        CGSize(width: WorktreeBoxGrip.glyphSize.width / scale, height: WorktreeBoxGrip.glyphSize.height / scale)
+    }
     private static let gripSpacing: CGFloat = 8
 
     /// Only the inputs: board state the view reads is tracked by observation.
@@ -227,7 +229,7 @@ struct WorktreeItemView: View, Equatable {
         Image("WorktreeGrip")
             .renderingMode(.template)
             .resizable()
-            .frame(width: Self.gripSize.width, height: Self.gripSize.height)
+            .frame(width: gripSize.width, height: gripSize.height)
             // Accent green at 50%, matching the box and its top grip.
             .foregroundStyle(AngroveTheme.Colors.lightGreen.opacity(0.5))
             .padding(6)
@@ -238,8 +240,8 @@ struct WorktreeItemView: View, Equatable {
             .pointerStyle(.grabActive)
             .gesture(moveGesture)
             // Just before the text itself; a card's grip sits just outside its border.
-            .offset(x: (isOpen ? 0 : padding) - (Self.gripSize.width + Self.gripSpacing + 6),
-                    y: padding + (firstLineHeight - Self.gripSize.height) / 2 - 6)
+            .offset(x: (isOpen ? 0 : padding) - (gripSize.width + Self.gripSpacing + 6),
+                    y: padding + (firstLineHeight - gripSize.height) / 2 - 6)
             .accessibilityLabel("Move")
     }
 

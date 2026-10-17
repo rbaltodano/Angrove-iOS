@@ -58,6 +58,8 @@ struct ResponseButtons: View {
     var onSpeak: (() -> Void)? = nil
     var onFork: (() -> Void)? = nil
 
+    var onClose: (() -> Void)? = nil
+
     @Environment(\.speechSource) private var speechSource
     private var speech: ResponseSpeechPlayer { .shared }
 
@@ -88,6 +90,8 @@ struct ResponseButtons: View {
         if onSpeak != nil || speechText.map({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) == true {
             items.append(.speak)
         }
+
+        if onClose != nil { items.append(.close) }
 
         return items
     }
@@ -139,6 +143,8 @@ struct ResponseButtons: View {
             return quoteAccessibilityLabel
         case .fork:
             return String(localized: "Branch")
+        case .close:
+            return String(localized: "Close Insight")
         case .speak:
             return isSpeaking ? String(localized: "Stop reading") : String(localized: "Read card aloud")
         }
@@ -176,6 +182,8 @@ struct ResponseButtons: View {
             onQuote?()
         case .fork:
             onFork?()
+        case .close:
+            onClose?()
         case .speak:
             if let onSpeak {
                 onSpeak()
@@ -209,6 +217,7 @@ private enum ResponseButtonAction: Equatable {
     case quote
     case fork
     case speak
+    case close
 
     var systemName: String {
         switch self {
@@ -220,6 +229,8 @@ private enum ResponseButtonAction: Equatable {
             return "arrow.turn.down.right"
         case .fork:
             return "arrow.triangle.branch"
+        case .close:
+            return "xmark"
         case .speak:
             return "speaker.wave.2"
         }

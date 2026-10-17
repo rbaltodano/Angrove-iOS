@@ -8,6 +8,7 @@ struct InsightLibraryCard: View {
     var onQuote: () -> Void
     var onFork: () -> Void
     var onToggleSaved: () -> Void
+    var onClose: (() -> Void)? = nil
     @State private var isConfirmingUnbookmark = false
     @State private var speechExpansionRequest = 0
     @State private var speechCollapseRequest = 0
@@ -47,12 +48,14 @@ struct InsightLibraryCard: View {
                     onSave: handleSaveTapped,
                     onQuote: onQuote,
                     onSpeak: requestSpeechPlayback,
-                    onFork: onFork
+                    onFork: onFork,
+                    onClose: onClose
                 )
-                .opacity(hidesActionsForSpeech ? 0 : 1)
-                .allowsHitTesting(!hidesActionsForSpeech)
-                .accessibilityHidden(hidesActionsForSpeech)
+                .opacity(hidesActionsForSpeech && onClose == nil ? 0 : 1)
+                .allowsHitTesting(!hidesActionsForSpeech || onClose != nil)
+                .accessibilityHidden(hidesActionsForSpeech && onClose == nil)
                 .animation(.easeOut(duration: 0.2), value: hidesActionsForSpeech)
+
             }
 
             if insight.isLibraryQuote {

@@ -88,6 +88,11 @@ struct MacConversationDock: View {
         .onChange(of: (queuePopup ?? popup).isOpen) { _, isOpen in
             if isOpen { context.reset() }
         }
+        .onChange(of: session.selectedDefinition?.id) { _, id in
+            guard id != nil else { return }
+            context.reset()
+            (queuePopup ?? popup).reset()
+        }
         .onChange(of: isCanvasMode) { _, _ in
             context.reset()
             (queuePopup ?? popup).isOpen = false
@@ -112,14 +117,15 @@ struct MacConversationDock: View {
     }
 }
 
-/// A persistent controls host for the main or secondary slot. Its preference boundary
-/// keeps the two publishers separate; only the tree slot receives the canvas's card.
+/// Publishes the main slot to the workspace dock; the secondary pane keeps its local tools.
+/// The preference boundary keeps their controls and tree cards separate.
 struct MacWorkspaceControlSlot: View {
     let session: MacConversationState
     let tree: MacTreeControls
     let runtime: MacApplicationRuntime
     let isCanvasMode: Bool
     let isVisible: Bool
+    var publishesGlobally = true
     let hasQuestion: Bool
     let treeCard: ModelControlsDockedCard?
     let onOpenTree: () -> Void
@@ -142,14 +148,30 @@ struct MacWorkspaceControlSlot: View {
                                     contextToggleRequest: isCanvasMode ? .constant(nil) : contextToggleRequest)
             }
             .overlayPreferenceValue(ModelControlsPreferenceKey.self, alignment: .bottom) { configuration in
-                ModelControlsHost(configuration: presentedConfiguration(configuration))
+                if publishesGlobally {
+                    Color.clear
+                        .anchorPreference(key: MacGlobalModelControlsKey.self, value: .bounds) { bounds in
+                            presentedConfiguration(configuration).map {
+                                MacGlobalModelControls(configuration: $0, bounds: bounds)
+                            }
+                        }
+                } else {
+                    ModelControlsHost(configuration: presentedConfiguration(configuration))
+                        .environment(\.modelCompletionNotifications, nil)
+                        .opacity(pageControlsVisible ? 1 : 0)
+                }
             }
             .transformPreference(ModelControlsPreferenceKey.self) { $0 = nil }
     }
 
     private func presentedConfiguration(_ configuration: ModelControlsConfiguration?) -> ModelControlsConfiguration? {
-        guard isVisible, pageControlsVisible, var configuration else { return nil }
+        guard isVisible, var configuration else { return nil }
         configuration.dockedCard = isCanvasMode ? treeCard : nil
+        if publishesGlobally, let concept = session.selectedDefinition {
+            configuration.dockedCard = ModelControlsDockedCard(key: "definition-\(concept.id)",
+                view: AnyView(MacDockedDefinitionCard(session: session, concept: concept)),
+                staysVisibleDuringInteraction: true)
+        }
         return configuration
     }
 }

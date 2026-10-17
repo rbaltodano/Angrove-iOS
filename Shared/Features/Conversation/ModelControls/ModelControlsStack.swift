@@ -75,31 +75,12 @@ struct ModelControlsStack<Controls: View>: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            if let completionNotifications {
-                ForEach(completionNotifications.notifications) { notification in
-                    Group {
-                        if notification.kind == .pageReturn {
-                            ModelControlsConfirmationPill(
-                                title: notification.title,
-                                width: controlsWidth,
-                                onConfirm: { completionNotifications.open(id: notification.id) },
-                                onDecline: { completionNotifications.dismiss(id: notification.id) },
-                                iconName: (notification.returnPage ?? .conversation).sidebarIconName,
-                                showsControlBorder: true
-                            )
-                        } else {
-                            ModelCompletionNotificationPill(
-                                title: notification.title,
-                                kind: notification.kind,
-                                width: controlsWidth,
-                                onOpen: { completionNotifications.open(id: notification.id) },
-                                onDismiss: { completionNotifications.dismiss(id: notification.id) }
-                            )
-                        }
-                    }
-                    .transition(.bottomDockCard)
-                }
-            }
+            #if os(macOS)
+            // Desktop's idle bar can shrink to two controls; keep notification actions readable.
+            ModelCompletionNotificationList(width: max(315, controlsWidth))
+            #else
+            ModelCompletionNotificationList(width: controlsWidth)
+            #endif
 
             if let confirmationTitle {
                 ModelControlsConfirmationPill(
@@ -110,6 +91,12 @@ struct ModelControlsStack<Controls: View>: View {
                     showsControlBorder: true
                 )
                 .transition(.bottomDockCard)
+            }
+
+            if let dockedCard, dockedCard.staysVisibleDuringInteraction {
+                dockedCard.view
+                    .fixedSize(horizontal: false, vertical: true)
+                    .transition(.bottomDockCard)
             }
 
             if let contextCard, contextCard.isOpen {
@@ -132,7 +119,7 @@ struct ModelControlsStack<Controls: View>: View {
             } else if speech.occupiesCardSlot, speech.showsReader {
                 ReadingControlsCard()
                     .transition(.bottomDockCard)
-            } else if let dockedCard {
+            } else if let dockedCard, !dockedCard.staysVisibleDuringInteraction {
                 dockedCard.view
                     #if os(macOS)
                     // Cards can grow independently of the controls pill within the pane.
@@ -254,7 +241,7 @@ struct ModelControlsStack<Controls: View>: View {
     }
 }
 
-private struct ModelControlsConfirmationPill: View {
+struct ModelControlsConfirmationPill: View {
     let title: String
     let width: CGFloat
     let onConfirm: () -> Void

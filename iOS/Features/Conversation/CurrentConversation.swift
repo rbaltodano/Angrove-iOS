@@ -38,7 +38,6 @@ final class ConversationDefinitionState {
     var completedWords: [ConversationInsightWord] = []
     var definitionsByKey: [String: ConceptDefinition] = [:]
     var lookupKeys: Set<String> = []
-    var sheetContentHeight: CGFloat = 178
     var failedWord: ConversationInsightWord?
 
     func reset() {
@@ -48,7 +47,6 @@ final class ConversationDefinitionState {
         lookupKeys.removeAll()
         activeWord = nil
         failedWord = nil
-        sheetContentHeight = 178
     }
 
     func present(_ word: ConversationInsightWord) {
@@ -523,12 +521,6 @@ struct CurrentConversationView: View {
         session.focusedBranchID ?? session.activeBranches.first?.id
     }
 
-    private var insightSheetHeight: CGFloat {
-        let measured   = max(definitionState.sheetContentHeight, 178)
-        let available  = max(viewportSize.height, 1)
-        return min(measured + 24, available * 0.82)
-    }
-
     private func pendingFocusBranchTarget() -> ChatBranch? {
         if let pendingFocusBranchID,
            let branch = session.activeBranches.first(where: { $0.id == pendingFocusBranchID }) {
@@ -884,10 +876,6 @@ struct CurrentConversationView: View {
             openDynamicDefinition(word: word, sourceResponseBlock: nil)
             return .handled
         })
-        // aq:// word insight sheet
-        .sheet(item: $definitionState.activeWord, onDismiss: presentNextCompletedDefinition) { sheetData in
-            insightSheet(for: sheetData)
-        }
         // Insight library sheet (opened from "Insights" in the + menu)
         .sheet(isPresented: $isInsightLibraryOpen) {
             InsightLibraryPopup(
@@ -1235,6 +1223,10 @@ struct CurrentConversationView: View {
         // Publishes to the shell's single Model Controls bar; renders nothing here.
         .background {
             bottomInquiryControlDock
+        }
+        .modelControlsDockedCard(key: definitionState.activeWord.map { "definition-\($0.id)" } ?? "",
+                                staysVisibleDuringInteraction: true) {
+            if let word = definitionState.activeWord { dockedDefinitionCard(for: word) }
         }
         .alert("Couldn’t compact context", isPresented: $isCompactionErrorPresented) {
             Button("OK", role: .cancel) { }
@@ -1705,10 +1697,10 @@ struct CurrentConversationView: View {
         isBranchScrolledToTop = atTop
     }
 
-    // MARK: - Insight sheet
+    // MARK: - Docked Insight card
 
     @ViewBuilder
-    private func insightSheet(for sheetData: ConversationInsightWord) -> some View {
+    private func dockedDefinitionCard(for sheetData: ConversationInsightWord) -> some View {
         let definition = definitionState.definitionsByKey[sheetData.id]
         let isSaved = definition.map { c in
             collectedDefinitions.contains {
@@ -1730,7 +1722,6 @@ struct CurrentConversationView: View {
             }?.funStatusText,
             onQuote: {
                 guard let concept = definition else { return }
-                definitionState.activeWord = nil
                 withAnimation(.springBouncy) {
                     attachedConcept = concept
                     if session.focusedBranchID == nil {
@@ -1744,7 +1735,6 @@ struct CurrentConversationView: View {
             },
             onFork: {
                 guard let concept = definition else { return }
-                definitionState.activeWord = nil
                 let newBranch = ChatBranch(
                     startingConcept: concept,
                     parentBranchID: effectiveFocusedID,
@@ -1766,27 +1756,13 @@ struct CurrentConversationView: View {
                 } else {
                     clippedPassages.append(concept)
                 }
+            },
+            onClose: {
+                withAnimation(.springStandard) { definitionState.activeWord = nil }
+                presentNextCompletedDefinition()
             }
         )
         .padding(.horizontal, 24)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .top)
-        .background(
-            GeometryReader { geometry in
-                Color.clear.preference(
-                    key: InsightSheetContentHeightKey.self,
-                    value: geometry.size.height
-                )
-            }
-        )
-        .frame(maxWidth: .infinity)
-        .background(AngroveTheme.Colors.canvas)
-        .onPreferenceChange(InsightSheetContentHeightKey.self) { h in
-            definitionState.sheetContentHeight = h
-        }
-        .presentationDetents([.height(insightSheetHeight)])
-        .presentationDragIndicator(.visible)
-        .presentationBackground(AngroveTheme.Colors.canvas)
     }
 
     // MARK: - Branch management
@@ -2276,7 +2252,6 @@ struct CurrentConversationView: View {
             originPage: .conversation,
             conversationID: session.activeConversationID,
             onStart: {
-                definitionState.sheetContentHeight = 178
                 definitionState.loadingWord = word
             },
             onCancel: {

@@ -430,7 +430,8 @@ import SwiftUI
         restoredDraft = nil
         persistConversation()
     }
-    func define(_ term: String, source: String, runtime: MacApplicationRuntime) {
+    func define(_ term: String, source: String, runtime: MacApplicationRuntime,
+                onCompletion: (@MainActor (ConceptDefinition) -> Void)? = nil) {
         guard runtime.modelIsAvailable else { report(UnavailableAngroveModel.unavailableMessage); return }
         let definitionBranchID = selectedBranch
         let key = term.lowercased()
@@ -442,7 +443,8 @@ import SwiftUI
             do {
                 let concept = try await runtime.model.defineTerm(term, in: context, conversationID: isPreview ? nil : id)
                 guard !Task.isCancelled else { return }
-                if selectedBranch == definitionBranchID { selectedDefinition = concept }
+                if let onCompletion { onCompletion(concept) }
+                else if selectedBranch == definitionBranchID { selectedDefinition = concept }
             } catch { if !Task.isCancelled { report(error.localizedDescription) } }
         }
     }

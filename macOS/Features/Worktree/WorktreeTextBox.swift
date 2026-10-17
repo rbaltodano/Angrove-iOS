@@ -116,23 +116,21 @@ struct WorktreeBoxChrome: View {
         }
     }
 
-    /// A circle of `revealDistance` screen points around the pointer, or the whole box when no
-    /// pointer is near.
-    @ViewBuilder private var reveal: some View {
-        if let spotlight {
-            let radius = WorktreeTextBoxResize.revealDistance / zoom
-            // Full strength to 24 screen points, then a 24-point soft edge out to the 48-point rim.
-            let solid = (WorktreeTextBoxResize.revealDistance - WorktreeTextBoxResize.spotlightFeather)
-                / WorktreeTextBoxResize.revealDistance
-            Circle()
-                .fill(RadialGradient(stops: [.init(color: .white, location: 0), .init(color: .white, location: solid),
-                                             .init(color: .clear, location: 1)],
-                                     center: .center, startRadius: 0, endRadius: radius))
-                .frame(width: radius * 2, height: radius * 2)
-                .position(spotlight)
-        } else {
-            Rectangle()
-        }
+    /// Keep one circular mask mounted, including the first hover and pointer exit. A full-box
+    /// fallback can flash during the outline's fade or crossfade when the circle is inserted.
+    private var reveal: some View {
+        let radius = WorktreeTextBoxResize.revealDistance / zoom
+        let solid = (WorktreeTextBoxResize.revealDistance - WorktreeTextBoxResize.spotlightFeather)
+            / WorktreeTextBoxResize.revealDistance
+        return Circle()
+            .fill(RadialGradient(stops: [.init(color: .white, location: 0), .init(color: .white, location: solid),
+                                         .init(color: .clear, location: 1)],
+                                 center: .center, startRadius: 0, endRadius: radius))
+            .frame(width: radius * 2, height: radius * 2)
+            .position(spotlight ?? .zero)
+            .opacity(spotlight == nil ? 0 : 1)
+            // The spotlight tracks the pointer immediately; only the outline fades.
+            .transaction { $0.animation = nil }
     }
 
     private var illumination: some View {
@@ -212,7 +210,7 @@ struct WorktreeBoxGrip: View {
     @State private var isHovered = false
     @State private var isDragging = false
 
-    private static let size = CGSize(width: 7.5, height: 12)
+    static let glyphSize = CGSize(width: 7.5, height: 12)
     private static let gap: CGFloat = 8
 
     var body: some View {
@@ -220,7 +218,7 @@ struct WorktreeBoxGrip: View {
         Image("WorktreeGrip")
             .renderingMode(.template)
             .resizable()
-            .frame(width: Self.size.width / zoom, height: Self.size.height / zoom)
+            .frame(width: Self.glyphSize.width / zoom, height: Self.glyphSize.height / zoom)
             .rotationEffect(.degrees(90))
             .foregroundStyle(AngroveTheme.Colors.lightGreen.opacity(isLit ? 0.75 : 0.5))
             .shadow(color: AngroveTheme.Colors.lightGreen.opacity(isLit ? 0.6 : 0), radius: 4 / zoom)
@@ -236,7 +234,7 @@ struct WorktreeBoxGrip: View {
                 .onChanged { isDragging = true; move.changed($0) }
                 .onEnded { _ in isDragging = false; move.ended() })
             // Rotated, the grip is 12 wide and 7.5 tall; its centre sits 8pt plus half that above the line.
-            .position(x: width / 2, y: -(Self.gap + Self.size.width / 2) / zoom)
+            .position(x: width / 2, y: -(Self.gap + Self.glyphSize.width / 2) / zoom)
             .accessibilityLabel("Move")
     }
 }

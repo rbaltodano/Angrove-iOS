@@ -21,6 +21,7 @@ struct DockedInsightTreeCard: View {
     var linkedInsights: [InsightModel] = []
     var onToggleSaved: (() -> Void)? = nil
     var onRemove: (() -> Void)? = nil
+    var onClose: (() -> Void)? = nil
     var onFork:   (() -> Void)? = nil
     var onSelectLinkedInsight: ((InsightModel) -> Void)? = nil
 
@@ -47,34 +48,24 @@ struct DockedInsightTreeCard: View {
 
                 Spacer()
 
-                Group {
-                    ResponseButtons(
-                        isSaved: isSaved,
-                        canCopy: true,
-                        canFork: false,
-                        copyText: definitionText,
-                        speechText: definitionText,
-                        tintColor: AngroveTheme.Colors.placeholderText,
-                        saveTintColor: isSaved ? AngroveTheme.Colors.accentRed : nil,
-                        onSave: onToggleSaved,
-                        onSpeak: requestSpeechPlayback,
-                        onFork: { onFork?() }
-                    )
-
-                    if let onRemove {
-                        Button(action: onRemove) {
-                            Image(systemName: "trash")
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundColor(AngroveTheme.Colors.placeholderText)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Remove from conversation")
-                    }
-                }
-                .opacity(hidesActionsForSpeech ? 0 : 1)
-                .allowsHitTesting(!hidesActionsForSpeech)
-                .accessibilityHidden(hidesActionsForSpeech)
+                ResponseButtons(
+                    isSaved: isSaved,
+                    canCopy: true,
+                    canFork: false,
+                    copyText: definitionText,
+                    speechText: definitionText,
+                    tintColor: AngroveTheme.Colors.placeholderText,
+                    saveTintColor: isSaved ? AngroveTheme.Colors.accentRed : nil,
+                    onSave: onToggleSaved,
+                    onSpeak: requestSpeechPlayback,
+                    onFork: { onFork?() },
+                    onClose: onClose
+                )
+                .opacity(hidesActionsForSpeech && onClose == nil ? 0 : 1)
+                .allowsHitTesting(!hidesActionsForSpeech || onClose != nil)
+                .accessibilityHidden(hidesActionsForSpeech && onClose == nil)
                 .animation(.easeOut(duration: 0.2), value: hidesActionsForSpeech)
+
             }
 
             TruncatableParagraph(
@@ -95,6 +86,11 @@ struct DockedInsightTreeCard: View {
                     }
                 }
                 .padding(.top, 4)
+            }
+        }
+        .contextMenu {
+            if let onRemove {
+                Button("Remove from conversation", systemImage: "trash", role: .destructive, action: onRemove)
             }
         }
         .onAppear {
@@ -190,6 +186,7 @@ struct DockedNodeTreeCard: View {
     var onSelectInsight: (InsightModel) -> Void
     var onToggleSaved: (() -> Void)? = nil
     var onFork: (() -> Void)? = nil
+    var onClose: (() -> Void)? = nil
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var visibleInsightCount = 0
@@ -229,8 +226,10 @@ struct DockedNodeTreeCard: View {
                     tintColor: AngroveTheme.Colors.placeholderText,
                     saveTintColor: AngroveTheme.Colors.accentRed,
                     onSave: onToggleSaved,
-                    onFork: onFork
+                    onFork: onFork,
+                    onClose: onClose
                 )
+
             }
 
             TruncatableParagraph(text: bodyText, speechText: bodyText)
@@ -410,6 +409,7 @@ struct DockedConceptCard: View {
     let isSaved: Bool
     var onToggleSaved: () -> Void
     var onFork: () -> Void
+    var onClose: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -420,7 +420,9 @@ struct DockedConceptCard: View {
                     .foregroundColor(AngroveTheme.Colors.lightGreen)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
+
                 Spacer()
+
                 ResponseButtons(
                     isSaved: isSaved,
                     canCopy: true,
@@ -430,8 +432,10 @@ struct DockedConceptCard: View {
                     tintColor: AngroveTheme.Colors.placeholderText,
                     saveTintColor: AngroveTheme.Colors.accentRed,
                     onSave: onToggleSaved,
-                    onFork: onFork
+                    onFork: onFork,
+                    onClose: onClose
                 )
+
             }
             InsightDefinitionsContent(
                 definitions: concept.contextualDefinitions

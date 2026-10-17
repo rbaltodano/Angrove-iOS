@@ -1,8 +1,46 @@
 import Foundation
+import AppKit
+import SwiftUI
 import Testing
 @testable import AngroveMac
 
 struct MacWorktreeTextBoxTests {
+    @MainActor @Test func hoverChromeNeverRevealsTheBoxWithoutALocalSpotlight() throws {
+        for dark in [false, true] {
+            func render(visible: Bool, spotlight: CGPoint?) throws -> NSBitmapImageRep {
+                let chrome = WorktreeBoxChrome(size: CGSize(width: 320, height: 120), zoom: 1,
+                                               isVisible: visible, press: WorktreeBoxPress(), spotlight: spotlight)
+                    .padding(16)
+                    .background(AngroveTheme.Colors.canvas)
+                    .environment(\.colorScheme, dark ? .dark : .light)
+                let renderer = ImageRenderer(content: chrome)
+                renderer.scale = 1
+                let image = try #require(renderer.cgImage)
+                return NSBitmapImageRep(cgImage: image)
+            }
+            let hidden = try render(visible: false, spotlight: nil)
+            let noPointer = try render(visible: true, spotlight: nil)
+            let near = try render(visible: true, spotlight: CGPoint(x: 0, y: 60))
+            // No pointer must remain fully masked, even if visibility arrives first or fades out.
+            var noPointerIsHidden = true
+            var distantPixelsAreHidden = true
+            for y in 0..<hidden.pixelsHigh {
+                for x in 0..<hidden.pixelsWide {
+                    if hidden.colorAt(x: x, y: y) != noPointer.colorAt(x: x, y: y) { noPointerIsHidden = false }
+                    // Every pixel beyond the spotlight stays identical to the hidden box.
+                    if x > 16 + Int(WorktreeTextBoxResize.revealDistance) {
+                        if hidden.colorAt(x: x, y: y) != near.colorAt(x: x, y: y) { distantPixelsAreHidden = false }
+                    }
+                }
+            }
+            #expect(noPointerIsHidden)
+            #expect(distantPixelsAreHidden)
+            #expect(hidden.colorAt(x: 16, y: 76) != near.colorAt(x: 16, y: 76))
+            let data = try #require(near.representation(using: .png, properties: [:]))
+            try data.write(to: URL(fileURLWithPath: "/tmp/angrove-boards-hover-\(dark ? "dark" : "light").png"))
+        }
+    }
+
     @Test func rightEdgeWidensAndLeftEdgeKeepsTheRightSideFixed() {
         let start = CGSize(width: 200, height: 56)
         let right = WorktreeTextBoxResize.frame(origin: .zero, size: start, handle: .right,

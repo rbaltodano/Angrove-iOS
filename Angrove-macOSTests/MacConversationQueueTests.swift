@@ -65,6 +65,26 @@ struct MacConversationQueueTests {
         #expect(await model.contexts.last?.transcript.last == .user("What about this case?", insight, []))
     }
 
+    @Test func completedDefinitionCanWaitInANotificationWithoutOpeningASheet() async throws {
+        let runtime = MacApplicationRuntime(testModel: ScriptedMacConversationModel(), queue: ModelTaskQueue())
+        let conversation = MacConversationState()
+        conversation.configure(preview: true)
+        let center = ModelCompletionNotificationCenter()
+        conversation.define("Prudence", source: "Prudence guides judgment.", runtime: runtime) { concept in
+            center.post(title: concept.word, kind: .insightDefinition, postsSystemNotification: false) {
+                conversation.selectedDefinition = concept
+            }
+        }
+        try await wait { !center.notifications.isEmpty }
+        #expect(conversation.selectedDefinition == nil)
+        #expect(conversation.transcript.isEmpty)
+        let pill = try #require(center.notifications.first)
+        #expect(pill.kind == .insightDefinition)
+        center.open(id: pill.id)
+        #expect(conversation.selectedDefinition?.word == pill.title)
+        #expect(center.notifications.isEmpty)
+    }
+
     @Test func openingDefinitionLeavesTranscriptAndTreeUnchangedUntilBookmarked() async throws {
         let runtime = MacApplicationRuntime(testModel: ScriptedMacConversationModel(), queue: ModelTaskQueue())
         let conversation = MacConversationState()

@@ -15,7 +15,6 @@ struct MacGlobalInsightWorkspace: View {
     /// A Study Topic's tree instead of the global one: its accepted snapshot, saved per topic.
     var topicID: UUID? = nil
     @State private var offersTopicUpdate = false
-    @Environment(\.macPageControlsVisible) private var pageControlsVisible
 
     var body: some View {
         MacInsightTreePane(session: session, controls: controls, runtime: runtime, isVisible: true,
@@ -30,9 +29,11 @@ struct MacGlobalInsightWorkspace: View {
                     onCancelAsk: { askConcept = nil }, queuePopup: queuePopup, onActivity: onActivity)
             }
             .macPageFade()
-            .overlayPreferenceValue(ModelControlsPreferenceKey.self, alignment: .bottom) { configuration in
-                ModelControlsHost(configuration: pageControlsVisible ? configuration : nil).zIndex(2)
+            .overlayPreferenceValue(ModelControlsPreferenceKey.self) { configuration in
+                Color.clear.preference(key: MacGlobalModelControlsKey.self,
+                    value: configuration.map { MacGlobalModelControls(configuration: $0) })
             }
+            .transformPreference(ModelControlsPreferenceKey.self) { $0 = nil }
             .task {
                 if let topicID {
                     session.configure(preview: false, conversationID: topicID, global: true)

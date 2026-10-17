@@ -20,6 +20,8 @@ struct DynamicInsightSheetCard: View {
     var onToggleSaved: () -> Void
     var onToggleClipped: () -> Void = {}
 
+    var onClose: (() -> Void)? = nil
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             if let concept {
@@ -79,14 +81,16 @@ struct DynamicInsightSheetCard: View {
                 saveTintColor: AngroveTheme.Colors.accentRed,
                 onSave: onToggleSaved,
                 onQuote: onQuote,
-                onFork: onFork
+                onFork: onFork,
+                onClose: onClose
             )
+
         }
     }
 
     private func libraryQuoteContent(_ concept: ConceptDefinition) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 8) {
+            HStack(alignment: .center, spacing: 8) {
                 Image(systemName: "books.vertical")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(AngroveTheme.Colors.darkGreen)
@@ -94,7 +98,9 @@ struct DynamicInsightSheetCard: View {
                     .font(.custom("Figtree-Bold", size: 18))
                     .foregroundColor(AngroveTheme.Colors.primaryReadable)
                     .fixedSize(horizontal: false, vertical: true)
+
                 Spacer()
+
                 ResponseButtons(
                     isSaved: isClipped,
                     canQuote: true,
@@ -104,8 +110,10 @@ struct DynamicInsightSheetCard: View {
                     tintColor: AngroveTheme.Colors.placeholderText,
                     saveTintColor: AngroveTheme.Colors.accentRed,
                     onSave: onToggleClipped,
-                    onQuote: onQuote
+                    onQuote: onQuote,
+                    onClose: onClose
                 )
+
             }
             VStack(alignment: .leading, spacing: 8) {
                 CardSpeechText(

@@ -95,6 +95,7 @@ struct ModelControlsDockedCard {
     /// Identifies the card's content; a change animates the stack.
     var key: String
     var view: AnyView
+    var staysVisibleDuringInteraction = false
 }
 
 extension View {
@@ -107,9 +108,10 @@ extension View {
     /// renders inside the shared controls stack, so it always sits one stack gap above the pill.
     func modelControlsDockedCard<Card: View>(
         key: String,
+        staysVisibleDuringInteraction: Bool = false,
         @ViewBuilder card: () -> Card
     ) -> some View {
-        let docked = key.isEmpty ? nil : ModelControlsDockedCard(key: key, view: AnyView(card()))
+        let docked = key.isEmpty ? nil : ModelControlsDockedCard(key: key, view: AnyView(card()), staysVisibleDuringInteraction: staysVisibleDuringInteraction)
         return transformPreference(ModelControlsPreferenceKey.self) { value in
             guard let docked else { return }
             if value == nil {

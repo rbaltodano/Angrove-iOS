@@ -18,7 +18,19 @@ struct MacConversationView: View {
     @State private var isQuestionFocused = false
     @StateObject private var slashQuery = SlashCommandQuery()
     @State private var dismissesCommands = false
+    @Environment(\.modelCompletionNotifications) private var completionNotifications
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private func requestDefinition(_ term: String, source: String) {
+        let conversationID = session.id
+        let branchID = session.selectedBranch
+        session.define(term, source: source, runtime: MacApplicationRuntime.shared) { concept in
+            completionNotifications?.post(title: concept.word, kind: .insightDefinition) {
+                NotificationCenter.default.post(name: .macOpenCompletedDefinition,
+                    object: MacCompletedDefinition(conversationID: conversationID, branchID: branchID, concept: concept))
+            }
+        }
+    }
 
     private var isComposerVisible: Bool {
         session.isComposerReady || isQuestionFocused || !question.isEmpty || session.quote != nil || !session.uploads.isEmpty
@@ -204,7 +216,7 @@ struct MacConversationView: View {
                             conversationFontSize: responseSize,
                             savedInsightIDs: session.savedIDs,
                             onRegenerate: { session.regenerate(transcriptIndex: index, runtime: MacApplicationRuntime.shared) },
-                            onInsightTap: { session.define($0, source: $1, runtime: MacApplicationRuntime.shared) },
+                            onInsightTap: { requestDefinition($0, source: $1) },
                             onInlineInsightQuote: session.attachQuote,
                             onInlineInsightFork: session.fork,
                             onInlineInsightToggleSaved: session.toggleBookmark,
@@ -212,7 +224,7 @@ struct MacConversationView: View {
                             onFinish: { if let run { session.finishResponseReveal(run: run) } })
                             .id(run)
                             .environment(\.defineResponseWord, { request in
-                                if let term = DefinedTermMarkup.term(in: request.token) { session.define(term, source: text, runtime: MacApplicationRuntime.shared) }
+                                if let term = DefinedTermMarkup.term(in: request.token) { requestDefinition(term, source: text) }
                             })
                     }
                 }

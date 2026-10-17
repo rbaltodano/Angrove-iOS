@@ -390,12 +390,12 @@ struct InsightTreeView: View {
                         onFork: {
                             dismissDockedInsight()
                             onForkInsight?(concept)
-                        }
+                        },
+                        onClose: closeDockedInsight
                     )
                     .id(concept.id)
                     .growsWhileTouched()
                     .offset(y: dockedCardDragY)
-                    .gesture(dockedCardDismissGesture)
                     .transition(.bottomDockCard)
                     .insightCardSizing()
                     .padding(.horizontal, dockedCardSideInset)
@@ -409,6 +409,7 @@ struct InsightTreeView: View {
                             toggleCanvasBookmark(concept(for: selectedInsight))
                         },
                         onRemove: { pendingRemoveInsight = selectedInsight },
+                        onClose: closeDockedInsight,
                         onFork:   { performForkInsight(selectedInsight) },
                         onSelectLinkedInsight: { insight in
                             focusedInsightID = insight.id
@@ -418,7 +419,6 @@ struct InsightTreeView: View {
                     .id(selectedInsight.id)
                     .growsWhileTouched(whileReading: selectedInsight.definition)
                     .offset(y: dockedCardDragY)
-                    .gesture(dockedCardDismissGesture)
                     .transition(.bottomDockCard)
                     .insightCardSizing()
                     .padding(.horizontal, dockedCardSideInset)
@@ -437,12 +437,12 @@ struct InsightTreeView: View {
                         onToggleSaved: {
                             toggleMakeNodeBookmark(selectedNode)
                         },
-                        onFork: { performForkNode(selectedNode) }
+                        onFork: { performForkNode(selectedNode) },
+                        onClose: closeDockedInsight
                     )
                     .id(selectedNode.id)
                     .growsWhileTouched()
                     .offset(y: dockedCardDragY)
-                    .gesture(dockedCardDismissGesture)
                     .transition(.bottomDockCard)
                     .insightCardSizing()
                     .padding(.horizontal, dockedCardSideInset)
@@ -557,9 +557,7 @@ struct InsightTreeView: View {
                 onInsightTapped: { insight in
                     showInsightCard(insight)
                 },
-                onCanvasMoved: {
-                    dismissDockedInsight()
-                },
+                onCanvasMoved: {},
                 onSuggestConnection: { edge in
                     viewModel.suggestConnection(for: edge)
                 },
@@ -586,12 +584,8 @@ struct InsightTreeView: View {
                 onPositionsSettled: { positions in
                     viewModel.commitLivePositions(positions)
                 },
-                onRequestDismissHover: {
-                    // Keep the parent card up while its Make Node children generate — it's
-                    // growing an Insight link per child.
-                    guard !makeNodeGenerating else { return }
-                    dismissDockedInsight()
-                },
+                // Panning or tapping the canvas leaves the open card in place.
+                onRequestDismissHover: {},
                 onUndiscoveredInsightCountChange: { count in
                     onUndiscoveredInsightCountChange?(count)
                 },
@@ -1249,31 +1243,6 @@ struct InsightTreeView: View {
             }
     }
 
-    private var dockedCardDismissGesture: some Gesture {
-        DragGesture(minimumDistance: 4)
-            .onChanged { value in
-                dockedCardDragY = max(0, value.translation.height)
-            }
-            .onEnded { value in
-                let h = value.translation.height
-                let predicted = value.predictedEndTranslation.height
-                if h > 100 || predicted > 180 {
-                    // Large swipe → full dismiss
-                    dismissDockedInsight()
-                } else if h > 28 {
-                    // Small swipe down → collapse to chip (focus question bar)
-                    withAnimation(.springLively) {
-                        dockedCardDragY = 0
-                    }
-                    questionBarFocusTrigger += 1
-                } else {
-                    withAnimation(.springLively) {
-                        dockedCardDragY = 0
-                    }
-                }
-            }
-    }
-
     private func performRemoveInsight(_ insight: InsightModel) {
         let concept = concept(for: insight)
         onRemoveInsight?(concept)   // triggers onChange → dismissDockedInsight
@@ -1309,6 +1278,13 @@ struct InsightTreeView: View {
             )
         dismissDockedInsight()
         onForkInsight?(concept)
+    }
+
+    private func closeDockedInsight() {
+        // X leaves the canvas with neither a hovered card nor a pending selection.
+        selectedCanvasTargets.removeAll()
+        onSelectedCanvasItemCountChange?(0)
+        dismissDockedInsight()
     }
 
     private func dismissDockedInsight() {

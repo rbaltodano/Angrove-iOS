@@ -121,6 +121,10 @@ struct MacConversationWorkspace: View {
     @State private var contextToggleRequest: UUID?
     var initialQuote: ConceptDefinition? = nil
     var onInitialQuoteHandled: () -> Void = {}
+    var completedDefinition: MacCompletedDefinition? = nil
+    var onDefinitionHandled: () -> Void = {}
+    var initialBranchID: UUID? = nil
+    var onBranchSelectionChange: (UUID) -> Void = { _ in }
     var onNewConversation: () -> Void = {}
     var onOpenInsights: () -> Void = {}
     @State private var session = MacConversationState()
@@ -212,7 +216,7 @@ struct MacConversationWorkspace: View {
                         .frame(width: mainControlsWidth, height: geometry.size.height)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     MacWorkspaceControlSlot(session: session, tree: tree, runtime: runtime,
-                                            isCanvasMode: !pane.isSwapped, isVisible: isTreeOpen,
+                                            isCanvasMode: !pane.isSwapped, isVisible: isTreeOpen, publishesGlobally: false,
                                             hasQuestion: !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                                             treeCard: treeConfiguration?.dockedCard,
                                             onOpenTree: { openTree(workspaceWidth: geometry.size.width) },
@@ -285,32 +289,31 @@ struct MacConversationWorkspace: View {
             }
             .task {
                 session.configure(preview: showsFixture, conversationID: conversationID)
+                restoreBranchSelection()
                 if let initialQuote {
                     session.attachQuote(initialQuote)
                     onInitialQuoteHandled()
                 }
+                presentCompletedDefinition()
             }
+            .onChange(of: initialBranchID) { _, _ in restoreBranchSelection() }
+            .onChange(of: session.selectedBranch) { _, branchID in onBranchSelectionChange(branchID) }
+            .onChange(of: completedDefinition?.id) { _, _ in presentCompletedDefinition() }
             .onChange(of: session.quoteRequest) { _, _ in
                 tree.dismissHoverRequest += 1
                 tree.studyExitRequest += 1
                 if pane.isSwapped { openTree(workspaceWidth: workspaceWidth) }
                 else { closeTree() }
             }
-            .sheet(item: Bindable(session).selectedDefinition) { concept in
-                InsightLibraryCard(insight: concept, isSaved: session.savedIDs.contains(concept.id),
-                    onQuote: { session.attachQuote(concept); session.selectedDefinition = nil },
-                    onFork: { session.fork(concept); session.selectedDefinition = nil },
-                    onToggleSaved: { session.toggleBookmark(concept) })
-                    .fixedSize(horizontal: true, vertical: false)
-                    .padding(24)
-                    .background(AngroveTheme.Colors.canvas)
-            }
             .environment(\.speechSource, SpeechSource(title: session.activeBranch?.topQuestionText ?? "", conversationID: session.id, page: .conversation))
             .onChange(of: session.restoredDraft) { _, draft in
                 if let draft, question.isEmpty { question = draft }
                 session.restoredDraft = nil
             }
-            .onExitCommand { tree.dismissHoverRequest += 1; tree.studyExitRequest += 1 }
+            .onExitCommand {
+                tree.dismissHoverRequest += 1
+                tree.studyExitRequest += 1
+            }
             .alert("Angrove", isPresented: Bindable(session).showsError) {
                 Button("OK", role: .cancel) {}
             } message: { Text(session.errorMessage ?? "") }
@@ -340,6 +343,22 @@ struct MacConversationWorkspace: View {
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { workspaceWidth = $0 }
         }
     }
+    private func restoreBranchSelection() {
+        if let initialBranchID, session.branches.contains(where: { $0.id == initialBranchID }) {
+            session.selectedBranch = initialBranchID
+        }
+    }
+
+    private func presentCompletedDefinition() {
+        guard let completedDefinition, completedDefinition.conversationID == session.id else { return }
+        if session.branches.contains(where: { $0.id == completedDefinition.branchID }) {
+            session.selectedBranch = completedDefinition.branchID
+        }
+        queuePopup.reset()
+        withAnimation(.springStandard) { session.selectedDefinition = completedDefinition.concept }
+        onDefinitionHandled()
+    }
+
     private func resizeHandle(treeWidth: CGFloat, workspaceWidth: CGFloat) -> some View {
         Capsule()
             .fill(AngroveTheme.Colors.treeConnector)
