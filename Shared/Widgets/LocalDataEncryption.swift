@@ -98,7 +98,7 @@ nonisolated enum LocalDataKeychain {
                 kSecAttrAccount as String: "encryption-key",
                 kSecAttrSynchronizable as String: false,
             ]
-            if let accessGroup { query[kSecAttrAccessGroup as String] = accessGroup }
+            if let accessGroup { query.merge(sharedGroupAttributes(accessGroup)) { $1 } }
             var lookup = query
             lookup[kSecReturnData as String] = true
             lookup[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -128,6 +128,16 @@ nonisolated enum LocalDataKeychain {
         }
     }
 
+    /// A Mac app and its widget can only share an item in the data protection keychain; the
+    /// file-based login keychain ignores access groups and would ask the widget for permission.
+    private static func sharedGroupAttributes(_ accessGroup: String) -> [String: Any] {
+        var attributes: [String: Any] = [kSecAttrAccessGroup as String: accessGroup]
+        #if os(macOS)
+        attributes[kSecUseDataProtectionKeychain as String] = true
+        #endif
+        return attributes
+    }
+
     /// Deletes an unusable key so a fresh start can create a new one. Only called after the
     /// person chooses to set their unreadable data aside.
     static func remove(service: String, accessGroup: String? = nil) throws {
@@ -140,7 +150,7 @@ nonisolated enum LocalDataKeychain {
                 kSecAttrAccount as String: "encryption-key",
                 kSecAttrSynchronizable as String: false,
             ]
-            if let accessGroup { query[kSecAttrAccessGroup as String] = accessGroup }
+            if let accessGroup { query.merge(sharedGroupAttributes(accessGroup)) { $1 } }
             let status = SecItemDelete(query as CFDictionary)
             guard status == errSecSuccess || status == errSecItemNotFound else {
                 throw LocalDataEncryptionError.keychain(status)

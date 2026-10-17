@@ -5,7 +5,8 @@ import UniformTypeIdentifiers
 import UserNotifications
 
 /// The iPhone's Privacy & Data controls for the Mac. Every removal stays inside Angrove's own
-/// folders: the Mac app is not sandboxed, so the user's Documents and Caches are never cleared.
+/// folders, never the whole Documents or Caches: unsandboxed development builds resolve those to
+/// the user's own folders, and the sandboxed app shares nothing outside its container anyway.
 @MainActor enum MacAppData {
     static var supportRoot: URL? {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
@@ -66,6 +67,7 @@ import UserNotifications
             UserDefaults.standard.removePersistentDomain(forName: bundleID)
         }
         try LocalDataKeychain.remove(service: LocalDataCipher.personalService)
+        try MacWidgetData.erase()
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
         UNUserNotificationCenter.current().removeAllDeliveredNotifications()
     }

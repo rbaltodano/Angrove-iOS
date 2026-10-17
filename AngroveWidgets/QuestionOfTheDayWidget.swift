@@ -37,16 +37,20 @@ struct DailyQuestionWidgetView: View {
             if let question = entry.question {
                 Text(question)
                     .font(AngroveTheme.WidgetTypography.question)
-                    .lineLimit(2)
+                    .lineLimit(AngroveTheme.WidgetTypography.questionLines)
                     .truncationMode(.tail)
             } else {
                 Text("Open Angrove for your question.")
                     .font(AngroveTheme.WidgetTypography.question)
-                    .lineLimit(2)
+                    .lineLimit(AngroveTheme.WidgetTypography.questionLines)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: AngroveTheme.WidgetTypography.alignment)
+        #if os(macOS)
+        .containerBackground(for: .widget) { Color(nsColor: .windowBackgroundColor) }
+        #else
         .containerBackground(for: .widget) { Color.clear }
+        #endif
         .accessibilityElement(children: .combine)
         .widgetURL(DailyQuestionWidgetLink.url)
     }
@@ -62,10 +66,23 @@ struct QuestionOfTheDayWidget: Widget {
         }
         .configurationDisplayName("Question of the Day")
         .description("The latest question from Angrove.")
+        #if os(macOS)
+        .supportedFamilies([.systemSmall, .systemMedium])
+        #else
         .supportedFamilies([.accessoryRectangular])
+        #endif
     }
 }
 
+#if os(macOS)
+#Preview(as: .systemMedium) {
+    QuestionOfTheDayWidget()
+} timeline: {
+    DailyQuestionEntry(date: .now, question: "What makes a life meaningful?")
+    DailyQuestionEntry(date: .now, question: "How does your understanding of a meaningful life change when you consider your responsibilities to other people?")
+    DailyQuestionEntry(date: .now, question: nil)
+}
+#else
 #Preview(as: .accessoryRectangular) {
     QuestionOfTheDayWidget()
 } timeline: {
@@ -73,3 +90,4 @@ struct QuestionOfTheDayWidget: Widget {
     DailyQuestionEntry(date: .now, question: "How does your understanding of a meaningful life change when you consider your responsibilities to other people?")
     DailyQuestionEntry(date: .now, question: nil)
 }
+#endif

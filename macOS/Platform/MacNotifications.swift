@@ -86,5 +86,6 @@ private final class MacNotificationDelegate: NSObject, UNUserNotificationCenterD
 
 extension Notification.Name {
     static let macOpenConversation = Notification.Name("angrove.mac.open-conversation")
+    /// Opens Home, or starts the `NewConversationRequest` passed as the object.
     static let macOpenHome = Notification.Name("angrove.mac.open-home")
 }

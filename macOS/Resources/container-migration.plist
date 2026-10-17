@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  Moves a Mac's pre-sandbox Angrove data into the app container the first time the sandboxed app
+  launches. macOS applies this only when it creates the container, so it does nothing on a Mac
+  that already has one, and nothing for new installs (they have no data outside a container).
+-->
+<dict>
+	<key>Move</key>
+	<array>
+		<string>${ApplicationSupport}/Angrove-macOS</string>
+		<string>${Library}/Caches/Angrove-macOS</string>
+		<string>${Library}/Preferences/com.ryanbaltodano.Angrove.macOS.plist</string>
+	</array>
+</dict>
+</plist>

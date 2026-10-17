@@ -1,7 +1,8 @@
 import Foundation
 
 /// The Mac's on-device model choices. A Mac uses the tier chosen in Settings when its installed
-/// memory qualifies and that model is installed; otherwise it uses Standard. A change takes
+/// memory qualifies and that model is on this Mac; otherwise it uses Standard. Standard arrives as
+/// an essential Apple-hosted pack at install; Large's pack downloads when chosen in Settings. A change takes
 /// effect between model tasks: the one runtime unloads its engine and loads the new package.
 /// Extended (the tuned-voice E4B INT8 package) joins once that package is re-exported.
 nonisolated enum MacModelTier: String, CaseIterable, Identifiable, Sendable {
@@ -12,18 +13,23 @@ nonisolated enum MacModelTier: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
-    var manifest: LiteRTModelManifest {
+    var manifest: LiteRTModelManifest { assetPack.manifest }
+
+    var assetPack: AngroveModelAssetPack {
         switch self {
-        case .standard:
-            .angrove
-        case .large:
-            // Stock litert-community/gemma-4-12B-it-litert-lm package. Needs LiteRT-LM 0.17+.
-            LiteRTModelManifest(
-                fileName: "gemma-4-12B-it.litertlm",
-                byteCount: 6_883_278_368,
-                sha256: "58fd31b778ca2c21c80d634fb34fc5a89d11d563a38dfd3cbf1b40dbf252a8b6"
-            )
+        case .standard: .e4b
+        case .large: .gemma12B
         }
+    }
+
+    /// Download progress and retry for this tier's Apple-hosted pack.
+    @MainActor var delivery: ModelDeliveryState { .state(for: assetPack) }
+
+    /// The model is usable without a download: a verified local copy, or its installed pack.
+    func isOnThisMac(store: LiteRTModelStore? = nil) -> Bool {
+        let store = store ?? modelStore()
+        if store.hasInstalledModel() { return true }
+        return store.usesAppleHostedDelivery && AppleHostedModelAssets.isAvailableLocally(assetPack)
     }
 
     /// Installed memory a Mac needs for this tier. Large's 24 GiB is a placeholder until it is
@@ -57,7 +63,7 @@ nonisolated enum MacModelTier: String, CaseIterable, Identifiable, Sendable {
     var detail: String {
         switch self {
         case .standard: "Gemma 4 E4B, the model the iPhone app uses."
-        case .large: "Gemma 4 12B. Fuller answers, but slower and not yet evaluated. Needs 24 GB of memory."
+        case .large: "Gemma 4 12B. Fuller answers, but slower and not yet evaluated. Needs 24 GB of memory and a 6.88 GB download."
         }
     }
 
@@ -92,6 +98,8 @@ nonisolated enum MacModelTier: String, CaseIterable, Identifiable, Sendable {
         #endif
         return LiteRTModelStore(manifest: manifest, developmentModelURL: source)
     }
+
+    var downloadByteCount: Int64 { manifest.byteCount }
 
     private var developmentRelativePath: String {
         switch self {

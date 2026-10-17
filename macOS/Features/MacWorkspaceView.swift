@@ -209,7 +209,10 @@ struct MacWorkspaceView: View {
                 guard let id = notification.object as? UUID else { return }
                 navigate(to: MacWorkspacePage(destination: .conversations, conversationID: id))
             }
-            .onReceive(NotificationCenter.default.publisher(for: .macOpenHome)) { _ in navigate(to: page(for: .home)) }
+            .onReceive(NotificationCenter.default.publisher(for: .macOpenHome)) { notification in
+                if let request = notification.object as? NewConversationRequest { startConversation(request) }
+                else { navigate(to: page(for: .home)) }
+            }
             .onChange(of: shortcutRequest) { _, request in
                 guard let request else { return }
                 handleShortcut(request)

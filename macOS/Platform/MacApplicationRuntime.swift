@@ -34,14 +34,17 @@ import Observation
         let tier = MacModelTier.resolve(
             selected: MacModelTier.storedSelection,
             physicalMemory: ProcessInfo.processInfo.physicalMemory,
-            isInstalled: { stores[$0]?.hasInstalledModel() == true }
+            isInstalled: { tier in stores[tier].map { tier.isOnThisMac(store: $0) } == true }
         )
         modelTier = tier
         let store = stores[tier] ?? tier.modelStore()
         let installed = try? store.installedModelURL()
         let bonsai = BonsaiModelFlag.isEnabled ? BonsaiModelFlag.installedModelURL() : nil
+        // A distribution install has no local copy: the runtime still starts, and the first load
+        // waits for (and verifies) Standard's essential pack, as on iPhone.
+        let hosted = installed == nil && store.usesAppleHostedDelivery
         modelURL = bonsai ?? installed
-        modelIsAvailable = bonsai != nil || installed != nil
+        modelIsAvailable = bonsai != nil || installed != nil || hosted
         if let bonsai {
             // Developer flag: Ternary Bonsai 2 9B on llama.cpp. Tier switching stays with LiteRT.
             let runtime = LlamaAngroveRuntime(
@@ -53,7 +56,7 @@ import Observation
             self.lifecycle = lifecycle
             modelTasks = ModelTaskQueue(runtimeLifecycle: lifecycle)
             model = LiteRTAngroveModel(runtime: runtime, groundingProvider: LazyGroundingProvider())
-        } else if let installed {
+        } else if installed != nil || hosted {
             let native = LiteRTAngroveRuntime(modelStore: store, contextTokens: tier.contextTokens)
             let driver = VerifiedMacRuntimeDriver(
                 runtime: native,
@@ -76,20 +79,26 @@ import Observation
         }
     }
 
-    /// Tiers this Mac can switch to now: enough installed memory and the package installed.
+    /// Tiers this Mac can switch to now: enough installed memory and the model on this Mac.
     var availableTiers: [MacModelTier] {
-        let memory = ProcessInfo.processInfo.physicalMemory
-        return MacModelTier.allCases.filter {
-            $0.isEligible(physicalMemory: memory) && $0.modelStore().hasInstalledModel()
-        }
+        eligibleTiers.filter { $0.isOnThisMac() }
     }
+
+    /// Tiers this Mac has the memory for, whether or not their model is downloaded yet.
+    var eligibleTiers: [MacModelTier] {
+        let memory = ProcessInfo.processInfo.physicalMemory
+        return MacModelTier.allCases.filter { $0.isEligible(physicalMemory: memory) }
+    }
+
+    /// Whether a model switch is possible at all in this process (not the Bonsai flag or no model).
+    var canSwitchModels: Bool { driver != nil }
 
     /// Switches the model without relaunching. The running task finishes on the current model;
     /// the engine then unloads, and the next task loads (and verifies) the new package.
     func selectModel(_ tier: MacModelTier) {
         guard tier != modelTier, let driver, let lifecycle, availableTiers.contains(tier) else { return }
         let store = tier.modelStore()
-        guard let url = try? store.installedModelURL() else { return }
+        let url = try? store.installedModelURL()
         modelTier = tier
         UserDefaults.standard.set(tier.rawValue, forKey: MacModelTier.selectionKey)
         let previous = switchTask
@@ -113,7 +122,9 @@ import Observation
 actor VerifiedMacRuntimeDriver: ModelRuntimeDriver {
     struct Target: Sendable {
         let store: LiteRTModelStore
-        let url: URL
+        /// A local copy, hashed before its first load. Nil for an Apple-hosted pack, which the
+        /// store's delivery resolves and verifies itself.
+        let url: URL?
         let contextTokens: Int
     }
 
@@ -145,9 +156,13 @@ actor VerifiedMacRuntimeDriver: ModelRuntimeDriver {
             await runtime.replaceModelStore(target.store, contextTokens: target.contextTokens)
         }
         if !verified {
-            let url = target.url
-            let digest = try await Task.detached(priority: .utility) { try LiteRTModelInstaller.sha256(of: url) }.value
-            guard digest == target.store.manifest.sha256 else { throw LiteRTModelStoreError.invalidModelDigest }
+            if let url = target.url {
+                let digest = try await Task.detached(priority: .utility) { try LiteRTModelInstaller.sha256(of: url) }.value
+                guard digest == target.store.manifest.sha256 else { throw LiteRTModelStoreError.invalidModelDigest }
+            } else {
+                // Downloads (or waits for) the pack and checks its digest before LiteRT sees it.
+                _ = try await target.store.preparedModelURL()
+            }
             verified = true
         }
         try await runtime.loadModelWeights()

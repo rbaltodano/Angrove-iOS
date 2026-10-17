@@ -19,6 +19,39 @@ Collected from the [iOS] and [Shared] entries below.
   privacy are unchanged; this prepares for larger models on Mac. The app download grows by
   about 17 MB. *(Pending iPhone device validation before release.)*
 
+## 2026-10-17
+
+- **[macOS] Question of the Day widget.** New `AngroveMacWidgets` extension (small and medium,
+  desktop and Notification Center) built from the iPhone widget's source. Clicking it starts the
+  saved question's conversation, or opens Home before there is one. The Mac app and widget now
+  share the App Group `group.com.ryanbaltodano.Aquinas-iOS`; the widget's key lives in the data
+  protection keychain on the Mac so the extension can read it. Delete All App Data also removes
+  the widget's question and key.
+
+- **[macOS] Apple-hosted model delivery.** The Mac app ships for the Mac App Store with managed
+  asset packs, as on iPhone: Standard (E4B, `AssetPacks/Mac-Gemma4-E4B.json`) is essential at
+  install, Large (12B, `AssetPacks/Mac-Gemma4-12B.json`) downloads on demand from Settings ›
+  Model. New `AngroveMacModelDownloader` extension. Settings › Model and Home show download
+  progress, verification, retry and failures. A verified local copy (development, or this Mac's
+  pre-hosting files) is still used first. Delivery is keyed by pack, so another desktop model needs
+only a pack, a tier and a manifest (`Mac-Port.md` › Adding a desktop model). Development builds
+never call Background Assets (it trapped in one); `scripts/package_model_asset.py` takes
+`--pack mac-e4b|mac-12b` or any `--manifest` with its pinned size and digest.
+
+- **[macOS] Sandboxed local install.** `Tools/install-local-mac.sh` now builds with Xcode's
+  automatic signing, so the installed app runs sandboxed with its profiles, App Group and
+  extensions. The first sandboxed launch moves the pre-sandbox data into the container
+  (`macOS/Resources/container-migration.plist`); the installer copies personal data (not models)
+  to `build/mac-data-backups/` first and stops if a container already exists.
+
+- **[Shared] Model delivery code moved to Shared; no iPhone behavior change.**
+  `AppleHostedModelDelivery.swift` and `ModelDeliveryState.swift` moved from `iOS/Services/` to
+  `Shared/Services/` and take a pack (`AngroveModelAssetPack`), defaulting to the iPhone's E4B
+  pack, ID, path and receipt key. `LiteRTModelStore.preparedModelURL()`, the widget source and
+  widget typography gained Mac-only branches; the keychain's shared access group adds the data
+  protection keychain on the Mac only. Verified: iPhone simulator build (arm64) and the iPhone
+  delivery, delivery-state and settings-typography tests pass.
+
 ## 2026-10-16
 
 - **[macOS] Board Tools polish.** Tools rows highlight on hover; a picked-up tool shows a hover-style

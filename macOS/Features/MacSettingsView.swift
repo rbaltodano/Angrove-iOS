@@ -404,10 +404,22 @@ private struct MacModelSettings: View {
                 MacMenuPicker(
                     title: "Model size",
                     selection: Binding(get: { runtime.modelTier }, set: { runtime.selectModel($0) }),
-                    options: runtime.availableTiers.map { ($0, $0.title) }
+                    options: availableTiers.map { ($0, $0.title) }
                 )
             }
+            if runtime.canSwitchModels {
+                ForEach(runtime.eligibleTiers) { tier in
+                    Divider()
+                    MacModelDownloadRow(tier: tier, delivery: tier.delivery)
+                }
+            }
         }
+    }
+
+    /// Reading each tier's delivery phase refreshes the menu once a download finishes.
+    private var availableTiers: [MacModelTier] {
+        _ = runtime.eligibleTiers.map { $0.delivery.phase }
+        return runtime.availableTiers
     }
 }
 

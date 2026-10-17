@@ -15,7 +15,10 @@ struct AngroveMacApp: App {
     init() {
         MacLaunchOwnership.claim()
         MacNativeContextMenus.install()
-        if !Self.isHostingUnitTests { MacNotifications.install() }
+        if !Self.isHostingUnitTests {
+            MacNotifications.install()
+            MacWidgetData.prepare()
+        }
         // Register the same bundled typefaces used by iOS, once for this process.
         for url in Bundle.main.urls(forResourcesWithExtension: "ttf", subdirectory: nil) ?? [] {
             CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
@@ -34,6 +37,7 @@ struct AngroveMacApp: App {
                     .ignoresSafeArea(.container, edges: .top)
                     .background(MacWindowChrome())
                     .preferredColorScheme(MacDesignPreview.colorScheme ?? MacSettingsAppearance.scheme(appearance))
+                    .onOpenURL { MacWidgetData.open($0) }
             }
         }
         .defaultSize(width: MacDesignPreview.compact ? 760 : 1_440, height: MacDesignPreview.compact ? 540 : 900)

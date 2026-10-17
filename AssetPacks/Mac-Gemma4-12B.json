@@ -1,0 +1,16 @@
+{
+  "assetPackID": "angrove-gemma4-12b-58fd31b7",
+  "downloadPolicy": {
+    "onDemand": {}
+  },
+  "fileSelectors": [
+    {
+      "fileSource": "LocalModels/gemma-4-12B-it.litertlm",
+      "fileDestination": "Models/angrove-gemma4-12b-58fd31b7/gemma-4-12B-it.litertlm"
+    }
+  ],
+  "platforms": [
+    "macOS"
+  ],
+  "sourceRoot": ".."
+}

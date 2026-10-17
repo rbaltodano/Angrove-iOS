@@ -514,21 +514,25 @@ model runtime and task queue. Never point this development target at an iOS data
 
 Quit all running Angrove copies, then run `bash Tools/install-local-mac.sh` from this
 checkout. Launch `/Applications/Angrove.app` for everyday use. Do not launch a different
-unsigned build directory against personal stores or use `open -n` for the normal app.
-The installer signs embedded code and the app with the owner's existing Apple Development
-certificate, verifies the signature, and installs at that fixed path. It keeps a dated
-rollback archive under `build/mac-installed-backups/` and refuses to replace an app while
-Angrove is running. Completed Mac changes must update this installed copy before handoff,
-as required by `AGENTS.md`. The owner opens the same app after each update; opening it does
-not compile unfinished source edits. Quit and reopen after an installed update to see it.
-`ANGROVE_SIGNING_IDENTITY` and `ANGROVE_MAC_INSTALL_PATH` can override the local defaults.
+build directory against personal stores or use `open -n` for the normal app.
+Since October 17, 2026 the installer builds Release with Xcode's automatic signing
+(`-allowProvisioningUpdates`), so the app, the Question of the Day widget and the model
+downloader carry their Mac development profiles, App Sandbox, the shared App Group and Hardened
+Runtime, exactly as the distribution build does. It refuses to install a bundle missing the
+sandbox or App Group entitlement, keeps a dated rollback archive under
+`build/mac-installed-backups/`, and refuses to replace an app while Angrove is running. Completed
+Mac changes must update this installed copy before handoff, as required by `AGENTS.md`. Quit and
+reopen after an installed update to see it. `ANGROVE_MAC_INSTALL_PATH` overrides the location.
 
-This local installation keeps the existing non-sandboxed development data/model locations;
-it does not migrate personal data or change Keychain permissions. The Xcode target's
-distribution sandbox settings remain unchanged. A first Keychain authorization may still
-be needed to trust the transition from an ad hoc build. Choose Always Allow for this
-signed app; later builds retain a certificate/bundle-based designated requirement instead
-of an executable hash. Certificate rotation or Keychain changes can require new approval.
+**Sandbox migration.** Earlier local installs were signed by hand without entitlements, so their
+data lives outside a container (`~/Library/Application Support/Angrove-macOS`, `Caches/Angrove-macOS`
+and the bundle's preferences). The first sandboxed launch moves those into
+`~/Library/Containers/com.ryanbaltodano.Angrove.macOS` (`macOS/Resources/container-migration.plist`).
+macOS does this only while creating the container, so the installer stops if pre-sandbox data and
+a container both exist; move the stale container to the Trash and rerun. Before that first
+install it copies the personal data (everything but `Models`) and preferences to
+`build/mac-data-backups/<date>/`. The personal-data key stays in the login keychain under the
+same certificate- and bundle-based designated requirement.
 
 The main scene is a single `Window`, so restored workspaces and New Window cannot multiply
 it. Normal launches acquire a process-lifetime file lock before opening personal stores;
@@ -1241,3 +1245,47 @@ the Mac transcript places questions at the trailing edge by design.
 **Not done.** A Mac Question of the Day widget needs a macOS widget extension with the shared app
 group and keychain access group, which requires Mac provisioning profiles. Distribution model
 delivery, signed sandbox validation and 16 GB performance checks remain open.
+
+## Widget, model delivery and sandbox — October 17, 2026
+
+**Question of the Day widget.** `AngroveMacWidgets` (small and medium; desktop and Notification
+Center) compiles the iPhone widget's source (`AngroveWidgets/`, `Shared/Widgets/`) with Mac
+branches for families, type and background. The app and widget share the App Group
+`group.com.ryanbaltodano.Aquinas-iOS` (the literal in `AngroveAppGroup`); the widget's AES key is
+in the data protection keychain with that group as its access group, because the file-based login
+keychain ignores access groups. `MacWidgetData.prepare()` drops an unreadable shared question at
+launch, and Delete All App Data erases the question, group preferences and key. Clicking the
+widget (`angrove://question-of-the-day`) starts the saved question's conversation, or opens Home.
+
+**Model delivery (Mac App Store, Apple-hosted packs).** The Mac app sets `BAHasManagedAssetPacks`,
+`BAUsesAppleHosting` and `BAAppGroupID` and embeds `AngroveMacModelDownloader` (ExtensionKit,
+`Contents/Extensions`). The delivery code shared with iPhone is keyed by `AngroveModelAssetPack`:
+each pack has one `AppleHostedModelDelivery` (coalesced loads, digest check, per-pack receipt) and
+one `ModelDeliveryState` (Settings › Model and Home). Standard's E4B pack is essential at install;
+Large's 12B pack is on demand. A verified local copy always wins, so development builds and this
+Mac's pre-hosting files never touch Background Assets. `AssetPackManager` trapped on its first call
+in a development-signed build with no local model (crash report 2026-10-17 07:10), so the Mac only
+calls it from App Store/TestFlight installs (store receipt present) or with
+`ANGROVE_BACKGROUND_ASSETS_DEVELOPMENT=1` for Apple's `ba-serve` mock server. Otherwise the
+download row reports that the pack isn't available.
+
+**Adding a desktop model.**
+1. Add an `AngroveModelAssetPack` in the Mac-only block of `Shared/Services/AppleHostedModelDelivery.swift`
+   (ID and path end in the digest's first 8 characters) and list it in `all`.
+2. Add a `MacModelTier` case returning that pack, with its memory floor, title and detail.
+3. Add `AssetPacks/Mac-<name>.json` with the same ID and destination path, `"platforms": ["macOS"]`
+   and `"onDemand": {}` (or essential for the default model). `MacModelDeliveryTests` checks the
+   shipped manifests against the code; add the new one there.
+4. Package it: `python3 scripts/package_model_asset.py --manifest AssetPacks/Mac-<name>.json
+   --size <bytes> --sha256 <hex> --source <model file> --output build/asset-packs/<name>.aar`.
+5. Upload the pack in App Store Connect and test through TestFlight (or `ba-serve` locally).
+
+**Signed sandbox validation so far.** Signed Debug and Release builds pass strict deep verification;
+the app, widget and downloader each carry App Sandbox, the App Group and their Mac development
+profiles (this Mac was registered with team 7XG2DHY989 on 2026-10-17). A signed sandboxed Release
+launch with an empty container ran without crashing and without sandbox violations, and pluginkit
+registered the widget and downloader. Not yet validated: the installed app after migrating the
+owner's data (conversations, keychain key, models, widget content, import/export, bug report,
+notifications, App Lock), hosted downloads (`ba-serve` needs a trusted TLS identity for the host;
+TestFlight needs the Mac app record and uploaded packs), and the full Mac suite, whose
+keychain-reading tests stop at a Keychain prompt for each rebuilt ad hoc test host.

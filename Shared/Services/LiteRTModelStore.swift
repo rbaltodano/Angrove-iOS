@@ -65,16 +65,22 @@ nonisolated struct LiteRTModelStore: Sendable {
     }
 
     func preparedModelURL() async throws -> URL {
+#if os(macOS)
+        // A verified local copy comes first in every build: development artifacts, or a Mac that
+        // was set up before Apple hosting. Distribution installs have none and use their pack.
+        if let local = try? installedModelURL() { return local }
+        guard usesAppleHostedDelivery, let delivery = AppleHostedModelDelivery.delivery(for: manifest) else {
+            return try installedModelURL()
+        }
+        return try await delivery.prepareModel(manifest: manifest)
+#else
 #if DEBUG
         // Keep source-checkout development and diagnostic overrides usable without an uploaded pack.
         if let local = try? installedModelURL() { return local }
 #endif
         guard usesAppleHostedDelivery else { return try installedModelURL() }
-        #if os(iOS)
         return try await AppleHostedModelDelivery.shared.prepareModel(manifest: manifest)
-        #else
-        return try installedModelURL()
-        #endif
+#endif
     }
 
     func installedModelURL() throws -> URL {

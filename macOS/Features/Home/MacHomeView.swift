@@ -107,6 +107,7 @@ struct MacHomeView: View {
 
     private var leadingColumn: some View {
         VStack(alignment: .leading, spacing: 48) {
+            MacHomeModelDownloadCard()
             if let questionOfTheDay {
                 HomeFigmaQuestionCard(question: questionOfTheDay.question, surfaceColor: AngroveTheme.Colors.canvasSecondary) {
                     onStart(questionOfTheDay.conversationRequest)
