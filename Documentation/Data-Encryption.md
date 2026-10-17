@@ -82,3 +82,12 @@ backup/restore and lock/unlock lifecycle checks remain release-validation requir
 Apple references: [CryptoKit keys in Keychain](https://developer.apple.com/documentation/cryptokit/storing-cryptokit-keys-in-the-keychain),
 [Keychain sharing](https://developer.apple.com/documentation/security/sharing-access-to-keychain-items-among-a-collection-of-apps),
 [Data Protection classes](https://support.apple.com/guide/security/data-protection-classes-secb010e978a/web).
+
+## Attachment references (October 17, 2026)
+
+Local conversation, Topic and Board saves now reference immutable encrypted image files scoped
+to each owner. Startup migrates inline images only after writing/verifying the blob and
+preserving the encrypted original. Conversation exports stay self-contained readable JSON with
+image bytes. Restore complete owner directories with their Keychain, rather than metadata alone.
+See [Attachment storage migration](Attachment-Storage-Migration.md) for schema, recovery copies,
+cleanup/deletion rules and verification.

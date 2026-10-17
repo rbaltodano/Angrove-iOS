@@ -260,6 +260,18 @@ import SwiftUI
                 transcript[userIndex] = .user(ConversationPromptMarkup.connectionInquiryPrompt(concepts: submittedConnectionConcepts, question: question), concept, uploads)
                 context = ConversationContext(compactedContext: context.compactedContext, transcript: transcript, personality: context.personality)
             }
+            if AngroveContextBudget.shouldCompact(context),
+               let split = AngroveContextBudget.historyAndLatestTurn(in: context) {
+                let summary = await model.compact(split.history).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !Task.isCancelled, !isDeleted, responseRuns[key] == runID,
+                      let index = branches.firstIndex(where: { $0.id == branchID }) else { return }
+                if !summary.isEmpty, summary != split.history.compactedContext {
+                    context = ConversationContext(compactedContext: summary, transcript: split.latestTurn, personality: context.personality)
+                    branches[index].compactedContext = summary
+                    branches[index].compactedThroughBlockCount = max(responseIndex - 1, 0)
+                    persistConversation()
+                }
+            }
             let response = await model.respond(to: context, thinkingEnabled: true) { update in
                 Task { @MainActor [self] in
                     guard self.responseRuns[key] == runID, self.pendingResponses.contains(key) else { return }
@@ -283,6 +295,7 @@ import SwiftUI
                 }
             }
             guard !isDeleted, !Task.isCancelled, responseRuns[key] == runID, pendingResponses.contains(key) else { return }
+            if response.outcome == .failed { runtime.modelTasks.reportCurrentFailure() }
             pendingResponses.remove(key)
             startedResponses.remove(key)
             responseSummaries[key] = response.thinkingSummary
@@ -291,15 +304,18 @@ import SwiftUI
             let presentation = ResponsePresentationMetadata(responseIndex: responseIndex, showsThinking: true,
                                                            thinkingSummary: response.thinkingSummary,
                                                            thinkingDurationSeconds: responseThinkingDurations[key] ?? responseStartedAt[key].map { Date().timeIntervalSince($0) },
-                                                           groundingSources: responseSources[key], evidenceBasis: response.evidenceBasis)
+                                                           groundingSources: responseSources[key], evidenceBasis: response.evidenceBasis, outcome: response.outcome)
             if let i = branches.firstIndex(where: { $0.id == branchID }) { branches[i].setResponsePresentation(presentation) }
             persistConversation()
             if !isPreview && savesConversation {
                 InquiryPersistenceStore.completeDetachedResponse(branchID: branchID, conversationID: id,
                     responseIndex: responseIndex, annotatedText: response.annotatedText, presentation: presentation)
             }
-            completedResponseCount += 1
-            enqueueSeed(question: question, answer: response.text, branchID: branchID, responseIndex: responseIndex, runtime: runtime)
+            if response.outcome == .completed { completedResponseCount += 1 }
+            if response.outcome == .completed, response.evidenceBasis?.canSeedInsightTree == true,
+               !LiteRTAngroveModel.isCorpusScopeAbstention(response.text) {
+                enqueueSeed(question: question, answer: response.text, branchID: branchID, responseIndex: responseIndex, runtime: runtime)
+            }
         }
     }
     private func setResponse(_ text: String, branchID: UUID, index: Int) {
@@ -329,7 +345,13 @@ import SwiftUI
             do {
                 guard let seed = try await runtime.model.insightTreeSeedCandidate(question: question, response: answer), !Task.isCancelled else { return }
                 let vector = await runtime.embeddingProvider.embed(seed.label + " " + seed.summary)
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, !isDeleted,
+                      InquiryPersistenceStore.load()?.conversations.contains(where: { $0.id == id }) == true else { return }
+                let existing = LocalInsightTreeSeedStore.seeds(for: id)
+                if let vector, existing.contains(where: {
+                    $0.embeddingVersion == runtime.embeddingProvider.version
+                        && $0.embedding.map { cosineSimilarity(vector, $0) >= InsightTreeSemanticPolicy.newSubjectSimilarity } == true
+                }) { return }
                 LocalInsightTreeSeedStore.appendSeed(LocalInsightTreeSeed(
                     id: stableUUID(from: "conversation-seed:\(id):\(branchID):\(responseIndex)"), label: seed.label,
                     summary: seed.summary, embedding: vector, embeddingVersion: runtime.embeddingProvider.version, createdAt: Date()), for: id)

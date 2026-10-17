@@ -14,14 +14,56 @@ import UIKit
 nonisolated struct UploadedFile: Identifiable, Equatable, Hashable, Codable {
     let id: UUID
     let name: String
-    let imageData: Data?
+    private let payload: AttachmentPayload?
+    var imageData: Data? { payload?.data }
     let rotationDegrees: Double
 
     init(id: UUID = UUID(), name: String, imageData: Data?, rotationDegrees: Double) {
         self.id = id
         self.name = name
-        self.imageData = imageData
+        self.payload = imageData.map { AttachmentPayload($0) }
         self.rotationDegrees = rotationDegrees
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, imageData, rotationDegrees, attachment
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(UUID.self, forKey: .id)
+        name = try values.decode(String.self, forKey: .name)
+        rotationDegrees = try values.decode(Double.self, forKey: .rotationDegrees)
+        let inline = try values.decodeIfPresent(Data.self, forKey: .imageData)
+        if let reference = try values.decodeIfPresent(AttachmentReference.self, forKey: .attachment) {
+            guard inline == nil, let store = decoder.userInfo[.attachmentStore] as? EncryptedAttachmentStore else {
+                // Portable imports must carry their bytes. Never resolve an external file's
+                // references against private local storage or silently drop missing images.
+                throw DecodingError.dataCorruptedError(forKey: .attachment, in: values,
+                    debugDescription: "Attachment references require their owning local store.")
+            }
+            if decoder.userInfo[.validatesAttachmentReferencesOnly] as? Bool == true {
+                try store.validate(reference)
+                payload = nil // Validation-only values never leave EncryptedAttachmentStore.validate.
+            } else {
+                payload = try store.read(reference)
+            }
+        } else {
+            payload = inline.map { AttachmentPayload($0) }
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(id, forKey: .id)
+        try values.encode(name, forKey: .name)
+        try values.encode(rotationDegrees, forKey: .rotationDegrees)
+        if let payload, let store = encoder.userInfo[.attachmentStore] as? EncryptedAttachmentStore {
+            try values.encode(store.put(payload), forKey: .attachment)
+        } else {
+            // Ordinary Codable remains self-contained for export, import and external copies.
+            try values.encodeIfPresent(payload?.data, forKey: .imageData)
+        }
     }
 
     static func == (lhs: UploadedFile, rhs: UploadedFile) -> Bool {

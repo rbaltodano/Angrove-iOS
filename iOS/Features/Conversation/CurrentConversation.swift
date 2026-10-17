@@ -267,6 +267,8 @@ struct CurrentConversationView: View {
             return
         }
 
+        guard (branch.responsePresentation(at: responseIndex)?.outcome ?? .completed) == .completed else { return }
+
         let titleBranchID: UUID? = conversationTitlePolicy == .automatic
             && branch.parentBranchID == nil
             && responseIndex == 0
@@ -278,7 +280,8 @@ struct CurrentConversationView: View {
         // later "take a guess" follow-up turn turn missing evidence into a durable tree subject.
         // Model-only answers remain transient; corpus- and image-supported exchanges can seed.
         let plainResponse = InlineInsightMarkup.plainText(from: responseText)
-        let isTreeCandidate = !LiteRTAngroveModel.isCorpusScopeAbstention(plainResponse)
+        let isTreeCandidate = (branch.responsePresentation(at: responseIndex)?.outcome ?? .completed) == .completed
+            && !LiteRTAngroveModel.isCorpusScopeAbstention(plainResponse)
             && (branch.responsePresentation(at: responseIndex)?.evidenceBasis?.canSeedInsightTree ?? true)
 
         enqueueLocalInsightTreeSeedingTask(
@@ -352,6 +355,10 @@ struct CurrentConversationView: View {
                     guard !isAlreadyCovered else { return }
                 }
 
+                // The request can be cancelled while embedding, or its conversation deleted.
+                guard !Task.isCancelled,
+                      InquiryPersistenceStore.load()?.conversations.contains(where: { $0.id == conversationID }) == true
+                else { return }
                 let newSeedID = UUID()
                 LocalInsightTreeSeedStore.appendSeed(
                     LocalInsightTreeSeed(

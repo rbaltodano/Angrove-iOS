@@ -7,29 +7,6 @@ import Foundation
 import LiteRTLM
 import OSLog
 
-/// Resumes a `CheckedContinuation` at most once, whichever of two racing unstructured `Task`s
-/// gets there first. A plain `Task.isCancelled` check isn't enough here since the loser (a
-/// wedged native call) never reaches its own cancellation checkpoint — this lock is what actually
-/// prevents a double-resume when both sides eventually try.
-nonisolated private final class StallRaceBox<T>: @unchecked Sendable {
-    private let continuation: CheckedContinuation<T, Error>
-    private let lock = NSLock()
-    private var didResume = false
-
-    init(_ continuation: CheckedContinuation<T, Error>) {
-        self.continuation = continuation
-    }
-
-    func resume(_ result: Result<T, Error>) {
-        lock.lock()
-        let shouldResume = !didResume
-        didResume = true
-        lock.unlock()
-        guard shouldResume else { return }
-        continuation.resume(with: result)
-    }
-}
-
 nonisolated enum LiteRTAngroveRuntimeError: LocalizedError, Sendable {
     case modelNotLoaded
     case emptyResponse
@@ -98,6 +75,7 @@ actor LiteRTAngroveRuntime {
     private var lastLoadError: Error?
     private var completedGenerations = 0
     private var pendingTeardownDrain = false
+    private var nativeOperations = 0
     private var generationSlotHeld = false
     private var generationWaiters: [(id: UUID, continuation: CheckedContinuation<Void, Error>)] = []
     private var lastTokenAt: ContinuousClock.Instant = .now
@@ -182,6 +160,7 @@ actor LiteRTAngroveRuntime {
     func loadModelWeights() async throws {
         try await acquireGenerationSlot()
         defer { releaseGenerationSlot() }
+        try await waitForAbandonedNativeWork()
         try await loadEngineHoldingSlot()
     }
 
@@ -202,9 +181,11 @@ actor LiteRTAngroveRuntime {
         var finalError: Error?
         for attempt in 1...2 {
             do {
-                try await initializeEngine()
+                try await initializeEngineWithWatchdog()
                 return
             } catch {
+                if error is CancellationError || Task.isCancelled { throw CancellationError() }
+                if case LiteRTAngroveRuntimeError.stalledGeneration = error { throw error }
                 engine = nil
                 lastLoadError = error
                 finalError = error
@@ -288,7 +269,7 @@ actor LiteRTAngroveRuntime {
         defer { releaseGenerationSlot() }
         try Task.checkCancellation()
 
-        await waitForAbandonedNativeWork()
+        try await waitForAbandonedNativeWork()
         if pendingTeardownDrain {
             try await drainNativeTeardown()
             pendingTeardownDrain = false
@@ -336,13 +317,12 @@ actor LiteRTAngroveRuntime {
 
             // A completed native Conversation can occasionally leave the mobile session unable
             // to create the next conversation. Rebuild the engine once and retry locally before
-            // allowing the model boundary to use network recovery.
+            // reporting a local failure.
             // Rebuilding while the failed stream still runs would load a new engine next to a
-            // live native session on the old one. If it hasn't ended, retry on this engine.
-            if await waitForAbandonedNativeWork() {
-                unloadEngineHoldingSlot()
-                try await initializeEngineWithWatchdog()
-            }
+            // live native session on the old one. Wait for its actual native completion.
+            try await waitForAbandonedNativeWork()
+            unloadEngineHoldingSlot()
+            try await initializeEngineWithWatchdog()
             try await drainNativeTeardown()
             do {
                 let result = try await attempt(sampling)
@@ -423,62 +403,48 @@ actor LiteRTAngroveRuntime {
     /// worker pool can still be finishing teardown from the just-closed engine when the next
     /// engine starts its first Prefill. Give that teardown time to fully drain before use.
     private func drainNativeTeardown() async throws {
-        try? await Task.sleep(for: .milliseconds(400))
+        try await Task.sleep(for: .milliseconds(400))
     }
 
-    /// A thrown generation (stall, guard rejection, error) stops the Swift side listening, but
-    /// the native stream keeps decoding until it ends on its own: cancelling it natively can
-    /// wedge LiteRT-LM's callback pool (see `unloadModelWeights`). Starting another conversation,
-    /// or rebuilding the engine, while it runs puts two native sessions on one engine, or deletes
-    /// the engine under a live one. Wait for it to end first, but only for a bounded time: a
-    /// genuinely wedged stream never ends, and blocking every later request on it would be worse.
-    /// Returns whether the abandoned stream (if any) has ended.
-    @discardableResult
-    private func waitForAbandonedNativeWork() async -> Bool {
-        guard abandonedConversation != nil else { return true }
+    /// Never admit a second native request while a timed-out/cancelled call still owns
+    /// native resources. Bounded failure leaves ownership intact so a later request can retry.
+    private func waitForAbandonedNativeWork() async throws {
         let start = ContinuousClock.now
-        LiteRTLifecycleTrace.shared.record("abandoned-wait-begin")
-        while abandonedConversation != nil,
-              start.duration(to: .now) < Self.abandonedWorkWait {
-            try? await Task.sleep(for: .milliseconds(100))
+        while nativeOperations > 0 || NativeActivityMonitor.runningCount(of: ["native-stream"]) > 0 {
+            try Task.checkCancellation()
+            guard start.duration(to: .now) < Self.abandonedWorkWait else {
+                throw LiteRTAngroveRuntimeError.stalledGeneration
+            }
+            try await Task.sleep(for: .milliseconds(100))
         }
-        let finished = abandonedConversation == nil
-        LiteRTLifecycleTrace.shared.record(
-            "abandoned-wait-end",
-            ["finished": finished, "seconds": Self.seconds(start.duration(to: .now))]
-        )
-        if !finished {
-            logger.error("An abandoned native stream is still running; continuing anyway")
-            abandonedConversation = nil
-        }
-        return finished
+        abandonedConversation = nil
     }
 
     /// `Engine` and `Conversation` delete their native handles on detached threads after the
     /// last reference drops, so an unload returns before the old engine is gone. Loading the
     /// next engine meanwhile briefly holds two engines' memory and overlaps their native work.
-    private func waitForPendingNativeDeletes() async {
+    private func waitForPendingNativeDeletes() async throws {
         let kinds = ["engine-delete", "conversation-delete"]
         guard NativeActivityMonitor.runningCount(of: kinds) > 0 else { return }
         let start = ContinuousClock.now
         while NativeActivityMonitor.runningCount(of: kinds) > 0,
               start.duration(to: .now) < Self.nativeDeleteWait {
-            try? await Task.sleep(for: .milliseconds(20))
+            try await Task.sleep(for: .milliseconds(20))
         }
         LiteRTLifecycleTrace.shared.record(
             "delete-wait",
             ["seconds": Self.seconds(start.duration(to: .now)),
              "finished": NativeActivityMonitor.runningCount(of: kinds) == 0]
         )
-    }
-
-    private func initializeEngine() async throws {
-        let modelURL = try await modelStore.preparedModelURL()
-        try await initializeEngine(at: modelURL)
+        guard NativeActivityMonitor.runningCount(of: kinds) == 0 else {
+            throw LiteRTAngroveRuntimeError.stalledGeneration
+        }
     }
 
     private func initializeEngine(at modelURL: URL) async throws {
         try Task.checkCancellation()
+        nativeOperations += 1
+        defer { nativeOperations -= 1 }
         let cacheURL = try modelStore.cacheDirectory()
         var backend: Backend = .gpu
 #if DEBUG
@@ -491,7 +457,8 @@ actor LiteRTAngroveRuntime {
             maxNumTokens: contextTokens,
             cacheDir: cacheURL.path
         )
-        await waitForPendingNativeDeletes()
+        try await waitForPendingNativeDeletes()
+        try Task.checkCancellation()
         ExperimentalFlags.optIntoExperimentalAPIs()
         ExperimentalFlags.enableSpeculativeDecoding = Self.usesSpeculativeDecoding
         ExperimentalFlags.activationDataType = Self.activationDataTypeOverride
@@ -503,6 +470,7 @@ actor LiteRTAngroveRuntime {
         try await LiteRTLifecycleTrace.shared.tracking("load") {
             try await newEngine.initialize()
         }
+        try Task.checkCancellation()
         engine = newEngine
         lastLoadError = nil
         completedGenerations = 0
@@ -677,8 +645,8 @@ actor LiteRTAngroveRuntime {
     /// respect Swift's cooperative cancellation, so `withThrowingTaskGroup` kept blocking this
     /// function's return until the wedged child eventually finished (which was never) — the
     /// watchdog "won" internally but the caller never found out. Firing `operation` as a truly
-    /// unstructured `Task` detaches it from that guarantee: a wedged call is simply abandoned
-    /// (left running harmlessly in the background) instead of blocking the caller forever.
+    /// unstructured `Task` detaches it from that guarantee. The caller can stop waiting, while
+    /// ownership tracking blocks new native work until the abandoned call actually finishes.
     ///
     /// `stalled` is the watchdog: it returns `true` once the operation has stalled, or `false`
     /// when it was cancelled because the operation finished.
@@ -686,23 +654,8 @@ actor LiteRTAngroveRuntime {
         _ operation: @escaping @Sendable @concurrent () async throws -> T,
         stalled: @escaping @Sendable () async -> Bool
     ) async throws -> T {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, Error>) in
-            let box = StallRaceBox(continuation)
-            var watchdog: Task<Void, Never>?
-            let work = Task {
-                do {
-                    let value = try await operation()
-                    box.resume(.success(value))
-                } catch {
-                    box.resume(.failure(error))
-                }
-                watchdog?.cancel()
-            }
-            watchdog = Task {
-                guard await stalled() else { return }
-                box.resume(.failure(LiteRTAngroveRuntimeError.stalledGeneration))
-                work.cancel()
-            }
+        try await NativeOperationRace.run(operation: operation) {
+            if await stalled() { throw LiteRTAngroveRuntimeError.stalledGeneration }
         }
     }
 
@@ -771,6 +724,9 @@ actor LiteRTAngroveRuntime {
         initialMessages: [Message],
         sampling: LiteRTSampling
     ) async throws -> Conversation {
+        try Task.checkCancellation()
+        nativeOperations += 1
+        defer { nativeOperations -= 1 }
         let sampler = try SamplerConfig(
             topK: sampling.topK,
             topP: sampling.topP,
@@ -784,6 +740,7 @@ actor LiteRTAngroveRuntime {
                 samplerConfig: sampler
             )
         )
+        try Task.checkCancellation()
         activeConversation = conversation
         return conversation
     }

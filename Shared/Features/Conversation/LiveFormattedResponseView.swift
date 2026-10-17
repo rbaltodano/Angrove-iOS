@@ -18,10 +18,11 @@ struct LiveFormattedResponseView: View {
     let onInsightTap: ((String, String) -> Void)?
 
     @State private var progress = LiveResponseRevealProgress()
+    private static let blockMemo = ParseMemo<[LiveResponseBlock]>(countLimit: 64)
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let blocks = LiveResponseBlock.parse(text)
+        let blocks = Self.blockMemo.value(for: text) { LiveResponseBlock.parse(text) }
         VStack(alignment: responseTextAlignment.horizontalAlignment, spacing: 0) {
             ForEach(Array(blocks.enumerated()), id: \.element.id) { index, block in
                 LiveResponseBlockView(

@@ -77,11 +77,11 @@ enum FlaggedQuoteStore {
     }
 
     private static func load(defaults: UserDefaults) -> [String: [FlaggedQuote]] {
-        PrivatePreferences(defaults: defaults)
-            .decoded([String: [FlaggedQuote]].self, forKey: storageKey) ?? [:]
+        SerializedPersonalStore.shared.loadPreference([String: [FlaggedQuote]].self,
+            key: storageKey, preferences: PrivatePreferences(defaults: defaults)) ?? [:]
     }
 
     private static func save(_ quotes: [String: [FlaggedQuote]], defaults: UserDefaults) {
-        PrivatePreferences(defaults: defaults).setEncoded(quotes, forKey: storageKey)
+        SerializedPersonalStore.shared.savePreference(quotes, key: storageKey, preferences: PrivatePreferences(defaults: defaults))
     }
 }

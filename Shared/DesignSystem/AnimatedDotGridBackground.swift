@@ -56,6 +56,8 @@ struct AnimatedDotGridBackground: View, Animatable {
     private let baseDotRadius: CGFloat = 0.8
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var effectiveOffset: CGSize {
         CGSize(
@@ -82,10 +84,13 @@ struct AnimatedDotGridBackground: View, Animatable {
     }
 
     var body: some View {
+        let zoomOpacity = Self.zoomOpacity(at: settledScale)
+        if zoomOpacity > 0 {
         // TimelineView drives the noise field at display refresh rate.
         // Animatable drives the camera interpolation at the same rate during springs.
-        TimelineView(.animation(minimumInterval: nil, paused: !showsIdleField && !hasLiveRipple)) { timeline in
-            let t = timeline.date.timeIntervalSinceReferenceDate
+        TimelineView(.animation(minimumInterval: nil,
+                                paused: scenePhase != .active || reduceMotion || (!showsIdleField && !hasLiveRipple))) { timeline in
+            let t = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
             let eo = effectiveOffset
             let es = settledScale
 
@@ -170,7 +175,17 @@ struct AnimatedDotGridBackground: View, Animatable {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .opacity(zoomOpacity)
         .allowsHitTesting(false)
+        }
+    }
+
+    /// Fade before zoomed-out dot density dominates rendering; remove the canvas at zero.
+    /// Smoothstep keeps the fade's slope continuous at both ends during camera springs.
+    static func zoomOpacity(at scale: CGFloat) -> Double {
+        guard scale.isFinite else { return 0 }
+        let progress = Double(min(max((scale - 0.4) / 0.2, 0), 1))
+        return progress * progress * (3 - 2 * progress)
     }
 
     /// Whether a ripple could still be running (the longest lasts about 4.5 seconds).

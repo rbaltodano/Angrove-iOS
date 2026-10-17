@@ -1138,26 +1138,10 @@ struct ContentView: View {
                 ) { result in
                     switch result {
                     case .success(let urls):
-                        withAnimation(.springLively) {
-                            for url in urls {
-                                let hasAccess = url.startAccessingSecurityScopedResource()
-                                defer {
-                                    if hasAccess {
-                                        url.stopAccessingSecurityScopedResource()
-                                    }
-                                }
-
-                                let data = try? Data(contentsOf: url)
-                                let imageData = data.flatMap { UploadedFile.isImageData($0) ? $0 : nil }
-
-                                uploadedFiles.append(
-                                    UploadedFile(
-                                        name: url.lastPathComponent,
-                                        imageData: imageData,
-                                        rotationDegrees: Double.random(in: -5...5)
-                                    )
-                                )
-                            }
+                        Task {
+                            let files = await AttachmentImport.read(urls)
+                            guard !Task.isCancelled else { return }
+                            withAnimation(.springLively) { uploadedFiles.append(contentsOf: files) }
                         }
                     case .failure(let error):
                         print("Failed to select file: \(error.localizedDescription)")

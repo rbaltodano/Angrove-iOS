@@ -12,7 +12,7 @@ struct UnavailableAngroveModel: AngroveModel {
         "Angrove's on-device model isn't installed, so it can't answer yet."
 
     func respond(to context: ConversationContext) async -> ModelResponse {
-        ModelResponse(text: Self.unavailableMessage)
+        ModelResponse(text: Self.unavailableMessage, outcome: .failed)
     }
 
     func compact(_ context: ConversationContext) async -> String {

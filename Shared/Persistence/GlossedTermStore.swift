@@ -49,11 +49,11 @@ enum GlossedTermStore {
     }
 
     private static func load(defaults: UserDefaults) -> [String: [GlossedTermRecord]] {
-        PrivatePreferences(defaults: defaults)
-            .decoded([String: [GlossedTermRecord]].self, forKey: storageKey) ?? [:]
+        SerializedPersonalStore.shared.loadPreference([String: [GlossedTermRecord]].self,
+            key: storageKey, preferences: PrivatePreferences(defaults: defaults)) ?? [:]
     }
 
     private static func save(_ records: [String: [GlossedTermRecord]], defaults: UserDefaults) {
-        PrivatePreferences(defaults: defaults).setEncoded(records, forKey: storageKey)
+        SerializedPersonalStore.shared.savePreference(records, key: storageKey, preferences: PrivatePreferences(defaults: defaults))
     }
 }

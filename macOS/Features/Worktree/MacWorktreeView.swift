@@ -229,7 +229,7 @@ struct MacWorktreeView: View {
             } onCancel: { picker = nil }
         }
         .background(WorktreeAutosave(board: board, onSave: onSave))
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in rememberViewport(); onSave() }
+        .onReceive(NotificationCenter.default.publisher(for: .macWillFlushPersistence)) { _ in rememberViewport(); onSave() }
         .animation(.easeOut(duration: 0.3), value: board.items.isEmpty)
         .alert("Replace Conversation?", isPresented: Binding(get: { board.pendingReplacement != nil },
                                                              set: { if !$0 { board.pendingReplacement = nil } }),

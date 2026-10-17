@@ -2,9 +2,38 @@ import CryptoKit
 import Foundation
 
 nonisolated struct PrivatePreferences {
-    static let standard = PrivatePreferences(defaults: .standard)
+    static let standard = PrivatePreferences(defaults: .standard, attachmentStore: .topics)
     let defaults: UserDefaults
     var cipher: LocalDataCipher = .personal
+    var attachmentStore: EncryptedAttachmentStore? = nil
+
+    func attachments(for key: String) -> EncryptedAttachmentStore? {
+        key == "aquinas.study-topics.v1" ? attachmentStore : nil
+    }
+
+    func decoder(for key: String) -> JSONDecoder { attachments(for: key)?.decoder() ?? JSONDecoder() }
+
+    func writeEncoded<Value: Encodable>(_ value: Value, key: String) throws {
+        guard let store = attachments(for: key) else {
+            try write(JSONEncoder().encode(value), key: key)
+            return
+        }
+        try store.transaction {
+            if let previous = try read(key) as? Data { try preserveAttachmentOriginal(previous, store: store) }
+            let data = try store.encoder().encode(value)
+            try write(data, key: key)
+            guard try read(key) as? Data == data else { throw AttachmentStorageError.unavailable }
+            store.prune(ownerDirectory: store.directory.deletingLastPathComponent(), additionalJSON: [data])
+        }
+    }
+
+    func preserveAttachmentOriginal(_ data: Data, store: EncryptedAttachmentStore) throws {
+        guard try AttachmentJSON.containsInlineImages(data) else { return }
+        let folder = store.directory.deletingLastPathComponent().appending(path: "AttachmentMigrationOriginals", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let source = folder.appending(path: "study-topics-v1.json")
+        if !FileManager.default.fileExists(atPath: source.path) { try EncryptedPersonalFile.write(data, to: source) }
+    }
 
     static func protects(_ key: String) -> Bool {
         if key == "aquinas.settings.userName" || key == "aquinas.settings.customInstructions" { return true }
@@ -70,13 +99,13 @@ nonisolated struct PrivatePreferences {
 
     /// A JSON-encoded value, or `nil` when it is missing or no longer decodes as `Value`.
     func decoded<Value: Decodable>(_ type: Value.Type, forKey key: String) -> Value? {
-        data(forKey: key).flatMap { try? JSONDecoder().decode(type, from: $0) }
+        data(forKey: key).flatMap { try? decoder(for: key).decode(type, from: $0) }
     }
 
     /// Stores `value` JSON-encoded. A value that fails to encode leaves the stored one in place.
     func setEncoded<Value: Encodable>(_ value: Value, forKey key: String) {
-        guard let data = try? JSONEncoder().encode(value) else { return }
-        set(data, forKey: key)
+        do { try writeEncoded(value, key: key) }
+        catch { PersonalDataProtection.report(error, duringWrite: true) }
     }
 }
 
@@ -108,6 +137,7 @@ nonisolated enum PersonalDataProtection {
     /// The key is missing or wrong, or stored bytes are damaged. Locked-device Keychain and file
     /// protection errors are temporary and are not integrity failures.
     static func isIntegrityFailure(_ error: Error) -> Bool {
+        if error is AttachmentStorageError { return true }
         if error is CryptoKitError { return true }
         guard let error = error as? LocalDataEncryptionError else { return false }
         switch error {
@@ -129,6 +159,10 @@ nonisolated enum PersonalDataProtection {
 }
 
 nonisolated enum EncryptedPersonalFile {
+    /// Isolates file fixtures from the owner's Keychain. Production callers use the personal key.
+    @TaskLocal static var scopedCipher: LocalDataCipher?
+    static var cipher: LocalDataCipher { scopedCipher ?? .personal }
+
     static func context(for url: URL) -> String {
         // Rotating conversation backups must remain readable at the live location.
         url.path.contains("ConversationStore/") || url.lastPathComponent.hasPrefix("conversations-")
@@ -138,7 +172,7 @@ nonisolated enum EncryptedPersonalFile {
     static func read(_ url: URL) throws -> Data {
         let data = try Data(contentsOf: url)
         if LocalDataCipher.isEncrypted(data) {
-            do { return try LocalDataCipher.personal.open(data, context: context(for: url)) }
+            do { return try cipher.open(data, context: context(for: url)) }
             catch { PersonalDataProtection.report(error); throw error }
         }
         // Legacy stores are JSON. Never interpret damaged ciphertext as a legacy value.
@@ -169,10 +203,10 @@ nonisolated enum EncryptedPersonalFile {
     private static func replace(_ data: Data, at url: URL, existingVerified: Bool) throws {
         guard !PersonalDataProtection.isBlocked else { throw LocalDataEncryptionError.storageClosed }
         if !existingVerified, let existing = try? Data(contentsOf: url), LocalDataCipher.isEncrypted(existing) {
-            _ = try LocalDataCipher.personal.open(existing, context: context(for: url))
+            _ = try cipher.open(existing, context: context(for: url))
         }
-        let encrypted = try LocalDataCipher.personal.seal(data, context: context(for: url))
-        guard try LocalDataCipher.personal.open(encrypted, context: context(for: url)) == data else {
+        let encrypted = try cipher.seal(data, context: context(for: url))
+        guard try cipher.open(encrypted, context: context(for: url)) == data else {
             throw LocalDataEncryptionError.invalidEnvelope
         }
         #if os(iOS)

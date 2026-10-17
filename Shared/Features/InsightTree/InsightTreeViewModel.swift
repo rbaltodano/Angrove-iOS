@@ -50,10 +50,10 @@ final class InsightTreeViewModel: ObservableObject {
     @Published private(set) var placedMidpointSources: [UUID: [MidpointSource]] = [:]
     /// Per-insight bond length (connector radius): shorter = more related to its parent node.
     @Published private(set) var insightBondLengths: [UUID: CGFloat] = [:]
-    /// Semantic (MDS) target position per node — the canvas anchors each node to its target
+    /// Semantic tree target position per node — the canvas anchors each node to its target
     /// with a weak spring so overlap cleanup can't destroy the embedding-driven layout.
     @Published private(set) var layoutTargets: [UUID: CGPoint] = [:]
-    /// Normalized [0,1] depth per node from the third MDS component (1 = nearest),
+    /// Normalized [0,1] depth per node (1 = nearest),
     /// consumed by the canvas's 2.5D depth cues.
     @Published private(set) var nodeDepths: [UUID: Double] = [:]
     /// False until the first embedding refresh and graph build finish, so an empty tree reads
@@ -806,7 +806,12 @@ final class InsightTreeViewModel: ObservableObject {
         appendPromotedNodes(to: &nextNodes, edges: &nextEdges, from: embeddedInsights)
         appendPlacedMidpointNodes(to: &nextNodes, edges: &nextEdges)
         applyNodeBookmarkTransfers(to: &nextNodes, edges: &nextEdges, merges: result.merges)
-        let grownIDs = growTree(nodes: &nextNodes, edges: &nextEdges, budParents: result.budParents)
+        var grownIDs: Set<UUID> = []
+        if let preparation = prepareGrowth(nodes: nextNodes, edges: nextEdges, budParents: result.budParents) {
+            let grown = await graphWorker.grow(preparation.nodes, affinity: preparation.affinity, relayout: preparation.relayout)
+            guard !Task.isCancelled, revision == graphRevision else { return }
+            grownIDs = applyGrowth(grown, preparation: preparation, nodes: &nextNodes, edges: &nextEdges)
+        }
         let relaxation = SemanticOverlapRelaxation(placedMidpointNodeIDs: placedMidpointNodeIDs,
             showsAllClusterInsights: showsAllClusterInsights)
         let relaxed = await graphWorker.relax(nextNodes, edges: nextEdges, using: relaxation)
@@ -1672,10 +1677,20 @@ final class InsightTreeViewModel: ObservableObject {
     /// time a scope is grown with real vectors, every concept is placed fresh from the root, so
     /// older trees whose lines and positions came from different passes become coherent.
     /// Returns the concepts given a new position, whose layout anchors must follow them.
-    private func growTree(nodes: inout [NodeModel], edges: inout [EdgeModel], budParents: [UUID: UUID]) -> Set<UUID> {
+    private struct TreeGrowthPreparation {
+        let nodes: [InsightTreeGrowth.Node]
+        let affinity: [Set<UUID>: Double]
+        let relayout: Bool
+        let ids: Set<UUID>
+        let vectors: [UUID: [Double]]
+        let explicit: [UUID: [UUID]]
+        let parents: [UUID: UUID]
+    }
+
+    private func prepareGrowth(nodes: [NodeModel], edges: [EdgeModel], budParents: [UUID: UUID]) -> TreeGrowthPreparation? {
         let excluded = Set(nodes.filter { $0.isSuggested || placedMidpointNodeIDs.contains($0.id) }.map(\.id))
         let growing = nodes.filter { !excluded.contains($0.id) }
-        guard !growing.isEmpty else { return [] }
+        guard !growing.isEmpty else { return nil }
         let ids = Set(growing.map(\.id))
         let seeds = Dictionary(effectiveSeedAnchors.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
@@ -1702,6 +1717,7 @@ final class InsightTreeViewModel: ObservableObject {
                 return left == right ? lhs.uuidString < rhs.uuidString : left > right
             }
         }
+        var treeParents = self.treeParents
         for (bud, parent) in budParents where ids.contains(bud) { treeParents[bud] = parent }
 
         // Concepts that share a Midpoint sit near each other, keeping the Midpoint between them short.
@@ -1723,8 +1739,19 @@ final class InsightTreeViewModel: ObservableObject {
         }
         let ready = growthNodes.allSatisfy { !$0.vector.isEmpty }
         let relayout = ready && InsightTreeLocalStateStore.load(Bool.self, key: grownLayoutStoreKey) != true
-        let grown = InsightTreeGrowth.grow(growthNodes, affinity: affinity, relayout: relayout)
+        return TreeGrowthPreparation(nodes: growthNodes, affinity: affinity, relayout: relayout,
+            ids: ids, vectors: vectors, explicit: explicit, parents: treeParents)
+    }
 
+    private func growTree(nodes: inout [NodeModel], edges: inout [EdgeModel], budParents: [UUID: UUID]) -> Set<UUID> {
+        guard let preparation = prepareGrowth(nodes: nodes, edges: edges, budParents: budParents) else { return [] }
+        let grown = InsightTreeGrowth.grow(preparation.nodes, affinity: preparation.affinity, relayout: preparation.relayout)
+        return applyGrowth(grown, preparation: preparation, nodes: &nodes, edges: &edges)
+    }
+
+    private func applyGrowth(_ grown: InsightTreeGrowth.Result, preparation: TreeGrowthPreparation,
+                             nodes: inout [NodeModel], edges: inout [EdgeModel]) -> Set<UUID> {
+        let ids = preparation.ids, vectors = preparation.vectors, explicit = preparation.explicit
         for index in nodes.indices {
             if let point = grown.positions[nodes[index].id] { nodes[index].position = point }
         }
@@ -1741,14 +1768,14 @@ final class InsightTreeViewModel: ObservableObject {
         }
 
         // Only free concepts keep a saved parent; explicit ones are re-derived from their lines.
-        var nextParents = treeParents
+        var nextParents = preparation.parents
         for (child, parent) in grown.persistableParents where explicit[child] == nil { nextParents[child] = parent }
         if nextParents != treeParents {
             treeParents = nextParents
             InsightTreeLocalStateStore.save(treeParents.reduce(into: [String: String]()) { $0[$1.key.uuidString] = $1.value.uuidString },
                                             key: treeParentsStoreKey)
         }
-        if relayout { InsightTreeLocalStateStore.save(true, key: grownLayoutStoreKey) }
+        if preparation.relayout { InsightTreeLocalStateStore.save(true, key: grownLayoutStoreKey) }
         return grown.placed
     }
 

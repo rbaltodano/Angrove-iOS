@@ -110,6 +110,7 @@ final class ResponseSpeechPlayer {
     }
 
     @ObservationIgnored private var engine: ParadeeSpeechEngine?
+    @ObservationIgnored private var engineLoad: Task<ParadeeSpeechEngine, Error>?
     @ObservationIgnored private var playback: Task<Void, Never>?
     @ObservationIgnored private var ticker: Task<Void, Never>?
     @ObservationIgnored private var pauseTimeout: Task<Void, Never>?
@@ -439,15 +440,16 @@ final class ResponseSpeechPlayer {
     private func run(_ units: [SpokenUnit], id: UUID) async {
         do {
             let engine = try await loadedEngine()
-            try await prepare(units, engine: engine)
-            try Task.checkCancellation()
+            try checkRun(id)
+            try await prepare(units, engine: engine, id: id)
+            try checkRun(id)
 
             try startAudioPlayback()
             startTicker(id)
 
             for index in parts.indices {
                 let samples = try await engine.synthesize(phonemes: parts[index].phonemes)
-                try Task.checkCancellation()
+                try checkRun(id)
                 parts[index].samples = samples
                 parts[index].startFrame = synthesizedFrames
                 synthesizedFrames += samples.count
@@ -497,11 +499,22 @@ final class ResponseSpeechPlayer {
 
     /// Phonemizes every unit up front and lays out which parts of the audio each displayed word
     /// occupies, in the weighted space shared by the displayed and the normalized text.
-    private func prepare(_ units: [SpokenUnit], engine: ParadeeSpeechEngine) async throws {
+    private func checkRun(_ id: UUID) throws {
+        try Task.checkCancellation()
+        guard runID == id else { throw CancellationError() }
+    }
+
+    private func prepare(_ units: [SpokenUnit], engine: ParadeeSpeechEngine, id: UUID) async throws {
+        var parts: [Part] = []
+        var unitParts: [[Int]] = []
+        var pendingWords: [PendingWord] = []
         for (unitIndex, unit) in units.enumerated() {
+            try checkRun(id)
             var indices: [Int] = []
             var total = 0.0
-            for sentence in await engine.sentences(for: unit.text) {
+            let sentences = await engine.sentences(for: unit.text)
+            try checkRun(id)
+            for sentence in sentences {
                 let sentenceWeight = sentence.text.split(whereSeparator: \.isWhitespace)
                     .reduce(0.0) { $0 + SpokenUnit.weight(of: String($1)) }
                 let phonemeCount = max(sentence.chunks.reduce(0) { $0 + $1.count }, 1)
@@ -527,6 +540,10 @@ final class ResponseSpeechPlayer {
                 cumulative += weight
             }
         }
+        try checkRun(id)
+        self.parts = parts
+        self.unitParts = unitParts
+        self.pendingWords = pendingWords
     }
 
     private func seconds(at target: Double, unit: Int) -> Double? {
@@ -591,7 +608,11 @@ final class ResponseSpeechPlayer {
 
     private func loadedEngine() async throws -> ParadeeSpeechEngine {
         if let engine { return engine }
-        let loaded = try await Task.detached(priority: .userInitiated) { try ParadeeSpeechEngine() }.value
+        if let engineLoad { return try await engineLoad.value }
+        let load = Task.detached(priority: .userInitiated) { try ParadeeSpeechEngine() }
+        engineLoad = load
+        defer { engineLoad = nil }
+        let loaded = try await load.value
         engine = loaded
         return loaded
     }

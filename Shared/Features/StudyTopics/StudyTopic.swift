@@ -11,7 +11,7 @@ struct StudyTopic: Identifiable, Codable, Equatable {
     var description: String
     var files: [UploadedFile]
     /// When this topic was created — drives the "Date" filter's day-based grouping.
-    /// Defaults so existing persisted data without this field decodes safely.
+    /// Legacy topics without a date sort before dated topics.
     var createdAt: Date = Date()
 
     init(
@@ -27,6 +27,19 @@ struct StudyTopic: Identifiable, Codable, Equatable {
         self.files = files
         self.createdAt = createdAt
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, title, description, files, createdAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(UUID.self, forKey: .id)
+        title = try values.decode(String.self, forKey: .title)
+        description = try values.decode(String.self, forKey: .description)
+        files = try values.decode([UploadedFile].self, forKey: .files)
+        createdAt = try values.decodeIfPresent(Date.self, forKey: .createdAt) ?? .distantPast
+    }
 }
 
 enum StudyTopicStore {
@@ -37,15 +50,17 @@ enum StudyTopicStore {
     private static var cachedTopics: [StudyTopic]?
 
     static func load() -> [StudyTopic] {
+        guard !PersonalDataProtection.isBlocked else { return [] }
         if let cachedTopics { return cachedTopics }
-        let topics = PrivatePreferences.standard.decoded([StudyTopic].self, forKey: key) ?? []
-        cachedTopics = topics
+        let topics = SerializedPersonalStore.shared.loadPreference([StudyTopic].self, key: key) ?? []
+        if !PersonalDataProtection.isBlocked { cachedTopics = topics }
         return topics
     }
 
     static func save(_ topics: [StudyTopic]) {
+        guard !PersonalDataProtection.isBlocked else { return }
         cachedTopics = topics
-        PrivatePreferences.standard.setEncoded(topics, forKey: key)
+        SerializedPersonalStore.shared.savePreference(topics, key: key)
     }
 
     static func clearCache() {

@@ -229,12 +229,19 @@ struct PersonalDataEncryptionTests {
         let ciphertext = try fixture.goodPreferences().cipher.seal(Data("x".utf8), context: "preferences:aquinas.saved.insights.v1")
         fixture.defaults.set(ciphertext, forKey: "aquinas.saved.insights.v1")
 
-        try PersonalDataProtection.startFresh(preferences: fixture.preferences, rootDirectory: fixture.root, removeUnusableKey: false)
+        let diagnostic = fixture.base.appending(path: "litert-generations.jsonl")
+        try ciphertext.write(to: diagnostic)
+        try PersonalDataProtection.startFresh(preferences: fixture.preferences, rootDirectory: fixture.root,
+            diagnosticLogURL: diagnostic, removeUnusableKey: false)
         #expect(!FileManager.default.fileExists(atPath: fixture.conversations.path))
         #expect(fixture.defaults.object(forKey: "aquinas.saved.insights.v1") == nil)
         let archive = try #require(try FileManager.default.contentsOfDirectory(at: fixture.base, includingPropertiesForKeys: nil)
             .first { $0.lastPathComponent.hasPrefix("Angrove Unreadable Data") })
         #expect(FileManager.default.fileExists(atPath: archive.appending(path: "ConversationStore/conversations-v1.json").path))
+        #expect(!FileManager.default.fileExists(atPath: diagnostic.path))
+        #expect(try Data(contentsOf: archive.appending(path: "litert-generations.jsonl")) == ciphertext)
+        try PersonalDataProtection.prepare(preferences: fixture.preferences, rootDirectory: fixture.root,
+            diagnosticLogURL: diagnostic, migrateWidget: {})
         let saved = try PropertyListSerialization.propertyList(from: Data(contentsOf: archive.appending(path: "preferences.plist")), format: nil) as? [String: Data]
         #expect(saved?["aquinas.saved.insights.v1"] == ciphertext)
     }

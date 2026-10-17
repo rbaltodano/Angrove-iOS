@@ -78,6 +78,8 @@ jobs:
             exit 1
           fi
           sudo xcode-select -s "$XCODE/Contents/Developer"
+      - name: Test shared core package
+        run: swift test --package-path Packages/AngroveCore
       - name: Build and run Mac tests
         run: |
           set -o pipefail
@@ -87,9 +89,7 @@ jobs:
             -destination 'platform=macOS,arch=arm64' \
             -resultBundlePath MacTestResults.xcresult \
             -parallel-testing-enabled NO \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY=- \
-            DEVELOPMENT_TEAM= \
+            CODE_SIGNING_ALLOWED=NO \
             test
       - name: Upload Mac test results
         if: failure()

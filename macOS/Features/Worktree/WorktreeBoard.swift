@@ -159,7 +159,11 @@ enum WorktreeWork: Equatable { case queued, running }
         }
         let padding = current.minX - (items.first { $0.id == id }?.origin.x ?? current.minX)
         var moved = CGRect(x: proposed.x + padding, y: proposed.y + padding, width: current.width, height: current.height)
-        let others = items.lazy.filter { $0.id != id }.compactMap { self.frame(of: $0.id) }
+        let others = items.compactMap { item -> CGRect? in
+            guard item.id != id, let size = itemSizes[item.id] else { return nil }
+            let padding = item.isQuestion ? WorktreeItemView.cardPadding : WorktreeItemView.textPadding
+            return CGRect(x: item.origin.x - padding, y: item.origin.y - padding, width: size.width, height: size.height)
+        }
 
         func edges(_ rect: CGRect, _ axis: WorktreeGuide.Axis) -> [CGFloat] {
             axis == .vertical ? [rect.minX, rect.midX, rect.maxX] : [rect.minY, rect.midY, rect.maxY]

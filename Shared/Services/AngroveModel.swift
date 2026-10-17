@@ -168,7 +168,9 @@ extension AngroveModel {
             thinkingSummary: [],
             keyTerms: response.keyTerms,
             insight: response.insight,
-            evidenceBasis: response.evidenceBasis
+            evidenceBasis: response.evidenceBasis,
+            citations: response.citations,
+            outcome: response.outcome
         )
     }
 
@@ -549,6 +551,10 @@ nonisolated enum ResponseEvidenceBasis: String, Codable, Equatable {
 /// The model's answer to a conversation turn: plain prose plus the terms worth defining within
 /// it. `annotatedText` is what the UI actually renders — see `KeyTerm`'s doc comment for why the
 /// splice happens here instead of trusting the model to emit `aq://` links directly.
+nonisolated enum ModelResponseOutcome: String, Codable, Sendable {
+    case completed, failed, cancelled
+}
+
 struct ModelResponse {
     let text: String
     let thinkingSummary: [String]
@@ -557,6 +563,7 @@ struct ModelResponse {
     let evidenceBasis: ResponseEvidenceBasis?
     /// Source chips for sentences that quote a retrieved corpus passage.
     let citations: [ResponseCitation]
+    let outcome: ModelResponseOutcome
 
     init(
         text: String,
@@ -564,7 +571,8 @@ struct ModelResponse {
         keyTerms: [KeyTerm] = [],
         insight: ConceptDefinition? = nil,
         evidenceBasis: ResponseEvidenceBasis? = nil,
-        citations: [ResponseCitation] = []
+        citations: [ResponseCitation] = [],
+        outcome: ModelResponseOutcome = .completed
     ) {
         self.text = text
         self.thinkingSummary = thinkingSummary
@@ -572,6 +580,7 @@ struct ModelResponse {
         self.insight = insight
         self.evidenceBasis = evidenceBasis
         self.citations = citations
+        self.outcome = outcome
     }
 
     /// `text` with each key term wrapped as `[term](aq://slug)` — the markup
@@ -674,7 +683,8 @@ struct ModelResponse {
             keyTerms: keyTerms,
             insight: insight,
             evidenceBasis: evidenceBasis,
-            citations: citations
+            citations: citations,
+            outcome: outcome
         )
     }
 }

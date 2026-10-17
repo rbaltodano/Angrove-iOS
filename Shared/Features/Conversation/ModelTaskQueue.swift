@@ -209,6 +209,8 @@ struct ModelTaskSnapshot: Identifiable, Equatable {
 @MainActor
 @Observable
 final class ModelTaskQueue {
+    @TaskLocal private static var executingJobID: UUID?
+    @ObservationIgnored private var currentJobFailed = false
     private struct Job {
         let id: UUID
         let kind: ModelTaskKind
@@ -488,6 +490,7 @@ final class ModelTaskQueue {
         completedTasksClearTask = nil
         let job = waitingJobs.removeFirst()
         currentJob = job
+        currentJobFailed = false
         currentTask = snapshot(for: job, phase: .current)
         publishUpcomingTasks()
         job.onStart()
@@ -507,7 +510,9 @@ final class ModelTaskQueue {
                 await runtimeLifecycle.releaseLease(lease)
                 return
             }
-            await job.operation()
+            await PerformanceTrace.measure("Model Task Execution") {
+                await Self.$executingJobID.withValue(job.id) { await job.operation() }
+            }
             await runtimeLifecycle.releaseLease(lease)
             guard !Task.isCancelled else { return }
             completeCurrent(id: job.id)
@@ -526,16 +531,25 @@ final class ModelTaskQueue {
         startNextIfNeeded()
     }
 
+    /// A user-visible error message is not a successful answer. Task-local identity prevents
+    /// an abandoned operation from changing the status of a later request.
+    func reportCurrentFailure() {
+        guard Self.executingJobID == currentJob?.id else { return }
+        currentJobFailed = true
+    }
+
     private func completeCurrent(id: UUID) {
         guard let job = currentJob, job.id == id else { return }
         endBackgroundExecutionTask()
         isRuntimeLoading = false
         let completedTask = snapshot(for: job, phase: .completed)
-        completedTasks.append(completedTask)
-        latestCompletedTask = completedTask
-        onTaskCompleted?(completedTask)
-        if let branchID = job.kind.userQuestionBranchID {
-            completedUserQuestionBranchIDs.insert(branchID)
+        if !currentJobFailed {
+            completedTasks.append(completedTask)
+            latestCompletedTask = completedTask
+            onTaskCompleted?(completedTask)
+            if let branchID = job.kind.userQuestionBranchID {
+                completedUserQuestionBranchIDs.insert(branchID)
+            }
         }
         detachCurrentJob(cancellingRun: false)
         job.onCompletion()
@@ -552,6 +566,7 @@ final class ModelTaskQueue {
         currentJob = nil
         currentTask = nil
         isRuntimeLoading = false
+        currentJobFailed = false
         return job
     }
 

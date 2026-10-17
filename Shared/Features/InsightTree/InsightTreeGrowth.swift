@@ -69,7 +69,7 @@ nonisolated enum InsightTreeGrowth {
 
     // MARK: - Parents and placement
 
-    struct Node {
+    struct Node: Sendable {
         let id: UUID
         /// Subject vector (label and definition); empty when not embedded yet.
         let vector: [Double]
@@ -83,7 +83,7 @@ nonisolated enum InsightTreeGrowth {
         let leansToward: [UUID]
     }
 
-    struct Result {
+    struct Result: Sendable {
         var parents: [UUID: UUID] = [:]
         var positions: [UUID: CGPoint] = [:]
         /// Nodes given a fresh position this pass (their layout anchors must follow).
@@ -124,11 +124,14 @@ nonisolated enum InsightTreeGrowth {
         let free = ordered.filter { parentPreference($0) == nil }
         let embedded = free.filter { !$0.vector.isEmpty }
         let rootCandidates = embedded.isEmpty ? (free.isEmpty ? ordered : free) : embedded
+        let centrality = Dictionary(uniqueKeysWithValues: rootCandidates.map { candidate in
+            (candidate.id, ordered.reduce(0.0) { $0 + ($1.id == candidate.id ? 0 : similarity(candidate, $1)) })
+        })
         let root = rootCandidates.max { lhs, rhs in
             let left = descendantCounts[lhs.id] ?? 0, right = descendantCounts[rhs.id] ?? 0
             if left != right { return left < right }
-            let lc = ordered.reduce(0) { $0 + ($1.id == lhs.id ? 0 : similarity(lhs, $1)) }
-            let rc = ordered.reduce(0) { $0 + ($1.id == rhs.id ? 0 : similarity(rhs, $1)) }
+            let lc = centrality[lhs.id] ?? 0
+            let rc = centrality[rhs.id] ?? 0
             return lc == rc ? lhs.id.uuidString > rhs.id.uuidString : lc < rc
         }!
         result.root = root.id
@@ -137,12 +140,26 @@ nonisolated enum InsightTreeGrowth {
         // node it is most similar to. Each node attaches once, so no cycle can form.
         var attached: [UUID] = [root.id]
         var attachedSet: Set<UUID> = [root.id]
+        // Each newly attached parent updates the frontier once. Preserve the first attached
+        // parent for exact ties, matching the original nested scan's deterministic order.
+        var frontier: [UUID: (parent: UUID, score: Double)] = [:]
+        func addParent(_ parent: Node) {
+            for child in ordered where !attachedSet.contains(child.id) {
+                let score = similarity(child, parent)
+                if frontier[child.id] == nil || score > frontier[child.id]!.score {
+                    frontier[child.id] = (parent.id, score)
+                }
+            }
+        }
+        addParent(root)
         while attachedSet.count < nodes.count {
+            if Task.isCancelled { return Result() }
             if let waiting = ordered.first(where: { node in
                 !attachedSet.contains(node.id) && parentPreference(node).map(attachedSet.contains) == true
             }), let parent = parentPreference(waiting) {
                 result.parents[waiting.id] = parent
                 attached.append(waiting.id); attachedSet.insert(waiting.id)
+                addParent(waiting)
                 if !waiting.vector.isEmpty { result.persistableParents[waiting.id] = parent }
                 continue
             }
@@ -151,15 +168,13 @@ nonisolated enum InsightTreeGrowth {
             let pool = free.isEmpty ? ordered.filter { !attachedSet.contains($0.id) } : free
             var best: (child: Node, parent: UUID, score: Double)?
             for child in pool {
-                for parentID in attached {
-                    guard let parent = byID[parentID] else { continue }
-                    let score = similarity(child, parent)
-                    if best == nil || score > best!.score { best = (child, parentID, score) }
-                }
+                guard let edge = frontier[child.id] else { continue }
+                if best == nil || edge.score > best!.score { best = (child, edge.parent, edge.score) }
             }
             guard let best else { break }
             result.parents[best.child.id] = best.parent
             attached.append(best.child.id); attachedSet.insert(best.child.id)
+            addParent(best.child)
             if !best.child.vector.isEmpty, byID[best.parent]?.vector.isEmpty == false {
                 result.persistableParents[best.child.id] = best.parent
             }

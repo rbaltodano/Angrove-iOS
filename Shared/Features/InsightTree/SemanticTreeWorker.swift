@@ -135,10 +135,11 @@ nonisolated struct SemanticTreeComputation: Equatable, Sendable {
         // and keeps its id, label, and position.
         // Two signals, each with its own bar: the members' centroid, and the Node's own subject
         // (seed or generated label with its definition).
+        let seedsByID = Dictionary(localSeedAnchors.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let memberThreshold = InsightTreeSemanticPolicy.nodeMergeSimilarity
         let subjectThreshold = InsightTreeSemanticPolicy.nodeSubjectMergeSimilarity
         func subjectVector(of cluster: Cluster) -> [Double]? {
-            if let seed = localSeedAnchors.first(where: { $0.id == cluster.id }) {
+            if let seed = seedsByID[cluster.id] {
                 guard (seed.embeddingVersion ?? NLEmbeddingProvider.version) == providerVersion else { return nil }
                 return seed.embedding
             }
@@ -182,7 +183,7 @@ nonisolated struct SemanticTreeComputation: Equatable, Sendable {
             clusters[best.survivor].embedding = centroid(
                 clusters[best.survivor].insights.compactMap(\.embedding)
                     + [absorbed, clusters[best.survivor]].compactMap { cluster -> [Double]? in
-                        guard let seed = localSeedAnchors.first(where: { $0.id == cluster.id }),
+                        guard let seed = seedsByID[cluster.id],
                               (seed.embeddingVersion ?? NLEmbeddingProvider.version) == providerVersion
                         else { return nil }
                         return seed.embedding
@@ -218,7 +219,7 @@ nonisolated struct SemanticTreeComputation: Equatable, Sendable {
             }.max { $0.1 < $1.1 }
             clusters[budIndex - 1].insights.removeAll { groupIDs.contains($0.id) }
             clusters[budIndex - 1].embedding = centroid(clusters[budIndex - 1].insights.compactMap(\.embedding)
-                + (localSeedAnchors.first { $0.id == cluster.id }?.embedding.map { [$0] } ?? []))
+                + (seedsByID[cluster.id]?.embedding.map { [$0] } ?? []))
             if let better, better.1 >= InsightTreeGrowth.tightSimilarity, better.1 > ownFit {
                 clusters[better.0].insights += moving
                 for insight in moving { insightClusterAssignments[insight.id] = clusters[better.0].id }
@@ -282,6 +283,10 @@ actor SemanticTreeWorker {
     private var previousInput: SemanticTreeComputation?
     private var previousMembers: [InsightModel] = []
     private var previousResult: SemanticTreeResult?
+
+    func grow(_ nodes: [InsightTreeGrowth.Node], affinity: [Set<UUID>: Double], relayout: Bool) -> InsightTreeGrowth.Result {
+        PerformanceTrace.measure("Tree Growth") { InsightTreeGrowth.grow(nodes, affinity: affinity, relayout: relayout) }
+    }
 
     func relax(_ nodes: [NodeModel], edges: [EdgeModel], using relaxation: SemanticOverlapRelaxation) -> (nodes: [NodeModel], untangledIDs: Set<UUID>) {
         PerformanceTrace.measure("Graph Overlap Relaxation") { relaxation.solve(nodes: nodes, edges: edges) }

@@ -30,6 +30,47 @@ struct PersistenceDeferredWriteTests {
         #expect(SerializedPersonalStore().load([String].self, key: "deferred-test", store: store) == ["Virtue"])
     }
 
+    @Test("A successful newer save supersedes an older deferred save")
+    func newerSaveWinsAfterRetry() async throws {
+        let base = FileManager.default.temporaryDirectory.appending(path: "AngroveDeferred-\(UUID())")
+        let suite = "AngroveDeferredWriteTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer {
+            try? FileManager.default.removeItem(at: base)
+            defaults.removePersistentDomain(forName: suite)
+        }
+        let files = LockableFileManager()
+        let store = InsightTreeLocalStateFileStore(rootDirectory: base, defaults: defaults, fileManager: files)
+        let persistence = SerializedPersonalStore()
+        files.isLocked = true
+        persistence.save(["Old"], key: "ordering", store: store)
+        await persistence.flush()
+        files.isLocked = false
+        persistence.save(["New"], key: "ordering", store: store)
+        await persistence.flush()
+        persistence.retryDeferredWrites()
+        await persistence.flush()
+        #expect(persistence.load([String].self, key: "ordering", store: store) == ["New"])
+        #expect(store.load([String].self, key: "ordering") == ["New"])
+    }
+
+    @Test("Preference edits are immediately readable and durable in their existing format")
+    func preferenceOrdering() async throws {
+        let suite = "AngroveDeferredWriteTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        let preferences = PrivatePreferences(defaults: defaults)
+        let persistence = SerializedPersonalStore()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        for value in 0..<100 {
+            persistence.savePreference(["value": value], key: "aquinas.test.preference", preferences: preferences)
+        }
+        #expect(persistence.loadPreference([String: Int].self, key: "aquinas.test.preference", preferences: preferences) == ["value": 99])
+        await persistence.flush()
+        #expect(preferences.decoded([String: Int].self, forKey: "aquinas.test.preference") == ["value": 99])
+        persistence.invalidate()
+        #expect(persistence.loadPreference([String: Int].self, key: "aquinas.test.preference", preferences: preferences) == ["value": 99])
+    }
+
     @Test("Completed-answer notifications carry a short plain-text preview")
     @MainActor
     func notificationPreview() {

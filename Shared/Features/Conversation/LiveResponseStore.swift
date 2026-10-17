@@ -66,6 +66,8 @@ final class LiveResponseStore {
 
     func clear(_ key: Key) {
         entries.removeValue(forKey: key)
+        let prefix = "\(key.branchID)-\(key.responseIndex)-"
+        revealedSourceKeys = revealedSourceKeys.filter { !$0.hasPrefix(prefix) }
     }
 
     func markSourceRevealed(_ sourceKey: String) {

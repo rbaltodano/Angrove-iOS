@@ -106,6 +106,8 @@ nonisolated struct ResponsePresentationMetadata: Codable, Equatable {
     /// A small provenance disclosure for ordinary no-source answers. Optional so saved
     /// conversations written before this existed continue to decode.
     var evidenceBasis: ResponseEvidenceBasis? = nil
+    /// Missing on historical responses, which predate explicit model failure outcomes.
+    var outcome: ModelResponseOutcome? = nil
 }
 
 /// A saved top-level conversation canvas. This is in-memory prototype persistence.

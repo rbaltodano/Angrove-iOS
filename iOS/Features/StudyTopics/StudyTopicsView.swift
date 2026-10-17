@@ -384,22 +384,15 @@ struct StudyTopicsView: View {
             guard let topic = selectedTopic else { return }
             switch result {
             case .success(let urls):
-                var added: [UploadedFile] = []
-                for url in urls {
-                    let hasAccess = url.startAccessingSecurityScopedResource()
-                    defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
-                    let data = try? Data(contentsOf: url)
-                    let imageData = data.flatMap { UploadedFile.isImageData($0) ? $0 : nil }
-                    added.append(UploadedFile(
-                        name: url.lastPathComponent,
-                        imageData: imageData,
-                        rotationDegrees: Double.random(in: -5...5)
-                    ))
+                Task {
+                    let added = await AttachmentImport.read(urls)
+                    guard !Task.isCancelled,
+                          let current = topics.first(where: { $0.id == topic.id }) else { return }
+                    var updated = current
+                    updated.files.append(contentsOf: added)
+                    markTopicAsTouched(topic.id)
+                    updateTopic(updated)
                 }
-                var updated = topic
-                updated.files.append(contentsOf: added)
-                markTopicAsTouched(topic.id)
-                updateTopic(updated)
             case .failure(let error):
                 print("Failed to select file: \(error.localizedDescription)")
             }

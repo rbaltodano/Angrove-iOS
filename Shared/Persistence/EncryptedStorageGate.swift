@@ -1,37 +1,56 @@
 import Combine
 import SwiftUI
+#if os(iOS)
 import UIKit
+#else
+import AppKit
+#endif
 
 /// Personal data migration and key validation finish before any feature reads or writes data.
 struct EncryptedStorageGate<Content: View>: View {
     @State private var ready = false
     @State private var failure: Error?
     @State private var isConfirmingFreshStart = false
+    var skipsPreparation = false
     let content: () -> Content
 
     var body: some View {
         ZStack {
             if let failure {
                 failureView(failure)
-            } else if ready {
+            } else if ready || skipsPreparation {
                 content()
             } else {
                 ProgressView("Protecting your saved data…")
             }
         }
-        .task { if !ready { await prepare() } }
+        .task { if !ready && !skipsPreparation { await prepare() } }
         .onReceive(NotificationCenter.default.publisher(for: PersonalDataProtection.failureNotification).receive(on: RunLoop.main)) { notification in
             failure = notification.object as? Error ?? LocalDataEncryptionError.keychain(errSecInteractionNotAllowed)
             ready = false
         }
+        #if os(iOS)
         // A locked phone makes the key temporarily unavailable. Retry once it unlocks rather than
         // waiting for a tap; integrity failures still need the person's decision.
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.protectedDataDidBecomeAvailableNotification)) { _ in
-            BackgroundPersistenceFlush.retryDeferredWrites()
+            retryDeferredWrites()
             if let failure, !PersonalDataProtection.isIntegrityFailure(failure) {
                 Task { await prepare() }
             }
         }
+        #else
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            retryDeferredWrites()
+            if let failure, !PersonalDataProtection.isIntegrityFailure(failure) {
+                Task { await prepare() }
+            }
+        }
+        #endif
+    }
+
+    private func retryDeferredWrites() {
+        SerializedPersonalStore.shared.retryDeferredWrites()
+        InquiryPersistenceStore.retryDeferredSave()
     }
 
     private func failureView(_ error: Error) -> some View {
@@ -53,7 +72,7 @@ struct EncryptedStorageGate<Content: View>: View {
             Button("Set Aside and Start Fresh", role: .destructive) { Task { await startFresh(after: error) } }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Angrove will move the data it can’t open into a separate folder on this iPhone and start with empty conversations and Insights. Nothing is deleted, but Angrove can only read that data again if its original key returns.")
+            Text("Angrove will move the data it can’t open into a separate folder on this device and start with empty conversations and Insights. Nothing is deleted, but Angrove can only read that data again if its original key returns.")
         }
     }
 
@@ -82,6 +101,7 @@ struct EncryptedStorageGate<Content: View>: View {
             failure = error
             return
         }
+        StudyTopicStore.clearCache()
         await prepare()
     }
 }

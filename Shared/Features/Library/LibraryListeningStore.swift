@@ -93,13 +93,10 @@ final class LibraryListeningStore {
 
     init(preferences: PrivatePreferences = .standard) {
         self.preferences = preferences
-        do {
-            if let data = try preferences.read(Self.storageKey) as? Data {
-                let snapshot = try JSONDecoder().decode(Snapshot.self, from: data)
-                bookmarks = snapshot.bookmarks
-                mostRecentWorkID = snapshot.mostRecentWorkID
-            }
-        } catch { PersonalDataProtection.report(error) }
+        if let snapshot = SerializedPersonalStore.shared.loadPreference(Snapshot.self, key: Self.storageKey, preferences: preferences) {
+            bookmarks = snapshot.bookmarks
+            mostRecentWorkID = snapshot.mostRecentWorkID
+        }
     }
 
     func bookmark(for workID: String) -> LibraryListeningBookmark? { bookmarks[workID] }
@@ -108,15 +105,14 @@ final class LibraryListeningStore {
         bookmarks[workID] = LibraryListeningBookmark(workID: workID, title: title,
             wordIndex: max(0, wordIndex), progress: min(1, max(0, progress)))
         mostRecentWorkID = workID
-        do {
-            let snapshot = Snapshot(bookmarks: bookmarks, mostRecentWorkID: mostRecentWorkID)
-            try preferences.write(try JSONEncoder().encode(snapshot), key: Self.storageKey)
-        } catch { PersonalDataProtection.report(error, duringWrite: true) }
+        let snapshot = Snapshot(bookmarks: bookmarks, mostRecentWorkID: mostRecentWorkID)
+        SerializedPersonalStore.shared.savePreference(snapshot, key: Self.storageKey, preferences: preferences)
     }
 
     func clear() {
         bookmarks.removeAll()
         mostRecentWorkID = nil
-        preferences.removeObject(forKey: Self.storageKey)
+        SerializedPersonalStore.shared.savePreference(Snapshot(bookmarks: [:], mostRecentWorkID: nil),
+            key: Self.storageKey, preferences: preferences)
     }
 }

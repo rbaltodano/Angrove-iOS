@@ -12,8 +12,13 @@ nonisolated final class SerializedPersonalStore: @unchecked Sendable {
     private var revisions: [String: UUID] = [:]
     private var pending: [String: UUID] = [:]
     private var preferenceValues: [String: String] = [:]
+    private var preferenceStores: [ObjectIdentifier: UserDefaults] = [:]
     /// Writes refused while the phone was locked. The cache keeps their values; unlocking retries.
     private var deferredWrites: [String: () -> Void] = [:]
+    // Confined to queue. Unlock/foreground retries remain immediate; disk-space and other
+    // transient failures also retry without requiring a protected-data notification.
+    private var retryTask: DispatchWorkItem?
+    private var retryDelay: TimeInterval = 1
 
     private func cacheKey(_ key: String, store: InsightTreeLocalStateFileStore) -> String {
         "\(store.rootDirectory.path):\(ObjectIdentifier(store.defaults)):\(key)"
@@ -26,7 +31,7 @@ nonisolated final class SerializedPersonalStore: @unchecked Sendable {
         let url = store.url(for: key)
         let generation = lock.withLock { (epoch, revisions[id]) }
         if let data = lock.withLock({ warmedFiles[url.path] }),
-           let value = try? JSONDecoder().decode(type, from: data) {
+           let value = try? store.attachmentStore.decoder().decode(type, from: data) {
             return lock.withLock {
                 if epoch != generation.0 || revisions[id] != generation.1 { return values[id] as? Value }
                 values[id] = value
@@ -43,11 +48,12 @@ nonisolated final class SerializedPersonalStore: @unchecked Sendable {
         }
     }
 
-    func save<Value: Codable>(_ value: Value, key: String, store: InsightTreeLocalStateFileStore) {
+    func save<Value: Codable>(_ value: Value, key: String, store: InsightTreeLocalStateFileStore, retrying revision: UUID? = nil) {
         let id = cacheKey(key, store: store)
         let path = store.url(for: key).path
         enqueueWrite(
             id: id,
+            replacingRevision: revision,
             publish: { [self] in values[id] = value },
             write: { [self] in
                 try PerformanceTrace.measure("Tree State Save") { try store.save(value, key: key) }
@@ -57,7 +63,7 @@ nonisolated final class SerializedPersonalStore: @unchecked Sendable {
                 if isNewest { values.removeValue(forKey: id) }
                 warmedFiles.removeValue(forKey: path)
             },
-            retry: { [self] in save(value, key: key, store: store) }
+            retry: { [self] marker in save(value, key: key, store: store, retrying: marker) }
         )
     }
 
@@ -69,19 +75,30 @@ nonisolated final class SerializedPersonalStore: @unchecked Sendable {
     /// `retryDeferredWrites()`. An integrity failure closes storage.
     private func enqueueWrite(
         id: String,
+        replacingRevision: UUID?,
         publish: @escaping () -> Void,
         write: @escaping () throws -> Void,
         discardUnreadable: @escaping (_ isNewest: Bool) -> Void,
-        retry: @escaping () -> Void
+        retry: @escaping (UUID) -> Void
     ) {
         let marker = UUID()
-        lock.withLock { publish(); pending[id] = marker; revisions[id] = marker }
+        let accepted = lock.withLock {
+            // A retry extracted before a newer save or reset must never publish its old value.
+            if let replacingRevision, revisions[id] != replacingRevision { return false }
+            publish()
+            pending[id] = marker
+            revisions[id] = marker
+            deferredWrites.removeValue(forKey: id)
+            return true
+        }
+        guard accepted else { return }
         queue.async { [self] in
             guard lock.withLock({ pending[id] == marker }) else { return }
             do {
                 try write()
             } catch where !PersonalDataProtection.isIntegrityFailure(error) {
-                lock.withLock { if revisions[id] == marker { deferredWrites[id] = retry } }
+                lock.withLock { if revisions[id] == marker { deferredWrites[id] = { retry(marker) } } }
+                scheduleRetry()
                 PersonalDataProtection.report(error, duringWrite: true)
             } catch {
                 lock.withLock { discardUnreadable(revisions[id] == marker) }
@@ -101,6 +118,51 @@ nonisolated final class SerializedPersonalStore: @unchecked Sendable {
         retries.forEach { $0() }
     }
 
+    private func scheduleRetry() {
+        guard retryTask == nil else { return }
+        let task = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            retryTask = nil
+            if lock.withLock({ self.deferredWrites.isEmpty }) { retryDelay = 1; return }
+            retryDeferredWrites()
+        }
+        retryTask = task
+        queue.asyncAfter(deadline: .now() + retryDelay, execute: task)
+        retryDelay = min(retryDelay * 2, 60)
+    }
+
+    /// Preferences retain their existing encrypted representation while serialization and
+    /// cryptography run on the same ordered worker as other personal saves.
+    func loadPreference<Value: Codable>(_ type: Value.Type, key: String, preferences: PrivatePreferences = .standard) -> Value? {
+        guard !PersonalDataProtection.isBlocked else { return nil }
+        let id = "codable-preference:\(ObjectIdentifier(preferences.defaults)):\(key)"
+        lock.withLock { preferenceStores[ObjectIdentifier(preferences.defaults)] = preferences.defaults }
+        if let cached = lock.withLock({ values[id] as? Value }) { return cached }
+        let generation = lock.withLock { (epoch, revisions[id]) }
+        let loaded: Value? = queue.sync {
+            do {
+                guard let data = try preferences.read(key) as? Data else { return nil }
+                return try preferences.decoder(for: key).decode(type, from: data)
+            } catch { PersonalDataProtection.report(error); return nil }
+        }
+        return lock.withLock {
+            guard epoch == generation.0, revisions[id] == generation.1 else { return values[id] as? Value }
+            if let loaded { values[id] = loaded }
+            return loaded
+        }
+    }
+
+    func savePreference<Value: Codable>(_ value: Value, key: String, preferences: PrivatePreferences = .standard, retrying revision: UUID? = nil) {
+        guard !PersonalDataProtection.isBlocked else { return }
+        let id = "codable-preference:\(ObjectIdentifier(preferences.defaults)):\(key)"
+        lock.withLock { preferenceStores[ObjectIdentifier(preferences.defaults)] = preferences.defaults }
+        enqueueWrite(id: id, replacingRevision: revision,
+            publish: { [self] in values[id] = value },
+            write: { try preferences.writeEncoded(value, key: key) },
+            discardUnreadable: { [self] isNewest in if isNewest { values.removeValue(forKey: id) } },
+            retry: { [self] marker in savePreference(value, key: key, preferences: preferences, retrying: marker) })
+    }
+
     func loadSeeds(store: LocalInsightTreeSeedFileStore) -> [String: [LocalInsightTreeSeed]] {
         guard !PersonalDataProtection.isBlocked else { return [:] }
         let id = seedsCacheKey(store)
@@ -116,14 +178,15 @@ nonisolated final class SerializedPersonalStore: @unchecked Sendable {
         }
     }
 
-    func saveSeeds(_ seeds: [String: [LocalInsightTreeSeed]], store: LocalInsightTreeSeedFileStore) {
+    func saveSeeds(_ seeds: [String: [LocalInsightTreeSeed]], store: LocalInsightTreeSeedFileStore, retrying revision: UUID? = nil) {
         let id = seedsCacheKey(store)
         enqueueWrite(
             id: id,
+            replacingRevision: revision,
             publish: { [self] in values[id] = seeds },
             write: { try PerformanceTrace.measure("Conversation Seed Save") { try store.save(seeds) } },
             discardUnreadable: { [self] isNewest in if isNewest { values.removeValue(forKey: id) } },
-            retry: { [self] in saveSeeds(seeds, store: store) }
+            retry: { [self] marker in saveSeeds(seeds, store: store, retrying: marker) }
         )
     }
 
@@ -158,22 +221,27 @@ nonisolated final class SerializedPersonalStore: @unchecked Sendable {
         return PrivatePreferences.standard.string(forKey: key) ?? defaultValue
     }
 
-    func setString(_ value: String, for key: String) {
+    func setString(_ value: String, for key: String, retrying revision: UUID? = nil) {
         enqueueWrite(
             id: "preference:\(key)",
+            replacingRevision: revision,
             publish: { [self] in preferenceValues[key] = value },
             write: {
-                guard !PersonalDataProtection.isBlocked else { return }
                 try PrivatePreferences.standard.write(value, key: key)
             },
             discardUnreadable: { _ in },
-            retry: { [self] in setString(value, for: key) }
+            retry: { [self] marker in setString(value, for: key, retrying: marker) }
         )
     }
 
     /// A barrier used before reset/recovery so previous writes cannot recreate removed stores.
     func invalidate() {
-        queue.sync { lock.withLock { epoch &+= 1; values.removeAll(); warmedFiles.removeAll(); preferenceValues.removeAll(); pending.removeAll(); revisions.removeAll(); deferredWrites.removeAll() } }
+        queue.sync {
+            retryTask?.cancel()
+            retryTask = nil
+            retryDelay = 1
+            lock.withLock { epoch &+= 1; values.removeAll(); warmedFiles.removeAll(); preferenceValues.removeAll(); preferenceStores.removeAll(); pending.removeAll(); revisions.removeAll(); deferredWrites.removeAll() }
+        }
     }
 
     func flush() async {

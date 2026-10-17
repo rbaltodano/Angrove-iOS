@@ -361,6 +361,8 @@ struct LiteRTAngroveModel: AngroveModel {
         thinkingEnabled: Bool,
         onUpdate: @escaping (ModelResponseUpdate) -> Void
     ) async -> ModelResponse {
+        if runtime.supportsVision { await ModelImagePreparation.shared.prepare(context) }
+        guard !Task.isCancelled else { return ModelResponse(text: "", outcome: .cancelled) }
         guard let request = Self.conversationRequest(from: context, routing: followUpRouting) else {
             return ModelResponse(text: "")
         }
@@ -613,13 +615,14 @@ struct LiteRTAngroveModel: AngroveModel {
             )
         } catch {
             guard !Task.isCancelled else {
-                return ModelResponse(text: "")
+                return ModelResponse(text: "", outcome: .cancelled)
             }
 #if DEBUG
             Self.debugLastResponseError = String(describing: error)
 #endif
             let response = ModelResponse(
-                text: "The on-device Angrove model couldn't complete that response. Please try again."
+                text: "The on-device Angrove model couldn't complete that response. Please try again.",
+                outcome: .failed
             )
             onUpdate(.generationStarted)
             onUpdate(.responseText(response.text))
@@ -685,7 +688,9 @@ struct LiteRTAngroveModel: AngroveModel {
         _ term: String,
         in context: ConversationContext
     ) async throws -> ConceptDefinition {
-        try await Self.reportingCancellation {
+        if runtime.supportsVision { await ModelImagePreparation.shared.prepare(context) }
+        try Task.checkCancellation()
+        return try await Self.reportingCancellation {
             try await generateDefinition(
                 term,
                 context: context,
@@ -752,6 +757,8 @@ struct LiteRTAngroveModel: AngroveModel {
     }
 
     func summarize(_ context: ConversationContext) async throws -> String {
+        if runtime.supportsVision { await ModelImagePreparation.shared.prepare(context) }
+        try Task.checkCancellation()
         let material = Self.plainTranscript(context.transcript)
         guard !material.isEmpty else { throw AngroveModelActionError.invalidRequest }
         let prompt = """
@@ -2131,10 +2138,11 @@ private extension LiteRTAngroveModel {
                 contents.append(.text(prompt))
             }
             if supportsVision {
-                contents.append(contentsOf: images.compactMap {
-                    $0.imageData.map { data in
+                contents.append(contentsOf: images.compactMap { file in
+                    file.imageData.map { data in
                         // Malformed input still reaches LiteRT's explicit error path.
-                        Content.imageData(UploadedFile.normalizedModelImageData(data) ?? data)
+                        Content.imageData(ModelImagePreparation.shared.cachedImage(for: file)
+                            ?? UploadedFile.normalizedModelImageData(data) ?? data)
                     }
                 })
             }

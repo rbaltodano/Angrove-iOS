@@ -13,6 +13,7 @@ nonisolated struct InsightTreeLocalStateFileStore: @unchecked Sendable {
     let rootDirectory: URL
     let defaults: UserDefaults
     let fileManager: FileManager
+    var attachmentStore: EncryptedAttachmentStore { .scoped(to: rootDirectory) }
 
     init(
         rootDirectory: URL,
@@ -29,7 +30,7 @@ nonisolated struct InsightTreeLocalStateFileStore: @unchecked Sendable {
         if fileManager.fileExists(atPath: fileURL.path) {
             do {
                 let data = try EncryptedPersonalFile.read(fileURL)
-                return try Self.decoder.decode(type, from: data)
+                return try attachmentStore.decoder().decode(type, from: data)
             } catch {
                 // A damaged current file must not fall through to an older value or be treated
                 // as an empty collection. Keep the bytes in place for recovery.
@@ -37,7 +38,7 @@ nonisolated struct InsightTreeLocalStateFileStore: @unchecked Sendable {
                 return nil
             }
         }
-        guard let data = PrivatePreferences(defaults: defaults).data(forKey: key) else {
+        guard let data = PrivatePreferences(defaults: defaults, cipher: EncryptedPersonalFile.cipher).data(forKey: key) else {
             return nil
         }
         guard let value = try? JSONDecoder().decode(type, from: data) else {
@@ -46,7 +47,7 @@ nonisolated struct InsightTreeLocalStateFileStore: @unchecked Sendable {
         }
         do {
             try save(value, key: key)
-            PrivatePreferences(defaults: defaults).removeObject(forKey: key)
+            PrivatePreferences(defaults: defaults, cipher: EncryptedPersonalFile.cipher).removeObject(forKey: key)
         } catch {
             // Retain the legacy copy until the protected file write succeeds.
         }
@@ -54,43 +55,43 @@ nonisolated struct InsightTreeLocalStateFileStore: @unchecked Sendable {
     }
 
     func save<Value: Codable>(_ value: Value, key: String) throws {
-        let fileURL = url(for: key)
-        if let legacy = PrivatePreferences(defaults: defaults).data(forKey: key),
-           !fileManager.fileExists(atPath: fileURL.path),
-           (try? JSONDecoder().decode(Value.self, from: legacy)) == nil {
-            // Do not turn an undecodable legacy tree into a new, empty file. Keep the original
-            // preference available for a future recovery or migration.
-            PersonalDataProtection.report(LocalDataEncryptionError.invalidEnvelope, duringWrite: true)
-            throw LocalDataEncryptionError.invalidEnvelope
-        }
-        // Opened once: validates the envelope and key, the payload's schema, and whether the
-        // replacement would change anything.
-        var existing: Data?
-        if fileManager.fileExists(atPath: fileURL.path) {
-            // EncryptedPersonalFile validates the envelope, but the payload may still be
-            // undecodable after a schema change or partial migration. Never replace it blindly.
-            let current = try EncryptedPersonalFile.read(fileURL)
-            guard (try? Self.decoder.decode(Value.self, from: current)) != nil else {
+        try attachmentStore.transaction {
+            let fileURL = url(for: key)
+            let legacyValue = PrivatePreferences(defaults: defaults, cipher: EncryptedPersonalFile.cipher).data(forKey: key)
+            if let legacy = legacyValue,
+               !fileManager.fileExists(atPath: fileURL.path),
+               (try? JSONDecoder().decode(Value.self, from: legacy)) == nil {
+                // Do not turn an undecodable legacy tree into a new, empty file. Keep the original
+                // preference available for a future recovery or migration.
                 PersonalDataProtection.report(LocalDataEncryptionError.invalidEnvelope, duringWrite: true)
                 throw LocalDataEncryptionError.invalidEnvelope
             }
-            existing = current
+            // Opened once: validates the envelope and key, the payload's schema, and whether the
+            // replacement would change anything.
+            var existing: Data?
+            if fileManager.fileExists(atPath: fileURL.path) {
+                // EncryptedPersonalFile validates the envelope, but the payload may still be
+                // undecodable after a schema change or partial migration. Never replace it blindly.
+                let current = try EncryptedPersonalFile.read(fileURL)
+                do { try attachmentStore.validate(Value.self, json: current) }
+                catch {
+                    PersonalDataProtection.report(LocalDataEncryptionError.invalidEnvelope, duringWrite: true)
+                    throw LocalDataEncryptionError.invalidEnvelope
+                }
+                existing = current
+            }
+            try fileManager.createDirectory(
+                at: rootDirectory,
+                withIntermediateDirectories: true
+            )
+            let data = try attachmentStore.encoder().encode(value)
+            guard data != existing else { return }
+            if let existing { try attachmentStore.preserveOriginal(at: fileURL, plaintext: existing) }
+            else if let legacyValue { try attachmentStore.preserveLegacyValue(legacyValue, destination: fileURL) }
+            try EncryptedPersonalFile.write(data, to: fileURL, existingVerified: existing != nil)
+            attachmentStore.prune(ownerDirectory: rootDirectory)
         }
-        try fileManager.createDirectory(
-            at: rootDirectory,
-            withIntermediateDirectories: true
-        )
-        let data = try Self.encoder.encode(value)
-        guard data != existing else { return }
-        try EncryptedPersonalFile.write(data, to: fileURL, existingVerified: existing != nil)
     }
-
-    private static let decoder = JSONDecoder()
-    private static let encoder: JSONEncoder = {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        return encoder
-    }()
 
     func url(for key: String) -> URL {
         let digest = SHA256.hash(data: Data(key.utf8))

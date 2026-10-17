@@ -24,7 +24,7 @@ struct LibraryListeningStoreTests {
     }
 
     @Test("Bookmarks and the most recent work survive reload in encrypted storage")
-    func encryptedRoundTrip() throws {
+    func encryptedRoundTrip() async throws {
         let suite = "LibraryListeningTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -39,6 +39,7 @@ struct LibraryListeningStoreTests {
         #expect(reloaded.bookmark(for: "first") == store.bookmark(for: "first"))
         #expect(reloaded.bookmark(for: "first")?.readerChunkIndex == 7)
         #expect(reloaded.bookmark(for: "second")?.wordIndex == 100_003)
+        await SerializedPersonalStore.shared.flush()
         let bytes = try #require(defaults.data(forKey: LibraryListeningStore.storageKey))
         #expect(LocalDataCipher.isEncrypted(bytes))
         #expect(!String(decoding: bytes, as: UTF8.self).contains("Private reading"))

@@ -12,8 +12,12 @@ nonisolated enum BonsaiModelFlag {
     static let modelByteCount: Int64 = 2_416_851_840
 
     static var isEnabled: Bool {
+        #if DEBUG
         ProcessInfo.processInfo.arguments.contains(launchArgument)
             || UserDefaults.standard.bool(forKey: defaultsKey)
+        #else
+        false
+        #endif
     }
 
     /// The installed model, when its size matches the published file.

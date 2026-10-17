@@ -10,7 +10,7 @@ enum HomeQuestionOfTheDayStore {
     private static let key = "aquinas.home.questionOfTheDay.v1"
 
     static func load() -> HomeQuestionOfTheDay? {
-        guard let question = PrivatePreferences.standard.decoded(HomeQuestionOfTheDay.self, forKey: key) else {
+        guard let question = SerializedPersonalStore.shared.loadPreference(HomeQuestionOfTheDay.self, key: key) else {
             return nil
         }
         publishToWidget(question)
@@ -39,8 +39,7 @@ enum HomeQuestionOfTheDayStore {
     }
 
     static func save(_ question: HomeQuestionOfTheDay) {
-        guard let data = try? JSONEncoder().encode(question) else { return }
-        PrivatePreferences.standard.set(data, forKey: key)
+        SerializedPersonalStore.shared.savePreference(question, key: key)
         publishToWidget(question)
     }
 

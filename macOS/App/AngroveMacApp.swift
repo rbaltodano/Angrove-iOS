@@ -5,6 +5,7 @@ import SwiftUI
 
 @main
 struct AngroveMacApp: App {
+    @NSApplicationDelegateAdaptor(MacPersistenceLifecycle.self) private var persistenceLifecycle
     private static let isHostingUnitTests: Bool = {
         let environment = ProcessInfo.processInfo.environment
         return environment["XCTestConfigurationFilePath"] != nil
@@ -33,7 +34,9 @@ struct AngroveMacApp: App {
                 // Match the iPhone test host: unit tests must not open personal stores.
                 Color.clear
             } else {
-                MacAppLockHost { BootPresentation(isReady: true) { MacWorkspaceView(support: .current) } }
+                EncryptedStorageGate(skipsPreparation: MacDesignPreview.isEnabled) {
+                    MacAppLockHost { BootPresentation(isReady: true) { MacWorkspaceView(support: .current) } }
+                }
                     .ignoresSafeArea(.container, edges: .top)
                     .background(MacWindowChrome())
                     .preferredColorScheme(MacDesignPreview.colorScheme ?? MacSettingsAppearance.scheme(appearance))

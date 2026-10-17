@@ -79,13 +79,11 @@ struct MacAttachmentPickers: ViewModifier {
         content
             .fileImporter(isPresented: $showsFiles, allowedContentTypes: [.image], allowsMultipleSelection: true) { result in
                 guard case .success(let urls) = result else { return }
-                let files = urls.compactMap { url -> UploadedFile? in
-                    let hasAccess = url.startAccessingSecurityScopedResource()
-                    defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
-                    guard let data = try? Data(contentsOf: url), UploadedFile.isImageData(data) else { return nil }
-                    return UploadedFile(name: url.lastPathComponent, imageData: data, rotationDegrees: .random(in: -5...5))
+                Task {
+                    let files = await AttachmentImport.read(urls, keepsUnsupportedFiles: false)
+                    guard !Task.isCancelled, !files.isEmpty else { return }
+                    onAttach(files)
                 }
-                if !files.isEmpty { onAttach(files) }
             }
             .photosPicker(isPresented: $showsPhotos, selection: $photoItems, maxSelectionCount: 8, matching: .images)
             .onChange(of: photoItems) { _, items in

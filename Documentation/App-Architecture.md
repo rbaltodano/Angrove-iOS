@@ -260,3 +260,38 @@ existing widget picks up navigation changes after an app update. The widget deli
 latest question after answering or expiration; the Home card keeps its existing lifecycle.
 The extension does not load the model or generate questions. Both targets require the same
 App Group in their signing profiles.
+
+
+## Audit follow-up — October 17, 2026
+
+Conversation decoding and encrypted startup validation/recovery now live in Shared and run for
+both native apps. Mac design previews and test hosts bypass live personal stores. Shared
+`ResponsePresentationMetadata.outcome` is an optional `completed` / `failed` / `cancelled` string;
+missing historical values retain completed-response behavior. Live model failures keep their
+explicit outcome and do not publish a successful queue notification or seed/title analysis.
+Mac normal Quit first publishes final Board state, cancels model jobs, then drains both protected
+persistence queues before replying to AppKit's termination request.
+
+Topic, listening, glossed-term, flagged-quote and daily-question writes keep their existing
+preference keys and encrypted encoding, but use the ordered worker with immediate cached reads.
+Transient disk/key failures retry with bounded backoff; superseded retries cannot publish stale
+values. Native request cancellation releases the Swift waiter, while unfinished native calls
+remain tracked and prohibit overlapping native sessions/engines. All native load paths use the
+load watchdog, and late cancelled loads/conversation creations cannot publish runtime state.
+
+The dot field fades between 60% and 40% canvas zoom and removes its renderer at/below 40%.
+Graph parent growth uses a quadratic frontier and runs on the graph worker in live trees;
+revision checks precede publication. Attachment originals retain their bytes and identity; the
+subsequent approved migration uses the reference-based layout described below.
+
+## Attachment persistence — October 17 follow-up
+
+`UploadedFile` now has an owner-scoped local Codable representation referencing immutable
+encrypted blobs; its ordinary Codable representation stays portable and inline.
+`AttachmentMigration` runs behind encrypted startup validation before feature preload.
+`InquirySnapshotFileStore`, `InsightTreeLocalStateFileStore` (including Mac Boards), and the
+Topic preference codec supply their owning store explicitly. Shared snapshot copies retain an
+immutable image payload so its digest is computed once. See
+[Attachment storage migration](Attachment-Storage-Migration.md) for the storage, interruption,
+export/import and conservative cleanup contracts. This supersedes the earlier checkpoint's
+statement that attachment saved-data layout was unchanged.

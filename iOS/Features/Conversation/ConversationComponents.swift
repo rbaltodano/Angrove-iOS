@@ -679,6 +679,7 @@ struct ChatThreadColumn: View {
                     streamingResponseIndices.insert(responseIndex)
                 }
             }
+            if response.outcome == .failed { modelTasks.reportCurrentFailure() }
             let elapsed = submittedAt.duration(to: ContinuousClock.now).components
             let thinkingDurationSeconds = Double(elapsed.seconds)
                 + Double(elapsed.attoseconds) / 1e18
@@ -719,7 +720,8 @@ struct ChatThreadColumn: View {
                             thinkingSummary: summary,
                             thinkingDurationSeconds: thinkingDurationSeconds,
                             groundingSources: sources,
-                            evidenceBasis: response.evidenceBasis
+                            evidenceBasis: response.evidenceBasis,
+                            outcome: response.outcome
                         )
                     )
                     onDetachedResponseGenerated(conversationID, originalBranchID, responseIndex)
@@ -740,7 +742,8 @@ struct ChatThreadColumn: View {
                 thinkingSummary: persistedThinkingSummary,
                 thinkingDurationSeconds: thinkingDurationSeconds,
                 groundingSources: persistedGroundingSources,
-                evidenceBasis: response.evidenceBasis
+                evidenceBasis: response.evidenceBasis,
+                outcome: response.outcome
             )
             branchData.setResponsePresentation(completedPresentation)
             withAnimation(.springRelaxed) {

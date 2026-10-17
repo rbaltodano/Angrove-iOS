@@ -35,14 +35,20 @@ def verify(path: Path, expected_size: int, expected_sha: str) -> None:
         raise ValueError('Model digest differs from the pinned release artifact')
 
 
-def staged_manifest(manifest_path: Path, manifest: dict, source: Path) -> Path:
+def staged_manifest(manifest_path: Path, manifest: dict, source: Path, expected_size: int, expected_sha: str) -> Path:
     """A copy of the manifest whose source root holds an APFS clone of `source` (no extra space)."""
     stage = ROOT / 'build/asset-pack-sources' / manifest['assetPackID']
     relative = manifest['fileSelectors'][0]['fileSource']
     target = stage / relative
     target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        try:
+            verify(target, expected_size, expected_sha)
+        except ValueError:
+            target.unlink()
     if not target.exists():
         subprocess.run(['cp', '-c', str(source), str(target)], check=True)
+    verify(target, expected_size, expected_sha)
     staged = dict(manifest, sourceRoot='.')
     path = stage / manifest_path.name
     path.write_text(json.dumps(staged, indent=2) + '\n')
@@ -68,7 +74,7 @@ def main() -> None:
     manifest = json.loads(manifest_path.read_text())
     source = args.source.resolve() if args.source else ROOT / manifest['fileSelectors'][0]['fileSource']
     verify(source, expected_size, expected_sha)
-    MANIFEST = staged_manifest(manifest_path, manifest, source) if args.source else manifest_path
+    MANIFEST = staged_manifest(manifest_path, manifest, source, expected_size, expected_sha) if args.source else manifest_path
     subprocess.run(['xcrun', 'ba-package', 'evaluate', str(MANIFEST)], cwd=ROOT, check=True)
     print(f'Pinned model size/hash and {manifest_path.name} verified.')
     if args.output:

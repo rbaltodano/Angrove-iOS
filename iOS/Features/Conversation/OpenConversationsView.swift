@@ -127,7 +127,7 @@ struct OpenConversationsView: View {
                     }
                     .padding(.top, 16)
 
-                    VStack(alignment: .leading, spacing: 16) {
+                    LazyVStack(alignment: .leading, spacing: 16) {
                         if let sections = displaySections {
                             if sections.isEmpty {
                                 OpenConversationsEmptyState(hasAnyConversations: !conversations.isEmpty)

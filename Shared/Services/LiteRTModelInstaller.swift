@@ -49,15 +49,11 @@ actor LiteRTModelInstaller {
 
         let destination = try store.postInstallDestinationURL()
         let fileManager = FileManager.default
-        let staged = destination.appendingPathExtension("installing")
-        if fileManager.fileExists(atPath: staged.path) {
-            try fileManager.removeItem(at: staged)
-        }
+        let staged = destination.appendingPathExtension("\(UUID().uuidString).installing")
+        defer { try? fileManager.removeItem(at: staged) }
         try fileManager.moveItem(at: temporaryURL, to: staged)
-        if fileManager.fileExists(atPath: destination.path) {
-            try fileManager.removeItem(at: destination)
-        }
-        try fileManager.moveItem(at: staged, to: destination)
+        try Task.checkCancellation()
+        try Self.promote(staged: staged, to: destination)
 
         let receipt = LiteRTModelVerificationReceipt(
             byteCount: store.manifest.byteCount,
@@ -69,6 +65,17 @@ actor LiteRTModelInstaller {
             options: .atomic
         )
         return destination
+    }
+
+    /// Keep the installed model intact until its verified replacement can land. Both URLs
+    /// live in the destination directory, so replacement does not cross filesystem volumes.
+    nonisolated static func promote(staged: URL, to destination: URL) throws {
+        let fileManager = FileManager.default
+        if fileManager.fileExists(atPath: destination.path) {
+            _ = try fileManager.replaceItemAt(destination, withItemAt: staged)
+        } else {
+            try fileManager.moveItem(at: staged, to: destination)
+        }
     }
 
     nonisolated static func sha256(of url: URL) throws -> String {

@@ -83,6 +83,8 @@ nonisolated struct InquirySnapshotFileStore {
     private let fileManager: FileManager
     private let now: () -> Date
 
+    var attachmentStore: EncryptedAttachmentStore { .scoped(to: rootDirectory) }
+
     private let snapshotFileName = "conversations-v1.json"
     private let backupDirectoryName = "Backups"
     private let maximumBackupCount = 5
@@ -133,7 +135,7 @@ nonisolated struct InquirySnapshotFileStore {
         if fileManager.fileExists(atPath: rootDirectory.path) {
             try fileManager.removeItem(at: rootDirectory)
         }
-        let preferences = PrivatePreferences(defaults: defaults)
+        let preferences = PrivatePreferences(defaults: defaults, cipher: EncryptedPersonalFile.cipher)
         preferences.removeObject(forKey: Self.currentLegacyKey)
         preferences.removeObject(forKey: Self.originalLegacyKey)
     }
@@ -250,8 +252,7 @@ nonisolated struct InquirySnapshotFileStore {
         let snapshot = try Self.decodeImport(data)
         try fileManager.createDirectory(at: rootDirectory, withIntermediateDirectories: true)
         try createBackup(force: true)
-        let encoded = try Self.encoder.encode(snapshot)
-        try EncryptedPersonalFile.write(encoded, to: snapshotURL)
+        try write(snapshot, createsBackup: false)
         return snapshot
     }
 
@@ -267,20 +268,26 @@ nonisolated struct InquirySnapshotFileStore {
         _ snapshot: InquiryPersistenceSnapshot,
         createsBackup: Bool
     ) throws {
-        try fileManager.createDirectory(
-            at: rootDirectory,
-            withIntermediateDirectories: true
-        )
-        if createsBackup {
-            // A missing backup must never cost the person the edit being saved.
-            do { try createBackup(force: false) } catch {
+        try attachmentStore.transaction {
+            try fileManager.createDirectory(
+                at: rootDirectory,
+                withIntermediateDirectories: true
+            )
+            if createsBackup {
+                // A missing backup must never cost the person the edit being saved.
+                do { try createBackup(force: false) } catch {
 #if DEBUG
-                print("Angrove conversation backup skipped: \(error.localizedDescription)")
+                    print("Angrove conversation backup skipped: \(error.localizedDescription)")
 #endif
+                }
             }
+            if fileManager.fileExists(atPath: snapshotURL.path) {
+                try attachmentStore.preserveOriginal(at: snapshotURL, plaintext: EncryptedPersonalFile.read(snapshotURL))
+            }
+            let data = try attachmentStore.encoder().encode(snapshot)
+            try EncryptedPersonalFile.write(data, to: snapshotURL)
+            attachmentStore.prune(ownerDirectory: rootDirectory)
         }
-        let data = try Self.encoder.encode(snapshot)
-        try EncryptedPersonalFile.write(data, to: snapshotURL)
     }
 
     private func createBackup(force: Bool) throws {
@@ -338,12 +345,18 @@ nonisolated struct InquirySnapshotFileStore {
 
     private func decodeSnapshot(at url: URL) -> InquiryPersistenceSnapshot? {
         guard let data = try? EncryptedPersonalFile.read(url) else { return nil }
-        return try? Self.decoder.decode(InquiryPersistenceSnapshot.self, from: data)
+        do { return try attachmentStore.decoder().decode(InquiryPersistenceSnapshot.self, from: data) }
+        catch {
+            if error is AttachmentStorageError || PersonalDataProtection.isIntegrityFailure(error) {
+                PersonalDataProtection.report(error)
+            }
+            return nil
+        }
     }
 
     private func migrateLegacySnapshotIfAvailable() -> InquiryPersistenceSnapshot? {
         for key in [Self.currentLegacyKey, Self.originalLegacyKey] {
-            guard let data = PrivatePreferences(defaults: defaults).data(forKey: key),
+            guard let data = PrivatePreferences(defaults: defaults, cipher: EncryptedPersonalFile.cipher).data(forKey: key),
                   let snapshot = try? Self.decoder.decode(
                     InquiryPersistenceSnapshot.self,
                     from: data
@@ -352,8 +365,8 @@ nonisolated struct InquirySnapshotFileStore {
             }
             do {
                 try write(snapshot, createsBackup: false)
-                PrivatePreferences(defaults: defaults).removeObject(forKey: Self.currentLegacyKey)
-                PrivatePreferences(defaults: defaults).removeObject(forKey: Self.originalLegacyKey)
+                PrivatePreferences(defaults: defaults, cipher: EncryptedPersonalFile.cipher).removeObject(forKey: Self.currentLegacyKey)
+                PrivatePreferences(defaults: defaults, cipher: EncryptedPersonalFile.cipher).removeObject(forKey: Self.originalLegacyKey)
             } catch {
                 // Keep the legacy copy until a verified file write succeeds.
             }
@@ -582,6 +595,8 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
     /// A locked phone makes the key unavailable. The cache already holds the newest snapshot,
     /// so keep it and write it once protected data returns instead of closing storage.
     private var needsDeferredSave = false
+    private var deferredRetryTask: DispatchWorkItem?
+    private var deferredRetryDelay: TimeInterval = 1
 
     /// Runs on `queue`.
     private func handleWriteFailure(_ error: Error) {
@@ -593,6 +608,16 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
         }
         cacheLock.withLock { needsDeferredSave = true }
         PersonalDataProtection.report(error, duringWrite: true)
+        guard deferredRetryTask == nil else { return }
+        let retry = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            deferredRetryTask = nil
+            if !cacheLock.withLock({ self.needsDeferredSave }) { deferredRetryDelay = 1; return }
+            retryDeferredSave()
+        }
+        deferredRetryTask = retry
+        queue.asyncAfter(deadline: .now() + deferredRetryDelay, execute: retry)
+        deferredRetryDelay = min(deferredRetryDelay * 2, 60)
     }
 
     func retryDeferredSave() {
@@ -702,6 +727,9 @@ nonisolated final class SerializedInquiryStore: @unchecked Sendable {
     func invalidate() {
         closePendingSave()
         queue.sync {
+            deferredRetryTask?.cancel()
+            deferredRetryTask = nil
+            deferredRetryDelay = 1
             persisted = nil
             persistedIsKnown = false
             cacheLock.withLock { cached = nil; didLoad = false; cacheRevision += 1; needsDeferredSave = false }
