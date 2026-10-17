@@ -1,17 +1,17 @@
 import Foundation
 
-struct HomeQuestionOfTheDay: Codable, Equatable, Identifiable {
-    let id: UUID
-    let question: String
-    let reasonForAsking: String
-    let citedInsight: ConceptDefinition?
-    let sourceConversationID: UUID?
-    let sourceConversationTitle: String?
-    let generatedAt: Date
-    let expiresAt: Date
-    let answeredAt: Date?
+public struct HomeQuestionOfTheDay: Codable, Equatable, Identifiable, Sendable {
+    public let id: UUID
+    public let question: String
+    public let reasonForAsking: String
+    public let citedInsight: ConceptDefinition?
+    public let sourceConversationID: UUID?
+    public let sourceConversationTitle: String?
+    public let generatedAt: Date
+    public let expiresAt: Date
+    public let answeredAt: Date?
 
-    init(
+    public init(
         id: UUID = UUID(),
         question: String,
         reasonForAsking: String = "",
@@ -33,17 +33,17 @@ struct HomeQuestionOfTheDay: Codable, Equatable, Identifiable {
         self.answeredAt = answeredAt
     }
 
-    func isPending(at date: Date = Date()) -> Bool {
+    public func isPending(at date: Date = Date()) -> Bool {
         Self.isValidQuestionText(question)
             && answeredAt == nil
             && expiresAt > date
     }
 
-    static func isValidQuestionText(_ text: String) -> Bool {
+    public static func isValidQuestionText(_ text: String) -> Bool {
         text.trimmingCharacters(in: .whitespacesAndNewlines).last == "?"
     }
 
-    func markingAnswered(at date: Date = Date()) -> HomeQuestionOfTheDay {
+    public func markingAnswered(at date: Date = Date()) -> HomeQuestionOfTheDay {
         HomeQuestionOfTheDay(
             id: id,
             question: question,
@@ -57,7 +57,7 @@ struct HomeQuestionOfTheDay: Codable, Equatable, Identifiable {
         )
     }
 
-    func nextEligibleRefreshDate(
+    public func nextEligibleRefreshDate(
         calendar: Calendar = .current
     ) -> Date {
         guard Self.isValidQuestionText(question) else {
@@ -76,18 +76,9 @@ struct HomeQuestionOfTheDay: Codable, Equatable, Identifiable {
         return max(expiresAt, nextCalendarDay)
     }
 
-    /// Home and the widget open the same answer composer, even for an older saved question.
-    var conversationRequest: NewConversationRequest {
-        NewConversationRequest(
-            question: question,
-            eyebrow: "QUESTION OF THE DAY",
-            promptContext: taggedPromptContext
-        )
-    }
-
     /// Hidden context prepended to the first conversation created from the card.
     /// The deliberately human-readable outer tag matches the product language.
-    var taggedPromptContext: String {
+    public var taggedPromptContext: String {
         var lines = [
             "<question of the day>",
             "<question>\(question.xmlEscaped)</question>"
@@ -115,7 +106,7 @@ struct HomeQuestionOfTheDay: Codable, Equatable, Identifiable {
 }
 
 extension String {
-    var xmlEscaped: String {
+    public var xmlEscaped: String {
         replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
@@ -124,7 +115,7 @@ extension String {
     }
 }
 
-func debugQuestionOfTheDayConsoleLog(_ message: String) {
+public func debugQuestionOfTheDayConsoleLog(_ message: String) {
 #if DEBUG
     guard let data = "[QuestionOfTheDay] \(message)\n".data(using: .utf8) else { return }
     try? FileHandle.standardError.write(contentsOf: data)

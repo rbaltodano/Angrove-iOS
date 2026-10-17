@@ -7,7 +7,8 @@ Aquinas-iOS-main/
   iOS/                    iPhone-only source and resources
   macOS/                  Mac-only source and resources
   Packages/AngroveCore/   Swift package linked by both apps and both widgets:
-                          encryption, App Group, widget store, model manifests
+                          encryption, App Group, widget store, model manifests,
+                          plain data models (Models/)
   Shared/                 source and resources compiled by both apps
     DesignSystem/
     Features/
@@ -46,7 +47,9 @@ Both native targets include the same Xcode synchronized `Shared` group. A common
 
 `Packages/AngroveCore` holds the lowest, platform-neutral layer: `LocalDataCipher` and
 `LocalDataKeychain`, `AngroveAppGroup`, `DailyQuestionWidgetStore` and its link, and the
-`LiteRTModelManifest` / `AngroveModelAssetPack` data types. It may not import UIKit, AppKit or
+`LiteRTModelManifest` / `AngroveModelAssetPack` data types, and (since the second step) the plain
+data models in `Models/`: `ConceptDefinition` and `InsightDefinition`, `HomeQuestionOfTheDay`,
+`DailyQuestionDraft`, `LibraryWork`, `LibraryPassage` and `stableUUID`. It may not import UIKit, AppKit or
 SwiftUI, and only `public` declarations are visible to the apps, so the compiler enforces the
 boundary. `Shared/Widgets/AngroveCoreExport.swift` re-exports it, so app and widget code uses
 these types without imports. Its tests run without an app or simulator:
@@ -55,9 +58,14 @@ these types without imports. Its tests run without an app or simulator:
 cd Packages/AngroveCore && swift test
 ```
 
-More of `Shared` (models, persistence, the model runtime) can move in later steps once no other
-work has uncommitted edits in those files. Move leaf types first; anything moved must become
-`public` where the apps use it.
+More of `Shared` can move in later steps once no other work has uncommitted edits in those files.
+Still in the apps: `InquiryModels`, `UploadedFile` and `LibrarySubject` (they import SwiftUI),
+`LibraryDocument` (it reads bundled Library resources), persistence and the model runtime. Move
+leaf types first: try the move, run `swift build` in the package, and the errors name what the
+file still needs from the app. Anything moved needs `public` where the apps use it, an explicit
+public initializer in place of the automatic one, and an explicit `Sendable` where it was
+implied. App-only conveniences can stay behind as extensions in `Shared` (for example
+`HomeQuestionOfTheDay.conversationRequest`).
 
 ## Platform differences
 

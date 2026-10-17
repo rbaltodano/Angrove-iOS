@@ -5,12 +5,12 @@
 
 import Foundation
 
-nonisolated struct InsightDefinition: Identifiable, Equatable, Hashable, Codable, Sendable {
-    let id: UUID
-    let context: String
-    let meaning: String
+public nonisolated struct InsightDefinition: Identifiable, Equatable, Hashable, Codable, Sendable {
+    public let id: UUID
+    public let context: String
+    public let meaning: String
 
-    init(id: UUID? = nil, context: String, meaning: String) {
+    public init(id: UUID? = nil, context: String, meaning: String) {
         let cleanedContext = context.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanedMeaning = meaning.trimmingCharacters(in: .whitespacesAndNewlines)
         self.id = id ?? stableUUID(
@@ -75,18 +75,18 @@ nonisolated struct InsightDefinition: Identifiable, Equatable, Hashable, Codable
     }
 }
 
-nonisolated struct ConceptDefinition: Identifiable, Equatable, Hashable, Codable, Sendable {
-    let id: UUID
-    let word: String
-    let partOfSpeech: String
-    let pronunciation: String
-    let meaning: String
-    let example: String
-    let definitions: [InsightDefinition]
-    let isLibraryQuote: Bool
-    let libraryAttribution: String?
+public nonisolated struct ConceptDefinition: Identifiable, Equatable, Hashable, Codable, Sendable {
+    public let id: UUID
+    public let word: String
+    public let partOfSpeech: String
+    public let pronunciation: String
+    public let meaning: String
+    public let example: String
+    public let definitions: [InsightDefinition]
+    public let isLibraryQuote: Bool
+    public let libraryAttribution: String?
 
-    init(
+    public init(
         id: UUID = UUID(),
         word: String,
         partOfSpeech: String,
@@ -113,13 +113,13 @@ nonisolated struct ConceptDefinition: Identifiable, Equatable, Hashable, Codable
         ))
     }
 
-    var contextualDefinitions: [InsightDefinition] {
+    public var contextualDefinitions: [InsightDefinition] {
         definitions.isEmpty && !meaning.isEmpty
             ? [InsightDefinition(context: "", meaning: meaning)]
             : definitions
     }
 
-    var semanticDefinition: String {
+    public var semanticDefinition: String {
         contextualDefinitions.map { definition in
             definition.context.isEmpty
                 ? definition.meaning
@@ -128,7 +128,7 @@ nonisolated struct ConceptDefinition: Identifiable, Equatable, Hashable, Codable
         .joined(separator: "\n")
     }
 
-    func containsDefinitions(from other: ConceptDefinition) -> Bool {
+    public func containsDefinitions(from other: ConceptDefinition) -> Bool {
         let saved = contextualDefinitions
         let incoming = other.contextualDefinitions
         return !incoming.isEmpty
@@ -137,7 +137,7 @@ nonisolated struct ConceptDefinition: Identifiable, Equatable, Hashable, Codable
             }
     }
 
-    func mergingDefinitions(from other: ConceptDefinition) -> ConceptDefinition {
+    public func mergingDefinitions(from other: ConceptDefinition) -> ConceptDefinition {
         let merged = InsightDefinition.unique(contextualDefinitions + other.contextualDefinitions)
         return ConceptDefinition(
             id: id,
@@ -156,7 +156,7 @@ nonisolated struct ConceptDefinition: Identifiable, Equatable, Hashable, Codable
     /// (tapping it again in a different message, or after removing and re-saving it) always
     /// resolves to the same Insight instead of a duplicate with a fresh random id. Use this rather
     /// than the default random `id` whenever a concept originates from a highlighted term.
-    static func stableID(forTerm term: String) -> UUID {
+    public static func stableID(forTerm term: String) -> UUID {
         stableUUID(from: "term:\(term.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())")
     }
 
@@ -172,7 +172,7 @@ nonisolated struct ConceptDefinition: Identifiable, Equatable, Hashable, Codable
         case libraryAttribution
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
         word = try container.decode(String.self, forKey: .word)
@@ -190,7 +190,7 @@ nonisolated struct ConceptDefinition: Identifiable, Equatable, Hashable, Codable
         libraryAttribution = try container.decodeIfPresent(String.self, forKey: .libraryAttribution)
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(word, forKey: .word)

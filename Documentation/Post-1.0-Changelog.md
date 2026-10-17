@@ -21,6 +21,14 @@ Collected from the [iOS] and [Shared] entries below.
 
 ## 2026-10-17
 
+- **[Shared] Plain data models moved into AngroveCore; no iPhone behavior change.**
+  `ConceptDefinition`/`InsightDefinition`, `HomeQuestionOfTheDay`, `DailyQuestionDraft`,
+  `LibraryWork`, `LibraryPassage` and `stableUUID` now live in `Packages/AngroveCore` with public
+  initializers matching the old automatic ones; Question of the Day's conversation request stays
+  in `Shared` as an extension. Same encoding, same IDs. Verified: both app builds, 12 package tests,
+  30 focused Mac tests, and the signed iPhone suite (535 passed before the known photo-layout
+  stall; every failing suite not already failing on `main` passed when run alone, 53/53).
+
 - **[Shared] Model controls, completion notifications and Insight cards (committed from another
   session's work).** A persistent global model-controls dock on the Mac (`MacGlobalModelControls`),
   completed-definition notifications that open after their conversation unmounts
