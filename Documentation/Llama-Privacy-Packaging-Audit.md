@@ -14,6 +14,7 @@ to direct imports; it does not prove the absence of every indirect API call or n
 The iPhone binary SHA-256 is `e4fff05d8c7af90da4b5a20a1bdd8c3d5fff5457d5aa89b83803f12593870001`.
 
 The same manifest is included in each vendored framework slice; binaries are unchanged.
+The versioned Mac framework stores it in `Versions/A/Resources`; iOS slices use the framework root.
 Xcode signs the copied frameworks during the normal build/export pipeline.
 This supplements, rather than replaces, the existing app/SDK privacy and crypto review.
 
