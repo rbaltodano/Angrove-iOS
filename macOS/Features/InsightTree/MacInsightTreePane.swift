@@ -8,6 +8,7 @@ struct MacInsightTreePane: View {
     let runtime: MacApplicationRuntime
     let isVisible: Bool
     var isGlobal = false
+    var acceptedGlobalUpdateIDs: Set<UUID> = []
     var originPage: ModelTaskOriginPage? = nil
     var cardsAtFrameBottom = false
     var onActivity: () -> Void = {}
@@ -19,7 +20,7 @@ struct MacInsightTreePane: View {
             CanvasBackground(option: background)
             if hasMounted {
                 InsightTreeView(
-                    insights: session.concepts, conversationID: isGlobal ? nil : session.id, persistsDiscoveryState: !session.isPreview,
+                    insights: session.concepts, conversationID: isGlobal ? nil : session.id, acceptedGlobalUpdateIDs: acceptedGlobalUpdateIDs, persistsDiscoveryState: !session.isPreview,
                     selectionRequest: controls.selectionRequest,
                     clearSelectionRequest: controls.clearSelectionRequest,
                     dismissHoverRequest: controls.dismissHoverRequest,

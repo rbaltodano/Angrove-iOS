@@ -10,6 +10,9 @@ struct MacHomeView: View {
     var onOpenInsights: () -> Void
     var onQuoteInsight: (ConceptDefinition) -> Void = { _ in }
     var onOpenGuide: () -> Void = {}
+    var onNewConversation: () -> Void = {}
+    var queuePopup: ModelTasksPopupState? = nil
+    @State private var ownQueuePopup = ModelTasksPopupState()
     @State private var activeInsight: ConceptDefinition?
     @State private var readingWorks: [RecommendedWork] = []
     @AppStorage(NewUserCardEligibility.firstUseKey) private var firstUse: Double = 0
@@ -83,6 +86,10 @@ struct MacHomeView: View {
         }
         .scrollIndicators(.automatic)
         .background(AngroveTheme.Colors.canvas)
+        .background {
+            MacPageControls(actions: [MacPageControlAction(title: String(localized: "New Conversation"), symbol: "plus", action: onNewConversation)],
+                modelTasks: MacApplicationRuntime.shared.modelTasks, queuePopup: queuePopup ?? ownQueuePopup)
+        }
         .task { await refresh() }
         .onReceive(NotificationCenter.default.publisher(for: .macConversationSaved)) { _ in
             savedInsights = InsightLibraryStore.load()

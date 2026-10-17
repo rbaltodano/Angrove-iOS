@@ -6,7 +6,7 @@
 import SwiftUI
 
 /// Bottom-anchored vertical composition shared by every model-control surface.
-/// Its middle position is intentionally reserved for the upcoming notification cards.
+/// Notifications stack above the currently presented card and controls.
 struct ModelControlsStack<Controls: View>: View {
     let showsScrollToBottom: Bool
     let onScrollToBottom: () -> Void
@@ -77,19 +77,13 @@ struct ModelControlsStack<Controls: View>: View {
         VStack(spacing: 16) {
             #if os(macOS)
             // Desktop's idle bar can shrink to two controls; keep notification actions readable.
-            ModelCompletionNotificationList(width: max(315, controlsWidth))
+            ModelCompletionNotificationList(width: max(315, controlsWidth), presentingCard: dockedCard != nil)
             #else
-            ModelCompletionNotificationList(width: controlsWidth)
+            ModelCompletionNotificationList(width: controlsWidth, presentingCard: dockedCard != nil)
             #endif
 
             if let confirmationTitle {
-                ModelControlsConfirmationPill(
-                    title: confirmationTitle,
-                    width: controlsWidth,
-                    onConfirm: onConfirm,
-                    onDecline: onDecline,
-                    showsControlBorder: true
-                )
+                TreeUpdateNotificationPill(title: confirmationTitle, onUpdate: onConfirm, onKeepCurrent: onDecline)
                 .transition(.bottomDockCard)
             }
 

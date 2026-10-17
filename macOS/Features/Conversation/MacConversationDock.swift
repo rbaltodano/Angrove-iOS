@@ -62,7 +62,7 @@ struct MacConversationDock: View {
             onStudyBranchCountChange: { onActivity(); tree.studyBranchCount = $0 },
             onStudyBranchConfirm: { onActivity(); tree.studyBranchConfirmRequest += 1 },
             isCanvasInsightLoading: tree.isGenerating,
-            modelTasks: runtime.modelTasks, modelTasksPopupState: queuePopup ?? popup, keepsIdleModelStatus: true,
+            modelTasks: runtime.modelTasks, modelTasksPopupState: queuePopup ?? popup, keepsIdleModelStatus: !isGlobal,
             canvasSearchText: $tree.searchQuery, isCanvasSearchActive: $tree.searchActive,
             canvasSearchResultIndex: tree.searchIndex, canvasSearchResultCount: tree.searchCount,
             onCanvasSearchPrevious: { onActivity(); tree.searchPreviousRequest += 1 },

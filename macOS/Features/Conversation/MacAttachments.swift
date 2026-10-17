@@ -38,7 +38,7 @@ struct MacAttachmentStrip: View {
 }
 
 /// Downsamples off the main thread so large photos never decode at full size for a preview.
-private struct MacAttachmentThumbnail: View {
+struct MacAttachmentThumbnail: View {
     let file: UploadedFile
     @State private var image: CGImage?
 

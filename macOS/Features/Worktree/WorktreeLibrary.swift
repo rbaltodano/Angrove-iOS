@@ -48,7 +48,7 @@ struct WorktreeStoredItem: Codable, Equatable {
 enum WorktreeStore {
     private static let key = "angrove.worktrees.v1"
 
-    private static var store: InsightTreeLocalStateFileStore? {
+    static var store: InsightTreeLocalStateFileStore? {
         guard let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return nil }
         return InsightTreeLocalStateFileStore(rootDirectory: support
             .appending(path: "Angrove-macOS", directoryHint: .isDirectory)
@@ -68,8 +68,40 @@ enum WorktreeStore {
 
 /// The saved Worktrees and the one open on the canvas.
 @MainActor @Observable final class WorktreeLibrary {
-    private(set) var documents = WorktreeStore.load()
+    private(set) var documents: [WorktreeDocument]
     private(set) var openBoard: WorktreeBoard?
+    /// Card previews by Board, rendered from the saved canvas.
+    private(set) var snapshots: [UUID: WorktreeSnapshot] = [:]
+    /// Off for previews and tests, which render without touching the store.
+    private let persistsSnapshots: Bool
+    @ObservationIgnored private var isRefreshingSnapshots = false
+
+    init(documents: [WorktreeDocument] = WorktreeStore.load(), persistsSnapshots: Bool = true) {
+        self.documents = documents
+        self.persistsSnapshots = persistsSnapshots
+        guard persistsSnapshots else { return }
+        for document in documents {
+            if let images = WorktreeSnapshotStore.load(document.id), let snapshot = WorktreeSnapshot(images) {
+                snapshots[document.id] = snapshot
+            }
+        }
+    }
+
+    /// Renders a preview for each Board whose snapshot is missing or older than its last edit,
+    /// newest first, one at a time. Stops while a Board is open.
+    func refreshSnapshots() async {
+        guard WorktreeSnapshotRenderer.isEnabled, !isRefreshingSnapshots else { return }
+        isRefreshingSnapshots = true
+        defer { isRefreshingSnapshots = false }
+        for document in sortedDocuments where snapshots[document.id]?.documentUpdatedAt != document.updatedAt {
+            guard openBoard == nil, !Task.isCancelled else { return }
+            guard let images = await WorktreeSnapshotRenderer.render(document), let snapshot = WorktreeSnapshot(images),
+                  // Skip a result for a Board deleted or edited while it rendered.
+                  documents.first(where: { $0.id == document.id })?.updatedAt == document.updatedAt else { continue }
+            snapshots[document.id] = snapshot
+            if persistsSnapshots { WorktreeSnapshotStore.save(images, for: document.id) }
+        }
+    }
 
     var sortedDocuments: [WorktreeDocument] { documents.sorted { $0.updatedAt > $1.updatedAt } }
 
@@ -103,6 +135,7 @@ enum WorktreeStore {
         if openBoard?.documentID == id { openBoard = nil }
         documents.removeAll { $0.id == id }
         WorktreeStore.save(documents)
+        if snapshots.removeValue(forKey: id) != nil, persistsSnapshots { WorktreeSnapshotStore.remove(id) }
     }
 }
 

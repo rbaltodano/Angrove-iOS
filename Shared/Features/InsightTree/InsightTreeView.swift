@@ -557,7 +557,7 @@ struct InsightTreeView: View {
                 onInsightTapped: { insight in
                     showInsightCard(insight)
                 },
-                onCanvasMoved: {},
+                onCanvasMoved: { dismissDockedInsight() },
                 onSuggestConnection: { edge in
                     viewModel.suggestConnection(for: edge)
                 },
@@ -584,8 +584,8 @@ struct InsightTreeView: View {
                 onPositionsSettled: { positions in
                     viewModel.commitLivePositions(positions)
                 },
-                // Panning or tapping the canvas leaves the open card in place.
-                onRequestDismissHover: {},
+                // Manual canvas movement leaves the hovered target and dismisses its card.
+                onRequestDismissHover: { dismissDockedInsight() },
                 onUndiscoveredInsightCountChange: { count in
                     onUndiscoveredInsightCountChange?(count)
                 },

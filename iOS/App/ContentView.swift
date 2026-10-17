@@ -516,7 +516,7 @@ struct ContentView: View {
                 onClearCanvasSelection: { globalInsightClearSelectionRequest += 1 },
                 onContextWillOpen: { globalInsightDismissHoverRequest += 1 },
                 confirmationTitle: isGlobalTreeUpdatePromptVisible
-                    ? "Update Global Insights Tree?"
+                    ? "Update Tree?"
                     : nil,
                 onConfirmUpdate: updateGlobalInsightTree,
                 onDeclineUpdate: dismissGlobalInsightTreeUpdate,

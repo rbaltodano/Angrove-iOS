@@ -632,10 +632,10 @@ struct StudyTopicsView: View {
     private var treeUpdateConfirmationTitle: String? {
         guard let pendingTreeUpdateTopicID,
               pendingTreeUpdateTopicID == selectedTopicID,
-              let topic = topics.first(where: { $0.id == pendingTreeUpdateTopicID }) else {
+              topics.contains(where: { $0.id == pendingTreeUpdateTopicID }) else {
             return nil
         }
-        return "Update Tree for \(displayTitle(for: topic))?"
+        return "Update Tree?"
     }
 
     private func updateSelectedTopicTree() {

@@ -124,7 +124,7 @@ struct WorktreeToolPlacement: View {
         }
     }
 
-    private static let headingLineHeight: CGFloat = 56
+    private static let headingLineHeight: CGFloat = 60
     /// The hover label's height.
     private static let labelHeight: CGFloat = 36
 

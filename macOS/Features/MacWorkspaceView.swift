@@ -7,14 +7,16 @@ enum MacWorkspaceIdentity {
 }
 
 enum MacDestination: String, CaseIterable, Identifiable {
-    case home, insights, conversations, library, studyTopics, worktree, settings
+    /// `conversationList` is the Conversations overview; `conversations` is one open conversation.
+    /// Both share the sidebar's Conversations row.
+    case home, insights, conversations, conversationList, library, studyTopics, worktree, settings
     static let sidebarDestinations: [Self] = [.home, .insights, .conversations, .library, .studyTopics, .worktree]
     var id: Self { self }
     var title: LocalizedStringKey {
         switch self {
         case .home: "Home"
         case .insights: "Insights"
-        case .conversations: "Conversations"
+        case .conversations, .conversationList: "Conversations"
         case .library: "Library"
         case .studyTopics: "Study Topics"
         case .worktree: "Boards"
@@ -25,7 +27,7 @@ enum MacDestination: String, CaseIterable, Identifiable {
         switch self {
         case .home: String(localized: "Home")
         case .insights: String(localized: "Insights")
-        case .conversations: String(localized: "Conversations")
+        case .conversations, .conversationList: String(localized: "Conversations")
         case .library: String(localized: "Library")
         case .studyTopics: String(localized: "Study Topics")
         case .worktree: String(localized: "Boards")
@@ -37,18 +39,23 @@ enum MacDestination: String, CaseIterable, Identifiable {
         switch self {
         case .home: "house"
         case .insights: "leaf"
-        case .conversations: "bubble.left.and.bubble.right"
+        case .conversations, .conversationList: "bubble.left.and.bubble.right"
         case .library: "books.vertical"
         case .studyTopics: "books.vertical"
         case .worktree: MacIcon.worktree.symbol
         case .settings: "gearshape"
         }
     }
+    /// Whether the sidebar row for `destination` reads as selected on this page.
+    func highlights(_ destination: MacDestination) -> Bool {
+        self == destination || (self == .conversationList && destination == .conversations)
+    }
+
     var asset: MacIcon {
         switch self {
         case .home: .home
         case .insights: .insights
-        case .conversations: .conversations
+        case .conversations, .conversationList: .conversations
         case .library: .library
         case .studyTopics: .topics
         case .worktree: .worktree
@@ -101,7 +108,10 @@ struct MacWorkspaceView: View {
             let loadingBranchIDs = Set(pendingTasks.compactMap { $0.kind.userQuestionBranchID })
             AnyView(AnyView(GeometryReader { geometry in
                 HStack(spacing: 0) {
-                    MacFloatingSidebar(selection: Binding(get: { selection }, set: { navigate(to: page(for: $0)) }), isCompact: sidebar.isCompact, showsFixture: showFixture,
+                    MacFloatingSidebar(selection: Binding(get: { selection }, set: {
+                        // The sidebar's Conversations row opens the overview; Recents open a conversation.
+                        navigate(to: page(for: $0 == .conversations ? .conversationList : $0))
+                    }), isCompact: sidebar.isCompact, showsFixture: showFixture,
                         conversations: conversations, loadingBranchIDs: loadingBranchIDs, openConversation: { id in
                         navigate(to: MacWorkspacePage(destination: .conversations, conversationID: id))
                     }, newConversation: {
@@ -124,51 +134,7 @@ struct MacWorkspaceView: View {
                     }
                     .zIndex(3) // Navigation stays above workspace content and floating cards.
 
-                    ZStack {
-                        if selection == .conversations {
-                            MacConversationWorkspace(showsFixture: showFixture, conversationID: conversationID, question: $question,
-                                shortcutRequest: $paneShortcut, queuePopup: queuePopup, onActivity: recordPageActivity,
-                                initialQuote: pendingQuote, onInitialQuoteHandled: { pendingQuote = nil },
-                                completedDefinition: pendingDefinition, onDefinitionHandled: { pendingDefinition = nil },
-                                initialBranchID: conversationBranches[conversationID],
-                                onBranchSelectionChange: { conversationBranches[conversationID] = $0 },
-                                onNewConversation: {
-                                    navigate(to: MacWorkspacePage(destination: .conversations, conversationID: UUID()))
-                                }, onOpenInsights: { navigate(to: page(for: .insights)) })
-                                .id(conversationID)
-                        } else if selection == .insights {
-                            MacGlobalInsightWorkspace(queuePopup: queuePopup, onActivity: recordPageActivity, onAsk: quote)
-                        } else if selection == .home {
-                            MacHomeView(conversations: conversations, activeConversationID: conversationID,
-                                onOpenConversation: { id in
-                                    navigate(to: MacWorkspacePage(destination: .conversations, conversationID: id))
-                                },
-                                onStart: startConversation,
-                                onOpenInsights: { navigate(to: page(for: .insights)) },
-                                onQuoteInsight: { quote($0, in: nil) },
-                                onOpenGuide: {
-                                    navigate(to: page(for: .settings)) { opensSettingsGuide = true }
-                                })
-                        } else if selection == .library {
-                            MacLibraryView(navigationRequest: libraryRequest, conversations: conversations, onAsk: quote)
-                        } else if selection == .settings {
-                            MacSettingsView(startsInGuide: opensSettingsGuide)
-                                .onDisappear { opensSettingsGuide = false }
-                        } else if selection == .studyTopics {
-                            MacStudyTopicsView(conversations: conversations,
-                                onOpenConversation: { id in
-                                    navigate(to: MacWorkspacePage(destination: .conversations, conversationID: id))
-                                },
-                                onNewConversation: newConversation(inTopic:),
-                                onTopicsChanged: {
-                                    conversations = CurrentConversationsStore.load()?.conversations ?? []
-                                    NotificationCenter.default.post(name: .macConversationSaved, object: nil)
-                                },
-                                onAsk: quote, queuePopup: queuePopup)
-                        } else if selection == .worktree {
-                            MacWorktreeHomeView(library: worktrees, queuePopup: queuePopup)
-                        }
-                    }
+                    pageStack
                     // The conversation and Insights pages fade their own content, leaving Model Controls
                     // free to animate on their own as the page changes.
                     .opacity(ownsPageFade || pageTransition.isVisible ? 1 : 0)
@@ -184,8 +150,7 @@ struct MacWorkspaceView: View {
                     .allowsHitTesting(!pageTransition.isTransitioning)
                     .background(MacPageActivityObserver(onActivity: recordPageActivity))
                     .overlayPreferenceValue(MacGlobalModelControlsKey.self) { controls in
-                        MacGlobalModelControlsDock(published: controls, isVisible: pageTransition.showsControls,
-                            modelTasks: modelTasks, queuePopup: queuePopup)
+                        MacGlobalModelControlsDock(published: controls, modelTasks: modelTasks, queuePopup: queuePopup)
                     }
                 }
                 .coordinateSpace(name: "MacWorkspace")
@@ -233,6 +198,13 @@ struct MacWorkspaceView: View {
                     pendingDefinition = definition
                 }
             })
+            .onReceive(NotificationCenter.default.publisher(for: .macOpenBoardDefinition)) { notification in
+                guard let request = notification.object as? WorktreeDefinitionRequest else { return }
+                navigate(to: page(for: .worktree)) {
+                    queuePopup.reset()
+                    worktrees.openDefinition(request)
+                }
+            }
             .onReceive(NotificationCenter.default.publisher(for: .macOpenConversation), perform: openConversation)
             .onReceive(NotificationCenter.default.publisher(for: .macOpenHome)) { notification in
                 if let request = notification.object as? NewConversationRequest { startConversation(request) }
@@ -268,7 +240,7 @@ struct MacWorkspaceView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .openGroundingSourceInLibrary)) { notification in
                 guard let request = notification.object as? LibraryNavigationRequest else { return }
-                let source = selection == .conversations ? currentPage : nil
+                let source: MacWorkspacePage? = selection == .conversations ? currentPage : nil
                 navigate(to: page(for: .library)) {
                     libraryRequest = request
                     pendingSourceReturn = source
@@ -320,6 +292,65 @@ struct MacWorkspaceView: View {
             .frame(minWidth: 600, minHeight: 400)
             .background(AngroveTheme.Colors.canvas)
         }
+    }
+
+    @ViewBuilder private var pageStack: some View {
+        ZStack {
+            if selection == .conversations {
+                MacConversationWorkspace(showsFixture: showFixture, conversationID: conversationID, question: $question,
+                    shortcutRequest: $paneShortcut, queuePopup: queuePopup, onActivity: recordPageActivity,
+                    initialQuote: pendingQuote, onInitialQuoteHandled: { pendingQuote = nil },
+                    completedDefinition: pendingDefinition, onDefinitionHandled: { pendingDefinition = nil },
+                    initialBranchID: conversationBranches[conversationID],
+                    onBranchSelectionChange: { conversationBranches[conversationID] = $0 },
+                    onNewConversation: {
+                        navigate(to: MacWorkspacePage(destination: .conversations, conversationID: UUID()))
+                    }, onOpenInsights: { navigate(to: page(for: .insights)) })
+                    .id(conversationID)
+            } else if selection == .insights {
+                MacGlobalInsightWorkspace(queuePopup: queuePopup, onActivity: recordPageActivity, onAsk: quote)
+            } else if selection == .home {
+                MacHomeView(conversations: conversations, activeConversationID: conversationID,
+                    onOpenConversation: { id in
+                        navigate(to: MacWorkspacePage(destination: .conversations, conversationID: id))
+                    },
+                    onStart: startConversation,
+                    onOpenInsights: { navigate(to: page(for: .insights)) },
+                    onQuoteInsight: { quote($0, in: nil) },
+                    onOpenGuide: {
+                        navigate(to: page(for: .settings)) { opensSettingsGuide = true }
+                    },
+                    onNewConversation: openNewConversation,
+                    queuePopup: queuePopup)
+            } else if selection == .library {
+                MacLibraryView(navigationRequest: libraryRequest, conversations: conversations, onAsk: quote)
+            } else if selection == .settings {
+                MacSettingsView(startsInGuide: opensSettingsGuide)
+                    .onDisappear { opensSettingsGuide = false }
+            } else if selection == .studyTopics {
+                MacStudyTopicsView(conversations: conversations,
+                    onOpenConversation: { id in
+                        navigate(to: MacWorkspacePage(destination: .conversations, conversationID: id))
+                    },
+                    onNewConversation: newConversation(inTopic:),
+                    onTopicsChanged: {
+                        conversations = CurrentConversationsStore.load()?.conversations ?? []
+                        NotificationCenter.default.post(name: .macConversationSaved, object: nil)
+                    },
+                    onAsk: quote, queuePopup: queuePopup)
+            } else if selection == .conversationList {
+                MacConversationsListView(conversations: conversations, activeConversationID: conversationID,
+                    onOpen: { id in navigate(to: MacWorkspacePage(destination: .conversations, conversationID: id)) },
+                    onNew: openNewConversation,
+                    onAction: handleConversationAction, queuePopup: queuePopup)
+            } else if selection == .worktree {
+                MacWorktreeHomeView(library: worktrees, queuePopup: queuePopup)
+            }
+        }
+    }
+
+    private func openNewConversation() {
+        navigate(to: MacWorkspacePage(destination: .conversations, conversationID: UUID()))
     }
 
     private func openConversation(_ notification: Notification) {

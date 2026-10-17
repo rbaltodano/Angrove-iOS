@@ -4,6 +4,8 @@ struct MacGlobalInsightWorkspace: View {
     @State private var session = MacConversationState()
     @State private var controls = MacTreeControls()
     @State private var offersUpdate = false
+    @State private var isReconciling = false
+    @State private var acceptedGlobalUpdateIDs: Set<UUID> = []
     @State private var showsConnectionComposer = false
     @State private var connectionQuestion = ""
     @State private var askConcept: ConceptDefinition?
@@ -18,7 +20,7 @@ struct MacGlobalInsightWorkspace: View {
 
     var body: some View {
         MacInsightTreePane(session: session, controls: controls, runtime: runtime, isVisible: true,
-                           isGlobal: topicID == nil, originPage: topicID == nil ? .insights : .studyTopics, onActivity: onActivity)
+                           isGlobal: topicID == nil, acceptedGlobalUpdateIDs: acceptedGlobalUpdateIDs, originPage: topicID == nil ? .insights : .studyTopics, onActivity: onActivity)
             .compositingGroup()
             .background {
                 MacConversationDock(session: session, tree: controls, runtime: runtime, isCanvasMode: true,
@@ -27,6 +29,12 @@ struct MacGlobalInsightWorkspace: View {
                     onAskNew: { if let concept = askConcept { onAsk(concept, nil) } },
                     onAskExisting: { showsConversationPicker = true },
                     onCancelAsk: { askConcept = nil }, queuePopup: queuePopup, onActivity: onActivity)
+            }
+            .transformPreference(ModelControlsPreferenceKey.self) { configuration in
+                guard configuration != nil else { return }
+                configuration?.confirmationTitle = offersUpdate || offersTopicUpdate ? "Update Tree?" : nil
+                configuration?.onConfirm = confirmTreeUpdate
+                configuration?.onDecline = declineTreeUpdate
             }
             .macPageFade()
             .overlayPreferenceValue(ModelControlsPreferenceKey.self) { configuration in
@@ -55,27 +63,6 @@ struct MacGlobalInsightWorkspace: View {
                     acknowledgedLibraryIDs: GlobalInsightTreeUpdatePrompt.loadAcknowledgedLibraryIDs(),
                     treeNeedsUpdate: ids != Set(session.concepts.map(\.id)))
             }
-            .alert("Update Insight Tree?", isPresented: $offersUpdate) {
-                Button("Keep Current Tree", role: .cancel) { acknowledge() }
-                Button("Update") {
-                    let existing = session.concepts
-                    let incoming = InsightLibraryStore.load()
-                    Task {
-                        let reconciled = await Task.detached(priority: .userInitiated) {
-                            GlobalInsightReconciliation.reconcile(existing: existing, incoming: incoming)
-                        }.value
-                        guard let accepted = GlobalInsightTreeUpdateResolution.accept(existingTree: existing,
-                            currentTree: session.concepts, incomingLibrary: incoming, currentLibrary: InsightLibraryStore.load(), reconciledTree: reconciled) else { return }
-                        session.concepts = accepted.insights
-                        GlobalInsightTreeStore.save(accepted.insights)
-                        GlobalInsightTreeUpdatePrompt.saveAcknowledgedLibraryIDs(accepted.acknowledgedLibraryIDs)
-                    }
-                }
-            } message: { Text("Include the Insights you’ve bookmarked since the last update?") }
-            .alert("Update Topic Tree?", isPresented: $offersTopicUpdate) {
-                Button("Keep Current Tree", role: .cancel) {}
-                Button("Update") { if let topicID { session.concepts = topicSnapshot(topicID) } }
-            } message: { Text("Include Insights bookmarked in this topic’s conversations since the last update?") }
             .onChange(of: session.connectionConcepts) { _, concepts in
                 if concepts.count >= 2 { showsConnectionComposer = true }
             }
@@ -133,6 +120,52 @@ struct MacGlobalInsightWorkspace: View {
             .alert("Angrove", isPresented: Bindable(session).showsError) { Button("OK", role: .cancel) {} }
                 message: { Text(session.errorMessage ?? "") }
     }
+    private func declineTreeUpdate() {
+        withAnimation(.springStandard) {
+            offersUpdate = false
+            offersTopicUpdate = false
+        }
+        if topicID == nil { acknowledge() }
+    }
+
+    private func confirmTreeUpdate() {
+        guard !isReconciling else { return }
+        withAnimation(.springStandard) {
+            offersUpdate = false
+            offersTopicUpdate = false
+        }
+        if let topicID {
+            withAnimation(.springStandard) { session.concepts = topicSnapshot(topicID) }
+            return
+        }
+        let existing = session.concepts
+        let incoming = InsightLibraryStore.load()
+        isReconciling = true
+        Task {
+            defer { isReconciling = false }
+            let reconciled = await Task.detached(priority: .userInitiated) {
+                GlobalInsightReconciliation.reconcile(existing: existing, incoming: incoming)
+            }.value
+            guard let accepted = GlobalInsightTreeUpdateResolution.accept(existingTree: existing,
+                currentTree: session.concepts, incomingLibrary: incoming,
+                currentLibrary: InsightLibraryStore.load(), reconciledTree: reconciled) else {
+                offersUpdate = true
+                return
+            }
+            withAnimation(.springStandard) {
+                acceptedGlobalUpdateIDs = Set(accepted.insights.map(\.id)).subtracting(existing.map(\.id))
+                session.concepts = accepted.insights
+            }
+            GlobalInsightTreeStore.save(accepted.insights)
+            GlobalInsightTreeUpdatePrompt.saveAcknowledgedLibraryIDs(accepted.acknowledgedLibraryIDs)
+            if accepted.hasNewerLibraryChanges {
+                offersUpdate = GlobalInsightTreeUpdatePrompt.shouldOffer(
+                    libraryIDs: Set(InsightLibraryStore.load().map(\.id)),
+                    acknowledgedLibraryIDs: accepted.acknowledgedLibraryIDs, treeNeedsUpdate: true)
+            }
+        }
+    }
+
     private func topicSnapshot(_ topicID: UUID) -> [ConceptDefinition] {
         StudyTopicInsightTreeBuilder.snapshot(topicID: topicID,
             conversations: CurrentConversationsStore.load()?.conversations ?? [], savedInsights: InsightLibraryStore.load())

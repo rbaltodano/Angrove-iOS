@@ -46,6 +46,7 @@ struct WorktreeControlDock: View {
             .modelControlHoverLabel("Trash")
         }
         .buttonStyle(FloatingControlButtonStyle(isPressed: $isPressed))
+        .fixedSize(horizontal: true, vertical: true)
         .padding(.horizontal, 32)
         .padding(.vertical, 24)
         .background(AngroveTheme.Colors.canvasSecondary)
@@ -67,7 +68,9 @@ struct WorktreeControlDock: View {
     private func label(_ title: LocalizedStringKey, icon: some View) -> some View {
         HStack(spacing: 8) {
             icon
-            Text(title).font(BrandTypography.font("Figtree-SemiBold", size: 14))
+            Text(title)
+                .font(BrandTypography.font("Figtree-SemiBold", size: 14))
+                .fixedSize(horizontal: true, vertical: false)
         }
         .frame(minHeight: 21)
         .contentShape(Rectangle())

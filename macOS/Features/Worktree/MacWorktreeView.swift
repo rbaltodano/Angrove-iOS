@@ -209,6 +209,9 @@ struct MacWorktreeView: View {
                                    value: MacGlobalModelControls(configuration: dockConfiguration))
         }
         .background(WorktreeKeyShortcuts(onCharacters: typeOnCanvas, onEditKey: editPendingField, onEscape: escape, onZoom: zoom, onSlash: openCommand, onTool: useShortcut, onResize: resizeTargets, onSpace: spacePan, onUndo: { board.undo() }, onRedo: { board.redo() }))
+        .onChange(of: board.dockedDefinition?.id) { _, _ in
+            withAnimation(.springStandard) { showsTools = false; showsTrash = false; queuePopup.reset() }
+        }
         .onChange(of: board.fileRequest) { _, _ in openFiles() }
         .onChange(of: camera.scale) { _, _ in rememberViewport() }
         .onChange(of: camera.offset) { _, _ in rememberViewport() }
@@ -261,6 +264,10 @@ struct MacWorktreeView: View {
         configuration.pillHorizontalPadding = 0
         configuration.pillVerticalPadding = 0
         configuration.showsPillChrome = false
+        if let definition = board.dockedDefinition, definition.session.selectedDefinition != nil {
+            configuration.dockedCard = ModelControlsDockedCard(key: "board-definition-\(definition.concept.id)",
+                view: AnyView(MacDockedDefinitionCard(session: definition.session, concept: definition.concept)))
+        }
         if showsTrash {
             configuration.supplementalPopupIsOpen = true
             configuration.supplementalPopup = AnyView(WorktreeTrashCard(board: board))
@@ -316,10 +323,14 @@ struct MacWorktreeView: View {
     }
 
     /// Whether Tools, Trash or Model Tasks is open above the controls.
-    private var hasOpenCard: Bool { showsTools || showsTrash || queuePopup.isOpen }
+    private var hasOpenCard: Bool { showsTools || showsTrash || queuePopup.isOpen || board.dockedDefinition?.session.selectedDefinition != nil }
 
     private func closeCards() {
-        withAnimation(.springStandard) { showsTools = false; showsTrash = false; queuePopup.isOpen = false }
+        withAnimation(.springStandard) {
+            showsTools = false; showsTrash = false; queuePopup.isOpen = false
+            board.dockedDefinition?.session.selectedDefinition = nil
+            board.dockedDefinition = nil
+        }
     }
 
     private func tapCanvas(at location: CGPoint, in size: CGSize) {
@@ -413,6 +424,10 @@ struct MacWorktreeView: View {
         if showsTrash { withAnimation(.springStandard) { showsTrash = false }; return true }
         if !pendingPhotos.isEmpty { pendingPhotos = []; photoLoadID = UUID(); return true }
         if activeTool != nil { activeTool = nil; return true }
+        if board.dockedDefinition?.session.selectedDefinition != nil {
+            closeCards()
+            return true
+        }
         if showsTools { withAnimation(.springStandard) { showsTools = false }; return true }
         if queuePopup.isOpen { withAnimation(.springStandard) { queuePopup.isOpen = false }; return true }
         if !board.selection.isEmpty { board.select(nil); return true }

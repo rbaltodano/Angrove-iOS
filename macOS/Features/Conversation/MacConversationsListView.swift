@@ -1,0 +1,407 @@
+import SwiftUI
+
+/// Every saved conversation on one page: where you left off, then the rest as cards grouped by
+/// when they began. Recents in the sidebar still open a conversation directly.
+struct MacConversationsListView: View {
+    let conversations: [InquiryConversation]
+    let activeConversationID: UUID
+    var onOpen: (UUID) -> Void
+    var onNew: () -> Void
+    var onAction: (MacSidebarConversationMenuAction, InquiryConversation) -> Void
+    var queuePopup: ModelTasksPopupState? = nil
+    @State private var ownQueuePopup = ModelTasksPopupState()
+
+    @State private var searchText = ""
+    @State private var filter: MacConversationFilter = .all
+    @State private var topics: [StudyTopic]
+
+    init(conversations: [InquiryConversation], activeConversationID: UUID, onOpen: @escaping (UUID) -> Void,
+         onNew: @escaping () -> Void, onAction: @escaping (MacSidebarConversationMenuAction, InquiryConversation) -> Void,
+         queuePopup: ModelTasksPopupState? = nil, topics: [StudyTopic] = StudyTopicStore.load()) {
+        self.conversations = conversations
+        self.activeConversationID = activeConversationID
+        self.onOpen = onOpen
+        self.onNew = onNew
+        self.onAction = onAction
+        self.queuePopup = queuePopup
+        _topics = State(initialValue: topics)
+    }
+
+    private var saved: [InquiryConversation] {
+        conversations.filter { !$0.isStudyTopic && HomeConversationResume.hasContent($0) }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private var visible: [InquiryConversation] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return saved.filter { conversation in
+            guard filter.matches(conversation) else { return false }
+            guard !query.isEmpty else { return true }
+            return MacStudyTopicsView.title(of: conversation).localizedCaseInsensitiveContains(query)
+                || HomeDashboardContent.latestText(in: conversation).localizedCaseInsensitiveContains(query)
+                || topicTitle(for: conversation)?.localizedCaseInsensitiveContains(query) == true
+        }
+    }
+
+    private var featured: InquiryConversation? {
+        guard filter == .all, searchText.isEmpty else { return nil }
+        return HomeConversationResume.featuredConversation(in: saved, activeConversationID: activeConversationID)
+    }
+
+    /// “8 conversations · 5 this week · 2 pinned · 5 in Study Topics”, omitting zero counts after the first.
+    private var summary: String? {
+        guard !saved.isEmpty else { return nil }
+        let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: .now) ?? .now
+        let week = saved.filter { $0.createdAt >= weekAgo }.count
+        let pinned = saved.filter(\.isPinned).count
+        let filed = saved.filter { $0.studyTopicID != nil }.count
+        var parts = [saved.count == 1 ? String(localized: "1 conversation") : String(localized: "\(saved.count) conversations")]
+        if week > 0 { parts.append(String(localized: "\(week) this week")) }
+        if pinned > 0 { parts.append(String(localized: "\(pinned) pinned")) }
+        if filed > 0 { parts.append(String(localized: "\(filed) in Study Topics")) }
+        return parts.joined(separator: " · ")
+    }
+
+    var body: some View {
+        MacCollectionScrollPage {
+            // New Conversation lives in Model Controls; the space beside the heading is left
+            // open for artwork.
+            MacCollectionHeader(title: "Conversations",
+                description: "Return to an inquiry, continue a thought, or start a new conversation.",
+                summary: summary)
+
+            if saved.isEmpty {
+                MacFirstConversationCard(onStart: onNew)
+            } else {
+                if let featured {
+                    VStack(alignment: .leading, spacing: 20) {
+                        MacCollectionSectionTitle(title: String(localized: "Where You Left Off"))
+                        MacResumeConversationCard(conversation: featured, topicTitle: topicTitle(for: featured)) {
+                            onOpen(featured.id)
+                        }
+                    }
+                    .transition(.blurFade)
+                }
+
+                VStack(alignment: .leading, spacing: 40) {
+                    HStack(alignment: .center, spacing: 24) {
+                        MacCollectionTabs(tabs: MacConversationFilter.allCases.map { ($0, $0.label) }, selection: $filter)
+                        Spacer(minLength: 24)
+                        StudyTopicsSearchField(searchText: $searchText, prompt: Text("Search Conversations"))
+                            .frame(maxWidth: 360)
+                    }
+                    if visible.isEmpty {
+                        Text(searchText.isEmpty ? filter.emptyMessage : String(localized: "No conversations match “\(searchText)”."))
+                            .paragraphFont()
+                            .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                    } else {
+                        ForEach(MacConversationSection.grouping(visible)) { section in
+                            VStack(alignment: .leading, spacing: 20) {
+                                MacCollectionSectionTitle(title: section.title,
+                                    detail: section.conversations.count == 1 ? String(localized: "1 conversation")
+                                        : String(localized: "\(section.conversations.count) conversations"))
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: MacCollectionLayout.gridSpacing, alignment: .top)],
+                                          spacing: MacCollectionLayout.gridSpacing) {
+                                    ForEach(section.conversations) { conversation in
+                                        MacConversationCard(conversation: conversation, topicTitle: topicTitle(for: conversation),
+                                            isActive: conversation.id == activeConversationID,
+                                            onOpen: { onOpen(conversation.id) },
+                                            onAction: { onAction($0, conversation) })
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .animation(.springStandard, value: filter)
+            }
+        }
+        .animation(.springStandard, value: featured?.id)
+        .onReceive(NotificationCenter.default.publisher(for: .macConversationSaved)) { _ in topics = StudyTopicStore.load() }
+        .background {
+            MacPageControls(actions: [MacPageControlAction(title: String(localized: "New Conversation"), symbol: "plus", action: onNew)],
+                modelTasks: MacApplicationRuntime.shared.modelTasks, queuePopup: queuePopup ?? ownQueuePopup)
+        }
+    }
+
+    private func topicTitle(for conversation: InquiryConversation) -> String? {
+        guard let id = conversation.studyTopicID, let topic = topics.first(where: { $0.id == id }) else { return nil }
+        return MacStudyTopicsView.displayTitle(topic)
+    }
+}
+
+enum MacConversationFilter: CaseIterable, Hashable {
+    case all, pinned, filed
+
+    var label: String {
+        switch self {
+        case .all: String(localized: "All")
+        case .pinned: String(localized: "Pinned")
+        case .filed: String(localized: "In Study Topics")
+        }
+    }
+
+    var emptyMessage: String {
+        switch self {
+        case .all: String(localized: "No conversations yet.")
+        case .pinned: String(localized: "Pin a conversation from its menu to keep it here.")
+        case .filed: String(localized: "File a conversation under a Study Topic from its menu.")
+        }
+    }
+
+    func matches(_ conversation: InquiryConversation) -> Bool {
+        switch self {
+        case .all: true
+        case .pinned: conversation.isPinned
+        case .filed: conversation.studyTopicID != nil
+        }
+    }
+}
+
+/// Conversations bucketed by the day they began: Today, Yesterday, This Week, This Month, then
+/// by calendar month.
+struct MacConversationSection: Identifiable, Equatable {
+    let title: String
+    let conversations: [InquiryConversation]
+    var id: String { title }
+
+    static func grouping(_ conversations: [InquiryConversation], now: Date = .now,
+                         calendar: Calendar = .current) -> [MacConversationSection] {
+        let today = calendar.startOfDay(for: now)
+        var order: [String] = []
+        var buckets: [String: [InquiryConversation]] = [:]
+        for conversation in conversations.sorted(by: { $0.createdAt > $1.createdAt }) {
+            let day = calendar.startOfDay(for: conversation.createdAt)
+            let age = calendar.dateComponents([.day], from: day, to: today).day ?? 0
+            let title: String = switch age {
+            case ..<1: String(localized: "Today")
+            case 1: String(localized: "Yesterday")
+            case 2..<7: String(localized: "This Week")
+            case 7..<30: String(localized: "This Month")
+            default: conversation.createdAt.formatted(.dateTime.month(.wide).year())
+            }
+            if buckets[title] == nil { order.append(title) }
+            buckets[title, default: []].append(conversation)
+        }
+        return order.map { MacConversationSection(title: $0, conversations: buckets[$0] ?? []) }
+    }
+}
+
+enum MacConversationSummary {
+    static func answerCount(in conversation: InquiryConversation) -> Int {
+        conversation.branches.reduce(0) { total, branch in
+            total + branch.activeChatBlocks.filter { if case .text = $0 { true } else { false } }.count
+        }
+    }
+
+    static func preview(of conversation: InquiryConversation) -> String {
+        MacHomePreviewText.plainText(from: HomeDashboardContent.latestText(in: conversation))
+    }
+}
+
+/// The conversation to pick back up, given the width of the page and the latest answer set as
+/// a quotation.
+private struct MacResumeConversationCard: View {
+    let conversation: InquiryConversation
+    let topicTitle: String?
+    var onOpen: () -> Void
+
+    var body: some View {
+        let answers = MacConversationSummary.answerCount(in: conversation)
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(spacing: 8) {
+                    if conversation.isPinned {
+                        Image(systemName: "pin.fill").font(.system(size: 11, weight: .semibold))
+                    }
+                    Text(topicTitle.map { $0.uppercased() } ?? String(localized: "CONTINUE"))
+                        .font(AngroveTheme.Typography.uiLabel)
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    Image(systemName: "quote.opening").font(.system(size: 14, weight: .semibold))
+                }
+                .foregroundStyle(AngroveTheme.Colors.lightGreen)
+
+                Text(MacStudyTopicsView.title(of: conversation))
+                    .font(AngroveTheme.Typography.illustratedCardHeading)
+                    .foregroundStyle(AngroveTheme.Colors.primaryReadable)
+                    .lineSpacing(6)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(alignment: .top, spacing: 20) {
+                    Rectangle()
+                        .fill(AngroveTheme.Colors.lightGreen)
+                        .frame(width: 1)
+                    Text(verbatim: MacConversationSummary.preview(of: conversation))
+                        .font(.custom("LibreBaskerville-Italic", size: 17))
+                        .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                        .lineSpacing(8)
+                        .lineLimit(4)
+                        .frame(maxWidth: 640, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                HStack(spacing: 12) {
+                    Text(MacCollectionDate.short(conversation.createdAt))
+                    if answers > 0 {
+                        Text(verbatim: "·")
+                        Text(answers == 1 ? String(localized: "1 answer") : String(localized: "\(answers) answers"))
+                    }
+                    Spacer(minLength: 12)
+                    Label("Continue", systemImage: "arrow.turn.down.right")
+                        .font(AngroveTheme.Typography.uiSubheading)
+                        .foregroundStyle(AngroveTheme.Colors.canvas)
+                        .padding(.horizontal, 20)
+                        .frame(height: 40)
+                        .background(AngroveTheme.Colors.lightGreen, in: Capsule())
+                }
+                .font(AngroveTheme.Typography.chipLabel)
+                .foregroundStyle(AngroveTheme.Colors.placeholderText)
+                .padding(.top, 4)
+            }
+            .multilineTextAlignment(.leading)
+            .padding(36)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .macCollectionCard()
+        }
+        .buttonStyle(.plain)
+        .macCardHover()
+    }
+}
+
+/// One conversation: its Study Topic, title, latest answer, date and answer count.
+private struct MacConversationCard: View {
+    let conversation: InquiryConversation
+    let topicTitle: String?
+    let isActive: Bool
+    var onOpen: () -> Void
+    var onAction: (MacSidebarConversationMenuAction) -> Void
+    @State private var isHovered = false
+
+    private var menuEntries: [MacMenuEntry] {
+        [MacMenuEntry("Open", symbol: "arrow.up.right", action: onOpen), .divider]
+            + [MacSidebarConversationMenuAction.pin, .topic, .delete].flatMap { action -> [MacMenuEntry] in
+                let entry = MacMenuEntry(action.title(for: conversation), symbol: action.symbol(for: conversation),
+                                         destructive: action == .delete) { onAction(action) }
+                return action == .delete ? [.divider, entry] : [entry]
+            }
+    }
+
+    var body: some View {
+        let answers = MacConversationSummary.answerCount(in: conversation)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                if let topicTitle {
+                    Image(systemName: "square.stack").font(.system(size: 11, weight: .semibold))
+                    Text(topicTitle).font(AngroveTheme.Typography.uiLabel).lineLimit(1)
+                }
+                if conversation.isPinned {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .accessibilityLabel("Pinned")
+                }
+                Spacer(minLength: 8)
+                MacActionMenu(entries: { menuEntries }) { MacCollectionOptionsLabel(size: 28, isOutlined: false) }
+                    .buttonStyle(.plain)
+                    .opacity(isHovered ? 1 : 0)
+                    .accessibilityLabel("Conversation options")
+            }
+            .foregroundStyle(AngroveTheme.Colors.lightGreen)
+            .frame(height: 28)
+
+            Text(MacStudyTopicsView.title(of: conversation))
+                .font(AngroveTheme.Typography.uiHeading)
+                .foregroundStyle(AngroveTheme.Colors.primaryReadable)
+                .lineSpacing(3)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 12)
+
+            Text(verbatim: MacConversationSummary.preview(of: conversation))
+                .font(AngroveTheme.Typography.body)
+                .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                .lineSpacing(5)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 8)
+
+            Spacer(minLength: 20)
+
+            HStack(spacing: 8) {
+                Text(MacCollectionDate.short(conversation.createdAt))
+                if answers > 0 {
+                    Text(verbatim: "·")
+                    Text(answers == 1 ? String(localized: "1 answer") : String(localized: "\(answers) answers"))
+                }
+                Spacer(minLength: 8)
+                if isActive {
+                    Text("Open now")
+                        .foregroundStyle(AngroveTheme.Colors.lightGreen)
+                }
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(AngroveTheme.Colors.lightGreen)
+                    .opacity(isHovered ? 1 : 0)
+                    .offset(x: isHovered ? 0 : -4, y: isHovered ? 0 : 4)
+            }
+            .font(AngroveTheme.Typography.chipLabel)
+            .foregroundStyle(AngroveTheme.Colors.placeholderText)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, minHeight: 210, alignment: .topLeading)
+        .macCollectionCard()
+        .overlay {
+            if isActive {
+                RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous)
+                    .stroke(AngroveTheme.Colors.lightGreen.opacity(0.6), lineWidth: 1.5)
+            }
+        }
+        .onTapGesture(perform: onOpen)
+        .onHover { isHovered = $0 }
+        .animation(.springQuick, value: isHovered)
+        .macCardHover()
+        .macContextMenu { menuEntries }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(named: Text("Open"), onOpen)
+    }
+}
+
+/// Shown before anything has been asked.
+private struct MacFirstConversationCard: View {
+    var onStart: () -> Void
+
+    var body: some View {
+        Button(action: onStart) {
+            HStack(alignment: .center, spacing: 28) {
+                Image(systemName: AppPage.openConversations.sidebarIconName)
+                    .font(.system(size: 26, weight: .semibold))
+                    .foregroundStyle(AngroveTheme.Colors.lightGreen)
+                    .frame(width: 64, height: 64)
+                    .background(AngroveTheme.Colors.canvasSecondary, in: Circle())
+                    .overlay(Circle().stroke(AngroveTheme.Colors.controlBorder, lineWidth: 1))
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Ask your first question")
+                        .font(AngroveTheme.Typography.title)
+                        .foregroundStyle(AngroveTheme.Colors.headingText)
+                    Text("Every conversation you begin is kept here, grouped by when you started it.")
+                        .paragraphFont()
+                        .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                        .lineSpacing(5)
+                }
+                Spacer(minLength: 0)
+            }
+            .multilineTextAlignment(.leading)
+            .padding(36)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous)
+                    .strokeBorder(AngroveTheme.Colors.controlBorder, style: StrokeStyle(lineWidth: 1.5, dash: [6, 6]))
+            }
+            .contentShape(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .macCardHover()
+    }
+}

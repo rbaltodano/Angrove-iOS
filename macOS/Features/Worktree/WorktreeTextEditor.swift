@@ -17,6 +17,9 @@ struct WorktreeTextEditor: NSViewRepresentable {
     var highlightsCommands = false
     var textFont: NSFont = WorktreeTextEditor.font
     var textLineHeight: CGFloat = WorktreeTextEditor.lineHeight
+    var textTracking: CGFloat = 0
+    /// Full text stays laid out while the summary fades in, keeping its final note geometry.
+    var revealElapsed: Double? = nil
     let onBeginEditing: () -> Void
     let onEndEditing: () -> Void
     let onCommit: () -> Void
@@ -49,7 +52,7 @@ struct WorktreeTextEditor: NSViewRepresentable {
         paragraph.lineSpacing = extra
         paragraph.alignment = alignment
         view.defaultParagraphStyle = paragraph
-        view.typingAttributes = [.font: textFont, .paragraphStyle: paragraph, .foregroundColor: NSColor(color)]
+        view.typingAttributes = [.font: textFont, .paragraphStyle: paragraph, .foregroundColor: NSColor(color), .kern: textTracking]
         view.string = text
         view.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
         return view
@@ -58,6 +61,9 @@ struct WorktreeTextEditor: NSViewRepresentable {
     static func dismantleNSView(_ view: Editor, coordinator: Coordinator) { view.stopWave() }
 
     func updateNSView(_ view: Editor, context: Context) {
+        if context.coordinator.parent.text != text {
+            context.coordinator.revealWords = Self.wordRanges(in: text)
+        }
         context.coordinator.parent = self
         view.placeholder = placeholder
         view.placeholderAlignment = alignment
@@ -70,6 +76,15 @@ struct WorktreeTextEditor: NSViewRepresentable {
             view.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
         }
         view.refreshHighlight()
+        if let revealElapsed, let storage = view.textStorage {
+            let words = context.coordinator.revealWords
+            for (index, range) in words.enumerated() {
+                let start = Double(index / 4) * 0.0275
+                let progress = min(1, max(0, (revealElapsed - start) / 0.55))
+                let alpha = 1 - pow(1 - progress, 3)
+                storage.addAttribute(.foregroundColor, value: NSColor(color).withAlphaComponent(NSColor(color).alphaComponent * alpha), range: range)
+            }
+        }
         if isEditing, view.window?.firstResponder !== view {
             DispatchQueue.main.async { [weak view] in
                 guard let view, context.coordinator.parent.isEditing else { return }
@@ -78,6 +93,11 @@ struct WorktreeTextEditor: NSViewRepresentable {
         } else if !isEditing, view.window?.firstResponder === view {
             view.window?.makeFirstResponder(nil)
         }
+    }
+
+    static func wordRanges(in text: String) -> [NSRange] {
+        let pattern = try! NSRegularExpression(pattern: #"\S+"#)
+        return pattern.matches(in: text, range: NSRange(text.startIndex..., in: text)).map(\.range)
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: Editor, context: Context) -> CGSize? {
@@ -96,7 +116,11 @@ struct WorktreeTextEditor: NSViewRepresentable {
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: WorktreeTextEditor
-        init(_ parent: WorktreeTextEditor) { self.parent = parent }
+        var revealWords: [NSRange]
+        init(_ parent: WorktreeTextEditor) {
+            self.parent = parent
+            revealWords = WorktreeTextEditor.wordRanges(in: parent.text)
+        }
         func textDidChange(_ notification: Notification) {
             guard let view = notification.object as? Editor else { return }
             parent.text = view.string

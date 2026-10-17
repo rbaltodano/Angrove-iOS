@@ -46,12 +46,19 @@ struct WorktreeItemView: View, Equatable {
             && !item.isHelp && item.arrivalTitle == nil && item.definitionFailureTerm == nil
     }
     private var isActive: Bool { isSelectable && board.selection.contains(item.id) }
-    private static let labelFont = NSFont(name: "LibreBaskerville-Italic", size: 28) ?? .systemFont(ofSize: 28)
-    private static let labelDisplayFont = Font.custom("LibreBaskerville-Italic", fixedSize: 28)
-    private static let headingFont = NSFont(name: "LibreBaskerville-Regular", size: 40) ?? .systemFont(ofSize: 40)
-    private static let headingLineHeight: CGFloat = 56
+    private static let labelFont = NSFont(name: "LibreBaskerville-Regular", size: 28) ?? .systemFont(ofSize: 28)
+    private static let labelDisplayFont = Font.custom("LibreBaskerville-Regular", fixedSize: 28)
+    static let headingFont = NSFont(name: "LibreBaskerville-Regular", size: 40) ?? .systemFont(ofSize: 40)
+    static let headingLineHeight: CGFloat = 80
+    static let headingTracking: CGFloat = 0.5
     /// The first line's height, for centring the grip on it.
     private var firstLineHeight: CGFloat { item.isHeading ? Self.headingLineHeight : WorktreeTextEditor.lineHeight }
+
+    private var liftScale: CGFloat {
+        guard dragStart == nil else { return 1 }
+        return item.image != nil ? (isActive || isHovered ? 1.05 : 1)
+            : isActive ? 1.05 : isSelectable && isHovered ? 1.02 : 1
+    }
 
     var body: some View {
         content
@@ -101,7 +108,8 @@ struct WorktreeItemView: View, Equatable {
                 else { board.select(item.id) }
             }, including: isSelectable ? .all : .none)
             // Photos lift 5% on hover or selection; other selectable items lift 2% on hover.
-            .scaleEffect(item.image != nil ? (isActive || isHovered ? 1.05 : 1) : isActive ? 1.05 : isSelectable && isHovered ? 1.02 : 1)
+            .scaleEffect(liftScale)
+            .animation(.springQuick, value: dragStart != nil)
             .animation(.springQuick, value: isActive)
             .animation(.springQuick, value: isHovered)
             .opacity(isOverTrash ? 0.5 : isOverSidebar ? 0 : 1)
@@ -127,7 +135,7 @@ struct WorktreeItemView: View, Equatable {
                 .modifier(WorktreeWorkStyle(work: item.outputWork))
                 .transition(.blurFade)
         } else if item.revealsSummary && !isEditing {
-            WorktreeSummaryReveal(text: item.text, onComplete: {
+            WorktreeSummaryReveal(text: item.text, width: item.size?.width, minimumHeight: item.size?.height, onComplete: {
                 board.update(item.id) { $0.revealsSummary = false }
             }, onEdit: {
                 board.update(item.id) { $0.revealsSummary = false }
@@ -149,14 +157,15 @@ struct WorktreeItemView: View, Equatable {
                     .transition(.blurFade)
             }
         } else if let image = item.image {
-            WorktreeImage(board: board, item: item, file: image, zoom: scale * (isActive || isHovered ? 1.05 : 1), pointer: pointer, move: boxMove)
+            WorktreeImage(board: board, item: item, file: image, zoom: scale * liftScale, pointer: pointer, move: boxMove)
         } else if item.isHelp {
             WorktreeHelpCard()
                 .transition(.scale(scale: 0.9, anchor: .topLeading).combined(with: .blurFade))
         } else if item.isHeading && !isEditing {
             // Shown word by word, as page titles arrive. A click selects it; a double-click edits.
             WorktreeRevealedText(text: item.text, font: MacPageHeading.pageFont, color: AngroveTheme.Colors.headingText,
-                                 editsOnDoubleClick: true, width: item.size?.width) {
+                                 naturalFont: Self.headingFont, lineHeight: Self.headingLineHeight,
+                                 tracking: Self.headingTracking, editsOnDoubleClick: true, width: item.size?.width) {
                 // Editing keeps the selection, so the heading's size doesn't change under the cursor.
                 board.editingID = item.id
             }
@@ -165,7 +174,7 @@ struct WorktreeItemView: View, Equatable {
         } else if item.isHeading {
             WorktreeTextEditor(text: board.binding(item.id, \.text), isEditing: isEditing,
                 fillsWidth: item.size != nil, maxWidth: item.size?.width ?? 720, color: AngroveTheme.Colors.headingText,
-                textFont: Self.headingFont, textLineHeight: Self.headingLineHeight,
+                textFont: Self.headingFont, textLineHeight: Self.headingLineHeight, textTracking: Self.headingTracking,
                 onBeginEditing: { board.editingID = item.id },
                 onEndEditing: { if board.editingID == item.id { board.endEditing() } },
                 onCommit: { board.endEditing() },
@@ -176,6 +185,7 @@ struct WorktreeItemView: View, Equatable {
             // A resized note wraps at its box's width and is at least its box's height.
             WorktreeTextEditor(text: board.binding(item.id, \.text), isEditing: isEditing,
                 fillsWidth: item.size != nil, maxWidth: item.size?.width ?? 480,
+                color: AngroveTheme.Colors.paragraphText,
                 highlightsCommands: true,
                 onBeginEditing: { board.editingID = item.id },
                 onEndEditing: { if board.editingID == item.id { board.endEditing() } },
@@ -206,13 +216,14 @@ struct WorktreeItemView: View, Equatable {
             } else if let label = item.label, board.editingID != item.labelID {
                 // A true 28pt, matching the editor (the brand helper caps Mac sizes at 24).
                 WorktreeRevealedText(text: label, font: Self.labelDisplayFont,
-                                     color: AngroveTheme.Colors.lightGreen) {
+                                     color: AngroveTheme.Colors.headingText,
+                                     naturalFont: Self.labelFont, lineHeight: 42) {
                     board.editingID = item.labelID
                 }
                 .transition(.blurFade)
             } else if item.label != nil {
                 WorktreeTextEditor(text: board.binding(item.id, \.labelText), isEditing: board.editingID == item.labelID,
-                    submitsOnReturn: true, maxWidth: 640, color: AngroveTheme.Colors.lightGreen,
+                    submitsOnReturn: true, maxWidth: 640, color: AngroveTheme.Colors.headingText,
                     textFont: Self.labelFont, textLineHeight: 42,
                     onBeginEditing: { board.editingID = item.labelID },
                     onEndEditing: { if board.editingID == item.labelID { board.finishLabelEditing(item.id) } },
@@ -310,6 +321,7 @@ private struct WorktreeQuestionCard: View {
     @State private var fade = WorktreeScrollFade()
     @State private var position = ScrollPosition(idType: Int.self)
     @State private var canLoadEarlier = false
+    @Environment(\.modelCompletionNotifications) private var completionNotifications
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hasAskedHere = false
     @State private var isLoadingEarlier = false
@@ -442,16 +454,14 @@ private struct WorktreeQuestionCard: View {
         .overlay(alignment: .bottom) { WorktreeBottomFade(fade: fade, height: edge + Self.fadeHeight) }
         .padding(.bottom, -edge)
         .animation(.springStandard, value: height)
-        .sheet(item: Bindable(session).selectedDefinition) { concept in
-            InsightLibraryCard(insight: concept, isSaved: session.savedIDs.contains(concept.id),
-                onQuote: { session.attachQuote(concept); session.selectedDefinition = nil },
-                onFork: { session.fork(concept); session.selectedDefinition = nil },
-                onToggleSaved: { session.toggleBookmark(concept) })
-                .fixedSize(horizontal: true, vertical: false)
-                .padding(24)
-                .background(AngroveTheme.Colors.canvas)
-        }
         .environment(\.speechSource, SpeechSource(title: session.activeBranch?.topQuestionText ?? "", conversationID: session.id, page: .conversation))
+    }
+
+    private func requestDefinition(_ term: String, source: String) {
+        session.define(term, source: source, runtime: runtime) { concept in
+            guard let completionNotifications else { return }
+            board.postDefinition(concept, from: session, to: completionNotifications)
+        }
     }
 
     /// The conversation page's question width, within this window.
@@ -503,7 +513,7 @@ private struct WorktreeQuestionCard: View {
                 conversationFontSize: responseSize,
                 savedInsightIDs: session.savedIDs,
                 onRegenerate: { session.regenerate(transcriptIndex: index, runtime: runtime) },
-                onInsightTap: { session.define($0, source: $1, runtime: runtime) },
+                onInsightTap: { requestDefinition($0, source: $1) },
                 onInlineInsightQuote: session.attachQuote,
                 onInlineInsightFork: session.fork,
                 onInlineInsightToggleSaved: session.toggleBookmark,
@@ -511,7 +521,7 @@ private struct WorktreeQuestionCard: View {
                 onFinish: { if let run { session.finishResponseReveal(run: run) } })
                 .id(run)
                 .environment(\.defineResponseWord, { request in
-                    if let term = DefinedTermMarkup.term(in: request.token) { session.define(term, source: text, runtime: runtime) }
+                    if let term = DefinedTermMarkup.term(in: request.token) { requestDefinition(term, source: text) }
                 })
         }
     }
@@ -729,10 +739,14 @@ struct WorktreeSelectionShadow: ViewModifier {
 
 /// Finished heading or label text, revealed one word at a time like a page title on arrival.
 /// A new text reveals again; clicking it starts editing.
-private struct WorktreeRevealedText: View {
+struct WorktreeRevealedText: View {
     let text: String
     let font: Font
     let color: Color
+    /// The font's AppKit twin and the line height to space its lines to.
+    let naturalFont: NSFont
+    let lineHeight: CGFloat
+    var tracking: CGFloat = 0
     var editsOnDoubleClick = false
     /// A resized heading wraps at its box's width.
     var width: CGFloat? = nil
@@ -741,6 +755,9 @@ private struct WorktreeRevealedText: View {
     var body: some View {
         SettingsAnimatedHeading(title: text, font: font, color: color, revealsOnAppear: true)
             .id(text)
+            .font(font)
+            .tracking(tracking)
+            .lineSpacing(max(0, lineHeight - ceil(naturalFont.ascender - naturalFont.descender + naturalFont.leading)))
             .frame(width: width, alignment: .leading)
             .fixedSize(horizontal: width == nil, vertical: true)
             .contentShape(Rectangle())

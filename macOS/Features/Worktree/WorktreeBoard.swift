@@ -63,6 +63,7 @@ enum WorktreeWork: Equatable { case queued, running }
 
     @ObservationIgnored let history = WorktreeHistory()
     var viewport = WorktreeViewport()
+    var dockedDefinition: WorktreeDockedDefinition?
 
     let documentID: UUID
     var items: [Item] = []

@@ -14,7 +14,6 @@ struct MacGlobalModelControlsTests {
         try await Task.sleep(for: .milliseconds(300))
         #expect(state.mounts == 1)
         state.transition.navigate(to: MacWorkspacePage(destination: .settings)) { state.page = .settings }
-        try await wait { !state.transition.showsControls }
         try await wait { !state.transition.isTransitioning }
         #expect(state.page == .settings)
         #expect(state.mounts == 1)
@@ -86,7 +85,7 @@ private struct PersistentDockFixture: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay {
                 MacGlobalModelControlsDock(published: MacGlobalModelControls(configuration: configuration),
-                    isVisible: state.transition.showsControls, modelTasks: state.queue, queuePopup: state.popup)
+                    modelTasks: state.queue, queuePopup: state.popup)
             }
     }
     private var configuration: ModelControlsConfiguration {
@@ -107,7 +106,7 @@ private struct ConversationDockFixture: View {
             isCanvasMode: false, isVisible: true, hasQuestion: false, treeCard: nil,
             onOpenTree: {}, onCloseTree: {}, onSend: {}, onClearDraft: {}, queuePopup: popup)
             .overlayPreferenceValue(MacGlobalModelControlsKey.self) { published in
-                MacGlobalModelControlsDock(published: published, isVisible: true,
+                MacGlobalModelControlsDock(published: published,
                     modelTasks: runtime.modelTasks, queuePopup: popup)
             }
             .background(AngroveTheme.Colors.canvas)

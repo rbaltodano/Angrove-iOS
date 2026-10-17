@@ -28,6 +28,22 @@ struct ModelCompletionNotification: Identifiable {
 @Observable
 final class ModelCompletionNotificationCenter {
     private(set) var notifications: [ModelCompletionNotification] = []
+    private(set) var isStackExpanded = false
+
+    func expandStack() {
+        withAnimation(.springStandard) {
+            isStackExpanded = notifications.count > 1
+        }
+    }
+
+    /// Keep the expansion choice while an Insight occupies the dock, then restore it.
+    func showsExpandedStack(presentingCard: Bool) -> Bool {
+        isStackExpanded && !presentingCard
+    }
+
+    private func resetEmptyStack() {
+        if notifications.isEmpty { isStackExpanded = false }
+    }
     @ObservationIgnored private var pageReturnTask: Task<Void, Never>?
 
     func post(
@@ -93,12 +109,14 @@ final class ModelCompletionNotificationCenter {
         pageReturnTask = nil
         withAnimation(.springStandard) {
             notifications.removeAll { $0.kind == .pageReturn }
+            resetEmptyStack()
         }
     }
 
     func dismiss(id: UUID) {
         withAnimation(.springStandard) {
             notifications.removeAll { $0.id == id }
+            resetEmptyStack()
         }
     }
 
@@ -182,13 +200,24 @@ struct ModelCompletionNotificationPill: View {
                         .font(AngroveTheme.Typography.uiLabel)
                         .foregroundStyle(titleColor)
                         .lineLimit(1)
-                        .truncationMode(.tail)
-
-                    Spacer(minLength: 0)
+                        .fixedSize(horizontal: true, vertical: false)
+                        // Fixed text box, leading-aligned: long titles overflow to the right
+                        // (and fade out) instead of centering and clipping the icon.
+                        .frame(width: width - 18 - 40 - 14 - 4, alignment: .leading)
+                        .clipped()
                 }
-                .padding(.leading, 24)
-                .padding(.trailing, 68)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .padding(.leading, 18)
+                .padding(.trailing, 40)
+                .frame(width: width, height: 50, alignment: .leading)
+                // Text fades out over the last 24pt before the fixed dismiss button.
+                .mask {
+                    HStack(spacing: 0) {
+                        Rectangle()
+                        LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                            .frame(width: 24)
+                        Color.clear.frame(width: 40)
+                    }
+                }
                 .contentShape(Capsule())
             }
             .buttonStyle(.plain)
@@ -197,13 +226,13 @@ struct ModelCompletionNotificationPill: View {
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
                     .font(AngroveTheme.Typography.uiLabel)
-                    .foregroundStyle(iconColor)
-                    .frame(width: 44, height: 44)
+                    .foregroundStyle(AngroveTheme.Colors.headingText)
+                    .frame(width: 40, height: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Dismiss notification")
-            .padding(.trailing, 12)
+            .padding(.trailing, 4)
         }
         .frame(width: width, height: 50)
         .background(AngroveTheme.Colors.canvasSecondary)
@@ -215,35 +244,98 @@ struct ModelCompletionNotificationPill: View {
     }
 }
 
-/// Reuses the same completion and return pills in shared docks and native Mac Boards.
+/// Completion cards share one compact stack above the dock on both platforms.
 struct ModelCompletionNotificationList: View {
+    /// Retained for call-site compatibility; cards use a fixed compact width.
     let width: CGFloat
+    static let cardWidth: CGFloat = 175
+    var presentingCard = false
     @Environment(\.modelCompletionNotifications) private var completionNotifications
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        if let completionNotifications {
-            ForEach(completionNotifications.notifications) { notification in
-                Group {
-                    if notification.kind == .pageReturn {
-                        ModelControlsConfirmationPill(
-                            title: notification.title,
-                            width: width,
-                            onConfirm: { completionNotifications.open(id: notification.id) },
-                            onDecline: { completionNotifications.dismiss(id: notification.id) },
-                            iconName: (notification.returnPage ?? .conversation).sidebarIconName,
-                            showsControlBorder: true
+        if let center = completionNotifications, !center.notifications.isEmpty {
+            let expanded = center.showsExpandedStack(presentingCard: presentingCard)
+            let stacked = !expanded && center.notifications.count > 1
+            let depth = min(center.notifications.count - 1, 2)
+
+            ScrollView(.vertical) {
+                ZStack(alignment: .top) {
+                    ForEach(center.notifications.enumerated(), id: \.element.id) { index, notification in
+                        ModelCompletionNotificationRow(
+                            notification: notification,
+                            width: Self.cardWidth,
+                            onOpen: { center.open(id: notification.id) },
+                            onDismiss: { center.dismiss(id: notification.id) }
                         )
-                    } else {
-                        ModelCompletionNotificationPill(
-                            title: notification.title,
-                            kind: notification.kind,
-                            width: width,
-                            onOpen: { completionNotifications.open(id: notification.id) },
-                            onDismiss: { completionNotifications.dismiss(id: notification.id) }
-                        )
+                        .scaleEffect(x: expanded ? 1 : 1 - CGFloat(min(index, 2)) * 0.10,
+                                     y: 1, anchor: .top)
+                        .offset(y: expanded ? CGFloat(index) * 66 : CGFloat(min(index, 2)) * 8)
+                        .opacity(expanded || index < 3 ? 1 : 0)
+                        .zIndex(Double(center.notifications.count - index))
+                        .allowsHitTesting(!stacked && (expanded || index == 0))
+                        .accessibilityHidden(stacked || (!expanded && index > 0))
+                    }
+
+                    if stacked {
+                        Button {
+                            if !presentingCard { center.expandStack() }
+                        } label: {
+                            Color.clear
+                                .frame(width: Self.cardWidth, height: 50 + CGFloat(depth) * 8)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(center.notifications.count) notifications")
+                        .accessibilityValue(center.notifications[0].title)
+                        .accessibilityHint(presentingCard
+                            ? "Dismiss the open card to expand notifications"
+                            : "Expand notifications")
+                        .zIndex(Double(center.notifications.count + 1))
                     }
                 }
-                .transition(.bottomDockCard)
+                .frame(width: Self.cardWidth, height: expanded
+                    ? 50 + CGFloat(center.notifications.count - 1) * 66
+                    : 50 + CGFloat(depth) * 8, alignment: .top)
+            }
+            .scrollDisabled(!expanded)
+            .scrollIndicators(.hidden)
+            .frame(width: Self.cardWidth, height: expanded
+                ? min(248, 50 + CGFloat(center.notifications.count - 1) * 66)
+                : 50 + CGFloat(depth) * 8)
+            .animation(reduceMotion ? .easeInOut(duration: 0.2) : .springStandard, value: expanded)
+            .animation(reduceMotion ? .easeInOut(duration: 0.2) : .springStandard,
+                       value: center.notifications.map(\.id))
+            .transition(.bottomDockCard)
+        }
+    }
+}
+
+private struct ModelCompletionNotificationRow: View {
+    let notification: ModelCompletionNotification
+    let width: CGFloat
+    let onOpen: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        ZStack {
+            if notification.kind == .pageReturn {
+                ModelControlsConfirmationPill(
+                    title: notification.title,
+                    width: width,
+                    onConfirm: onOpen,
+                    onDecline: onDismiss,
+                    iconName: (notification.returnPage ?? .conversation).sidebarIconName,
+                    showsControlBorder: true
+                )
+            } else {
+                ModelCompletionNotificationPill(
+                    title: notification.title,
+                    kind: notification.kind,
+                    width: width,
+                    onOpen: onOpen,
+                    onDismiss: onDismiss
+                )
             }
         }
     }

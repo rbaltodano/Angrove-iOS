@@ -11,7 +11,7 @@ enum MacSidebarTransition {
         switch destination {
         case .home: 0.20
         case .insights: 0.25
-        case .conversations: 0.30
+        case .conversations, .conversationList: 0.30
         case .library: 0.325
         case .studyTopics: 0.35
         case .worktree: 0.375

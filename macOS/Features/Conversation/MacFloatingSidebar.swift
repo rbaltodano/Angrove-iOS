@@ -202,7 +202,7 @@ private struct MacExpandedSidebar: View {
                     .frame(height: 28)
                     .background {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(selection == destination || hoveredDestination == destination
+                            .fill(selection.highlights(destination) || hoveredDestination == destination
                                   ? AngroveTheme.Colors.systemSelection : .clear)
                             .padding(-8)
                             .allowsHitTesting(false)
@@ -213,7 +213,7 @@ private struct MacExpandedSidebar: View {
                     if isHovered { hoveredDestination = destination }
                     else if hoveredDestination == destination { hoveredDestination = nil }
                 }
-                .accessibilityAddTraits(selection == destination ? .isSelected : [])
+                .accessibilityAddTraits(selection.highlights(destination) ? .isSelected : [])
             }
         }
     }
@@ -382,7 +382,7 @@ private struct MacCompactSidebar: View {
                 .accessibilityLabel("Angrove")
                 .modifier(MacSidebarEntrance(isPresented: isPresented, delay: 0, duration: 0.20, offset: 0))
             ForEach(Array(MacDestination.sidebarDestinations.enumerated()), id: \.element.id) { index, destination in
-                MacCompactSidebarButton(destination: destination, isSelected: selection == destination,
+                MacCompactSidebarButton(destination: destination, isSelected: selection.highlights(destination),
                                         onSelect: { selection = destination })
                     .modifier(MacSidebarEntrance(isPresented: isPresented,
                         delay: Double(index + 1) * 0.06, duration: 0.20, offset: 0))
