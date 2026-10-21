@@ -10,7 +10,8 @@ struct MacWorktreeSummaryRevealTests {
         var visible = 0
         var completions = 0
         let host = NSHostingView(rootView: WorktreeSummaryReveal(text: text,
-            onComplete: { completions += 1 }, onRevealedWordCountChange: { visible = $0 }))
+            onComplete: { completions += 1 }, onRevealedWordCountChange: { visible = $0 })
+            .environment(\.accessibilityReduceMotion, false))
         let window = mount(host)
         defer { window.contentView = nil; window.close() }
         let startDeadline = ContinuousClock.now.advanced(by: .seconds(2))
@@ -26,15 +27,20 @@ struct MacWorktreeSummaryRevealTests {
         #expect(completions == 1)
     }
 
-    @Test func disabledAnimationFinishesWithoutWaitingForWordReveal() async throws {
+    @Test(arguments: [false, true])
+    func disabledAnimationOrReducedMotionFinishesWithoutWaitingForWordReveal(reduceMotion: Bool) async throws {
         var completions = 0
+        var visible = 0
         let host = NSHostingView(rootView: WorktreeSummaryReveal(
             text: Array(repeating: "Prudence", count: 120).joined(separator: " "),
-            onComplete: { completions += 1 }, animatesReveal: false))
+            onComplete: { completions += 1 }, animatesReveal: reduceMotion,
+            onRevealedWordCountChange: { visible = $0 })
+            .environment(\.accessibilityReduceMotion, reduceMotion))
         let window = mount(host)
         defer { window.contentView = nil; window.close() }
         try await Task.sleep(for: .milliseconds(100))
         #expect(completions == 1)
+        #expect(visible == 120)
     }
 
     @Test func savedSummariesAndRedoDoNotReplayPresentation() throws {

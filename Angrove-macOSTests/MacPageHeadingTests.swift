@@ -11,6 +11,7 @@ struct MacPageHeadingTests {
 
     struct IntroductionFixture: View {
         let state: RevealState
+        var reduceMotion = false
         var body: some View {
             MacPageIntroduction(title: state.title, description: "Choose how Angrove looks, works, and fits your conversations.")
                 .padding(32)
@@ -18,12 +19,14 @@ struct MacPageHeadingTests {
                 .background(AngroveTheme.Colors.canvas)
                 .environment(\.isBootPageRevealAnimating, state.canReveal)
                 .environment(\.colorScheme, .light)
+                .environment(\.accessibilityReduceMotion, reduceMotion)
         }
     }
 
-    @Test func headingAndParagraphWaitForRevealWithoutMovingTheirLayout() async throws {
+    @Test(arguments: [false, true])
+    func headingAndParagraphRespectMotionPreferenceWithoutMovingTheirLayout(reduceMotion: Bool) async throws {
         let state = RevealState()
-        let host = NSHostingView(rootView: IntroductionFixture(state: state))
+        let host = NSHostingView(rootView: IntroductionFixture(state: state, reduceMotion: reduceMotion))
         let window = mount(host)
         defer { window.contentView = nil; window.close() }
         try await Task.sleep(for: .milliseconds(100))
@@ -32,7 +35,8 @@ struct MacPageHeadingTests {
         state.canReveal = true
         try await Task.sleep(for: .milliseconds(1100))
         let after = try capture(host)
-        #expect(before != after)
+        // Reduced motion shows the text immediately, even before the boot reveal gate.
+        #expect((before != after) == !reduceMotion)
         #expect(host.fittingSize == size)
         try after.write(to: URL(filePath: NSTemporaryDirectory() + "angrove-heading-revealed.png"))
     }
