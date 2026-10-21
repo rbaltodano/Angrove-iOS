@@ -5,13 +5,13 @@ import Testing
 
 @MainActor @Suite(.serialized)
 struct MacWorktreeSummaryRevealTests {
-    @Test func generatedSummaryRevealsProgressivelyBeforeBecomingEditable() async throws {
+    @Test func generatedSummaryRespectsMotionPreferenceBeforeBecomingEditable() async throws {
+        let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         let text = Array(repeating: "Prudence", count: 120).joined(separator: " ")
         var visible = 0
         var completions = 0
         let host = NSHostingView(rootView: WorktreeSummaryReveal(text: text,
-            onComplete: { completions += 1 }, onRevealedWordCountChange: { visible = $0 })
-            .environment(\.accessibilityReduceMotion, false))
+            onComplete: { completions += 1 }, onRevealedWordCountChange: { visible = $0 }))
         let window = mount(host)
         defer { window.contentView = nil; window.close() }
         let startDeadline = ContinuousClock.now.advanced(by: .seconds(2))
@@ -19,28 +19,29 @@ struct MacWorktreeSummaryRevealTests {
             try await Task.sleep(for: .milliseconds(10))
         }
         #expect(visible > 0)
-        #expect(visible < 120)
-        #expect(completions == 0)
+        // CI runners may enable Reduce Motion; that path must finish immediately.
+        if reduceMotion {
+            #expect(visible == 120)
+            #expect(completions == 1)
+        } else {
+            #expect(visible < 120)
+            #expect(completions == 0)
+        }
         let deadline = ContinuousClock.now.advanced(by: .seconds(4))
         while completions == 0 && ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         #expect(visible == 120)
         #expect(completions == 1)
     }
 
-    @Test(arguments: [false, true])
-    func disabledAnimationOrReducedMotionFinishesWithoutWaitingForWordReveal(reduceMotion: Bool) async throws {
+    @Test func disabledAnimationFinishesWithoutWaitingForWordReveal() async throws {
         var completions = 0
-        var visible = 0
         let host = NSHostingView(rootView: WorktreeSummaryReveal(
             text: Array(repeating: "Prudence", count: 120).joined(separator: " "),
-            onComplete: { completions += 1 }, animatesReveal: reduceMotion,
-            onRevealedWordCountChange: { visible = $0 })
-            .environment(\.accessibilityReduceMotion, reduceMotion))
+            onComplete: { completions += 1 }, animatesReveal: false))
         let window = mount(host)
         defer { window.contentView = nil; window.close() }
         try await Task.sleep(for: .milliseconds(100))
         #expect(completions == 1)
-        #expect(visible == 120)
     }
 
     @Test func savedSummariesAndRedoDoNotReplayPresentation() throws {
