@@ -16,15 +16,13 @@ map. Users choose which definitions become durable Insights; automatic analysis 
 broader Node Concept, but it does not silently save an Insight for them. The Library lets a user
 open source text rather than treat generated prose as an authority.
 
-## Current product captures
+## See the product
 
-The [October 5, 2026 screenshot set](Screenshots/case-study-2026-10-05/README.md) preserves seven
-owner-supplied originals. Home, the two conversations, and the Ancient Greek Politics map are
-shown in the [README gallery](../README.md#a-look-inside) and the
-[website case study](https://angrove.app/case-study.html). The set also includes the Nature of Evil
-conversation with expanded Corpus Grounded details and Summa Theologica links, plus two mobile
-browser captures illustrating semantic-map layout and Midpoint vector selection in the website
-User Guide. These are product captures; displayed durations are not benchmark results.
+The [1:49 conversation demo](https://angrove.app/case-study.html#demo-conversation) follows a
+question through its answer and Insight Tree. Two shorter recordings show saved ideas and
+answer playback. The [README gallery](../README.md#a-look-inside) shows the iPhone interface;
+the [full screenshot set](Screenshots/case-study-2026-10-05/README.md) includes expanded source
+details. These recordings and captures show interaction, rather than benchmark results.
 
 ## Constraints that shaped the architecture
 
@@ -128,8 +126,8 @@ been re-evaluated. Historical phone scores whose raw runs were lost are omitted 
 headline results.
 
 There is no published adoption, retention or learning-outcome evidence yet. The next product
-validation is whether people actually revisit saved Insights, check source passages and find the
-map useful. The next engineering gates are sustained phone memory/thermal/lifecycle performance,
+validation is whether people revisit saved Insights, check source passages and find the map
+useful. The next engineering gates are sustained phone memory/thermal/lifecycle performance,
 model delivery, encryption migration and backup recovery, and a supported-device matrix.
 
 ## What to inspect

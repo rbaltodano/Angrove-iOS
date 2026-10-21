@@ -13,35 +13,85 @@
 
 # Angrove
 
+[![CI](https://github.com/rbaltodano/Angrove-iOS/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/rbaltodano/Angrove-iOS/actions/workflows/ci.yml)
+
 **An AI of your own. A private place for serious questions.**
 
-Angrove is a private, local-first companion for the rigorous study of philosophy, history, and
-theology. Ask a question, test an argument, follow a contradiction, and keep the ideas worth
-returning to. The iPhone app answers without sending your questions to a model server. A native Mac port is
-in development, sharing the on-device runtime, retrieval, and persistence.
+Angrove is a private study workspace for philosophy, history, and theology. Ask a question,
+check the primary sources behind an answer, and save useful ideas in a semantic map.
+Generation and retrieval run on-device, without a model server or an account.
 
-Built around understanding, Angrove brings conversation, primary sources, and a map of your own
-thinking into one workspace. A discussion becomes something you can revisit and build on.
+Built by **Ryan Baltodano** across product design and engineering, with a SwiftUI iPhone app
+and a native Mac port in progress. **Active development; not publicly released yet.**
+
+[Watch the 1:49 demo](https://angrove.app/case-study.html#demo-conversation) ·
+[Engineering overview](#building-the-product-around-the-model) ·
+[Technical case study](Documentation/Case-Study.md) ·
+[Build and run](Documentation/Development-Setup.md)
 
 [Website](https://angrove.app/) · [User Guide](https://angrove.app/guide.html) ·
-[FAQ](https://angrove.app/faq.html) ·
-[Case Study](https://angrove.app/case-study.html)
+[FAQ](https://angrove.app/faq.html)
+
+## Watch Angrove in use
+
+Three iPhone app recordings captured October 8, 2026. Select a preview to watch the clip
+with playback controls and audio on the website.
+
+| Ask a question and explore its tree · 1:49 | Explore saved ideas · 0:24 | Listen to an answer · 0:50 |
+| --- | --- | --- |
+| [![A Peloponnesian War conversation](https://angrove.app/assets/app/demos/user-question-and-insight-tree.jpg)](https://angrove.app/case-study.html#demo-conversation) | [![A saved polis Insight in the global tree](https://angrove.app/assets/app/demos/global-insight-tree.jpg)](https://angrove.app/case-study.html#demo-global-tree) | [![An answer playing in the Reading controls](https://angrove.app/assets/app/demos/on-device-reader.jpg)](https://angrove.app/case-study.html#demo-reader) |
+
+[All three demos](https://angrove.app/case-study.html#demos) ·
+[Conversation guide](https://angrove.app/guide.html#conversation) ·
+[Insight Tree guide](https://angrove.app/guide.html#tree)
+
+## A look inside
+
+October 5, 2026 app captures: Home, a Peloponnesian War inquiry, a Homoousios conversation,
+and the Ancient Greek Politics map. Select an image to view it at full size.
+
+<p align="center">
+  <a href="Documentation/Screenshots/case-study-2026-10-05/home.jpg"><img src="Documentation/Screenshots/case-study-2026-10-05/home.jpg" alt="Angrove Home with activity and a Question of the Day" width="23%"></a>
+  <a href="Documentation/Screenshots/case-study-2026-10-05/conversation-peloponnesian-war.jpg"><img src="Documentation/Screenshots/case-study-2026-10-05/conversation-peloponnesian-war.jpg" alt="Peloponnesian War inquiry with underlined concepts" width="23%"></a>
+  <a href="Documentation/Screenshots/case-study-2026-10-05/conversation-homoousios.jpg"><img src="Documentation/Screenshots/case-study-2026-10-05/conversation-homoousios.jpg" alt="Homoousios conversation with a contextual concept" width="23%"></a>
+  <a href="Documentation/Screenshots/case-study-2026-10-05/insight-map.jpg"><img src="Documentation/Screenshots/case-study-2026-10-05/insight-map.jpg" alt="Ancient Greek Politics map and saved Insight card" width="23%"></a>
+</p>
+
+[Full screenshot set and context](Documentation/Screenshots/case-study-2026-10-05/README.md)
+include expanded source details and two mobile browser captures of the website's technical guide.
+
+<details>
+<summary>More screenshots: Library, dark appearance, and Study mode</summary>
+
+Earlier captures show the Library, menu, dark appearance, and Study mode:
+
+<p align="center">
+  <img src="Documentation/Screenshots/library-light.jpg" alt="Angrove Library of primary sources in light mode" width="19%">
+  <img src="Documentation/Screenshots/menu-light.jpg" alt="Angrove side menu in light mode" width="19%">
+  <img src="Documentation/Screenshots/home-dark.jpg" alt="Earlier Angrove Home in dark mode" width="19%">
+  <img src="Documentation/Screenshots/conv-dark.jpg" alt="Earlier Angrove conversation in dark mode" width="19%">
+  <a href="Documentation/Screenshots/study-3d-demo.mp4"><img src="Documentation/Screenshots/study-3d.jpg" alt="Angrove Study mode with a Node Concept and its Insights in 3D" width="19%"></a>
+</p>
+
+Select the Study image for the [short demo video](Documentation/Screenshots/study-3d-demo.mp4).
+
+</details>
 
 ## Building the product around the model
 
-Ryan Baltodano is the solo builder across product design and engineering. This repository
-contains the iPhone app and the in-progress native Mac port: SwiftUI interaction, a process-scoped LiteRT-LM runtime, on-device
-retrieval, a shared model-task queue, encrypted persistence, and a semantic map of saved ideas.
-Common logic lives in `Shared/`; each platform owns its navigation, input, and window behavior.
+One process-scoped LiteRT-LM runtime serves conversation, definitions, and tree updates through
+a shared task queue. On-device retrieval supplies source passages, and encrypted persistence
+keeps conversations and saved ideas local. Common logic lives in `Shared/`; each platform owns
+its navigation, input, and window behavior.
 
-For a quick review, watch the [product demos](#watch-angrove-in-use), read the
-[technical case study](Documentation/Case-Study.md), then inspect the implementation below.
+The [technical case study](Documentation/Case-Study.md) explains the constraints and tradeoffs.
+These are useful starting points in the implementation:
 
 | Engineering area | Implementation and evidence |
 | --- | --- |
 | Runtime ownership and cancellation | [Shared task queue](Shared/Features/Conversation/ModelTaskQueue.swift), [iPhone runtime](iOS/Services/AngroveApplicationRuntime.swift), [Mac runtime](macOS/Platform/MacApplicationRuntime.swift) |
 | Source-grounded answers | [Local retrieval](Shared/Services/MiniLMGroundingProvider.swift), [retrieval regressions](Angrove-iOSTests/MiniLMGroundingRetrievalTests.swift) |
-| Durable conversations and saved ideas | [Shared persistence](Shared/Persistence), [architecture](Documentation/App-Architecture.md) |
+| Durable conversations and saved ideas | [Shared persistence](Shared/Persistence), [migration regressions](Angrove-iOSTests/EncryptedAttachmentMigrationTests.swift), [architecture](Documentation/App-Architecture.md) |
 | Mac port in progress | [Mac workspace](macOS/Features/MacWorkspaceView.swift), [navigation history tests](Angrove-macOSTests/MacPageHistoryTests.swift) |
 | Measured model tradeoffs | [Evaluation methodology and artifacts](Documentation/Evaluation.md) |
 
@@ -69,46 +119,6 @@ phone latency benchmark. See the report for the exact build and limitations.
 Study Topics bring related conversations and their Insights together. Home offers a Question of
 the Day and ideas worth revisiting, while Model Tasks lets you stop, remove, or reorder work
 waiting for the on-device model.
-
-## Watch Angrove in use
-
-Three iPhone app recordings captured October 8, 2026. Select a preview to watch the clip
-with playback controls and audio on the website.
-
-| Ask a question and explore its tree · 1:49 | Explore saved ideas · 0:24 | Listen to an answer · 0:50 |
-| --- | --- | --- |
-| [![A Peloponnesian War conversation](https://angrove.app/assets/app/demos/user-question-and-insight-tree.jpg)](https://angrove.app/case-study.html#demo-conversation) | [![A saved polis Insight in the global tree](https://angrove.app/assets/app/demos/global-insight-tree.jpg)](https://angrove.app/case-study.html#demo-global-tree) | [![An answer playing in the Reading controls](https://angrove.app/assets/app/demos/on-device-reader.jpg)](https://angrove.app/case-study.html#demo-reader) |
-
-[All three demos](https://angrove.app/case-study.html#demos) ·
-[Conversation guide](https://angrove.app/guide.html#conversation) ·
-[Insight Tree guide](https://angrove.app/guide.html#tree)
-
-## A look inside
-
-October 5, 2026 app captures: Home, a Peloponnesian War inquiry, a Homoousios conversation,
-and the Ancient Greek Politics map. Select an image to view it at full size.
-
-<p align="center">
-  <a href="Documentation/Screenshots/case-study-2026-10-05/home.jpg"><img src="Documentation/Screenshots/case-study-2026-10-05/home.jpg" alt="Angrove Home with activity and a Question of the Day" width="23%"></a>
-  <a href="Documentation/Screenshots/case-study-2026-10-05/conversation-peloponnesian-war.jpg"><img src="Documentation/Screenshots/case-study-2026-10-05/conversation-peloponnesian-war.jpg" alt="Peloponnesian War inquiry with underlined concepts" width="23%"></a>
-  <a href="Documentation/Screenshots/case-study-2026-10-05/conversation-homoousios.jpg"><img src="Documentation/Screenshots/case-study-2026-10-05/conversation-homoousios.jpg" alt="Homoousios conversation with a contextual concept" width="23%"></a>
-  <a href="Documentation/Screenshots/case-study-2026-10-05/insight-map.jpg"><img src="Documentation/Screenshots/case-study-2026-10-05/insight-map.jpg" alt="Ancient Greek Politics map and saved Insight card" width="23%"></a>
-</p>
-
-[All seven new captures and their context](Documentation/Screenshots/case-study-2026-10-05/README.md)
-include expanded source details and two mobile browser captures of the website's technical guide.
-
-Earlier captures show the Library, menu, dark appearance, and Study mode:
-
-<p align="center">
-  <img src="Documentation/Screenshots/library-light.jpg" alt="Angrove Library of primary sources in light mode" width="19%">
-  <img src="Documentation/Screenshots/menu-light.jpg" alt="Angrove side menu in light mode" width="19%">
-  <img src="Documentation/Screenshots/home-dark.jpg" alt="Earlier Angrove Home in dark mode" width="19%">
-  <img src="Documentation/Screenshots/conv-dark.jpg" alt="Earlier Angrove conversation in dark mode" width="19%">
-  <a href="Documentation/Screenshots/study-3d-demo.mp4"><img src="Documentation/Screenshots/study-3d.jpg" alt="Angrove Study mode with a Node Concept and its Insights in 3D" width="19%"></a>
-</p>
-
-Select the Study image for the existing [short demo video](Documentation/Screenshots/study-3d-demo.mp4).
 
 ## A note on privacy and current development
 
@@ -141,21 +151,6 @@ The local model and grounding assets are large and intentionally excluded from s
 A clean checkout can build the interface, but full inference requires the development artifacts.
 [Setup instructions](Documentation/Development-Setup.md) explain the expected paths, model hash,
 degraded behavior and release-delivery gap.
-
-## For contributors
-
-The app is one part of a three-repository project. The backend repository holds offline tooling
-for the grounding corpus, model conversion, and evaluation; the app does not call it at runtime.
-The Foundations repository holds the shared product and architecture contracts.
-
-| Repository | Role |
-| --- | --- |
-| [Angrove Backend](https://github.com/rbaltodano/Angrove-Backend) | Corpus tooling, model conversion, and evaluation. Its FastAPI service is no longer used by the app. |
-| [Angrove Foundations](https://github.com/rbaltodano/Angrove-Foundations) | Shared product, design, model-integration, and Insight Tree documentation. |
-
-Before contributing, read [`AGENTS.md`](AGENTS.md). It routes implementation work to the focused
-architecture, runtime, workflow, and cross-repository documents without making the README carry
-internal development detail.
 
 ## Repository guide
 
@@ -195,9 +190,22 @@ The [setup guide](Documentation/Development-Setup.md#verify-behavior) includes t
 both platforms. CI runs the asset-independent checks; tests requiring private development
 artifacts report explicit skips.
 
-For deterministic checks and model-evaluation methodology, see [Evaluation](Documentation/Evaluation.md).
-Three feature demos are linked above. Detailed contributor guidance starts at
-[`AGENTS.md`](AGENTS.md).
+For model-evaluation methodology and recorded evidence, see [Evaluation](Documentation/Evaluation.md).
+
+## For contributors
+
+The app is one part of a three-repository project. The backend repository holds offline tooling
+for the grounding corpus, model conversion, and evaluation; the app does not call it at runtime.
+The Foundations repository holds the shared product and architecture contracts.
+
+| Repository | Role |
+| --- | --- |
+| [Angrove Backend](https://github.com/rbaltodano/Angrove-Backend) | Corpus tooling, model conversion, and evaluation. Its FastAPI service is no longer used by the app. |
+| [Angrove Foundations](https://github.com/rbaltodano/Angrove-Foundations) | Shared product, design, model-integration, and Insight Tree documentation. |
+
+Before contributing, read [`AGENTS.md`](AGENTS.md). It routes implementation work to the focused
+architecture, runtime, workflow, and cross-repository documents without making the README carry
+internal development detail.
 
 ## Naming
 
