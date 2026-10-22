@@ -529,7 +529,7 @@ private struct OpenConversationsSearchField: View {
         HStack(spacing: 16) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 13, weight: .medium))
-                .foregroundColor(AngroveTheme.Colors.lightGreen)
+                .foregroundColor(AngroveTheme.Colors.searchIcon)
                 .frame(width: 16, height: 16)
 
             TextField("Search Conversations", text: $searchText)
@@ -541,9 +541,9 @@ private struct OpenConversationsSearchField: View {
         .padding(.horizontal, 20)
         .frame(height: 52)
         .background(AngroveTheme.Colors.canvas)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous)
                 .stroke(AngroveTheme.Colors.sideMenuSearchBorder, lineWidth: 1)
         )
     }

@@ -4,7 +4,7 @@ import SwiftUI
 struct MacShortcutRequest: Equatable {
     enum Action: Equatable {
         case newConversation, focusQuestion, openTree, swapPanes, pinPanes, openQueue
-        case openGlobalTree, goBack, goForward, toggleContext, openSettings, openHome
+        case openGlobalTree, goBack, goForward, toggleContext, openSettings, openHome, search
         case recentConversation(Int)
     }
     let id = UUID()
@@ -53,6 +53,9 @@ struct MacWorkspaceCommands: Commands {
         CommandGroup(replacing: .newItem) {
             Button("New Conversation") { target?.send(.newConversation) }
                 .keyboardShortcut("n")
+                .disabled(target == nil)
+            Button("Search…") { target?.send(.search) }
+                .keyboardShortcut("k")
                 .disabled(target == nil)
         }
         CommandMenu("Conversation") {

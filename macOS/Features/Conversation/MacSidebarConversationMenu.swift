@@ -105,8 +105,8 @@ struct MacSidebarConversationRow: View {
         .foregroundStyle(AngroveTheme.Colors.paragraphText)
         .padding(.leading, shortcutVisible ? 44 : 16)
         .padding(.trailing, 16)
-        .background(isSelected || isHovered || isMenuOpen ? AngroveTheme.Colors.systemSelection : .clear,
-                    in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(isSelected || isHovered || isMenuOpen ? AngroveTheme.Colors.sideMenuSelection : .clear,
+                    in: RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous))
         .overlay(alignment: .leading) {
             Text(shortcutNumber.map { "⌘\($0)" } ?? "")
                 .font(AngroveTheme.Typography.body)

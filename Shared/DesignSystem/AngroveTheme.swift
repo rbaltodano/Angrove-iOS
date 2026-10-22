@@ -66,6 +66,10 @@ enum AngroveTheme {
             darkAlpha: 0.08
         )
         static let systemSelection = Color(light: 0xF0E9DA, dark: 0x181511)
+        /// The selected or hovered row in the sidebar: Canvas Primary, at half strength in dark mode.
+        static let sideMenuSelection = Color(light: 0xF3EEE2, lightAlpha: 1.0, dark: 0x120F0C, darkAlpha: 0.5)
+        /// Every search field's magnifying glass.
+        static let searchIcon = lightGreen
         /// A tint of `lightGreen` behind a response word while its Copy/Define menu is open.
         static let wordHighlight = Color(
             light: 0x86803E,
@@ -181,6 +185,8 @@ enum AngroveTheme {
     // Shared dimensions for cards, capsules, and icon controls.
     enum Spacing {
         static let insightCardMaxWidth: CGFloat = 400
+        /// Search fields, search results, and the sidebar's selected row.
+        static let selectionRadius: CGFloat = 16
         static let unit: CGFloat = 8
         static let screenPadding: CGFloat = 16
         static let cardPadding: CGFloat = 24

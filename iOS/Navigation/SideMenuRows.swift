@@ -64,8 +64,8 @@ struct SideMenuRow: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isActive ? AngroveTheme.Colors.systemSelection : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(isActive ? AngroveTheme.Colors.sideMenuSelection : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous))
         }
         .buttonStyle(.plain)
         .onAppear(perform: appearedInList)
@@ -303,9 +303,9 @@ struct ConversationMenuRow: View {
         .padding(.horizontal, 24)
         .padding(.vertical, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isActive ? AngroveTheme.Colors.systemSelection : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(isActive ? AngroveTheme.Colors.sideMenuSelection : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous))
         .onTapGesture(perform: onSelect)
         .contextMenu {
             Button("Rename", systemImage: "pencil.line") { onRename() }
@@ -435,8 +435,8 @@ struct StudyTopicMenuRow: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous))
             .onTapGesture {
                 // First tap expands; tapping again navigates.
                 if isExpanded || conversations.isEmpty {
@@ -454,7 +454,7 @@ struct StudyTopicMenuRow: View {
                 perform: {}
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous)
                     .trim(from: 0, to: isShowingLongPressFeedback ? 1 : 0)
                     .stroke(
                         AngroveTheme.Colors.border,

@@ -466,6 +466,7 @@ struct InquiryControlDock: View {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 14, weight: .regular))
+                    .foregroundColor(AngroveTheme.Colors.searchIcon)
 
                 Text("Search")
                     .font(BrandTypography.font("Figtree-SemiBold", size: 14))

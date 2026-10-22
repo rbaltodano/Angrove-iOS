@@ -16,6 +16,7 @@ struct MacFloatingSidebar: View {
     let beginRename: (UUID) -> Void
     let finishRename: (UUID, String?) -> Void
     var menuAction: (MacSidebarConversationMenuAction, InquiryConversation) -> Void
+    var openSearch: () -> Void = {}
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var initializedPresentation = false
     @State private var compactVisible = false
@@ -36,7 +37,8 @@ struct MacFloatingSidebar: View {
                                    activeConversationID: activeConversationID, openMenuID: openMenuID, openMenu: openMenu,
                                    isPresented: initializedPresentation ? expandedPresented : !isCompact,
                                    renamingConversationID: renamingConversationID,
-                                   beginRename: beginRename, finishRename: finishRename, menuAction: menuAction)
+                                   beginRename: beginRename, finishRename: finishRename, menuAction: menuAction,
+                                   openSearch: openSearch)
                     .frame(width: max(MacSidebarLayout.minimumWidth, geometry.size.width))
                     .opacity((initializedPresentation ? expandedPresented : !isCompact) ? 1 : 0)
                     .allowsHitTesting(!isCompact && expandedPresented)
@@ -99,6 +101,7 @@ private struct MacExpandedSidebar: View {
     let beginRename: (UUID) -> Void
     let finishRename: (UUID, String?) -> Void
     var menuAction: (MacSidebarConversationMenuAction, InquiryConversation) -> Void
+    let openSearch: () -> Void
     @State private var scrollEdges = Edges()
 
     var body: some View {
@@ -107,6 +110,9 @@ private struct MacExpandedSidebar: View {
                 VStack(alignment: .leading, spacing: 24) {
                     // Reserves the pinned logo's space so the rows start beneath it.
                     logo.hidden()
+                    SidebarSearchButton(showsShortcut: true, action: openSearch)
+                        .help("Search (⌘K)")
+                        .modifier(MacSidebarEntrance(isPresented: isPresented, delay: 0.15, duration: 0.32, offset: 24))
                     navigation
                     ornament
                     if showsFixture || !savedStudyTopics.isEmpty {
@@ -174,7 +180,9 @@ private struct MacExpandedSidebar: View {
     }
 
     private var navigation: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        // 44 pt rows 8 pt apart keep the Figma's 52 pt rhythm while the selection pill gets
+        // the same 16 pt leading inset as the Study Topic and Recents rows.
+        VStack(alignment: .leading, spacing: 8) {
             ForEach(MacDestination.sidebarDestinations) { destination in
                 Button {
                     selection = destination
@@ -199,12 +207,12 @@ private struct MacExpandedSidebar: View {
                         }
                         Spacer(minLength: 0)
                     }
-                    .frame(height: 28)
+                    .padding(.horizontal, 16)
+                    .frame(height: 44)
                     .background {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(selection.highlights(destination) || hoveredDestination == destination
-                                  ? AngroveTheme.Colors.systemSelection : .clear)
-                            .padding(-8)
+                        RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous)
+                            .fill(selection.highlightsExpandedRow(destination) || hoveredDestination == destination
+                                  ? AngroveTheme.Colors.sideMenuSelection : .clear)
                             .allowsHitTesting(false)
                     }
                     .contentShape(Rectangle())
@@ -213,7 +221,7 @@ private struct MacExpandedSidebar: View {
                     if isHovered { hoveredDestination = destination }
                     else if hoveredDestination == destination { hoveredDestination = nil }
                 }
-                .accessibilityAddTraits(selection.highlights(destination) ? .isSelected : [])
+                .accessibilityAddTraits(selection.highlightsExpandedRow(destination) ? .isSelected : [])
             }
         }
     }
@@ -280,7 +288,7 @@ private struct MacExpandedSidebar: View {
                     }
                     .padding(.horizontal, 16)
                     .frame(height: 44)
-                    .background(AngroveTheme.Colors.systemSelection, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(AngroveTheme.Colors.sideMenuSelection, in: RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous))
                     Button("How Much Does Intention Matter?", action: openPreview)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -350,9 +358,9 @@ private struct MacExpandedSidebar: View {
             Button { selection = .settings } label: {
                 MacIconView(icon: .settings)
                     .background {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous)
                             .fill(selection == .settings || hoveredDestination == .settings
-                                  ? AngroveTheme.Colors.systemSelection : .clear)
+                                  ? AngroveTheme.Colors.sideMenuSelection : .clear)
                             .padding(-12)
                             .allowsHitTesting(false)
                     }

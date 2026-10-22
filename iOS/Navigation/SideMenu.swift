@@ -35,6 +35,7 @@ struct AngroveSideMenu: View, Equatable {
     var onOpenStudyTopics: () -> Void
     var onSelectStudyTopic: (StudyTopic) -> Void = { _ in }
     var onOpenSettings: () -> Void
+    var onOpenSearch: () -> Void = {}
     var onClose: () -> Void
     @State private var showsTitle = false
     @State private var showsOpenConversationsTitle = false
@@ -71,6 +72,10 @@ struct AngroveSideMenu: View, Equatable {
                         .frame(maxWidth: 150)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .accessibilityLabel("Angrove")
+                        .opacity(showsTitle ? 1 : 0)
+                        .offset(x: showsTitle ? 0 : -24)
+
+                    SidebarSearchButton(action: onOpenSearch)
                         .opacity(showsTitle ? 1 : 0)
                         .offset(x: showsTitle ? 0 : -24)
 

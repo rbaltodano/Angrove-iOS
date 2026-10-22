@@ -16,11 +16,14 @@ struct MacGlobalInsightWorkspace: View {
     var onAsk: (ConceptDefinition, UUID?) -> Void
     /// A Study Topic's tree instead of the global one: its accepted snapshot, saved per topic.
     var topicID: UUID? = nil
+    /// An Insight to open on the canvas, such as one chosen from global search.
+    var focusInsightID: UUID? = nil
     @State private var offersTopicUpdate = false
 
     var body: some View {
         MacInsightTreePane(session: session, controls: controls, runtime: runtime, isVisible: true,
-                           isGlobal: topicID == nil, acceptedGlobalUpdateIDs: acceptedGlobalUpdateIDs, originPage: topicID == nil ? .insights : .studyTopics, onActivity: onActivity)
+                           isGlobal: topicID == nil, acceptedGlobalUpdateIDs: acceptedGlobalUpdateIDs, originPage: topicID == nil ? .insights : .studyTopics,
+                           focusInsightID: focusInsightID, onActivity: onActivity)
             .compositingGroup()
             .background {
                 MacConversationDock(session: session, tree: controls, runtime: runtime, isCanvasMode: true,

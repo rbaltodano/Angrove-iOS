@@ -18,8 +18,28 @@ Collected from the [iOS] and [Shared] entries below.
 - Updated the on-device AI runtime (Google LiteRT-LM 0.14 → 0.17.1). Answers, model and
   privacy are unchanged; this prepares for larger models on Mac. The app download grows by
   about 17 MB. *(Pending iPhone device validation before release.)*
+- New Search in the side menu. Find any conversation, saved Insight or Study Topic by its name,
+  or a conversation by something said in it, and filter to one kind with All, Conversations,
+  Insights or Study Topics. Matching words are highlighted; tap a result to open it.
 
 ## 2026-10-22
+
+- **[Shared] Global search (side menu on iPhone, sidebar and ⌘K on Mac).** A Search row under
+  the logo opens search over the page (on Mac, over the content area beside the sidebar): a canvas
+  veil grows from the top on the website menu's curve while the field fades in from a blur and
+  settles from 105% scale. A downward swipe lowers the keyboard. The selected sidebar row now uses
+  Canvas Primary (half strength in dark mode). Results are ranked (whole title, title start,
+  word start, anywhere, then message passages) and blur away or slide into place as you type.
+  Search fields, results and sidebar selections use a 16 pt corner radius, and every search
+  field's magnifying glass is accent green. The global search bar is a Model Controls–style
+  capsule, and a search with no results shows the standard “No Matches Found” empty state. It matches conversation titles, then the questions and
+  answers inside a conversation (shown as an italic passage), saved Insight titles and Study Topic
+  titles, ignoring case and accents; every match is set in bold accent green. All /
+  Conversations / Insights / Study Topics filter the list. Choosing a result opens the
+  conversation, selects the Insight on the Insights canvas, or opens the Study Topic. Search runs
+  on-device over data already stored; nothing new is saved. On Mac, ⌘K toggles it, arrow keys
+  move the selection, Return opens and Escape closes. Code: `Shared/Features/Search/`; tests in
+  `GlobalSearchTests`.
 
 - **[Tooling] Public documentation reorganized; no app change.** Added a documentation index,
   moved dated handoffs, checklists and release audits into `Documentation/Engineering-Log/`,

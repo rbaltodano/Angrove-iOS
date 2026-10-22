@@ -55,6 +55,7 @@ struct ContentView: View {
     /// Keep controls measurement changes from reflowing the departing scroll view.
     @State private var departingPageControlsHeight: CGFloat? = nil
     @State private var isGlobalSideMenuOpen: Bool = false
+    @State private var isGlobalSearchPresented: Bool = false
     // Set while a Study Topic's detail view is open, so the global edge-swipe
     // gesture below yields to that screen's own swipe-to-go-back gesture.
     @State private var isStudyTopicDetailVisible: Bool = false
@@ -793,6 +794,7 @@ struct ContentView: View {
             onOpenStudyTopics: { dismissGlobalSideMenu { requestedTopicID = nil; navigateWithoutReturn(to: .studyTopics) } },
             onSelectStudyTopic: { topic in dismissGlobalSideMenu { requestedTopicID = topic.id; navigateWithoutReturn(to: .studyTopics) } },
             onOpenSettings: { dismissGlobalSideMenu { navigateWithoutReturn(to: .settings) } },
+            onOpenSearch: presentGlobalSearch,
             onClose: { dismissGlobalSideMenu() }
         )
         .equatable())
@@ -1215,6 +1217,18 @@ struct ContentView: View {
                     .zIndex(2)
                 }
 
+                GeometryReader { geometry in
+                    GlobalSearchOverlay(
+                        isPresented: isGlobalSearchPresented,
+                        conversations: sideMenuConversations,
+                        topInset: max(48, geometry.safeAreaInsets.top + 8),
+                        onSelect: openGlobalSearchResult,
+                        onDismiss: { isGlobalSearchPresented = false }
+                    )
+                }
+                .ignoresSafeArea(.keyboard)
+                .zIndex(1500)
+
                 if appLockEnabled,
                    appLockController.isLocked || scenePhase != .active {
                     AppLockGate(
@@ -1352,6 +1366,29 @@ struct ContentView: View {
             .presentationDetents([.height(520), .large])
             .presentationDragIndicator(.visible)
             .presentationBackground(AngroveTheme.Colors.canvas)
+        }
+    }
+
+    // MARK: - Global Search
+
+    private func presentGlobalSearch() {
+        // The search veil grows over the page while the panel slides away.
+        dismissGlobalSideMenu()
+        isGlobalSearchPresented = true
+    }
+
+    private func openGlobalSearchResult(_ result: GlobalSearchResult) {
+        isGlobalSearchPresented = false
+        switch result.kind {
+        case .conversation:
+            requestedConversationID = result.id
+            navigateWithoutReturn(to: .conversation)
+        case .insight:
+            globalInsightRestoreSelectionID = result.id
+            navigateWithoutReturn(to: .insights)
+        case .studyTopic:
+            requestedTopicID = result.id
+            navigateWithoutReturn(to: .studyTopics)
         }
     }
 

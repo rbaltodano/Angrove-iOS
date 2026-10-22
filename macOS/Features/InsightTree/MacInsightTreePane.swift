@@ -11,6 +11,8 @@ struct MacInsightTreePane: View {
     var acceptedGlobalUpdateIDs: Set<UUID> = []
     var originPage: ModelTaskOriginPage? = nil
     var cardsAtFrameBottom = false
+    /// An Insight to open on the canvas, such as one chosen from global search.
+    var focusInsightID: UUID? = nil
     var onActivity: () -> Void = {}
     @State private var hasMounted = false
     @AppStorage(SettingsStorageKey.insightTreeBackground) private var background: CanvasBackgroundOption = .system
@@ -32,6 +34,7 @@ struct MacInsightTreePane: View {
                     onStudyModeChange: { controls.isStudy = $0 },
                     onStudyToolsActiveChange: { controls.studyToolsOpen = $0 },
                     onStudyBranchCountChange: { controls.studyBranchCount = $0 },
+                    restoreSelectedInsightID: focusInsightID,
                     promotedInsightIDs: session.promotedIDs,
                     onRemoveInsight: session.remove, onRestoreInsight: session.restore,
                     onForkInsight: session.fork,

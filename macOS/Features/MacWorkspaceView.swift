@@ -50,6 +50,11 @@ enum MacDestination: String, CaseIterable, Identifiable {
     func highlights(_ destination: MacDestination) -> Bool {
         self == destination || (self == .conversationList && destination == .conversations)
     }
+    /// The expanded sidebar marks an open conversation in Recents, so its Conversations row is
+    /// selected only on the Conversations overview.
+    func highlightsExpandedRow(_ destination: MacDestination) -> Bool {
+        destination == .conversations ? self == .conversationList : self == destination
+    }
 
     var asset: MacIcon {
         switch self {
@@ -95,6 +100,9 @@ struct MacWorkspaceView: View {
     @State private var pageTransition = MacPageTransition()
     @State private var homeVinePlayback = HomeVinePlaybackController()
     @State private var worktrees = WorktreeLibrary()
+    @State private var isSearchPresented = false
+    @State private var searchedInsightID: UUID?
+    @State private var searchedTopicID: UUID?
     private var ownsPageFade: Bool { selection == .conversations || selection == .insights }
     @Environment(\.isBootPageRevealAnimating) private var bootPageReveal
     @Environment(\.isBootRevealComplete) private var bootRevealComplete
@@ -110,6 +118,8 @@ struct MacWorkspaceView: View {
                 HStack(spacing: 0) {
                     MacFloatingSidebar(selection: Binding(get: { selection }, set: {
                         // The sidebar's Conversations row opens the overview; Recents open a conversation.
+                        searchedInsightID = nil
+                        searchedTopicID = nil
                         navigate(to: page(for: $0 == .conversations ? .conversationList : $0))
                     }), isCompact: sidebar.isCompact, showsFixture: showFixture,
                         conversations: conversations, loadingBranchIDs: loadingBranchIDs, openConversation: { id in
@@ -125,7 +135,8 @@ struct MacWorkspaceView: View {
                         finishRename: { id, title in
                             if renamingConversationID == id { renamingConversationID = nil }
                             if let title { updateConversation(id, action: .rename(title)) }
-                        }, menuAction: handleConversationAction)
+                        }, menuAction: handleConversationAction,
+                        openSearch: { isSearchPresented = true })
                     .frame(width: sidebar.width(in: geometry.size.width))
                     .clipped()
                     .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { WorktreeBoard.sidebarFrame = $0 }
@@ -151,6 +162,15 @@ struct MacWorkspaceView: View {
                     .background(MacPageActivityObserver(onActivity: recordPageActivity))
                     .overlayPreferenceValue(MacGlobalModelControlsKey.self) { controls in
                         MacGlobalModelControlsDock(published: controls, modelTasks: modelTasks, queuePopup: queuePopup)
+                    }
+                    // Search covers the page and its controls, never the sidebar.
+                    .overlay {
+                        GlobalSearchOverlay(isPresented: isSearchPresented, conversations: conversations,
+                                            topInset: MacConversationStyle.pageTopPadding,
+                                            horizontalInset: MacConversationStyle.pageHorizontalPadding,
+                                            showsKeyboardSelection: true,
+                                            onSelect: openSearchResult,
+                                            onDismiss: { isSearchPresented = false })
                     }
                 }
                 .coordinateSpace(name: "MacWorkspace")
@@ -308,7 +328,8 @@ struct MacWorkspaceView: View {
                     }, onOpenInsights: { navigate(to: page(for: .insights)) })
                     .id(conversationID)
             } else if selection == .insights {
-                MacGlobalInsightWorkspace(queuePopup: queuePopup, onActivity: recordPageActivity, onAsk: quote)
+                MacGlobalInsightWorkspace(queuePopup: queuePopup, onActivity: recordPageActivity, onAsk: quote,
+                                          focusInsightID: searchedInsightID)
             } else if selection == .home {
                 MacHomeView(conversations: conversations, activeConversationID: conversationID,
                     onOpenConversation: { id in
@@ -337,7 +358,9 @@ struct MacWorkspaceView: View {
                         conversations = CurrentConversationsStore.load()?.conversations ?? []
                         NotificationCenter.default.post(name: .macConversationSaved, object: nil)
                     },
-                    onAsk: quote, queuePopup: queuePopup)
+                    onAsk: quote, queuePopup: queuePopup, selectedTopicID: searchedTopicID)
+                    // A topic chosen from search reopens the page on that topic.
+                    .id(searchedTopicID)
             } else if selection == .conversationList {
                 MacConversationsListView(conversations: conversations, activeConversationID: conversationID,
                     onOpen: { id in navigate(to: MacWorkspacePage(destination: .conversations, conversationID: id)) },
@@ -421,7 +444,10 @@ struct MacWorkspaceView: View {
         guard request.action != .openTree || (pageTransition.destination?.destination ?? selection) == .conversations else { return }
         conversationMenuID = nil
         renamingConversationID = nil
+        if request.action != .search { isSearchPresented = false }
         switch request.action {
+        case .search:
+            isSearchPresented.toggle()
         case .goBack:
             if let page = history.back() { navigate(to: page, recordsVisit: false) }
         case .goForward:
@@ -452,6 +478,20 @@ struct MacWorkspaceView: View {
             navigate(to: page(for: .conversations)) { paneShortcut = request }
         case .focusQuestion, .swapPanes, .pinPanes, .toggleContext:
             navigate(to: page(for: .conversations)) { paneShortcut = request }
+        }
+    }
+
+    private func openSearchResult(_ result: GlobalSearchResult) {
+        isSearchPresented = false
+        switch result.kind {
+        case .conversation:
+            navigate(to: MacWorkspacePage(destination: .conversations, conversationID: result.id))
+        case .insight:
+            searchedInsightID = result.id
+            navigate(to: page(for: .insights))
+        case .studyTopic:
+            searchedTopicID = result.id
+            navigate(to: page(for: .studyTopics))
         }
     }
 

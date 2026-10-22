@@ -26,8 +26,8 @@ struct MacCompactSidebarButton: View {
                 .scaleEffect(isHovered && !reduceMotion ? 1.05 : 1)
                 .animation(reduceMotion ? nil : .springMicro, value: isHovered)
                 .frame(width: 44, height: 44)
-                .background(isSelected || isHovered ? AngroveTheme.Colors.systemSelection : .clear,
-                            in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(isSelected || isHovered ? AngroveTheme.Colors.sideMenuSelection : .clear,
+                            in: RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous))
                 .contentShape(Rectangle())
         }
         .focused($isFocused)
