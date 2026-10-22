@@ -48,8 +48,8 @@ Do not commit, stash, reset, switch branches, overwrite their edits, or stage wh
 The existing staged Worktree image deletions predate this work; preserve them.
 
 Read root `AGENTS.md`, `Shared/AGENTS.md`, `Documentation/Development-Workflow.md`, then:
-- `Documentation/Bonsai-9B-Handoff.md`: full integration/history and every experiment checkpoint.
-- `Documentation/Bonsai-Optimization-Plan.md`: current approach, technical pitfalls and next steps.
+- `Documentation/Engineering-Log/Bonsai-9B-Handoff.md`: full integration/history and every experiment checkpoint.
+- `Documentation/Engineering-Log/Bonsai-Optimization-Plan.md`: current approach, technical pitfalls and next steps.
 - `~/Developer/Angrove-Eval/README.md` **before any eval**, and its `RESULTS.md` for detailed scores
   and manual answer reviews. Run IDs are immutable; always create a new run folder.
 - Before model work, read the Shelving record in

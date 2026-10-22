@@ -1,7 +1,7 @@
 # Gemma 4 E4B QAT migration — execution plan
 
 > **Status:** plan v2, revised 2026-09-25 after an independent review
-> ([`Gemma4-E4B-QAT-Plan-Review.md`](Gemma4-E4B-QAT-Plan-Review.md); how each finding was handled
+> ([`Gemma4-E4B-QAT-Plan-Review.md`](Engineering-Log/Gemma4-E4B-QAT-Plan-Review.md); how each finding was handled
 > is recorded at the end of that file). Not yet executed.
 >
 > This file is the **instructions**. It changes only when the plan itself changes. Record all

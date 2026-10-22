@@ -22,8 +22,10 @@ check the primary sources behind an answer, and save useful ideas in a semantic 
 Generation and retrieval run on-device, without a model server or an account.
 
 Built by **Ryan Baltodano** across product design and engineering, with a SwiftUI iPhone app
-and a native Mac port in progress. **Active development; not publicly released yet.**
+and a native Mac app in progress. **The iPhone app is in public beta on
+[TestFlight](https://testflight.apple.com/join/qHDFeAUa); the App Store release is next.**
 
+[Try the iPhone beta](https://testflight.apple.com/join/qHDFeAUa) ·
 [Watch the 1:49 demo](https://angrove.app/case-study.html#demo-conversation) ·
 [Engineering overview](#building-the-product-around-the-model) ·
 [Technical case study](Documentation/Case-Study.md) ·
@@ -130,8 +132,7 @@ network requests. Once the model is installed, Angrove works offline. No account
 AES-256-GCM, including conversations, attachments, Insights, Study Topics, personal settings, and
 local backups. Keys are protected by Apple Keychain. User-created conversation exports are
 readable JSON. The encryption is integrated into the app's storage and covered by tests;
-physical-device lock and backup-restore validation is still pending, and the app is not publicly
-released yet. See [encryption coverage and recovery](Documentation/Data-Encryption.md).
+physical-device lock and backup-restore validation is still pending. See [encryption coverage and recovery](Documentation/Data-Encryption.md).
 
 The current model is **Gemma 4 E4B, instruction-tuned, from the LiteRT Community package**,
 running through Google's LiteRT-LM runtime. It is not an Angrove fine-tune. Angrove’s default
@@ -142,7 +143,7 @@ source retrieval and the semantic relationships in the Insight Tree.
 Answers can make mistakes. The Library makes it easy to check important claims against the
 author's own words and context.
 
-Angrove is in active development and is not publicly released yet. It is being built to stay
+Angrove is in public beta on [TestFlight](https://testflight.apple.com/join/qHDFeAUa), and the App Store release is next. It is being built to stay
 free, with no subscription or paywalled features. Development uses iPhone 17 and Apple silicon
 Macs. The Mac front end is still in progress and currently requires macOS 27;
 final supported-device requirements and release availability will be shared before launch.

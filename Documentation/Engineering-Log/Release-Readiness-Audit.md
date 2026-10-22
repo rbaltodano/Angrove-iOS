@@ -31,7 +31,7 @@ Angrove integration declaration, not a Google attestation of every native compon
 
 The essential model is packaged as `build/asset-packs/Gemma4-E4B.aar` (3,129,706,564 bytes).
 The IPA is `build/release-audit/app-store-export/Angrove-iOS.ipa` (223,017,617 bytes), version
-1.0/build 1. See [delivery artifacts and gates](Apple-Hosted-Model-Delivery.md). Nothing has been
+1.0/build 1. See [delivery artifacts and gates](../Apple-Hosted-Model-Delivery.md). Nothing has been
 uploaded, installed on the owner's phone or validated through TestFlight in this follow-up.
 
 `build/release-audit/distribution-packaging-report.json` verifies each app/extension signature,
@@ -79,7 +79,7 @@ navigation, Dynamic Type and genuine hosted-service failures still need verifica
 available UI tooling could not perform touch/hierarchy checks. Unit checks verify retry recovery
 and repeated retry coalescing, not the full touch path.
 
-The [native SDK audit](LiteRT-Privacy-Crypto-Audit.md) now pins the binary, traces native
+The [native SDK audit](../LiteRT-Privacy-Crypto-Audit.md) now pins the binary, traces native
 file/timing/network/RNG callers and supplies a repeatable inventory script. It found bundled
 ChaCha random-generator code and confirmed the device minizip entry rejects passwords. The SDK
 API-reason manifest has since been added and verified in the distribution IPA; export classification
@@ -104,7 +104,7 @@ Reasons were checked against Apple's [API/reason documentation](https://develope
 1. **Export-compliance declaration is pending.** App-owned storage encryption uses CryptoKit/
    Keychain. The native audit found bundled ChaCha PRNG code, distinct from message encryption.
    Its submission classification/account-side answer remains open; `ITSAppUsesNonExemptEncryption`
-   was not guessed. See the [SDK evidence](LiteRT-Privacy-Crypto-Audit.md).
+   was not guessed. See the [SDK evidence](../LiteRT-Privacy-Crypto-Audit.md).
 2. **Upload/account validation is pending.** The Apple app lookup returned zero matching records for
    `com.ryanbaltodano.Aquinas-iOS`. Create/reconcile that record and check its build number,
    launch territories and agreements. Distribution export succeeded, but acceptance

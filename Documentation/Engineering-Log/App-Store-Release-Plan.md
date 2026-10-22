@@ -32,12 +32,12 @@ assets requires a network connection.
 - [x] Prepare store-copy and reviewer-note drafts.
 - [x] Implement delivery status/recovery UI; verify fixture layouts and retry state logic locally.
 - [ ] Verify actual UI taps/navigation and real managed-pack installation through TestFlight.
-- [x] Complete static vendored LiteRT API/crypto inventory and document findings in [SDK audit](LiteRT-Privacy-Crypto-Audit.md).
+- [x] Complete static vendored LiteRT API/crypto inventory and document findings in [SDK audit](../LiteRT-Privacy-Crypto-Audit.md).
 - [x] Add integration-reviewed SDK API manifests and verify distribution export/signing.
 - [ ] Resolve export classification, account-side declarations and physical network verification.
 
 These local checks do not complete the end-to-end release gates. See the
-[delivery implementation](Apple-Hosted-Model-Delivery.md),
+[delivery implementation](../Apple-Hosted-Model-Delivery.md),
 [release audit](Release-Readiness-Audit.md) and
 [submission draft](App-Store-Submission-Draft.md).
 

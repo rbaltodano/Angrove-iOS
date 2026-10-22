@@ -20,7 +20,7 @@ references. Startup migration verifies blobs before replacing parent JSON and re
 originals. Backups, Topics, nested Board windows and trash are included in reference tracking;
 portable exports still carry exact image bytes. Conservative cleanup preserves all retained
 references and cancels on any unreadable inventory. See
-[Attachment storage migration](Attachment-Storage-Migration.md) for the complete contract and
+[Attachment storage migration](../Attachment-Storage-Migration.md) for the complete contract and
 release-validation limits. Conversion has only been exercised on isolated fixtures; the owner's
 Mac installation remains pending by request.
 
@@ -111,7 +111,7 @@ safeguard or launch the DerivedData copy against personal stores.
 ## Approved attachment-migration follow-up
 
 The owner subsequently approved finding 15's migration. It is implemented and documented in
-[Attachment storage migration](Attachment-Storage-Migration.md): encrypted owner-scoped blobs,
+[Attachment storage migration](../Attachment-Storage-Migration.md): encrypted owner-scoped blobs,
 versioned local references, verified blob writes before parent replacement, retained encrypted
 originals, portable inline exports, safe backup/Topic/Board/trash reference tracking and cleanup.
 Final focused tests: **48 iPhone tests and 33 Mac tests passed**, including injected interrupted

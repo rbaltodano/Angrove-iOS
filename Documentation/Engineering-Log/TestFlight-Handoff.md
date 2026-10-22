@@ -157,7 +157,7 @@ is outside this launch scope; the full artifact still needs a justified encrypti
    bundle ID, reconcile that first instead of creating a duplicate.
 2. **Codex: finish the encryption submission answer from the recorded inventory.** Apple OS
    encryption covers app storage; native ChaCha code serves RNG dependencies. The plist answer
-   remains unset pending a justified classification. See [SDK audit](LiteRT-Privacy-Crypto-Audit.md).
+   remains unset pending a justified classification. See [SDK audit](../LiteRT-Privacy-Crypto-Audit.md).
    Account-side answers must reflect the entire distributed artifact and selected territories.
 3. **Codex: reconcile the app record/build number, rebuild if needed, validate and upload the app
    and `.aar` pack using Apple tools, then verify processing.** Select the matching pack for the
@@ -262,7 +262,7 @@ the build is installed, a tester group has access, or encryption paperwork is co
 ## Build 2 upload — current status
 
 Added `ITSAppUsesNonExemptEncryption = NO` using the integration assessment in
-[LiteRT privacy/crypto audit](LiteRT-Privacy-Crypto-Audit.md), and incremented project build
+[LiteRT privacy/crypto audit](../LiteRT-Privacy-Crypto-Audit.md), and incremented project build
 numbers to 2. The candidate includes these local changes on top of main commit `21ac6a6`.
 The app still encrypts stored data; this plist value classifies export compliance.
 
@@ -303,7 +303,7 @@ the exported app: zero blockers.
 
 The reader documents (`Shared/LibraryDocuments/`) and grounding corpus are generated,
 gitignored inputs. A clean checkout must regenerate them before archiving
-([Complete Library reader](Complete-Library-Reader.md), [setup](Development-Setup.md)).
+([Complete Library reader](../Complete-Library-Reader.md), [setup](../Development-Setup.md)).
 
 Nothing was uploaded. Still required: upload the app and the essential model pack, verify
 processing, then a fresh TestFlight install with model download on a supported iPhone.

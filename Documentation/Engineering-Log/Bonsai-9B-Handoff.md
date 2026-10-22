@@ -67,8 +67,8 @@ Mac M4 Pro, standalone probe (`swiftc` against the framework): load 1.4 s, 44 to
 33 layers on Metal, ~2.3 GB GPU; correct answer. Exiting without freeing asserts
 (`ggml-metal-device.m:968 GGML_ASSERT([rsets->data count] == 0)`) — the reason for `LlamaExitCleanup`.
 
-iPhone 17 (base, "Ry", CoreDevice `92295FBA-BC31-5608-BCB3-7C367E627732`, UDID
-`00008150-00184D221EF8401C`), Debug build, `--bonsai-9b --bonsai-probe`:
+iPhone 17 (base; device identifiers omitted),
+Debug build, `--bonsai-9b --bonsai-probe`:
 
 | Step | Prompt tok | Prefill | Generated | Decode |
 | --- | --- | --- | --- | --- |

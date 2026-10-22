@@ -9,7 +9,7 @@ change, newest first, under the date. Tag each entry by platform:
 - **[Tooling]**: diagnostics, evaluation, conversion; ships in neither app.
 
 1.0 baseline: repository `main` at `8ff5713` plus the working tree used for the submitted
-archive. (Owner: record the 1.0 build number here.)
+archive. The submitted 1.0 build is build 6 (October 17, 2026).
 
 ## Mobile patch notes (draft)
 
@@ -18,6 +18,13 @@ Collected from the [iOS] and [Shared] entries below.
 - Updated the on-device AI runtime (Google LiteRT-LM 0.14 → 0.17.1). Answers, model and
   privacy are unchanged; this prepares for larger models on Mac. The app download grows by
   about 17 MB. *(Pending iPhone device validation before release.)*
+
+## 2026-10-22
+
+- **[Tooling] Public documentation reorganized; no app change.** Added a documentation index,
+  moved dated handoffs, checklists and release audits into `Documentation/Engineering-Log/`,
+  stated the public TestFlight beta in the README and case study, and removed device identifiers
+  and home-directory paths from development records.
 
 ## 2026-10-17
 

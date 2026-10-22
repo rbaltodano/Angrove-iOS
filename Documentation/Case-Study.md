@@ -1,8 +1,8 @@
 # Angrove: building a private AI study workspace for iPhone and Mac
 
 **Role:** Ryan Baltodano, solo builder across product design, SwiftUI implementation, local model
-integration, retrieval, persistence and evaluation. **Status:** active development; no public
-release yet. [Website](https://angrove.app/) · [Product guide](https://angrove.app/guide.html)
+integration, retrieval, persistence and evaluation. **Status:** iPhone public beta on
+[TestFlight](https://testflight.apple.com/join/qHDFeAUa); App Store release next; Mac app in progress. [Website](https://angrove.app/) · [Product guide](https://angrove.app/guide.html)
 
 ## The problem and product hypothesis
 
@@ -93,7 +93,7 @@ its device. The [workspace layout](Workspace-Layout.md) documents ownership and 
 [Mac navigation tests](../Angrove-macOSTests/MacPageHistoryTests.swift) exercise history and draft
 preservation without opening personal stores. The linked screenshots and recordings document
 the iPhone experience. The Mac front end remains in progress; no Mac visual showcase is
-included yet, and neither app is presented as a shipped release.
+included yet.
 
 ## Models and runtimes explored
 

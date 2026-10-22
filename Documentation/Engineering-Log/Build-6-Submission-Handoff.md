@@ -14,9 +14,9 @@ archive through its own export pipeline.
 
 ## Candidate
 
-- Angrove stable replacement version pending upload.0, build 6; production bundle ID `com.ryanbaltodano.Aquinas-iOS`.
+- Angrove 1.0, build 6; production bundle ID `com.ryanbaltodano.Aquinas-iOS`.
 - Stable Xcode 27.0 (27A266a); iPhone-only, minimum iOS 26.4, existing performance capability retained.
-- Production model: Gemma 4 E4B, Apple-hosted essential pack `angrove-gemma4-e4b-0b2a8980`, stable replacement version pending upload.
+- Production model: Gemma 4 E4B, Apple-hosted essential pack `angrove-gemma4-e4b-0b2a8980`, version 2 (packaged with stable tooling).
 - The model is absent from the distribution app bundle. The Debug-only Bonsai flag remains disabled in Release.
 - Archive: `build/testflight-build6/Angrove-build6-final.xcarchive`.
 - Distribution IPA: `build/testflight-build6/export-final/Angrove-iOS.ipa` (289,767,951 bytes).
@@ -54,7 +54,7 @@ The signed everyday Mac app was refreshed at `/Applications/Angrove.app` using t
 
 ## Owner walkthrough after Apple processing
 
-1. In App Store Connect, open Angrove → TestFlight → iOS Builds and confirm stable replacement version pending upload.0 build 6
+1. In App Store Connect, open Angrove → TestFlight → iOS Builds and confirm 1.0 build 6
    completes processing. If Apple reports a warning or error, resolve it before review.
 2. Install build 6 from TestFlight without deleting the existing app. Confirm model readiness,
    a normal answer, an Insight notification opening its card, and offline use after installation.

@@ -7,17 +7,17 @@ post publicly or merge without them. This review does not authorize device runs 
 
 ## Read and check
 
-1. Read [`AGENTS.md`](../AGENTS.md), then the execution rules and C9 failure branch in the
-   [frozen plan](Gemma4-E4B-QAT-Plan.md). The plan's opening “Not yet executed” marker is
+1. Read [`AGENTS.md`](../../AGENTS.md), then the execution rules and C9 failure branch in the
+   [frozen plan](../Gemma4-E4B-QAT-Plan.md). The plan's opening “Not yet executed” marker is
    historical; use the ledger for current status.
-2. Read the [current handoff, status board, C9 protocol and closeout](Gemma4-E4B-QAT-Progress.md).
+2. Read the [current handoff, status board, C9 protocol and closeout](../Gemma4-E4B-QAT-Progress.md).
    The ledger's older “Prior handoff” and its remaining-steps list are historical.
-3. Review the [frozen P1 diagnostic protocol and stopping point](Gemma4-E4B-Post-C9-Diagnostics.md),
-   the [runtime description](Model-Runtime.md), and the
+3. Review the [frozen P1 diagnostic protocol and stopping point](../Gemma4-E4B-Post-C9-Diagnostics.md),
+   the [runtime description](../Model-Runtime.md), and the
    [proposed Foundations update](Gemma4-E4B-MODEL-INTEGRATION-Update.md). The latter is a review
    draft; do not apply its superseded promotion claims.
 4. Inspect the DEBUG sustained harness in
-   [`LiteRTSustainedProbe.swift`](../iOS/Features/Developer/LiteRTSustainedProbe.swift),
+   [`LiteRTSustainedProbe.swift`](../../iOS/Features/Developer/LiteRTSustainedProbe.swift),
    its call sites, and the bounded-memory `LiteRTModelInstaller.sha256` change. Do not edit
    `Angrove-iOS/Services/LiteRTAngroveModel.swift`; the owner may change prompts there on main.
 

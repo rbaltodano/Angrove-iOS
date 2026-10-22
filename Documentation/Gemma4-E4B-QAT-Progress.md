@@ -29,7 +29,7 @@
 
 ## Current handoff — after C9 (2026-09-27)
 
-Claude reviewer: start with [`Gemma4-E4B-Review-Handoff.md`](Gemma4-E4B-Review-Handoff.md)
+Claude reviewer: start with [`Gemma4-E4B-Review-Handoff.md`](Engineering-Log/Gemma4-E4B-Review-Handoff.md)
 for the current evidence, code changes, open questions, and review boundaries. This section
 supersedes the historical handoff below; do not execute its old “Remaining, in order” list.
 The execution plan remains frozen as instructions; its top “Not yet executed” line is historical.
@@ -137,7 +137,7 @@ The owner is handing this work to Codex. State as of commit `2776cc9` on `featur
 | C11 | Optional: M2-L control analysis | C8 | todo | | | |
 | C12 | Optional: vision probe | C10 | in-progress | Codex / gemma-vision | 2026-10-11 | Owner explicitly requested native image input; current E4B integration is authoritative. Native GPU phone recognition and image-history follow-ups pass; phone vision enabled by default. Photos restored on main. Sustained/UI checks remain. |
 
-**Next action:** Claude reviews the [review handoff](Gemma4-E4B-Review-Handoff.md) and the frozen
+**Next action:** Claude reviews the [review handoff](Engineering-Log/Gemma4-E4B-Review-Handoff.md) and the frozen
 [P1 diagnostic plan](Gemma4-E4B-Post-C9-Diagnostics.md). P1 has no runs and the owner requested
 a stopping point. C9 is failed; do not promote. E4B stays on the owner's phone only as a temporary
 personal trial. C8 phone GPU confirmation, C10 rollback check, Foundations update, and PR are held.
@@ -253,19 +253,19 @@ and what options you recommend._
 | 2026-09-27 | Owner asked the session to verify and commit the backend-removal and Home work on `main`, then merge. Verified (build; 182/183 tests, the one failure pre-existing; the app launches and Home renders), committed as `fdf3d72`, and merged into this branch. The one conflict (`AngroveApplicationRuntime`: `--force-backend-model` removed, DEBUG model override kept) was resolved, and the probes' dead backend fallbacks were removed. Merged code: build OK, 198/199 tests (same pre-existing failure). Two pre-existing Home bugs found (not from this work): an empty "Where You Left Off" section when no conversation is selected, and "On the Incarnation" (Athanasius) described as "outlined by Augustine of Hippo". One likely catalog error: Today in History 05-11 (the Didache manuscript's colophon dates the copy to 11 June 1056) | Owner request, executed by Claude Code session | `LocalModels/e4b-eval/main-verify-1`, `merge-verify-1` |
 | 2026-09-27 | C7 on the simulator CPU. Run the stress cases through a DEBUG probe (`--litert-lifecycle-probe`) that drives the app's own runtime, queue, and model, plus manual UI runs for real suspension and memory warnings. Fix the three lifecycle bugs C7 found in this branch; they are runtime bugs, not model-specific | Claude Code session (delegated) | Hand-driven CPU timing is too coarse for preemption and cancel windows; the probe is repeatable. The bugs affect B0 as well, and C9 needs them fixed |
 | 2026-09-26 | Note only: the owner's **uncommitted** backend-removal work in the main checkout also edits this plan (C3 step 4 and C7 wording) and adds a decision row to its copy of this ledger. It doesn't affect C4 or C5. When it lands on `main`, merge it into `feature/gemma4-e4b-qat`; expect conflicts in `LiteRTDeviceProbe.swift`, `AngroveApplicationRuntime.swift`, and this ledger | Claude Code session | This branch predates that work; main's working tree is not touched |
-| 2026-09-25 | Adopt plan v2 after independent review: conversion route blocked (D7); provenance labels but doesn't gate (D8); M2-L optional control (D9); early phone screen before quality; numeric memory cap; eval set 40 dev + 40 held-out with cross-model first-pass scoring and owner spot checks | User + planning session | [`Gemma4-E4B-QAT-Plan-Review.md`](Gemma4-E4B-QAT-Plan-Review.md), "Disposition" |
+| 2026-09-25 | Adopt plan v2 after independent review: conversion route blocked (D7); provenance labels but doesn't gate (D8); M2-L optional control (D9); early phone screen before quality; numeric memory cap; eval set 40 dev + 40 held-out with cross-model first-pass scoring and owner spot checks | User + planning session | [`Gemma4-E4B-QAT-Plan-Review.md`](Engineering-Log/Gemma4-E4B-QAT-Plan-Review.md), "Disposition" |
 | 2026-09-26 | Remove the app's HTTP backend client (`BackendAngroveModel`, `--force-backend-model`, tree and Home services). C3 and C7 no longer need to disable backend recovery | User | The app is fully on-device; plan steps C3 item 4 and C7 updated to match |
 
 ## Evidence
 
 ### C0 — Baseline identity and workspace
 Run ID `C0-B0-1` (2026-09-25); evidence in `LocalModels/e4b-eval/C0-B0-1/`.
-- Worktree path / branch / base commit: `/Users/ryanbaltodano/Developer/Aquinas-iOS-e4b-qat` ·
+- Worktree path / branch / base commit: `~/Developer/Aquinas-iOS-e4b-qat` ·
   `feature/gemma4-e4b-qat` · `31aa4763f0930d0e25d72c83d5494a33bdfe5a51` (local `main`)
 - Excluded dirty files (main checkout): `Angrove-iOS/Features/InsightTree/InsightTreeCanvasView.swift`
   (modified). Never staged.
 - Provisioned ignored assets (source path → SHA-256): APFS clones (`cp -c`) from
-  `/Users/ryanbaltodano/Developer/Aquinas-iOS-main/`; worktree hashes identical to source.
+  `~/Developer/Aquinas-iOS-main/`; worktree hashes identical to source.
   - `Angrove-iOS/LocalModels/gemma-4-E2B-it.litertlm` → `9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282`
   - `Angrove-iOS/LocalGrounding/embeddings.bin` → `6b481153d2b456033cde2503a414a5a5292bbc0c0aa26cf7e148650f08e6316a`
   - `Angrove-iOS/LocalGrounding/passages.json` → `75fc02b45b4f458e60637a2bc41d08c68656e9b486d3458c1ca4f013ed5257e0`
@@ -521,7 +521,7 @@ All runs: M4-L via `--litert-model-path …/LocalModels/gemma-4-E4B-it-gpu.liter
 ### C5 — Early phone screen
 - Device / iOS build / backup location / Home data counts before → after:
   - Device: iPhone 17 "Ry" (iPhone18,3, `92295FBA-BC31-5608-BCB3-7C367E627732`), iOS 27.0 (24A5430a).
-  - Backup: `/Users/ryanbaltodano/Developer/aquinas-backup-20260926-170531-e4b-c5`, taken before any install with `xcrun devicectl device copy from` on the
+  - Backup: `~/Developer/aquinas-backup-20260926-170531-e4b-c5`, taken before any install with `xcrun devicectl device copy from` on the
     production container (`com.ryanbaltodano.Aquinas-iOS`). It covers `Library/Application Support`,
     `Library/Preferences`, and `Library/Saved Application State`. 30/30 files match the device's
     sizes, with per-file SHA-256 in `MANIFEST.sha256`.
