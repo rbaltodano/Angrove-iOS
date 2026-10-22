@@ -81,7 +81,7 @@ production data before any future model experiment and use the disposable bundle
   changed product behavior.
 - Check that the current documentation distinguishes an E4B branch/phone trial from a shipped
   model. The Foundations draft awaits reconciliation with the owner's uncommitted edits in
-  `../Aquinas-Foundations`; this task did not change that repo.
+  `../Angrove-Foundations`; this task did not change that repo.
 - Assess whether P1's cached and sustained diagnostic protocol can inform a **new** proposal.
   It cannot pass C9. A later promotion would need criteria frozen before its runs, phone GPU
   held-out quality confirmation, real OS lifecycle and recovery checks, rollback evidence,

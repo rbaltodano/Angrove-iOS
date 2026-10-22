@@ -32,7 +32,7 @@ Required reading before any code change:
 - [`AGENTS.md`](../AGENTS.md)
 - [`Model-Runtime.md`](Model-Runtime.md)
 - [`Development-Workflow.md`](Development-Workflow.md)
-- [`../../Aquinas-Foundations/MODEL-INTEGRATION.md`](https://github.com/rbaltodano/Angrove-Foundations/blob/main/MODEL-INTEGRATION.md),
+- [`../../Angrove-Foundations/MODEL-INTEGRATION.md`](https://github.com/rbaltodano/Angrove-Foundations/blob/main/MODEL-INTEGRATION.md),
   especially the LiteRT checkpoints and §8, the fine-tuning policy
 - For background only: the earlier
   [`GEMMA-4-QAT-EVALUATION-PLAN.md`](https://github.com/rbaltodano/Angrove-Foundations/blob/main/GEMMA-4-QAT-EVALUATION-PLAN.md),
@@ -64,7 +64,7 @@ LiteRT-LM package, running on the existing LiteRT-LM runtime. Promote it only if
 | Stock E2B package (candidate M2-L): revision `b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1`, `gemma-4-E2B-it.litertlm`, 2,588,147,712 bytes, SHA-256 `181938105e0eefd105961417e8da75903eacda102c4fce9ce90f50b97139a63c`. An earlier base-iPhone run recorded a 3.89 s cold load. | Foundations `research/gemma-4-qat/compatibility.md` |
 | Our exporter (`litert_torch 0.10.0.dev20260730`) accepts only `dynamic_wi4_afp32`, `dynamic_wi8_emb4_afp32`, and `dynamic_wi8_afp32`. It has **no import/preservation path** for the mobile QAT (wNa8o8) schema. | Same `compatibility.md` |
 | The published iPhone 17 **Pro** benchmarks use the 3.66 GB package, cached initialization, 2,048 context, 1,024 prefill and 256 decode tokens. They do **not** predict our GPU package, the 8 GB base phone, or a 4,096-token app configuration. | HF E4B model card |
-| **A simulator GPU failure is not a phone failure.** In August, a package that failed the simulator's Metal delegate ran cleanly on the physical iPhone 17. | `../Aquinas_Backend/CLAUDE.md` (August 3, 2026 correction) |
+| **A simulator GPU failure is not a phone failure.** In August, a package that failed the simulator's Metal delegate ran cleanly on the physical iPhone 17. | `../Angrove-Backend/CLAUDE.md` (August 3, 2026 correction) |
 | The app vendors LiteRT-LM **v0.14.0**. | `Vendor/LiteRTLM` |
 
 **Current code facts that constrain the gates:**
@@ -186,7 +186,7 @@ C2 can run in parallel with C3.
 
 **Do**
 1. Download M4-L (`gemma-4-E4B-it-gpu.litertlm`) at the **pinned revision** from §2 into
-   `LocalModels/`. Use `hf download` from `../Aquinas_Backend/aquinas_env` with `--revision`.
+   `LocalModels/`. Use `hf download` from `../Angrove-Backend/aquinas_env` with `--revision`.
 2. Compute its SHA-256 and compare it to the **HF-published LFS SHA-256** in §2.
 3. Download M2-L the same way, but only if C8's optional arm is planned.
 4. Download M4-Ls only if C4/C5 send you here.
@@ -206,7 +206,7 @@ the file and retry once.
    4096？") as well; both are relevant to our configuration.
 2. Recheck E2B discussion #30, Google's QAT blog post, and LiteRT-LM issue #2497 for updates.
 3. As **supporting** evidence only, inspect the package with `litert-lm-peek` or
-   `litert-lm-builder` from `../Aquinas_Backend/litert_conversion_env`: sections, metadata,
+   `litert-lm-builder` from `../Angrove-Backend/litert_conversion_env`: sections, metadata,
    `prefer_activation_type`, and the decoder's dtype histogram.
 4. If nothing definitive exists, draft a one-paragraph question for the E4B discussion board and
    put it in *Open questions*. **Posting it requires owner approval.**

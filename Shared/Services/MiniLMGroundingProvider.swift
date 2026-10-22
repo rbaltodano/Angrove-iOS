@@ -7,7 +7,7 @@ import Foundation
 
 /// Real semantic grounding retrieval, replacing `LocalAngroveGroundingProvider`'s tiny hardcoded
 /// lexical index with an on-device MiniLM embedder searching the same corpus the backend uses
-/// (see Aquinas_Backend/grounding_retrieval.py and ingest_corpus.py) — bundled as a flat,
+/// (see Angrove-Backend/grounding_retrieval.py and ingest_corpus.py) — bundled as a flat,
 /// pre-embedded export under `LocalGrounding/` rather than requiring the Mac backend.
 nonisolated final class MiniLMGroundingProvider: AngroveGroundingProviding {
     private let embedder: MiniLMEmbedder

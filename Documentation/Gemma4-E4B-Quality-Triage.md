@@ -86,7 +86,7 @@ reach the model. Candidate behavior targets: distinguish a source objection from
 retain essential qualifications, resolve people and works, give a precise modern definition,
 and express bounded uncertainty. Build independent examples across multiple topics and hold
 out whole topic families. Factual corpus material remains retrieval evidence, per
-`Aquinas-Foundations/MODEL-INTEGRATION.md`; it is not automatically a training dataset.
+`Angrove-Foundations/MODEL-INTEGRATION.md`; it is not automatically a training dataset.
 
 A separate training/export plan must establish the source checkpoint, a verified quantization
 recipe, data provenance, baseline, and phone acceptance criteria. The deployed package's QAT
@@ -170,7 +170,7 @@ distinguishes culpable from blameless error.
 
 Direct-definition answers ("What is natural law?") are plain text with no tappable term and no
 Insight card. Code has done this since `2524f6e` (September 12), and
-`directDefinitionDoesNotRenderInlineInsightCard` asserts it. `Aquinas-Foundations/FUNCTIONALITY.md`
+`directDefinitionDoesNotRenderInlineInsightCard` asserts it. `Angrove-Foundations/FUNCTIONALITY.md`
 §3 still says those answers include an in-text Insight card. One of the two needs to change.
 
 ### Fine-tuning

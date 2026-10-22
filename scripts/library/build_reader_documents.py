@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build complete reader documents without altering retrieval chunks or embeddings.
 
-Requires beautifulsoup4 and PyYAML. Run with --backend ../Aquinas_Backend.
+Requires beautifulsoup4 and PyYAML. Run with --backend ../Angrove-Backend.
 The public-domain source downloads are cached separately from the retrieval corpus.
 Outputs are generated resources, with source hashes and structural checks in an audit.
 """

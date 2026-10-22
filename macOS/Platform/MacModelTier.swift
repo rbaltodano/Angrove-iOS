@@ -103,8 +103,8 @@ nonisolated enum MacModelTier: String, CaseIterable, Identifiable, Sendable {
 
     private var developmentRelativePath: String {
         switch self {
-        case .standard: "Aquinas-iOS-main/iOS/LocalModels/gemma-4-E4B-it.litertlm"
-        case .large: "Aquinas_Backend/models/LiteRT-Stock/gemma-4-12B-it.litertlm"
+        case .standard: "Angrove-iOS-main/iOS/LocalModels/gemma-4-E4B-it.litertlm"
+        case .large: "Angrove-Backend/models/LiteRT-Stock/gemma-4-12B-it.litertlm"
         }
     }
 

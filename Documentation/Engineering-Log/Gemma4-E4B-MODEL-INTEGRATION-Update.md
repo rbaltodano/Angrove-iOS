@@ -2,7 +2,7 @@
 
 > Updated 2026-09-27 after C9. This replaces the earlier promotion draft, which described E4B
 > as shipped before its phone gate had passed. **Do not apply the old promotion text.**
-> `../Aquinas-Foundations/MODEL-INTEGRATION.md` has owner edits; reconcile with that file's
+> `../Angrove-Foundations/MODEL-INTEGRATION.md` has owner edits; reconcile with that file's
 > current work before changing it. This draft is for Claude's review, not evidence of promotion.
 
 ## Suggested dated checkpoint

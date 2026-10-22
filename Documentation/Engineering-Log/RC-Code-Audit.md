@@ -1,6 +1,6 @@
 # RC code audit — October 5, 2026
 
-Scope: the local `Aquinas-iOS-main` working tree on `main`, based on `21ac6a6`, including its existing uncommitted release and Question of the Day changes. This is a code audit, not certification of the uploaded build. Existing changes were preserved; no app code, signing settings, device data, or remote release state was changed by this audit.
+Scope: the local `Angrove-iOS-main` working tree on `main`, based on `21ac6a6`, including its existing uncommitted release and Question of the Day changes. This is a code audit, not certification of the uploaded build. Existing changes were preserved; no app code, signing settings, device data, or remote release state was changed by this audit.
 
 ## Fix before freezing the RC
 

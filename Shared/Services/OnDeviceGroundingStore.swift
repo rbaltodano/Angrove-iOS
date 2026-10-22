@@ -7,7 +7,7 @@ import Accelerate
 import Foundation
 
 /// A passage retrieved from the local grounding corpus. Mirrors the
-/// backend's `GroundingPassage` (see Aquinas_Backend/grounding_retrieval.py)
+/// backend's `GroundingPassage` (see Angrove-Backend/grounding_retrieval.py)
 /// so the local and backend prompt-construction paths can share the same
 /// shape and wording.
 nonisolated struct GroundingPassage: Sendable {
@@ -25,7 +25,7 @@ private typealias PassageRecord = LibraryPassage
 
 /// Loads the pre-embedded grounding corpus once (a flat float32 embeddings
 /// file plus a parallel-indexed JSON metadata file, exported from the
-/// backend's Chroma collection — see Aquinas_Backend/grounding_retrieval.py
+/// backend's Chroma collection — see Angrove-Backend/grounding_retrieval.py
 /// for the matching embedding space) and serves nearest-passage queries with
 /// a vectorized linear scan. At ~41k chunks this is comfortably faster than
 /// generation itself, so no on-device approximate-NN index is needed.
@@ -56,7 +56,7 @@ nonisolated final class OnDeviceGroundingStore: Sendable {
     /// history.
     ///
     /// The value is 0.45, chosen by sweeping it against the 56-case set in
-    /// `Aquinas_Backend/evaluation/evaluate_retrieval.py` rather than by
+    /// `Angrove-Backend/evaluation/evaluate_retrieval.py` rather than by
     /// eyeballing a handful of queries. An earlier 0.38 was calibrated only on
     /// doctrinal questions, where the Summa's "Whether X..." phrasing closely
     /// mirrors the question, and it silently discarded ordinary narrative

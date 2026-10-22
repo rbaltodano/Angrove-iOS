@@ -1,9 +1,9 @@
 # One checkout, three Codex projects
 
-The canonical repository remains `~/Developer/Aquinas-iOS-main` on `main`. Both native app targets are configured in the existing `Angrove-iOS.xcodeproj`; target names, bundle IDs, app data locations, and model configuration are unchanged by this layout.
+The canonical repository remains `~/Developer/Angrove-iOS-main` on `main`. Both native app targets are configured in the existing `Angrove-iOS.xcodeproj`; target names, bundle IDs, app data locations, and model configuration are unchanged by this layout.
 
 ```text
-Aquinas-iOS-main/
+Angrove-iOS-main/
   iOS/                    iPhone-only source and resources
   macOS/                  Mac-only source and resources
   Packages/AngroveCore/   Swift package linked by both apps and both widgets:
@@ -33,11 +33,11 @@ Use three local Codex projects with these primary folders:
 
 | Project | Primary folder |
 | --- | --- |
-| Angrove iPhone | `~/Developer/Aquinas-iOS-main/iOS` |
-| Angrove Mac | `~/Developer/Aquinas-iOS-main/macOS` |
-| Angrove Shared | `~/Developer/Aquinas-iOS-main/Shared` |
+| Angrove iPhone | `~/Developer/Angrove-iOS-main/iOS` |
+| Angrove Mac | `~/Developer/Angrove-iOS-main/macOS` |
+| Angrove Shared | `~/Developer/Angrove-iOS-main/Shared` |
 
-Attach `~/Developer/Aquinas-iOS-main` as a secondary folder to each project when folder access is scoped. This provides the Xcode project, tests, dependencies and cross-platform source for verification. Keep the area folder primary so its AGENTS.md defines the task's focus. Separate projects organize conversations; their ownership rules are conventions, not filesystem access barriers. Existing conversations keep their recorded working directory, so start new conversations from the updated projects.
+Attach `~/Developer/Angrove-iOS-main` as a secondary folder to each project when folder access is scoped. This provides the Xcode project, tests, dependencies and cross-platform source for verification. Keep the area folder primary so its AGENTS.md defines the task's focus. Separate projects organize conversations; their ownership rules are conventions, not filesystem access barriers. Existing conversations keep their recorded working directory, so start new conversations from the updated projects.
 
 ## Automatic sharing
 
@@ -78,7 +78,7 @@ still fine; reach for a policy when a file gathers several.
 
 ## Build and test
 
-Run from `~/Developer/Aquinas-iOS-main`, or `cd ..` from any area folder:
+Run from `~/Developer/Angrove-iOS-main`, or `cd ..` from any area folder:
 
 ```sh
 xcodebuild -project Angrove-iOS.xcodeproj -scheme Angrove-iOS \

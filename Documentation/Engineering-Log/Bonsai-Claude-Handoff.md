@@ -43,7 +43,7 @@ Owner asked Codex to stop at a clean point because usage is low and Claude will 
 **All current experiments are complete. No benchmark/build is intentionally left running.**
 No new experiment is authorized by a scheduler or background task; resume only from the owner's
 new message. Everything remains **uncommitted** on `feature/bonsai-9b-runtime` in the shared
-canonical checkout `~/Developer/Aquinas-iOS-main`. Other agents have unrelated changes here.
+canonical checkout `~/Developer/Angrove-iOS-main`. Other agents have unrelated changes here.
 Do not commit, stash, reset, switch branches, overwrite their edits, or stage wholesale.
 The existing staged Worktree image deletions predate this work; preserve them.
 
@@ -53,7 +53,7 @@ Read root `AGENTS.md`, `Shared/AGENTS.md`, `Documentation/Development-Workflow.m
 - `~/Developer/Angrove-Eval/README.md` **before any eval**, and its `RESULTS.md` for detailed scores
   and manual answer reviews. Run IDs are immutable; always create a new run folder.
 - Before model work, read the Shelving record in
-  `~/Developer/Aquinas-Foundations/research/rotated-ternary/STATUS.md`. The old Gemma 12B/Qwen
+  `~/Developer/Angrove-Foundations/research/rotated-ternary/STATUS.md`. The old Gemma 12B/Qwen
   research is shelved. The owner's explicit new direction here is **Bonsai 2 4B and 9B**.
 
 ## Owner's goal and current conclusion

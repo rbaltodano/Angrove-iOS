@@ -9,7 +9,7 @@ import Foundation
 /// On-device sentence embeddings via a Core ML export of
 /// `sentence-transformers/all-MiniLM-L6-v2`. Verified against the reference
 /// PyTorch model at ~0.9999 cosine similarity (see the export script in
-/// Aquinas_Backend); this is the same embedding space the grounding corpus
+/// Angrove-Backend); this is the same embedding space the grounding corpus
 /// was built with, not the unrelated NLEmbedding space used elsewhere in
 /// this app's global Insight Library canvas.
 nonisolated final class MiniLMEmbedder: @unchecked Sendable {

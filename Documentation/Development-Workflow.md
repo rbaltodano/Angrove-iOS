@@ -32,7 +32,7 @@ an app-data backup before installing experimental local models or running device
 ## Names for special iPhone builds
 
 Every agent installing a build from a worktree other than the canonical
-`~/Developer/Aquinas-iOS-main` checkout on `main` must name it
+`~/Developer/Angrove-iOS-main` checkout on `main` must name it
 `<current main app name> – <work name>` using an en dash with spaces. This includes detached
 worktrees and all installation methods.
 

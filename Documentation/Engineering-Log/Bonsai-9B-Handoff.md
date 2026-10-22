@@ -9,7 +9,7 @@ Source: whitepaper https://github.com/PrismML-Eng/Bonsai-demo/blob/main/bonsai-2
 
 ## Where things are
 
-- **Branch:** `feature/bonsai-9b-runtime` in `~/Developer/Aquinas-iOS-main`, based on `5a3fba9`.
+- **Branch:** `feature/bonsai-9b-runtime` in `~/Developer/Angrove-iOS-main`, based on `5a3fba9`.
   **All work is uncommitted.** This checkout is shared with other agents (Mac performance work
   on `main`); check `git status` before committing and commit only the files listed below.
 - **Downloads** (outside the repo, checksums verified against Hugging Face / GitHub):
@@ -109,7 +109,7 @@ reuse the run ID.
   thinking off, `LazyGroundingProvider`). First attempt moved to `runs/_failed/B9-MAC-heldout-1-sandbox-write`.
   Command:
   ```sh
-  cd ~/Developer/Aquinas-iOS-main && RUN=~/Developer/Angrove-Eval/runs/B9-MAC-heldout-2 && \
+  cd ~/Developer/Angrove-iOS-main && RUN=~/Developer/Angrove-Eval/runs/B9-MAC-heldout-2 && \
   TEST_RUNNER_ANGROVE_EVAL_GGUF=$HOME/Developer/bonsai-downloads/Ternary-Bonsai-2-9B-PQ2_0.gguf \
   TEST_RUNNER_ANGROVE_EVAL_FILE=$HOME/Developer/Angrove-Eval/eval-set/heldout.jsonl \
   TEST_RUNNER_ANGROVE_EVAL_OUT=$RUN xcodebuild -project Angrove-iOS.xcodeproj -scheme Angrove-macOS \

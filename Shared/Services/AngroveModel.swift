@@ -220,7 +220,7 @@ enum ConversationPersonality: String, CaseIterable, Identifiable, Codable {
     var id: Self { self }
 
     /// The voice Angrove uses unless the person picks another. Scholarly since 2026-09-30: the
-    /// fine-tuning dataset (Aquinas_Backend docs/Angrove-Voice-Dataset.md) is written in this
+    /// fine-tuning dataset (Angrove-Backend docs/Angrove-Voice-Dataset.md) is written in this
     /// voice and trained under this personality's instruction.
     static let `default`: ConversationPersonality = .scholarly
 

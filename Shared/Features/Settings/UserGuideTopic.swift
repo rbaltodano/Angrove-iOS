@@ -40,7 +40,7 @@ enum UserGuideText {
 }
 
 /// Guide copy describes shipped behavior only. When a feature in
-/// `Aquinas-Foundations/FUNCTIONALITY.md` changes, update the matching topic here. Body strings
+/// `Angrove-Foundations/FUNCTIONALITY.md` changes, update the matching topic here. Body strings
 /// use `UserGuideText` markup for buttons.
 struct UserGuideTopic: Identifiable, Hashable {
     let id: String

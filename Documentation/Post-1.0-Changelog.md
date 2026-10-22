@@ -26,6 +26,11 @@ Collected from the [iOS] and [Shared] entries below.
   stated the public TestFlight beta in the README and case study, and removed device identifiers
   and home-directory paths from development records.
 
+- **[Tooling] Local checkouts renamed to Angrove; no app change.** The canonical folders are now
+  `~/Developer/Angrove-iOS-main`, `Angrove-Foundations` and `Angrove-Backend`, matching the GitHub
+  repositories. Documentation, agent instructions and the Debug-only Mac model lookup
+  (`MacModelTier`) use the new paths. Bundle IDs and stored-data keys keep the Aquinas name.
+
 ## 2026-10-17
 
 - **[Shared] Plain data models moved into AngroveCore; no iPhone behavior change.**
@@ -211,7 +216,7 @@ never call Background Assets (it trapped in one); `scripts/package_model_asset.p
 - **[Tooling] Gemma 4 12B Mac smoke test: `MAC-12B-GPU-1`.** Stock
   `litert-community/gemma-4-12B-it-litert-lm` package `gemma-4-12B-it.litertlm`
   (6,883,278,368 bytes, SHA-256 verified `58fd31b7…a8b6`), stored in
-  `Aquinas_Backend/models/LiteRT-Stock/`, outside the app bundle. Host: M4 Pro, 24 GiB.
+  `Angrove-Backend/models/LiteRT-Stock/`, outside the app bundle. Host: M4 Pro, 24 GiB.
   Raw diagnostic only (`Tools/MacRuntimeSmoke.swift` plus memory reporting): GPU, 4,096 context,
   F32 activations, greedy, one question. Evidence: `output/mac-runtime/MAC-12B-GPU-1/`.
   - LiteRT-LM 0.14.0 (the app's version) **cannot load it**: `No KV cache inputs found`.

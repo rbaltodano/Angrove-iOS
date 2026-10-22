@@ -87,7 +87,7 @@ The owner is handing this work to Codex. State as of commit `2776cc9` on `featur
        `gemma-4-E4B-it.litertlm` (an APFS clone) and move E2B out, or the main build fails the
        manifest check.
   4. Apply `Documentation/Gemma4-E4B-MODEL-INTEGRATION-Update.md` to
-     `../Aquinas-Foundations/MODEL-INTEGRATION.md`. That repo has uncommitted owner edits, so
+     `../Angrove-Foundations/MODEL-INTEGRATION.md`. That repo has uncommitted owner edits, so
      coordinate with the owner.
 - **Known issues outside this plan** (not model-specific):
   - Insight Tree node labels (`InsightTreeViewModel.requestClusterLabels`) call the model outside
@@ -240,7 +240,7 @@ and what options you recommend._
 | Date | Decision | Made by | Reason |
 | --- | --- | --- | --- |
 | 2026-09-25 | Adopt plan D1–D6 (prebuilt package first, GPU, single engine, no fine-tune, 4,096 tokens, reversible promotion) | User + planning session | See plan §3 |
-| 2026-09-25 | Shelve all Gemma 4 12B research (rotated-ternary and llama.cpp IQ2_M) and remove its weights; E4B QAT becomes the model path | User | The 12B's modeled size exceeds what the base iPhone 17 survived; see `Aquinas-Foundations/research/rotated-ternary/STATUS.md`, "Shelving record" |
+| 2026-09-25 | Shelve all Gemma 4 12B research (rotated-ternary and llama.cpp IQ2_M) and remove its weights; E4B QAT becomes the model path | User | The 12B's modeled size exceeds what the base iPhone 17 survived; see `Angrove-Foundations/research/rotated-ternary/STATUS.md`, "Shelving record" |
 | 2026-09-25 | Remove all Qwen weights except `Qwen3-4B-Aquinas-v3-Q4_K_M.gguf` in `Aquinas_Backend-llama-cpp-12b` | User | Disk space. Qwen is no longer a re-exportable fallback. |
 | 2026-09-26 | Don't commit or merge the owner's uncommitted backend removal on `main`; continue on this branch. Its model-path changes are only failure-fallback removal plus a new quote-notability task; conversation prompts are unchanged, so results carry over. Add quote notability to C6 after the merge | Claude Code session (owner delegated all decisions 2026-09-26) | `git diff` of `LiteRTAngroveModel.swift` on `main`; no edits there since 11:59 |
 | 2026-09-27 | Owner delegated the C8 owner review to the session. The session applied only the evidence-based held-C2 reclassification (critical → non-critical, a corpus-induced locator), which it had recommended before any review; the held-out gate then passes. Caveat: the reviewer and the first-pass scorer are now the same assistant, so the plan's independent spot check didn't happen | Owner (delegation) + Claude Code session | "i don't have time to go through everything in that artifact. again i trust your judgment. continue" |
@@ -265,7 +265,7 @@ Run ID `C0-B0-1` (2026-09-25); evidence in `LocalModels/e4b-eval/C0-B0-1/`.
 - Excluded dirty files (main checkout): `Angrove-iOS/Features/InsightTree/InsightTreeCanvasView.swift`
   (modified). Never staged.
 - Provisioned ignored assets (source path → SHA-256): APFS clones (`cp -c`) from
-  `~/Developer/Aquinas-iOS-main/`; worktree hashes identical to source.
+  `~/Developer/Angrove-iOS-main/`; worktree hashes identical to source.
   - `Angrove-iOS/LocalModels/gemma-4-E2B-it.litertlm` → `9a6345f1a6cd39283f957977c84d31cc63b8dd56f2b8fffeb784940f63365282`
   - `Angrove-iOS/LocalGrounding/embeddings.bin` → `6b481153d2b456033cde2503a414a5a5292bbc0c0aa26cf7e148650f08e6316a`
   - `Angrove-iOS/LocalGrounding/passages.json` → `75fc02b45b4f458e60637a2bc41d08c68656e9b486d3458c1ca4f013ed5257e0`
@@ -290,7 +290,7 @@ Run ID `C0-B0-1` (2026-09-25); evidence in `LocalModels/e4b-eval/C0-B0-1/`.
 - **M4-L:** computed `4912bb5a9c30993c51a7711f763212077458529312175df0573a78323a2bb7ff` =
   published, 2,969,059,328 bytes · downloaded 2026-09-25 (23:01–23:07 UTC) · run `C1-M4L-2`.
   File: `LocalModels/gemma-4-E4B-it-gpu.litertlm` (worktree root). Command:
-  `HF_HUB_DISABLE_TELEMETRY=1 ../Aquinas_Backend/aquinas_env/bin/hf download
+  `HF_HUB_DISABLE_TELEMETRY=1 ../Angrove-Backend/aquinas_env/bin/hf download
   litert-community/gemma-4-E4B-it-litert-lm gemma-4-E4B-it-gpu.litertlm --revision
   2eee7ac325f20eb8c9ac1d0e972f7c84663062da --local-dir LocalModels` (hf 1.9.0, unauthenticated).
   Free disk 22 GiB before, 19 GiB after.

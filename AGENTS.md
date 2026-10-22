@@ -9,10 +9,10 @@ duplicate architecture specifications.
 | When changing… | Read… |
 | --- | --- |
 | Any iOS code | This file, then the relevant feature source and tests |
-| Product behavior | [`../Aquinas-Foundations/FUNCTIONALITY.md`](../Aquinas-Foundations/FUNCTIONALITY.md) |
-| Design or interaction | [`../Aquinas-Foundations/DESIGN.md`](../Aquinas-Foundations/DESIGN.md) |
-| Model, API, retrieval, persistence, or privacy boundary | [`../Aquinas-Foundations/MODEL-INTEGRATION.md`](../Aquinas-Foundations/MODEL-INTEGRATION.md) |
-| Insight Tree | [`../Aquinas-Foundations/INSIGHT-TREE.md`](../Aquinas-Foundations/INSIGHT-TREE.md) |
+| Product behavior | [`../Angrove-Foundations/FUNCTIONALITY.md`](../Angrove-Foundations/FUNCTIONALITY.md) |
+| Design or interaction | [`../Angrove-Foundations/DESIGN.md`](../Angrove-Foundations/DESIGN.md) |
+| Model, API, retrieval, persistence, or privacy boundary | [`../Angrove-Foundations/MODEL-INTEGRATION.md`](../Angrove-Foundations/MODEL-INTEGRATION.md) |
+| Insight Tree | [`../Angrove-Foundations/INSIGHT-TREE.md`](../Angrove-Foundations/INSIGHT-TREE.md) |
 | iOS composition, ownership, and persistence | [`Documentation/App-Architecture.md`](Documentation/App-Architecture.md) |
 | LiteRT runtime or model recovery | [`Documentation/Model-Runtime.md`](Documentation/Model-Runtime.md) |
 | Builds, tests, device work, or Figma | [`Documentation/Development-Workflow.md`](Documentation/Development-Workflow.md) |
@@ -31,7 +31,7 @@ duplicate architecture specifications.
   before installing, and report explicitly if installation is still pending. See
   [`Documentation/Mac-Port.md`](Documentation/Mac-Port.md#normal-local-app).
 - Before installing a special build on the owner's physical phone from any worktree other
-  than `~/Developer/Aquinas-iOS-main` on `main`, set its visible app name to
+  than `~/Developer/Angrove-iOS-main` on `main`, set its visible app name to
   `<current main app name> – <work name>` and verify the exact signed app's
   `CFBundleDisplayName` before installation. Follow the naming procedure in
   [`Documentation/Development-Workflow.md`](Documentation/Development-Workflow.md).
@@ -55,12 +55,12 @@ duplicate architecture specifications.
   only what the person types plus app and iOS version numbers, and an optional reply email. A
   flagged response and its question are attached only if the person turns on the opt-in in the
   thumbs-down sheet, which previews that text first. Never attach conversation content by default,
-  and update the published privacy policy before widening what a report sends. `Aquinas_Backend` is offline tooling only (corpus,
+  and update the published privacy policy before widening what a report sends. `Angrove-Backend` is offline tooling only (corpus,
   model conversion, evaluation).
 
 ## Working conventions
 
-- One canonical checkout at `~/Developer/Aquinas-iOS-main` owns both native app targets.
+- One canonical checkout at `~/Developer/Angrove-iOS-main` owns both native app targets.
 - iPhone-only code lives in `iOS/`; Mac-only code lives in `macOS/`; code and resources
   compiled by both apps live in `Shared/`. Read `Documentation/Workspace-Layout.md`.
 - Focused tests remain in `Angrove-iOSTests/` and `Angrove-macOSTests/`.

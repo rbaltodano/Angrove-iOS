@@ -19,7 +19,7 @@ first. This document records iOS-specific runtime boundaries and validation rule
   [The public evaluation report](Evaluation.md) uses four preserved simulator comparison runs.
 - **Fine-tuned voice (post-launch):** a LoRA tune keeps accuracy at INT8 (6.6 GB, too large),
   but every phone-sized conversion so far lost speed, memory headroom, or accuracy. Next step:
-  quantization-aware fine-tuning. See `Aquinas_Backend` `docs/Aquinas-Voice-Dataset.md`.
+  quantization-aware fine-tuning. See `Angrove-Backend` `docs/Aquinas-Voice-Dataset.md`.
 
 ## Vendored LiteRT-LM
 
@@ -61,9 +61,9 @@ seeds in the same pass.
 
 ## History: the development backend
 
-Earlier builds could call a Mac-hosted FastAPI/MLX service (`Aquinas_Backend`) for generation,
+Earlier builds could call a Mac-hosted FastAPI/MLX service (`Angrove-Backend`) for generation,
 Insight Tree persistence, and Home discovery cards. That client code has been removed; the app
-makes no network requests for model or tree work. `Aquinas_Backend` remains offline tooling for the
+makes no network requests for model or tree work. `Angrove-Backend` remains offline tooling for the
 grounding corpus, model conversion, and evaluation.
 
 ## Model package and device safety

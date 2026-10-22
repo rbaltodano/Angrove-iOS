@@ -25,7 +25,7 @@ It is included by Xcode's synchronized app resource group. Install `beautifulsou
 in a tooling virtual environment, then run:
 
 ```sh
-python scripts/library/build_reader_documents.py --backend ../Aquinas_Backend
+python scripts/library/build_reader_documents.py --backend ../Angrove-Backend
 python scripts/library/verify_reader_bundle.py Shared/LibraryDocuments
 python -m unittest discover -s scripts/library -p 'test_*.py'
 ```
