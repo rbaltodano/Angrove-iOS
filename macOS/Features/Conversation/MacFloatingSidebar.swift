@@ -86,6 +86,8 @@ private struct MacExpandedSidebar: View {
     @State private var commandHeld = false
     @State private var hoveredDestination: MacDestination?
     @State private var savedStudyTopics = StudyTopicStore.load()
+    @Environment(\.macQuoteDroppedInsight) private var quoteInsight
+    @Environment(\.macOpenBoardsForInsight) private var openBoards
     @Binding var selection: MacDestination
     let showsFixture: Bool
     let conversations: [InquiryConversation]
@@ -110,7 +112,8 @@ private struct MacExpandedSidebar: View {
                 VStack(alignment: .leading, spacing: 24) {
                     // Reserves the pinned logo's space so the rows start beneath it.
                     logo.hidden()
-                    SidebarSearchButton(showsShortcut: true, action: openSearch)
+                    SidebarSearchButton(showsShortcut: true, isShortcutVisible: commandHeld && isPresented,
+                                        action: openSearch)
                         .help("Search (⌘K)")
                         .modifier(MacSidebarEntrance(isPresented: isPresented, delay: 0.15, duration: 0.32, offset: 24))
                     navigation
@@ -217,6 +220,7 @@ private struct MacExpandedSidebar: View {
                     }
                     .contentShape(Rectangle())
                 }
+                .macInsightDropDestination(open: destination == .worktree ? openBoards : nil)
                 .onHover { isHovered in
                     if isHovered { hoveredDestination = destination }
                     else if hoveredDestination == destination { hoveredDestination = nil }
@@ -266,8 +270,8 @@ private struct MacExpandedSidebar: View {
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("New Conversation")
-                .help("New Conversation (⌘N)")
-                .keyboardShortcut("n", modifiers: .command)
+                .help("New Conversation")
+                .macInsightDropDestination(receive: { quoteInsight($0, nil) })
             }
             .frame(height: 27)
             .modifier(MacSidebarEntrance(isPresented: isPresented, delay: 0.15, duration: 0.32, offset: 24))
@@ -330,6 +334,7 @@ private struct MacExpandedSidebar: View {
                     onRename: { beginRename(conversation.id) },
                     onFinishRename: { finishRename(conversation.id, $0) },
                     contextEntries: { isPresented ? MacSidebarConversationMenu.entries(for: conversation) { menuAction($0, conversation) } : [] })
+                    .macInsightDropDestination(receive: { quoteInsight($0, conversation.id) })
                     .modifier(MacSidebarEntrance(isPresented: isPresented, delay: 0.20 + Double(index) * 0.05))
                     // Drag a conversation onto a Worktree to place it there.
                     .draggable(WorktreeConversationDrop.payload(conversation.id)) {
@@ -378,6 +383,7 @@ private struct MacExpandedSidebar: View {
 }
 
 private struct MacCompactSidebar: View {
+    @Environment(\.macOpenBoardsForInsight) private var openBoards
     @Binding var selection: MacDestination
     let isPresented: Bool
 
@@ -392,6 +398,7 @@ private struct MacCompactSidebar: View {
             ForEach(Array(MacDestination.sidebarDestinations.enumerated()), id: \.element.id) { index, destination in
                 MacCompactSidebarButton(destination: destination, isSelected: selection.highlights(destination),
                                         onSelect: { selection = destination })
+                    .macInsightDropDestination(open: destination == .worktree ? openBoards : nil)
                     .modifier(MacSidebarEntrance(isPresented: isPresented,
                         delay: Double(index + 1) * 0.06, duration: 0.20, offset: 0))
             }

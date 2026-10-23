@@ -19,10 +19,7 @@ extension Notification.Name {
 extension WorktreeBoard {
     func postDefinition(_ concept: ConceptDefinition, from session: MacConversationState,
                         to center: ModelCompletionNotificationCenter) {
-        let request = WorktreeDefinitionRequest(boardID: documentID, sessionID: session.id, concept: concept)
-        center.post(title: concept.word, kind: .insightDefinition, postsSystemNotification: false) {
-            NotificationCenter.default.post(name: .macOpenBoardDefinition, object: request)
-        }
+        center.postInsightDefinition(concept, conversationID: session.id, postsSystemNotification: false)
     }
 
     @discardableResult

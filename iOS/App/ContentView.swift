@@ -154,7 +154,6 @@ struct ContentView: View {
     /// Reported up by `StudyTopicsView` so the global Model Controls bar can render its pill
     /// while that page's own selection/canvas/confirmation state stays owned locally there.
     @State private var studyTopicsControls = StudyTopicsPageControls()
-    @State private var definitionRequest: ConversationDefinitionRequest?
     @State private var modelCompletionNotifications = ModelCompletionNotificationCenter()
     @State private var pendingPageReturnAction: (() -> Void)?
     @State private var questionOfTheDay = HomeQuestionOfTheDayStore.loadPending()
@@ -517,7 +516,7 @@ struct ContentView: View {
                 onClearCanvasSelection: { globalInsightClearSelectionRequest += 1 },
                 onContextWillOpen: { globalInsightDismissHoverRequest += 1 },
                 confirmationTitle: isGlobalTreeUpdatePromptVisible
-                    ? "Update Tree?"
+                    ? "Update?"
                     : nil,
                 onConfirmUpdate: updateGlobalInsightTree,
                 onDeclineUpdate: dismissGlobalInsightTreeUpdate,
@@ -537,7 +536,7 @@ struct ContentView: View {
                     onConfirm: studyTopicsControls.onConfirm,
                     onDecline: studyTopicsControls.onDecline,
                     action: studyTopicsControls.action,
-                    surfaceID: "study-topics"
+                    surfaceID: "study-topics-\(selectedStudyTopicID?.uuidString ?? "list")"
                 )
             }
         }
@@ -747,7 +746,6 @@ struct ContentView: View {
             sideMenuActiveConversationID: $sideMenuActiveConversationID,
             requestedConversationID: $requestedConversationID,
             newConversationRequests: newConversationRequests,
-            definitionRequest: $definitionRequest,
             deletedConversationID: $deletedConversationID,
             requestedForkConcept: $requestedForkConcept,
             insightConversationQuoteRequest: $insightConversationQuoteRequest,
@@ -814,6 +812,7 @@ struct ContentView: View {
     var body: some View {
         BootPresentation(isReady: isStartupReady) {
             shellObservers(shellBody)
+                .modifier(NotificationStackDismissal(center: modelCompletionNotifications))
         }
         .preferredColorScheme(colorSchemeOverride)
     }
@@ -1221,8 +1220,10 @@ struct ContentView: View {
                     GlobalSearchOverlay(
                         isPresented: isGlobalSearchPresented,
                         conversations: sideMenuConversations,
-                        topInset: max(48, geometry.safeAreaInsets.top + 8),
+                        topInset: max(72, geometry.safeAreaInsets.top + 32),
+                        pages: GlobalSearchPage.iPhonePages,
                         onSelect: openGlobalSearchResult,
+                        onAction: startGlobalSearchConversation,
                         onDismiss: { isGlobalSearchPresented = false }
                     )
                 }
@@ -1272,7 +1273,18 @@ struct ContentView: View {
             isPageContentVisible = true
             pageContentOffsetY = 0
             appLockController.prepare(isEnabled: appLockEnabled)
+            modelCompletionNotifications.onQuoteInsight = { concept in
+                modelCompletionNotifications.closeInsight()
+                if let conversationID = sideMenuActiveConversationID {
+                    insightConversationQuoteRequest = InsightConversationQuoteRequest(conversationID: conversationID, insight: concept)
+                } else {
+                    newConversationRequests.submit(NewConversationRequest(quote: NewConversationInsightQuoteRequest(insight: concept)))
+                }
+                redirect(to: .conversation)
+            }
+            modelCompletionNotifications.onToggleInsightSaved = toggleNotificationInsightSaved
             let savedInsights = InsightLibraryStore.load()
+            modelCompletionNotifications.savedInsightIDs = Set(savedInsights.map(\.id))
             if !savedInsights.isEmpty {
                 collectedDefinitions = savedInsights
             }
@@ -1384,12 +1396,37 @@ struct ContentView: View {
             requestedConversationID = result.id
             navigateWithoutReturn(to: .conversation)
         case .insight:
-            globalInsightRestoreSelectionID = result.id
+            // Cleared first so the same Insight chosen twice is still a new request.
+            globalInsightRestoreSelectionID = nil
             navigateWithoutReturn(to: .insights)
+            DispatchQueue.main.async { globalInsightRestoreSelectionID = result.id }
         case .studyTopic:
             requestedTopicID = result.id
             navigateWithoutReturn(to: .studyTopics)
+        case .page(let page):
+            switch page {
+            case .home: navigateWithoutReturn(to: .home)
+            case .insights: navigateWithoutReturn(to: .insights)
+            case .conversations: navigateWithoutReturn(to: .openConversations)
+            case .library: navigateWithoutReturn(to: .library)
+            case .studyTopics:
+                requestedTopicID = nil
+                navigateWithoutReturn(to: .studyTopics)
+            case .settings: navigateWithoutReturn(to: .settings)
+            case .boards: break // Mac only
+            }
         }
+    }
+
+    /// New Conversation asks the question at once; Define leaves `/define …` typed and focused.
+    private func startGlobalSearchConversation(_ action: GlobalSearchAction, query: String) {
+        isGlobalSearchPresented = false
+        requestedConversationID = nil
+        newConversationRequests.submit(NewConversationRequest(
+            draft: action.draft(for: query),
+            submitsDraft: action.submitsDraft
+        ))
+        navigateWithoutReturn(to: .conversation)
     }
 
     // MARK: - Side Menu
@@ -1751,8 +1788,31 @@ struct ContentView: View {
         try await AppDataReset.clear()
     }
 
+    private func toggleNotificationInsightSaved(_ concept: ConceptDefinition, conversationID: UUID?) {
+        let isSaved = collectedDefinitions.contains { $0.id == concept.id }
+        withAnimation(.springBouncy) {
+            if isSaved {
+                collectedDefinitions.removeAll { $0.id == concept.id }
+            } else if let index = collectedDefinitions.firstIndex(where: { $0.word.caseInsensitiveCompare(concept.word) == .orderedSame }) {
+                collectedDefinitions[index] = collectedDefinitions[index].mergingDefinitions(from: concept)
+            } else {
+                collectedDefinitions.append(concept)
+            }
+        }
+        if let conversationID {
+            if isSaved {
+                ConversationInsightMembershipStore.remove(insightID: concept.id, from: conversationID)
+            } else {
+                ConversationInsightMembershipStore.add(insightID: concept.id, to: conversationID)
+                InsightDiscoveryStore.markUndiscovered([concept.id])
+                InsightDiscoveryStore.markPendingTreePresentation(insightIDs: [concept.id], nodeIDs: [])
+            }
+        }
+    }
+
     private func handleCollectedDefinitionsChange(_ definitions: [ConceptDefinition]) {
         InsightLibraryStore.save(definitions)
+        modelCompletionNotifications.savedInsightIDs = Set(definitions.map(\.id))
         guard activePage == .insights else { return }
         refreshGlobalInsightTreeUpdatePrompt()
     }

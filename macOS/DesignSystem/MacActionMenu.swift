@@ -320,22 +320,119 @@ private struct MacMenuPanelContent: View {
     }
 }
 
+/// A stable menu coordinate space inside moving content. Word frames are measured locally;
+/// only the native anchor is converted to window coordinates when a menu is requested.
+@MainActor final class MacContextMenuCoordinateSpace {
+    let id = UUID()
+    weak var anchor: NSView?
+    fileprivate var targets: [ObjectIdentifier: MacScopedMenuTarget] = [:]
+}
+
+private struct MacContextMenuCoordinateSpaceKey: EnvironmentKey {
+    static let defaultValue: MacContextMenuCoordinateSpace? = nil
+}
+
+extension EnvironmentValues {
+    var macContextMenuCoordinateSpace: MacContextMenuCoordinateSpace? {
+        get { self[MacContextMenuCoordinateSpaceKey.self] }
+        set { self[MacContextMenuCoordinateSpaceKey.self] = newValue }
+    }
+}
+
+struct MacContextMenuContainer<Content: View>: View {
+    @State private var space = MacContextMenuCoordinateSpace()
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content()
+            .coordinateSpace(name: space.id)
+            .environment(\.macContextMenuCoordinateSpace, space)
+            .background(MacContextMenuAnchor(space: space))
+    }
+}
+
+private struct MacContextMenuAnchor: NSViewRepresentable {
+    let space: MacContextMenuCoordinateSpace
+    func makeNSView(context: Context) -> Anchor {
+        let view = Anchor()
+        view.space = space
+        space.anchor = view
+        return view
+    }
+    func updateNSView(_ view: Anchor, context: Context) { space.anchor = view }
+    final class Anchor: NSView {
+        weak var space: MacContextMenuCoordinateSpace?
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let space { MacContextMenuRegistry.register(space) }
+        }
+        override var isFlipped: Bool { true }
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    }
+}
+
+/// Entries are nonvisual callbacks. Refresh their stable storage during DynamicProperty's
+/// update phase, without publishing state or allocating one native view for every word.
+@MainActor private final class MacScopedMenuTarget {
+    var frame = CGRect.zero
+    var entries: () -> [MacMenuEntry] = { [] }
+}
+
+@MainActor private struct MacScopedMenuRegistration: DynamicProperty {
+    @State private var storage = MacScopedMenuTarget()
+    let entries: () -> [MacMenuEntry]
+    var target: MacScopedMenuTarget { storage }
+    nonisolated mutating func update() {
+        MainActor.assumeIsolated { storage.entries = entries }
+    }
+}
+
+private struct MacScopedContextMenuModifier: ViewModifier {
+    let space: MacContextMenuCoordinateSpace
+    private var registration: MacScopedMenuRegistration
+
+    init(space: MacContextMenuCoordinateSpace, entries: @escaping () -> [MacMenuEntry]) {
+        self.space = space
+        registration = MacScopedMenuRegistration(entries: entries)
+    }
+
+    func body(content: Content) -> some View {
+        let target = registration.target
+        content
+            .onGeometryChange(for: CGRect.self) { geometry in
+                let frame = geometry.frame(in: .named(space.id))
+                guard let viewport = geometry.bounds(of: .scrollView(axis: .vertical)) else { return frame }
+                let clipped = CGRect(origin: .zero, size: geometry.size).intersection(viewport)
+                guard !clipped.isNull else { return .zero }
+                return CGRect(origin: CGPoint(x: frame.minX + clipped.minX, y: frame.minY + clipped.minY),
+                              size: clipped.size)
+            } action: { target.frame = $0 }
+            .onAppear { space.targets[ObjectIdentifier(target)] = target }
+            .onDisappear { space.targets.removeValue(forKey: ObjectIdentifier(target)) }
+    }
+}
+
 struct MacContextMenuModifier: ViewModifier {
     let entries: () -> [MacMenuEntry]
     @State private var visibleFrame = CGRect.zero
-    func body(content: Content) -> some View {
-        content
-            .onGeometryChange(for: CGRect.self) { geometry in
-                let frame = geometry.frame(in: .global)
-                guard let viewport = geometry.bounds(of: .scrollView(axis: .vertical)) else { return frame }
-                let clipped = CGRect(origin: .zero, size: geometry.size).intersection(viewport)
-                guard !clipped.isNull, geometry.size.width > 0, geometry.size.height > 0 else { return .zero }
-                let scaleX = frame.width / geometry.size.width
-                let scaleY = frame.height / geometry.size.height
-                return CGRect(x: frame.minX + clipped.minX * scaleX, y: frame.minY + clipped.minY * scaleY,
-                              width: clipped.width * scaleX, height: clipped.height * scaleY)
-            } action: { visibleFrame = $0 }
-            .background(MacContextMenuRegion(entries: entries, visibleFrame: visibleFrame))
+    @Environment(\.macContextMenuCoordinateSpace) private var coordinateSpace
+    @ViewBuilder func body(content: Content) -> some View {
+        if let coordinateSpace {
+            content.modifier(MacScopedContextMenuModifier(space: coordinateSpace, entries: entries))
+        } else {
+            content
+                .onGeometryChange(for: CGRect.self) { geometry in
+                    let frame = geometry.frame(in: .global)
+                    guard let viewport = geometry.bounds(of: .scrollView(axis: .vertical)) else { return frame }
+                    let clipped = CGRect(origin: .zero, size: geometry.size).intersection(viewport)
+                    guard !clipped.isNull, geometry.size.width > 0, geometry.size.height > 0 else { return .zero }
+                    let scaleX = frame.width / geometry.size.width
+                    let scaleY = frame.height / geometry.size.height
+                    return CGRect(x: frame.minX + clipped.minX * scaleX, y: frame.minY + clipped.minY * scaleY,
+                                  width: clipped.width * scaleX, height: clipped.height * scaleY)
+                } action: { visibleFrame = $0 }
+                .background(MacContextMenuRegion(entries: entries, visibleFrame: visibleFrame))
+        }
     }
 }
 extension View {
@@ -363,9 +460,21 @@ fileprivate struct MacContextMenuRegion: NSViewRepresentable {
         init(_ view: MacContextMenuRegion.Region) { self.view = view }
     }
     private static var regions: [ObjectIdentifier: WeakRegion] = [:]
+    private final class WeakSpace {
+        weak var space: MacContextMenuCoordinateSpace?
+        init(_ space: MacContextMenuCoordinateSpace) { self.space = space }
+    }
+    private static var spaces: [ObjectIdentifier: WeakSpace] = [:]
     private static var monitor: Any?
+    fileprivate static func register(_ space: MacContextMenuCoordinateSpace) {
+        spaces[ObjectIdentifier(space)] = WeakSpace(space)
+        startMonitoring()
+    }
     fileprivate static func register(_ view: MacContextMenuRegion.Region) {
         regions[ObjectIdentifier(view)] = WeakRegion(view)
+        startMonitoring()
+    }
+    private static func startMonitoring() {
         if monitor == nil {
             monitor = NSEvent.addLocalMonitorForEvents(matching: .rightMouseDown) { event in
                 handle(event) ? nil : event
@@ -375,15 +484,30 @@ fileprivate struct MacContextMenuRegion: NSViewRepresentable {
     static func entries(at windowPoint: CGPoint, in window: NSWindow) -> [MacMenuEntry] {
         regions = regions.filter { $0.value.view != nil }
         guard let content = window.contentView else { return [] }
+        // A cached canvas surface becomes live during hit testing, before resolving its word
+        // menu. This preserves the initiating right-click instead of requiring a second click.
+        _ = content.hitTest(content.convert(windowPoint, from: nil))
         var point = content.convert(windowPoint, from: nil)
         if !content.isFlipped { point.y = content.bounds.maxY - point.y }
-        let matches = regions.values.compactMap(\.view).filter { view in
-            view.window === window && !view.isHiddenOrHasHiddenAncestor
-                && view.menuFrame.width > 0 && view.menuFrame.height > 0 && view.menuFrame.contains(point)
-        }.sorted { $0.menuFrame.width * $0.menuFrame.height < $1.menuFrame.width * $1.menuFrame.height }
-        for view in matches {
-            let entries = view.entries()
-            if !entries.isEmpty { return entries }
+        var matches: [(CGFloat, () -> [MacMenuEntry])] = []
+        spaces = spaces.filter { $0.value.space != nil }
+        for space in spaces.values.compactMap(\.space) {
+            guard let anchor = space.anchor, anchor.window === window, !anchor.isHiddenOrHasHiddenAncestor else { continue }
+            // One window-to-card conversion per conversation, at click time only.
+            let local = anchor.convert(windowPoint, from: nil)
+            guard anchor.visibleRect.contains(local) else { continue }
+            for target in space.targets.values where target.frame.width > 0 && target.frame.height > 0 && target.frame.contains(local) {
+                let frame = anchor.convert(target.frame, to: nil)
+                matches.append((frame.width * frame.height, target.entries))
+            }
+        }
+        for view in regions.values.compactMap(\.view) where view.window === window && !view.isHiddenOrHasHiddenAncestor
+            && view.menuFrame.width > 0 && view.menuFrame.height > 0 && view.menuFrame.contains(point) {
+            matches.append((view.menuFrame.width * view.menuFrame.height, view.entries))
+        }
+        for (_, entries) in matches.sorted(by: { $0.0 < $1.0 }) {
+            let result = entries()
+            if !result.isEmpty { return result }
         }
         return []
     }

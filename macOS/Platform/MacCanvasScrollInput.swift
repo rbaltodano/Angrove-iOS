@@ -28,6 +28,44 @@ struct CanvasScrollTransform {
     }
 }
 
+/// The surface under the first event owns the complete gesture, including its momentum.
+/// Wheel mice have no phases, so a short gap separates their scroll bursts.
+struct CanvasScrollGestureRoute {
+    private enum Owner { case canvas, native }
+    private var owner: Owner?
+    private var momentumOwner: Owner?
+    private var lastTime: TimeInterval = -.infinity
+    private var endedAt: TimeInterval = -.infinity
+
+    mutating func reset() { self = Self() }
+
+    mutating func takesCanvas(phase: NSEvent.Phase, momentum: NSEvent.Phase,
+                             timestamp: TimeInterval, inside: Bool,
+                             overNativeScroll: () -> Bool) -> Bool {
+        if phase.contains(.mayBegin) { return false }
+        if phase.contains(.began) {
+            owner = nil
+            momentumOwner = nil
+        }
+        let unphased = phase.isEmpty && momentum.isEmpty
+        if unphased, timestamp - lastTime > 0.18 { owner = nil }
+        if !momentum.isEmpty, owner == nil, timestamp - endedAt < 0.5 {
+            owner = momentumOwner
+        }
+        if owner == nil { owner = inside && !overNativeScroll() ? .canvas : .native }
+        lastTime = timestamp
+        let takes = owner == .canvas
+        if phase.contains(.cancelled) || momentum.contains(.ended) || momentum.contains(.cancelled) {
+            reset()
+        } else if phase.contains(.ended) {
+            momentumOwner = owner
+            endedAt = timestamp
+            owner = nil
+        }
+        return takes
+    }
+}
+
 struct MacCanvasScrollInput: NSViewRepresentable {
     var onScroll: (CGSize, NSEvent.ModifierFlags, CGPoint) -> Void
 
@@ -42,6 +80,7 @@ struct MacCanvasScrollInput: NSViewRepresentable {
     final class ScrollSurface: NSView {
         var onScroll: ((CGSize, NSEvent.ModifierFlags, CGPoint) -> Void)?
         private var monitor: Any?
+        private var gestureRoute = CanvasScrollGestureRoute()
         override var isFlipped: Bool { true }
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
@@ -50,25 +89,41 @@ struct MacCanvasScrollInput: NSViewRepresentable {
             stopMonitoring()
             guard window != nil else { return }
             monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-                guard let self, event.window === self.window, !self.isHiddenOrHasHiddenAncestor else { return event }
-                let point = self.convert(event.locationInWindow, from: nil)
-                guard self.bounds.contains(point), self.visibleRect.contains(point) else { return event }
-                // A docked definition's native ScrollView keeps its own scrolling.
-                var hit = self.window?.contentView?.hitTest(event.locationInWindow)
+                guard let self else { return event }
+                return self.handleScroll(event)
+            }
+        }
+
+        /// Keep routing testable with actual native scroll events and nested scroll views.
+        func handleScroll(_ event: NSEvent) -> NSEvent? {
+            guard event.window === window, !isHiddenOrHasHiddenAncestor else {
+                gestureRoute.reset()
+                return event
+            }
+            let point = convert(event.locationInWindow, from: nil)
+            let inside = bounds.contains(point) && visibleRect.contains(point)
+            let takesCanvas = gestureRoute.takesCanvas(phase: event.phase, momentum: event.momentumPhase,
+                timestamp: event.timestamp, inside: inside) {
+                // Hit testing may activate a cached card. Only do it at gesture start;
+                // crossing a conversation during a pan must not transfer ownership.
+                var hit = window?.contentView?.hitTest(event.locationInWindow)
                 while let view = hit {
-                    if view is NSScrollView { return event }
+                    if view is NSScrollView { return true }
                     hit = view.superview
                 }
-                let multiplier: CGFloat = event.hasPreciseScrollingDeltas ? 1 : 10
-                self.onScroll?(CGSize(width: CGFloat(event.scrollingDeltaX) * multiplier,
-                                      height: CGFloat(event.scrollingDeltaY) * multiplier),
-                               event.modifierFlags, point)
-                return nil
+                return false
             }
+            guard takesCanvas else { return event }
+            let multiplier: CGFloat = event.hasPreciseScrollingDeltas ? 1 : 10
+            onScroll?(CGSize(width: CGFloat(event.scrollingDeltaX) * multiplier,
+                                  height: CGFloat(event.scrollingDeltaY) * multiplier),
+                           event.modifierFlags, point)
+            return nil
         }
         func stopMonitoring() {
             if let monitor { NSEvent.removeMonitor(monitor) }
             monitor = nil
+            gestureRoute.reset()
         }
     }
 }

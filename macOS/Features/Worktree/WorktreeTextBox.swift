@@ -1,5 +1,9 @@
 import SwiftUI
 
+extension EnvironmentValues {
+    @Entry var worktreeCapturesSnapshot = false
+}
+
 /// The pointer in canvas (world) space, and the items whose boxes it is near. `nearIDs` changes
 /// only when the pointer crosses a box's 48-point line. `nearWorld` follows the pointer only while
 /// some box is near, and only near boxes read it, so elsewhere moving the mouse re-renders nothing.
@@ -19,6 +23,13 @@ import SwiftUI
         if near != nearIDs { nearIDs = near }
         let spot = near.isEmpty ? nil : world
         if spot != nearWorld { nearWorld = spot }
+    }
+
+    /// A nearby box must not reveal a handle elsewhere along a wide item.
+    func isNearControl(_ point: CGPoint, for itemID: UUID, board: WorktreeBoard, zoom: CGFloat, inset: CGFloat = 0) -> Bool {
+        guard nearIDs.contains(itemID), let world = nearWorld, let frame = board.frame(of: itemID) else { return false }
+        let target = CGPoint(x: frame.minX + inset + point.x, y: frame.minY + inset + point.y)
+        return hypot(world.x - target.x, world.y - target.y) * zoom <= WorktreeTextBoxResize.revealDistance
     }
 
     /// The pointer in an item's box coordinates while it is near that box; `inset` is the box's
@@ -72,6 +83,7 @@ enum WorktreeTextBoxResize {
 /// resize is held, a second 50% layer (75% together) is revealed by a soft-edged circle growing
 /// from the press.
 struct WorktreeBoxChrome: View {
+    @Environment(\.worktreeCapturesSnapshot) private var capturesSnapshot
     let size: CGSize
     let zoom: CGFloat
     let isVisible: Bool
@@ -99,6 +111,7 @@ struct WorktreeBoxChrome: View {
             illumination
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
+        .opacity(capturesSnapshot || spotlight == nil ? 0 : 1)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
@@ -203,6 +216,7 @@ struct WorktreeBoxMove {
 /// Hidden until the pointer is near; it glows while hovered or dragged. Its drag, like the top
 /// edge's, moves the item and never resizes it.
 struct WorktreeBoxGrip: View {
+    @Environment(\.worktreeCapturesSnapshot) private var capturesSnapshot
     let width: CGFloat
     let zoom: CGFloat
     let isVisible: Bool
@@ -213,19 +227,24 @@ struct WorktreeBoxGrip: View {
     static let glyphSize = CGSize(width: 7.5, height: 12)
     private static let gap: CGFloat = 8
 
+    static func hitFrame(in box: CGRect, zoom: CGFloat) -> CGRect {
+        CGRect(x: box.midX - 14 / zoom, y: box.minY - (gap + glyphSize.width / 2 + 10) / zoom,
+               width: 28 / zoom, height: 20 / zoom)
+    }
+
     var body: some View {
-        let isLit = isHovered || isDragging
+        let isLit = (isVisible && isHovered) || isDragging
         Image("WorktreeGrip")
             .renderingMode(.template)
             .resizable()
             .frame(width: Self.glyphSize.width / zoom, height: Self.glyphSize.height / zoom)
             .rotationEffect(.degrees(90))
-            .foregroundStyle(AngroveTheme.Colors.lightGreen.opacity(isLit ? 0.75 : 0.5))
+            .foregroundStyle(AngroveTheme.Colors.lightGreen.opacity(isLit ? 1 : 0.75))
             .shadow(color: AngroveTheme.Colors.lightGreen.opacity(isLit ? 0.6 : 0), radius: 4 / zoom)
             // A comfortable target around the small glyph.
             .frame(width: 28 / zoom, height: 20 / zoom)
             .contentShape(Rectangle())
-            .opacity(isVisible || isLit ? 1 : 0)
+            .opacity(isVisible ? 1 : 0)
             .animation(.easeOut(duration: 0.15), value: isVisible || isLit)
             .animation(.easeOut(duration: 0.15), value: isLit)
             .onHover { isHovered = $0 }
@@ -236,6 +255,8 @@ struct WorktreeBoxGrip: View {
             // Rotated, the grip is 12 wide and 7.5 tall; its centre sits 8pt plus half that above the line.
             .position(x: width / 2, y: -(Self.gap + Self.glyphSize.width / 2) / zoom)
             .accessibilityLabel("Move")
+            .opacity(capturesSnapshot ? 0 : 1)
+            .onChange(of: isVisible) { _, visible in if !visible { isHovered = false; isDragging = false } }
     }
 }
 
@@ -274,7 +295,7 @@ struct WorktreeTextBox: View {
     var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
-            let isVisible = start != nil || pointer.nearIDs.contains(item.id)
+            let isVisible = pointer.nearIDs.contains(item.id)
             ZStack(alignment: .topLeading) {
                 WorktreeBoxChrome(size: size, zoom: zoom, isVisible: isVisible, press: press,
                                   spotlight: pointer.spotlight(for: item.id, board: board))
@@ -282,7 +303,9 @@ struct WorktreeTextBox: View {
                     handleArea(handle, in: size)
                 }
                 WorktreeBoxTopEdge(width: size.width, zoom: zoom, move: move)
-                WorktreeBoxGrip(width: size.width, zoom: zoom, isVisible: isVisible, move: move)
+                let grip = WorktreeBoxGrip.hitFrame(in: CGRect(origin: .zero, size: size), zoom: zoom)
+                WorktreeBoxGrip(width: size.width, zoom: zoom,
+                    isVisible: pointer.isNearControl(CGPoint(x: grip.midX, y: grip.midY), for: item.id, board: board, zoom: zoom), move: move)
             }
         }
     }

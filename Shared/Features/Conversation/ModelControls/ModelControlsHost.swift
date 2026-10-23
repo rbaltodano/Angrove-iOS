@@ -232,7 +232,7 @@ struct ModelControlsHost: View {
         c.showsScrollToBottom || c.contextCard?.isOpen == true || c.supplementalPopupIsOpen
             || c.modelTasksPopupState?.isOpen == true || c.confirmationTitle != nil
             || completionNotifications?.notifications.isEmpty == false
-            || c.dockedCard != nil
+            || c.dockedCard != nil || completionNotifications?.presentedInsight != nil
             || (speech.showsReader && speech.isReadingCardOpen)
     }
 

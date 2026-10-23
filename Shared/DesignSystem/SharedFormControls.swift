@@ -8,31 +8,21 @@ struct StudyTopicsSearchField: View {
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        HStack(spacing: 16) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(AngroveTheme.Colors.searchIcon)
-                .frame(width: 16, height: 16)
+        HStack(spacing: 8) {
+            GlobalSearchGlass()
 
-            TextField("", text: $searchText, prompt: prompt)
+            TextField("", text: $searchText, prompt: prompt.foregroundStyle(AngroveTheme.Colors.placeholderText))
                 .textFieldStyle(.plain)
                 .focusEffectDisabled()
-                .paragraphFont()
-                .foregroundColor(AngroveTheme.Colors.paragraphText)
+                .font(GlobalSearchBarStyle.font)
                 .tint(AngroveTheme.Colors.secondaryMuted)
                 .submitLabel(.search)
                 .focused($isFocused)
                 .onSubmit { isFocused = false }
                 .onChange(of: dismissFocusRequest) { _, _ in isFocused = false }
         }
-        .padding(.horizontal, 20)
-        .frame(height: 52)
-        .background(AngroveTheme.Colors.canvas)
-        .clipShape(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous)
-                .stroke(AngroveTheme.Colors.sideMenuSearchBorder, lineWidth: 1)
-        )
+        .foregroundStyle(AngroveTheme.Colors.paragraphText)
+        .modifier(GlobalSearchBarStyle())
     }
 }
 

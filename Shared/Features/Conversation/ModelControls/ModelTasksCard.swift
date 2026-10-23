@@ -22,18 +22,28 @@ struct ModelTasksCard: View {
     @Environment(\.openModelTaskPage) private var openModelTaskPage
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var draggingTaskID: UUID?
-    @State private var dismissTask: Task<Void, Never>?
+    @State private var presentedTasks: [ModelTaskSnapshot]
+    @State private var leavingTaskIDs: Set<UUID> = []
+    @State private var enteringTaskIDs: Set<UUID> = []
+    @State private var hasPresentedTasks: Bool
+
+    init(modelTasks: ModelTaskQueue, popupState: ModelTasksPopupState? = nil) {
+        self.modelTasks = modelTasks
+        self.popupState = popupState
+        _presentedTasks = State(initialValue: modelTasks.allTasks)
+        _hasPresentedTasks = State(initialValue: !modelTasks.allTasks.isEmpty)
+    }
 
     private var showsIdle: Bool {
         #if os(iOS)
-        modelTasks.allTasks.isEmpty && [.ready, .development].contains(ModelDeliveryState.shared.phase)
+        presentedTasks.isEmpty && [.ready, .development].contains(ModelDeliveryState.shared.phase)
         #else
-        modelTasks.allTasks.isEmpty
+        presentedTasks.isEmpty
         #endif
     }
 
     private var taskCounter: some View {
-        Text("\(modelTasks.completedTasks.count) of \(modelTasks.totalCount)")
+        Text("\(presentedTasks.filter { $0.phase == .completed }.count) of \(presentedTasks.count)")
             .font(BrandTypography.font("Figtree-Regular", size: 14))
             .monospacedDigit()
     }
@@ -46,8 +56,10 @@ struct ModelTasksCard: View {
         #endif
     }
 
-    private let rowExitDuration = 0.4
-    private let rowExitStagger = 0.15
+    private var hiddenTaskIDs: Set<UUID> { leavingTaskIDs.union(enteringTaskIDs) }
+
+    private let rowExitDuration = 0.24
+    private let resizeDuration = 0.36
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -60,7 +72,7 @@ struct ModelTasksCard: View {
                 Spacer()
                 // Tasks replace the model selector while they run, and the selector returns when they finish.
                 ZStack(alignment: .trailing) {
-                    if modelTasks.allTasks.isEmpty {
+                    if presentedTasks.isEmpty {
                         ModelPicker()
                             .transition(reduceMotion ? .opacity : .blurFade)
                     } else {
@@ -68,9 +80,9 @@ struct ModelTasksCard: View {
                             .transition(reduceMotion ? .opacity : .blurFade)
                     }
                 }
-                .animation(reduceMotion ? nil : .springStandard, value: modelTasks.allTasks.isEmpty)
+                .animation(reduceMotion ? nil : .springStandard, value: presentedTasks.isEmpty)
                 #else
-                if !modelTasks.allTasks.isEmpty {
+                if !presentedTasks.isEmpty {
                     Spacer()
                     taskCounter
                 }
@@ -84,7 +96,7 @@ struct ModelTasksCard: View {
             #endif
 
             VStack(alignment: .leading, spacing: 4) {
-                ForEach(modelTasks.allTasks.enumerated(), id: \.element.id) { index, task in
+                ForEach(presentedTasks) { task in
                     ModelTaskRow(
                         task: task,
                         isDragging: draggingTaskID == task.id,
@@ -109,17 +121,14 @@ struct ModelTasksCard: View {
                             }
                         }
                     )
-                    .transition(
-                        .asymmetric(
-                            insertion: .opacity,
-                            removal: .offset(x: reduceMotion ? 0 : 24)
-                                .combined(with: .opacity)
-                        )
-                        .animation(
-                            .smooth(duration: rowExitDuration)
-                                .delay(reduceMotion ? 0 : Double(index) * rowExitStagger)
-                        )
-                    )
+                    // Keep the departing row's space until its fade finishes. Only then
+                    // remove it from layout, so the bottom-pinned card resizes smoothly.
+                    .opacity(hiddenTaskIDs.contains(task.id) ? 0 : 1)
+                    .blur(radius: !reduceMotion && hiddenTaskIDs.contains(task.id) ? 8 : 0)
+                    .allowsHitTesting(!hiddenTaskIDs.contains(task.id))
+                    .accessibilityHidden(hiddenTaskIDs.contains(task.id))
+                    .animation(.easeOut(duration: rowExitDuration), value: hiddenTaskIDs.contains(task.id))
+                    .transition(.opacity)
                 }
 
                 if showsIdle {
@@ -141,7 +150,7 @@ struct ModelTasksCard: View {
             }
         }
         .foregroundColor(AngroveTheme.Colors.paragraphText.opacity(0.75))
-        .animation(.springLively, value: modelTasks.allTasks)
+        .animation(reduceMotion ? nil : .smooth(duration: resizeDuration), value: presentedTasks)
         .frame(maxWidth: .infinity, alignment: .leading)
         #if os(macOS)
         .padding(28)
@@ -155,23 +164,58 @@ struct ModelTasksCard: View {
             RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
                 .stroke(AngroveTheme.Colors.popupBorder, lineWidth: 1)
         )
-        .onChange(of: modelTasks.allTasks.count) { oldCount, newCount in
-            dismissTask?.cancel()
-            guard oldCount > 0, newCount == 0, let popupState else { return }
-            let exitDuration = rowExitDuration
-                + (reduceMotion ? 0 : Double(oldCount - 1) * rowExitStagger)
-            dismissTask = Task { @MainActor in
-                try? await Task.sleep(for: .seconds(exitDuration))
-                guard !Task.isCancelled, modelTasks.allTasks.isEmpty else { return }
-                popupState.reset()
-            }
+        .task(id: modelTasks.allTasks) {
+            await synchronizePresentation()
         }
         #if os(iOS)
         .task { await ModelDeliveryState.shared.refreshAvailability() }
         #endif
-        .onDisappear {
-            dismissTask?.cancel()
+    }
+
+    @MainActor
+    private func synchronizePresentation() async {
+        let liveTasks = modelTasks.allTasks
+        if !liveTasks.isEmpty { hasPresentedTasks = true }
+        let liveIDs = Set(liveTasks.map(\.id))
+        let previousIDs = Set(presentedTasks.map(\.id))
+        let departing = presentedTasks.filter { !liveIDs.contains($0.id) }
+        enteringTaskIDs = enteringTaskIDs.intersection(liveIDs)
+            .union(liveIDs.subtracting(previousIDs))
+        // Keep removed snapshots at their old positions, even if a new task arrives or
+        // the waiting queue is reordered during the fade. The queue itself stays live.
+        var next = liveTasks
+        for (index, task) in presentedTasks.enumerated() where !liveIDs.contains(task.id) {
+            next.insert(task, at: min(index, next.count))
         }
+        // Carry the size animation through the card's padding, background and host,
+        // including arrivals whose reserved space is laid out before they reveal.
+        withAnimation(reduceMotion ? nil : .smooth(duration: resizeDuration)) {
+            presentedTasks = next
+            leavingTaskIDs = Set(departing.map(\.id))
+        }
+        if !departing.isEmpty {
+            do { try await Task.sleep(for: .seconds(rowExitDuration)) }
+            catch { return }
+            guard !Task.isCancelled else { return }
+            withAnimation(reduceMotion ? nil : .smooth(duration: resizeDuration)) {
+                presentedTasks = liveTasks
+                // Keep exit IDs until the next update so removed views cannot fade
+                // back in while SwiftUI retains them for their layout transition.
+            }
+        }
+        // Reverse the exit for arrivals: first make room, then fade out the blur.
+        // Retain pending arrivals across task updates so a completion or another
+        // enqueue during the resize cannot strand an invisible row.
+        if !enteringTaskIDs.isEmpty || (liveTasks.isEmpty && hasPresentedTasks) {
+            do { try await Task.sleep(for: .seconds(reduceMotion ? 0 : resizeDuration)) }
+            catch { return }
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: rowExitDuration)) {
+                enteringTaskIDs = []
+            }
+        }
+        guard liveTasks.isEmpty, hasPresentedTasks, !Task.isCancelled else { return }
+        popupState?.reset()
     }
 }
 
@@ -212,6 +256,7 @@ private struct ModelTaskRow: View {
     let onStop: () -> Void
     let onRemove: () -> Void
     @Binding var draggingTaskID: UUID?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Called continuously as a dragged row is carried over this row, so upcoming tasks
     /// visibly reflow into their landing order before the drag is released — the same
     /// live-preview feel as rearranging objects in an auto-layout frame.
@@ -272,22 +317,22 @@ private struct ModelTaskRow: View {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(AngroveTheme.Colors.headingText)
-                    .transition(.opacity)
+                    .transition(reduceMotion ? .opacity : .blurFade)
             case .current:
                 ContextUsageIcon(
                     progress: 0,
                     color: AngroveTheme.Colors.paragraphText.opacity(0.75),
                     isSpinning: true
                 )
-                .transition(.opacity)
+                .transition(reduceMotion ? .opacity : .blurFade)
             case .upcoming:
                 Image(systemName: "circle.dotted")
                     .font(.system(size: 14, weight: .regular))
-                    .transition(.opacity)
+                    .transition(reduceMotion ? .opacity : .blurFade)
             }
         }
         .frame(width: 14, height: 14)
-        .animation(.easeInOut(duration: 0.2), value: task.phase)
+        .animation(.easeInOut(duration: 0.24), value: task.phase)
     }
 
     @ViewBuilder

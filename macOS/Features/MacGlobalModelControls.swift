@@ -39,6 +39,7 @@ struct MacDockedDefinitionCard: View {
             onFork: { session.fork(concept) },
             onToggleSaved: { session.toggleBookmark(concept) },
             onClose: dismiss)
+            .modifier(MacInsightDragSource(concept: concept))
             .padding(.horizontal, 24)
             .environment(\.speechSource, SpeechSource(title: concept.word, conversationID: session.id, page: .conversation))
     }

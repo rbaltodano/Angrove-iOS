@@ -100,7 +100,12 @@ struct WorktreePhotoResizeHandles: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            let isVisible = start != nil || pointer?.nearIDs.contains(item.id) == true
+            // The whole picture moves. Resize targets sit above this surface so edges and
+            // corners keep their crop/resize gestures.
+            if let move {
+                WorktreePhotoMoveSurface(move: move)
+            }
+            let isVisible = pointer?.nearIDs.contains(item.id) == true
             WorktreeBoxChrome(size: size, zoom: zoom, isVisible: isVisible, press: press,
                               spotlight: pointer?.spotlight(for: item.id, board: board, inset: WorktreeItemView.textPadding))
             // With a move, the top edge and the grip above it move the photo instead of cropping.
@@ -139,9 +144,26 @@ struct WorktreePhotoResizeHandles: View {
             }
             if let move {
                 WorktreeBoxTopEdge(width: size.width, zoom: zoom, move: move)
-                WorktreeBoxGrip(width: size.width, zoom: zoom, isVisible: isVisible, move: move)
+                let grip = WorktreeBoxGrip.hitFrame(in: CGRect(origin: .zero, size: size), zoom: zoom)
+                WorktreeBoxGrip(width: size.width, zoom: zoom,
+                    isVisible: pointer?.isNearControl(CGPoint(x: grip.midX, y: grip.midY), for: item.id, board: board,
+                        zoom: zoom, inset: WorktreeItemView.textPadding) == true, move: move)
             }
         }
         .frame(width: size.width, height: size.height)
+    }
+}
+
+private struct WorktreePhotoMoveSurface: View {
+    let move: WorktreeBoxMove
+    @State private var isDragging = false
+
+    var body: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .pointerStyle(isDragging ? .grabActive : .grabIdle)
+            .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                .onChanged { value in isDragging = true; move.changed(value) }
+                .onEnded { _ in isDragging = false; move.ended() })
     }
 }

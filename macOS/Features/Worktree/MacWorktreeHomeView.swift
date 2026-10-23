@@ -5,6 +5,9 @@ struct MacWorktreeHomeView: View {
     let library: WorktreeLibrary
     let queuePopup: ModelTasksPopupState
     @State private var pendingDelete: WorktreeDocument?
+    @State private var pendingRename: WorktreeDocument?
+    @State private var renameTitle = ""
+    @State private var searchText = ""
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -34,8 +37,14 @@ struct MacWorktreeHomeView: View {
         ]
     }
 
+    private var visibleDocuments: [WorktreeDocument] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return library.sortedDocuments }
+        return library.sortedDocuments.filter { $0.displayTitle.localizedCaseInsensitiveContains(query) }
+    }
+
     private var list: some View {
-        MacCollectionScrollPage {
+        MacCollectionScrollPage(artwork: .boards) {
             MacCollectionHeader(title: "Boards",
                 description: "Lay out notes, questions, images and whole conversations side by side, and arrange them as your thinking takes shape.",
                 stats: stats)
@@ -48,22 +57,40 @@ struct MacWorktreeHomeView: View {
                         .accessibilityHidden(true)
                 }
 
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 24) {
                 if !library.documents.isEmpty {
-                    MacCollectionSectionTitle(title: String(localized: "Recently Edited"),
-                        detail: library.documents.count == 1 ? String(localized: "1 board")
-                            : String(localized: "\(library.documents.count) boards"))
+                    MacCollectionSearchBar(title: String(localized: "All Boards"), searchText: $searchText,
+                                           prompt: Text("Search Boards"))
                 }
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: MacCollectionLayout.gridSpacing, alignment: .top)],
-                          spacing: MacCollectionLayout.gridSpacing) {
-                    ForEach(library.sortedDocuments) { document in
-                        WorktreeCard(document: document,
-                            onOpen: { withAnimation(reduceMotion ? nil : .springStandard) { library.open(document.id) } },
-                            onDelete: { pendingDelete = document })
+                if !searchText.isEmpty, visibleDocuments.isEmpty {
+                    Text("No Boards match “\(searchText)”.")
+                        .paragraphFont()
+                        .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                } else {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: MacCollectionLayout.gridSpacing, alignment: .top)],
+                              spacing: MacCollectionLayout.gridSpacing) {
+                        ForEach(visibleDocuments) { document in
+                            WorktreeCard(document: document,
+                                onOpen: { withAnimation(reduceMotion ? nil : .springStandard) { library.open(document.id) } },
+                                onDelete: { pendingDelete = document },
+                                onRename: { renameTitle = document.displayTitle; pendingRename = document })
+                                .macInsightDropDestination(open: { library.open(document.id) })
+                        }
+                        if searchText.isEmpty {
+                            WorktreeNewCard(isFirst: library.documents.isEmpty, action: create)
+                        }
                     }
-                    WorktreeNewCard(isFirst: library.documents.isEmpty, action: create)
                 }
             }
+        }
+        .alert("Rename Board", isPresented: Binding(get: { pendingRename != nil }, set: { if !$0 { pendingRename = nil } })) {
+            TextField("Board name", text: $renameTitle)
+            Button("Cancel", role: .cancel) { pendingRename = nil }
+            Button("Rename") {
+                if let document = pendingRename { library.rename(document.id, to: renameTitle) }
+                pendingRename = nil
+            }
+            .disabled(renameTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .alert("Delete Board?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })) {
             Button("Cancel", role: .cancel) { pendingDelete = nil }
@@ -86,6 +113,7 @@ private struct WorktreeCard: View {
     let document: WorktreeDocument
     let onOpen: () -> Void
     let onDelete: () -> Void
+    let onRename: () -> Void
     @State private var isHovered = false
 
     private var summary: String {
@@ -97,7 +125,8 @@ private struct WorktreeCard: View {
     }
 
     private var menuEntries: [MacMenuEntry] { [
-        MacMenuEntry("Open", symbol: "arrow.up.right", action: onOpen), .divider,
+        MacMenuEntry("Open", symbol: "arrow.up.right", action: onOpen),
+        MacMenuEntry("Rename", symbol: "pencil.line", action: onRename), .divider,
         MacMenuEntry("Delete", symbol: "trash", destructive: true, action: onDelete)
     ] }
 
@@ -105,12 +134,11 @@ private struct WorktreeCard: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Spacer(minLength: 8)
-                MacActionMenu(entries: { menuEntries }) { MacCollectionOptionsLabel(size: 28, isOutlined: false) }
+                MacActionMenu(entries: { menuEntries }) { MacCollectionCardOptionsLabel() }
                     .buttonStyle(.plain)
-                    .opacity(isHovered ? 1 : 0)
                     .accessibilityLabel("Board options")
             }
-            .frame(height: 28)
+            .frame(height: AngroveTheme.Spacing.controlHeight)
 
             Text(document.displayTitle)
                 .font(AngroveTheme.Typography.uiHeading)

@@ -28,7 +28,7 @@ struct MacStudyTopicCard: View {
                     .font(AngroveTheme.Typography.uiLabel)
                     .monospacedDigit()
                 Spacer(minLength: 8)
-                MacActionMenu(entries: { menuEntries }) { MacCollectionOptionsLabel(size: 28, isOutlined: false) }
+                MacActionMenu(entries: { menuEntries }) { MacCollectionCardOptionsLabel() }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Topic options")
             }
@@ -181,7 +181,7 @@ struct MacTopicEmptyConversations: View {
                     Text("No conversations yet")
                         .font(AngroveTheme.Typography.uiHeading)
                         .foregroundStyle(AngroveTheme.Colors.primaryReadable)
-                    Text("Start one here, or add one from its menu in the sidebar.")
+                    Text("Start one here, or add an existing conversation using the controls below.")
                         .paragraphFont()
                         .foregroundStyle(AngroveTheme.Colors.paragraphText)
                 }

@@ -49,33 +49,47 @@ with playback controls and audio on the website.
 
 ## A look inside
 
-October 5, 2026 app captures: Home, a Peloponnesian War inquiry, a Homoousios conversation,
-and the Ancient Greek Politics map. Select an image to view it at full size.
+October 22, 2026 captures from the iPhone app and native Mac app in development.
+Select a screenshot to view it at full size.
+
+### On Mac
+
+Boards bring notes, images, saved Insights, and conversations into a spatial study workspace.
 
 <p align="center">
-  <a href="Documentation/Screenshots/case-study-2026-10-05/home.jpg"><img src="Documentation/Screenshots/case-study-2026-10-05/home.jpg" alt="Angrove Home with activity and a Question of the Day" width="23%"></a>
-  <a href="Documentation/Screenshots/case-study-2026-10-05/conversation-peloponnesian-war.jpg"><img src="Documentation/Screenshots/case-study-2026-10-05/conversation-peloponnesian-war.jpg" alt="Peloponnesian War inquiry with underlined concepts" width="23%"></a>
-  <a href="Documentation/Screenshots/case-study-2026-10-05/conversation-homoousios.jpg"><img src="Documentation/Screenshots/case-study-2026-10-05/conversation-homoousios.jpg" alt="Homoousios conversation with a contextual concept" width="23%"></a>
-  <a href="Documentation/Screenshots/case-study-2026-10-05/insight-map.jpg"><img src="Documentation/Screenshots/case-study-2026-10-05/insight-map.jpg" alt="Ancient Greek Politics map and saved Insight card" width="23%"></a>
+  <a href="Documentation/Screenshots/2026-10-22/mac-boards-1.png"><img src="Documentation/Screenshots/2026-10-22/mac-boards-1.png" alt="Mac Board combining a Common Good heading, image, and study notes" width="49%"></a>
+  <a href="Documentation/Screenshots/2026-10-22/mac-boards-2.png"><img src="Documentation/Screenshots/2026-10-22/mac-boards-2.png" alt="Mac Board with Just War Theory notes, an image, and a saved Insight" width="49%"></a>
+  <a href="Documentation/Screenshots/2026-10-22/mac-home-page.png"><img src="Documentation/Screenshots/2026-10-22/mac-home-page.png" alt="Native Mac Home with activity, Question of the Day, and ideas to revisit" width="49%"></a>
+  <a href="Documentation/Screenshots/2026-10-22/mac-split-conversation-view.png"><img src="Documentation/Screenshots/2026-10-22/mac-split-conversation-view.png" alt="Mac conversation beside its Insight Tree" width="49%"></a>
 </p>
 
-[Full screenshot set and context](Documentation/Screenshots/case-study-2026-10-05/README.md)
-include expanded source details and two mobile browser captures of the website's technical guide.
+| Lay your ideas out · 0:11 | Learn easier · 0:19 |
+| --- | --- |
+| [![Common Good study Board](Documentation/Screenshots/2026-10-22/lay-your-ideas-out.jpg)](Documentation/Screenshots/2026-10-22/lay-your-ideas-out.mp4) | [![Just War Theory conversation on a Board](Documentation/Screenshots/2026-10-22/learn-easier.jpg)](Documentation/Screenshots/2026-10-22/learn-easier.mp4) |
+
+Select a preview to open its recording. [Full media set and capture context](Documentation/Screenshots/2026-10-22/README.md).
+
+### On iPhone
+
+<p align="center">
+  <a href="Documentation/Screenshots/2026-10-22/ios-homescreen.png"><img src="Documentation/Screenshots/2026-10-22/ios-homescreen.png" alt="iPhone Home with activity and a Question of the Day" width="23%"></a>
+  <a href="Documentation/Screenshots/2026-10-22/ios-library.png"><img src="Documentation/Screenshots/2026-10-22/ios-library.png" alt="iPhone Library with primary sources and recently opened works" width="23%"></a>
+  <a href="Documentation/Screenshots/2026-10-22/ios-sidebar.png"><img src="Documentation/Screenshots/2026-10-22/ios-sidebar.png" alt="iPhone side menu with search, Study Topics, and recent conversations" width="23%"></a>
+  <a href="Documentation/Screenshots/2026-10-22/ios-study-topics.png"><img src="Documentation/Screenshots/2026-10-22/ios-study-topics.png" alt="Augustinian Predestination Study Topic on iPhone" width="23%"></a>
+</p>
 
 <details>
-<summary>More screenshots: Library, dark appearance, and Study mode</summary>
+<summary>Earlier captures: conversations, Insight Tree, light appearance, and Study mode</summary>
 
-Earlier captures show the Library, menu, dark appearance, and Study mode:
+[October 5 conversation and Insight Tree captures](Documentation/Screenshots/case-study-2026-10-05/README.md).
 
 <p align="center">
-  <img src="Documentation/Screenshots/library-light.jpg" alt="Angrove Library of primary sources in light mode" width="19%">
-  <img src="Documentation/Screenshots/menu-light.jpg" alt="Angrove side menu in light mode" width="19%">
-  <img src="Documentation/Screenshots/home-dark.jpg" alt="Earlier Angrove Home in dark mode" width="19%">
-  <img src="Documentation/Screenshots/conv-dark.jpg" alt="Earlier Angrove conversation in dark mode" width="19%">
-  <a href="Documentation/Screenshots/study-3d-demo.mp4"><img src="Documentation/Screenshots/study-3d.jpg" alt="Angrove Study mode with a Node Concept and its Insights in 3D" width="19%"></a>
+  <img src="Documentation/Screenshots/library-light.jpg" alt="Earlier Library in light mode" width="19%">
+  <img src="Documentation/Screenshots/menu-light.jpg" alt="Earlier side menu in light mode" width="19%">
+  <a href="Documentation/Screenshots/case-study-2026-10-05/conversation-peloponnesian-war.jpg"><img src="Documentation/Screenshots/case-study-2026-10-05/conversation-peloponnesian-war.jpg" alt="Peloponnesian War inquiry with underlined concepts" width="19%"></a>
+  <a href="Documentation/Screenshots/case-study-2026-10-05/insight-map.jpg"><img src="Documentation/Screenshots/case-study-2026-10-05/insight-map.jpg" alt="Ancient Greek Politics map and saved Insight" width="19%"></a>
+  <a href="Documentation/Screenshots/study-3d-demo.mp4"><img src="Documentation/Screenshots/study-3d.jpg" alt="Study mode in 3D" width="19%"></a>
 </p>
-
-Select the Study image for the [short demo video](Documentation/Screenshots/study-3d-demo.mp4).
 
 </details>
 

@@ -6,6 +6,19 @@ import Testing
 
 @MainActor
 struct MacWorkspaceShortcutTests {
+    @Test func commandNCreatesTheCurrentPageKind() {
+        var request: MacShortcutRequest?
+        for destination in MacDestination.allCases {
+            let target = MacWorkspaceCommandTarget(request: Binding(get: { request }, set: { request = $0 }),
+                recentConversationIDs: [], destination: destination)
+            target.send(target.newItemAction)
+            let expected: MacShortcutRequest.Action = destination == .worktree ? .newBoard
+                : destination == .studyTopics ? .newStudyTopic : .newConversation
+            #expect(request?.action == expected)
+            #expect(!target.newItemTitle.isEmpty)
+        }
+    }
+
     @Test func recentShortcutsMatchSidebarOrderExcludeTopicsAndStopAtNine() {
         let conversations = (0..<12).map { InquiryConversation(title: "Conversation \($0)", isPinned: $0 == 0) }
         let topic = InquiryConversation(title: "Topic", isStudyTopic: true)

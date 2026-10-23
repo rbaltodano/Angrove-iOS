@@ -40,6 +40,52 @@ struct ResponseCitationLayoutTests {
         }
     }
 
+    private struct JustifiedSample: View {
+        let measurements: Measurements
+        let justified: Bool
+
+        var body: some View {
+            FlowLayout(alignment: .center, justified: justified) {
+                ForEach(0..<3) { index in
+                    Color.clear
+                        .frame(width: 60, height: 20)
+                        .onGeometryChange(for: CGRect.self) { proxy in
+                            proxy.frame(in: .named("justified"))
+                        } action: { measurements.frames[String(index)] = $0 }
+                }
+            }
+            .coordinateSpace(name: "justified")
+            .frame(maxHeight: .infinity, alignment: .top)
+        }
+    }
+
+    @Test("Justified paragraphs stretch wrapped rows and leave the last row left aligned",
+          arguments: [true, false])
+    func justifiedLastLine(justified: Bool) async throws {
+        let measurements = Measurements()
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 160, height: 300))
+        let controller = UIHostingController(rootView: JustifiedSample(measurements: measurements, justified: justified))
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.view.frame = window.bounds
+        controller.view.layoutIfNeeded()
+        try await Task.sleep(for: .milliseconds(150))
+
+        let first = try #require(measurements.frames["0"])
+        let second = try #require(measurements.frames["1"])
+        let last = try #require(measurements.frames["2"])
+        if justified {
+            #expect(abs(first.minX) < 1)
+            #expect(abs(second.maxX - 160) < 1)
+            #expect(abs(last.minX) < 1)
+        } else {
+            #expect(first.minX > 0)
+            #expect(abs(last.midX - 80) < 1)
+        }
+        #expect(last.minY >= first.maxY + FlowLayout.rowSpacing - 1)
+    }
+
     @Test("Long citation chips wrap without overflow or overlap", arguments: [TextAlignment.leading, .center])
     func longCitationWraps(alignment: TextAlignment) async throws {
         let link = try #require(ParsedInsightLink(token: "[\(title)](aq-cite://summa-theologica/4200)."))

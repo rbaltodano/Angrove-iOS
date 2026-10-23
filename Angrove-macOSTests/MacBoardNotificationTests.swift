@@ -6,38 +6,20 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct MacBoardNotificationTests {
-    @Test func completionWaitsForClickAndKeepsItsBoardAndSourceWindow() throws {
+    @Test func completionOpensInCurrentDockWithoutReopeningItsBoardOrWindow() throws {
         let (board, session) = fixture()
         let center = ModelCompletionNotificationCenter()
         let concept = definition()
-        let probe = BoardNotificationProbe()
-        let token = NotificationCenter.default.addObserver(forName: .macOpenBoardDefinition, object: nil, queue: .main) { note in
-            MainActor.assumeIsolated {
-                if let request = note.object as? WorktreeDefinitionRequest, request.boardID == board.documentID {
-                    probe.request = request
-                }
-            }
-        }
-        defer { NotificationCenter.default.removeObserver(token) }
         board.postDefinition(concept, from: session, to: center)
-        #expect(session.selectedDefinition == nil)
+        #expect(center.presentedInsight == nil)
+        center.open(id: try #require(center.notifications.first).id)
+        #expect(center.presentedInsight?.concept == concept)
+        #expect(center.presentedInsight?.conversationID == session.id)
         #expect(board.dockedDefinition == nil)
-        let notification = try #require(center.notifications.first)
-        #expect(notification.kind == .insightDefinition)
-        center.open(id: notification.id)
-        let request = try #require(probe.request)
-        #expect(request.boardID == board.documentID)
-        #expect(request.sessionID == session.id)
-        #expect(board.presentDefinition(request))
-        #expect(board.dockedDefinition?.session === session)
-        #expect(board.dockedDefinition?.concept == concept)
+        #expect(session.selectedDefinition == nil)
         #expect(session.transcript.isEmpty)
         #expect(!session.savesConversation)
         #expect(board.items.count == 1)
-        session.selectedDefinition = nil
-        let previousID = board.dockedDefinition?.id
-        #expect(board.presentDefinition(request))
-        #expect(board.dockedDefinition?.id != previousID)
     }
 
     @Test func dismissedCompletionDoesNotOpenAndRemovedWindowsAreNotRestored() throws {
@@ -96,7 +78,6 @@ struct MacBoardNotificationTests {
     }
 }
 
-@MainActor private final class BoardNotificationProbe { var request: WorktreeDefinitionRequest? }
 
 private struct BoardDockFixture: View {
     let board: WorktreeBoard

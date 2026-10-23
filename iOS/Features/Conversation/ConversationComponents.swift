@@ -142,6 +142,9 @@ struct ChatThreadColumn: View {
     /// question field is currently focused (used by the slash-command picker).
     var insertCommandRequest: Int = 0
     var commandToInsert: String = ""
+    /// Fills and focuses the first question field once, e.g. “What is …” from search.
+    var topQuestionPrefill: TopQuestionPrefill? = nil
+    var onTopQuestionPrefillHandled: () -> Void = {}
     var showsSlashCommandMenu: Bool = false
     var slashCommandQuery: SlashCommandQuery? = nil
     var onSelectSlashCommand: (SlashCommand) -> Void = { _ in }
@@ -1839,6 +1842,27 @@ struct ChatThreadColumn: View {
         // Slash-command picker tapped → insert the command into the focused field.
         .onChange(of: insertCommandRequest) { _, _ in
             insertCommandIntoActiveField()
+        }
+        // Keyed on visibility too: a request made from another page waits until this one shows.
+        .task(id: "\(topQuestionPrefill?.id.uuidString ?? "")|\(isPageVisible)") {
+            guard let prefill = topQuestionPrefill, isPageVisible, !branchData.topQuestionSubmitted else { return }
+            // Let the page transition mount the text view before writing into it.
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            branchData.topQuestionText = prefill.text
+            topFieldRelay.replaceAll(prefill.text)
+            topFieldIsEmpty = prefill.text.isEmpty
+            onActiveInputTextChange(prefill.text)
+            if prefill.submits {
+                onTopQuestionPrefillHandled()
+                submitTopQuestionIfNeeded()
+                return
+            }
+            bottomFieldIsActive = false
+            isBottomQuestionFocused = false
+            isTopQuestionFocused = true
+            topFieldRelay.focus()
+            onTopQuestionPrefillHandled()
         }
         .onDisappear {
             pendingDockSubmission?.cancel()

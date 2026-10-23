@@ -73,6 +73,7 @@ struct WorktreeTextEditor: NSViewRepresentable {
         if view.string != text, !view.hasMarkedText() {
             view.undoManager?.removeAllActions()
             view.string = text
+            view.invalidateIntrinsicContentSize()
             view.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
         }
         view.refreshHighlight()

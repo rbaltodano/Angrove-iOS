@@ -48,70 +48,64 @@ struct MacConversationsListView: View {
         return HomeConversationResume.featuredConversation(in: saved, activeConversationID: activeConversationID)
     }
 
-    /// “8 conversations · 5 this week · 2 pinned · 5 in Study Topics”, omitting zero counts after the first.
-    private var summary: String? {
-        guard !saved.isEmpty else { return nil }
-        let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: .now) ?? .now
-        let week = saved.filter { $0.createdAt >= weekAgo }.count
-        let pinned = saved.filter(\.isPinned).count
-        let filed = saved.filter { $0.studyTopicID != nil }.count
-        var parts = [saved.count == 1 ? String(localized: "1 conversation") : String(localized: "\(saved.count) conversations")]
-        if week > 0 { parts.append(String(localized: "\(week) this week")) }
-        if pinned > 0 { parts.append(String(localized: "\(pinned) pinned")) }
-        if filed > 0 { parts.append(String(localized: "\(filed) in Study Topics")) }
-        return parts.joined(separator: " · ")
+    private var stats: [MacCollectionStat] {
+        guard !saved.isEmpty else { return [] }
+        return [
+            MacCollectionStat(saved.count, "Conversation", "Conversations"),
+            MacCollectionStat(saved.filter(\.isPinned).count, "Pinned", "Pinned"),
+            MacCollectionStat(saved.filter { $0.studyTopicID != nil }.count, "In Study Topics", "In Study Topics")
+        ]
     }
 
     var body: some View {
-        MacCollectionScrollPage {
+        MacCollectionScrollPage(artwork: .conversations) {
             // New Conversation lives in Model Controls; the space beside the heading is left
             // open for artwork.
             MacCollectionHeader(title: "Conversations",
                 description: "Return to an inquiry, continue a thought, or start a new conversation.",
-                summary: summary)
+                stats: stats)
 
             if saved.isEmpty {
                 MacFirstConversationCard(onStart: onNew)
             } else {
-                if let featured {
-                    VStack(alignment: .leading, spacing: 20) {
-                        MacCollectionSectionTitle(title: String(localized: "Where You Left Off"))
-                        MacResumeConversationCard(conversation: featured, topicTitle: topicTitle(for: featured)) {
-                            onOpen(featured.id)
-                        }
-                    }
-                    .transition(.blurFade)
-                }
+                VStack(alignment: .leading, spacing: 24) {
+                    MacCollectionSearchBar(title: String(localized: "All Conversations"), searchText: $searchText,
+                                           prompt: Text("Search Conversations"))
+                    MacCollectionTabs(tabs: MacConversationFilter.allCases.map { ($0, $0.label) }, selection: $filter)
 
-                VStack(alignment: .leading, spacing: 40) {
-                    HStack(alignment: .center, spacing: 24) {
-                        MacCollectionTabs(tabs: MacConversationFilter.allCases.map { ($0, $0.label) }, selection: $filter)
-                        Spacer(minLength: 24)
-                        StudyTopicsSearchField(searchText: $searchText, prompt: Text("Search Conversations"))
-                            .frame(maxWidth: 360)
-                    }
-                    if visible.isEmpty {
-                        Text(searchText.isEmpty ? filter.emptyMessage : String(localized: "No conversations match “\(searchText)”."))
-                            .paragraphFont()
-                            .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                    } else {
-                        ForEach(MacConversationSection.grouping(visible)) { section in
+                    VStack(alignment: .leading, spacing: 40) {
+                        if let featured {
                             VStack(alignment: .leading, spacing: 20) {
-                                MacCollectionSectionTitle(title: section.title,
-                                    detail: section.conversations.count == 1 ? String(localized: "1 conversation")
-                                        : String(localized: "\(section.conversations.count) conversations"))
-                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: MacCollectionLayout.gridSpacing, alignment: .top)],
-                                          spacing: MacCollectionLayout.gridSpacing) {
-                                    ForEach(section.conversations) { conversation in
-                                        MacConversationCard(conversation: conversation, topicTitle: topicTitle(for: conversation),
-                                            isActive: conversation.id == activeConversationID,
-                                            onOpen: { onOpen(conversation.id) },
-                                            onAction: { onAction($0, conversation) })
+                                MacCollectionSectionTitle(title: String(localized: "Where You Left Off"))
+                                MacConversationCard(conversation: featured,
+                                    onOpen: { onOpen(featured.id) },
+                                    onAction: { onAction($0, featured) })
+                            }
+                            .transition(.blurFade)
+                        }
+                        if visible.isEmpty {
+                            Text(searchText.isEmpty ? filter.emptyMessage : String(localized: "No conversations match “\(searchText)”."))
+                                .paragraphFont()
+                                .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                        } else {
+                            ForEach(MacConversationSection.grouping(visible)) { section in
+                                VStack(alignment: .leading, spacing: 20) {
+                                    MacCollectionSectionTitle(title: section.title,
+                                        detail: section.conversations.count == 1 ? String(localized: "1 conversation")
+                                            : String(localized: "\(section.conversations.count) conversations"))
+                                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: MacCollectionLayout.gridSpacing, alignment: .top)],
+                                              spacing: MacCollectionLayout.gridSpacing) {
+                                        ForEach(section.conversations) { conversation in
+                                            MacConversationCard(conversation: conversation,
+                                                onOpen: { onOpen(conversation.id) },
+                                                onAction: { onAction($0, conversation) })
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                    .padding(.top, 16)
                 }
                 .animation(.springStandard, value: filter)
             }
@@ -199,89 +193,15 @@ enum MacConversationSummary {
     }
 }
 
-/// The conversation to pick back up, given the width of the page and the latest answer set as
-/// a quotation.
-private struct MacResumeConversationCard: View {
-    let conversation: InquiryConversation
-    let topicTitle: String?
-    var onOpen: () -> Void
-
-    var body: some View {
-        let answers = MacConversationSummary.answerCount(in: conversation)
-        Button(action: onOpen) {
-            VStack(alignment: .leading, spacing: 20) {
-                HStack(spacing: 8) {
-                    if conversation.isPinned {
-                        Image(systemName: "pin.fill").font(.system(size: 11, weight: .semibold))
-                    }
-                    Text(topicTitle.map { $0.uppercased() } ?? String(localized: "CONTINUE"))
-                        .font(AngroveTheme.Typography.uiLabel)
-                        .lineLimit(1)
-                    Spacer(minLength: 8)
-                    Image(systemName: "quote.opening").font(.system(size: 14, weight: .semibold))
-                }
-                .foregroundStyle(AngroveTheme.Colors.lightGreen)
-
-                Text(MacStudyTopicsView.title(of: conversation))
-                    .font(AngroveTheme.Typography.illustratedCardHeading)
-                    .foregroundStyle(AngroveTheme.Colors.primaryReadable)
-                    .lineSpacing(6)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                HStack(alignment: .top, spacing: 20) {
-                    Rectangle()
-                        .fill(AngroveTheme.Colors.lightGreen)
-                        .frame(width: 1)
-                    Text(verbatim: MacConversationSummary.preview(of: conversation))
-                        .font(.custom("LibreBaskerville-Italic", size: 17))
-                        .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                        .lineSpacing(8)
-                        .lineLimit(4)
-                        .frame(maxWidth: 640, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                HStack(spacing: 12) {
-                    Text(MacCollectionDate.short(conversation.createdAt))
-                    if answers > 0 {
-                        Text(verbatim: "·")
-                        Text(answers == 1 ? String(localized: "1 answer") : String(localized: "\(answers) answers"))
-                    }
-                    Spacer(minLength: 12)
-                    Label("Continue", systemImage: "arrow.turn.down.right")
-                        .font(AngroveTheme.Typography.uiSubheading)
-                        .foregroundStyle(AngroveTheme.Colors.canvas)
-                        .padding(.horizontal, 20)
-                        .frame(height: 40)
-                        .background(AngroveTheme.Colors.lightGreen, in: Capsule())
-                }
-                .font(AngroveTheme.Typography.chipLabel)
-                .foregroundStyle(AngroveTheme.Colors.placeholderText)
-                .padding(.top, 4)
-            }
-            .multilineTextAlignment(.leading)
-            .padding(36)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .macCollectionCard()
-        }
-        .buttonStyle(.plain)
-        .macCardHover()
-    }
-}
-
-/// One conversation: its Study Topic, title, latest answer, date and answer count.
+/// The compact mobile card layout: title, pin, options, and a two-line answer preview.
 private struct MacConversationCard: View {
     let conversation: InquiryConversation
-    let topicTitle: String?
-    let isActive: Bool
     var onOpen: () -> Void
     var onAction: (MacSidebarConversationMenuAction) -> Void
-    @State private var isHovered = false
 
     private var menuEntries: [MacMenuEntry] {
         [MacMenuEntry("Open", symbol: "arrow.up.right", action: onOpen), .divider]
-            + [MacSidebarConversationMenuAction.pin, .topic, .delete].flatMap { action -> [MacMenuEntry] in
+            + [MacSidebarConversationMenuAction.rename, .pin, .topic, .delete].flatMap { action -> [MacMenuEntry] in
                 let entry = MacMenuEntry(action.title(for: conversation), symbol: action.symbol(for: conversation),
                                          destructive: action == .delete) { onAction(action) }
                 return action == .delete ? [.divider, entry] : [entry]
@@ -289,77 +209,47 @@ private struct MacConversationCard: View {
     }
 
     var body: some View {
-        let answers = MacConversationSummary.answerCount(in: conversation)
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 6) {
-                if let topicTitle {
-                    Image(systemName: "square.stack").font(.system(size: 11, weight: .semibold))
-                    Text(topicTitle).font(AngroveTheme.Typography.uiLabel).lineLimit(1)
-                }
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 8) {
                 if conversation.isPinned {
                     Image(systemName: "pin.fill")
                         .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(AngroveTheme.Colors.lightGreen)
                         .accessibilityLabel("Pinned")
                 }
-                Spacer(minLength: 8)
-                MacActionMenu(entries: { menuEntries }) { MacCollectionOptionsLabel(size: 28, isOutlined: false) }
-                    .buttonStyle(.plain)
-                    .opacity(isHovered ? 1 : 0)
-                    .accessibilityLabel("Conversation options")
-            }
-            .foregroundStyle(AngroveTheme.Colors.lightGreen)
-            .frame(height: 28)
 
-            Text(MacStudyTopicsView.title(of: conversation))
-                .font(AngroveTheme.Typography.uiHeading)
-                .foregroundStyle(AngroveTheme.Colors.primaryReadable)
-                .lineSpacing(3)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 12)
+                Text(MacStudyTopicsView.title(of: conversation))
+                    .font(AngroveTheme.Typography.uiHeading)
+                    .foregroundStyle(AngroveTheme.Colors.primaryReadable)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+
+                Spacer(minLength: 8)
+
+                MacActionMenu(entries: { menuEntries }) {
+                    MacCollectionCardOptionsLabel()
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Conversation options")
+            }
 
             Text(verbatim: MacConversationSummary.preview(of: conversation))
                 .font(AngroveTheme.Typography.body)
                 .foregroundStyle(AngroveTheme.Colors.paragraphText)
                 .lineSpacing(5)
-                .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 8)
-
-            Spacer(minLength: 20)
-
-            HStack(spacing: 8) {
-                Text(MacCollectionDate.short(conversation.createdAt))
-                if answers > 0 {
-                    Text(verbatim: "·")
-                    Text(answers == 1 ? String(localized: "1 answer") : String(localized: "\(answers) answers"))
-                }
-                Spacer(minLength: 8)
-                if isActive {
-                    Text("Open now")
-                        .foregroundStyle(AngroveTheme.Colors.lightGreen)
-                }
-                Image(systemName: "arrow.up.right")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(AngroveTheme.Colors.lightGreen)
-                    .opacity(isHovered ? 1 : 0)
-                    .offset(x: isHovered ? 0 : -4, y: isHovered ? 0 : 4)
-            }
-            .font(AngroveTheme.Typography.chipLabel)
-            .foregroundStyle(AngroveTheme.Colors.placeholderText)
+                .lineLimit(2)
+                .truncationMode(.tail)
         }
-        .padding(24)
-        .frame(maxWidth: .infinity, minHeight: 210, alignment: .topLeading)
-        .macCollectionCard()
+        .padding(28)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AngroveTheme.Colors.canvasSecondary,
+                    in: RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous))
         .overlay {
-            if isActive {
-                RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous)
-                    .stroke(AngroveTheme.Colors.lightGreen.opacity(0.6), lineWidth: 1.5)
-            }
+            RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous)
+                .stroke(AngroveTheme.Colors.controlBorder, lineWidth: 1)
         }
+        .contentShape(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous))
         .onTapGesture(perform: onOpen)
-        .onHover { isHovered = $0 }
-        .animation(.springQuick, value: isHovered)
         .macCardHover()
         .macContextMenu { menuEntries }
         .accessibilityElement(children: .contain)

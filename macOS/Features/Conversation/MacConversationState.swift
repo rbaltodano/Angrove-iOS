@@ -7,6 +7,7 @@ import SwiftUI
     var id = UUID()
     var title = "New Conversation"
     var studyTopicID: UUID?
+    let scroll = MacConversationScrollState()
     private var hasCustomTitle = false
     private(set) var isDeleted = false
     @ObservationIgnored private var sidebarSubscriptions: Set<AnyCancellable> = []
@@ -165,6 +166,16 @@ import SwiftUI
         guard let branch = activeBranch, branch.topQuestionSubmitted else { return [] }
         return [.user(branch.topQuestionText, branch.branchContextConcept, branch.topQuestionUploads)] + branch.activeChatBlocks
     }
+    /// Mac transcript indices include the initial question; ChatBranch indices do not.
+    func feedbackReport(transcriptIndex: Int) -> ResponseFeedbackReport? {
+        guard let branch = activeBranch, branch.topQuestionSubmitted,
+              transcriptIndex == branch.activeChatBlocks.count,
+              let last = branch.activeChatBlocks.last, case .text(let text) = last,
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              text != questionCanceledResponseText, !isPending(transcriptIndex: transcriptIndex) else { return nil }
+        return branch.feedbackReport(flaggedResponseIndex: transcriptIndex - 1)
+    }
+
     var pendingResponses: Set<String> = []
     private(set) var completedResponseCount = 0
     var startedResponses: Set<String> = []
@@ -341,23 +352,13 @@ import SwiftUI
     }
     private func enqueueSeed(question: String, answer: String, branchID: UUID, responseIndex: Int, runtime: MacApplicationRuntime) {
         guard !isPreview, savesConversation else { return }
-        runtime.modelTasks.enqueue(kind: .updateInsightTree, originPage: .conversation, conversationID: id, priority: .background) { [self] in
-            do {
-                guard let seed = try await runtime.model.insightTreeSeedCandidate(question: question, response: answer), !Task.isCancelled else { return }
-                let vector = await runtime.embeddingProvider.embed(seed.label + " " + seed.summary)
-                guard !Task.isCancelled, !isDeleted,
-                      InquiryPersistenceStore.load()?.conversations.contains(where: { $0.id == id }) == true else { return }
-                let existing = LocalInsightTreeSeedStore.seeds(for: id)
-                if let vector, existing.contains(where: {
-                    $0.embeddingVersion == runtime.embeddingProvider.version
-                        && $0.embedding.map { cosineSimilarity(vector, $0) >= InsightTreeSemanticPolicy.newSubjectSimilarity } == true
-                }) { return }
-                LocalInsightTreeSeedStore.appendSeed(LocalInsightTreeSeed(
-                    id: stableUUID(from: "conversation-seed:\(id):\(branchID):\(responseIndex)"), label: seed.label,
-                    summary: seed.summary, embedding: vector, embeddingVersion: runtime.embeddingProvider.version, createdAt: Date()), for: id)
-            } catch { report(error.localizedDescription) }
-        }
+        runtime.conversationTreeMapping.enqueue(conversationID: id,
+            turns: [MacConversationMappingTurn(branchID: branchID, responseIndex: responseIndex,
+                question: question, answer: InlineInsightMarkup.plainText(from: answer).trimmingCharacters(in: .whitespacesAndNewlines))],
+            runtime: runtime, priority: .background,
+            onFailure: { [weak self] in self?.report(String(localized: "The Insight Tree couldn’t finish updating. Your conversation and existing tree are saved.")) })
     }
+
     func isPending(transcriptIndex: Int) -> Bool {
         pendingResponses.contains("\(selectedBranch):\(transcriptIndex - 1)")
     }

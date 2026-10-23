@@ -79,7 +79,7 @@ struct OpenConversationsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 28)
 
-                    OpenConversationsSearchField(searchText: $searchText)
+                    StudyTopicsSearchField(searchText: $searchText, prompt: Text("Search Conversations"))
                         .padding(.top, 28)
 
                     HStack(spacing: 12) {
@@ -519,33 +519,6 @@ private struct OpenConversationsEmptyState: View {
                 message: "Start a conversation and it will appear here, ready to resume anytime."
             )
         }
-    }
-}
-
-private struct OpenConversationsSearchField: View {
-    @Binding var searchText: String
-
-    var body: some View {
-        HStack(spacing: 16) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(AngroveTheme.Colors.searchIcon)
-                .frame(width: 16, height: 16)
-
-            TextField("Search Conversations", text: $searchText)
-                .paragraphFont()
-                .foregroundColor(AngroveTheme.Colors.paragraphText)
-                .tint(AngroveTheme.Colors.secondaryMuted)
-                .submitLabel(.search)
-        }
-        .padding(.horizontal, 20)
-        .frame(height: 52)
-        .background(AngroveTheme.Colors.canvas)
-        .clipShape(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous)
-                .stroke(AngroveTheme.Colors.sideMenuSearchBorder, lineWidth: 1)
-        )
     }
 }
 

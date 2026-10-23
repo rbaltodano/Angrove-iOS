@@ -99,7 +99,6 @@ struct CurrentConversationView: View {
     @Binding var sideMenuActiveConversationID: UUID?
     @Binding var requestedConversationID:      UUID?
     let newConversationRequests: NewConversationRequests
-    @Binding var definitionRequest: ConversationDefinitionRequest?
     @Binding var deletedConversationID:        UUID?
     @Binding var requestedForkConcept:         ConceptDefinition?
     @Binding var insightConversationQuoteRequest: InsightConversationQuoteRequest?
@@ -154,6 +153,8 @@ struct CurrentConversationView: View {
     /// Command text to insert into the focused field, applied when `insertCommandRequest` bumps.
     @State private var commandToInsert: String = ""
     @State private var insertCommandRequest: Int = 0
+    /// A new conversation's prefilled question (from search), applied once by the root column.
+    @State private var topQuestionPrefill: TopQuestionPrefill?
     @State private var isCompactingContext: Bool = false
     @State private var isCompactionErrorPresented: Bool = false
     @State private var isRenamePromptPresented: Bool = false
@@ -1077,10 +1078,6 @@ struct CurrentConversationView: View {
             if let request = conversationNodeFocusRequest {
                 openConversationNodeFocus(request)
             }
-            openRequestedDefinition()
-        }
-        .onChange(of: definitionRequest?.id) { _, _ in
-            openRequestedDefinition()
         }
         // Save branches back into the active conversation on every change, then persist.
         // saveCurrentConversation + publishShellMenuState are cheap (memory only).
@@ -1539,6 +1536,8 @@ struct CurrentConversationView: View {
                     },
                     insertCommandRequest: b.id == effectiveFocusedID ? insertCommandRequest : 0,
                     commandToInsert: commandToInsert,
+                    topQuestionPrefill: b.parentBranchID == nil ? topQuestionPrefill : nil,
+                    onTopQuestionPrefillHandled: { topQuestionPrefill = nil },
                     showsSlashCommandMenu: b.id == effectiveFocusedID && showSlashCommandMenu,
                     slashCommandQuery: slashQuery,
                     onSelectSlashCommand: selectSlashCommand,
@@ -2136,6 +2135,9 @@ struct CurrentConversationView: View {
         activeEmptyPromptEyebrow = pendingEyebrow
         activeEmptyPromptQuestion = pendingQuestion
         activeEmptyPromptSubtitle = pendingSubtitle
+        topQuestionPrefill = request.draft.isEmpty
+            ? nil
+            : TopQuestionPrefill(text: request.draft, submits: request.submitsDraft)
         displayedContextTokenCount = 0
         hasTextToSubmit = false
         canvasMode.promotedCanvasInsightIDs = []
@@ -2366,35 +2368,7 @@ struct CurrentConversationView: View {
 
     private func postDefinitionCompletedNotification(_ word: ConversationInsightWord) {
         guard let definition = definitionState.definitionsByKey[word.id] else { return }
-        let request = ConversationDefinitionRequest(
-            conversationID: session.activeConversationID,
-            word: word,
-            definition: definition
-        )
-        // Capture the payload and shell binding, never the departing view's local state.
-        let requestBinding = $definitionRequest
-        let openPage = onRequestConversationPage
-        modelCompletionNotifications?.post(title: definition.word, kind: .insightDefinition) {
-            requestBinding.wrappedValue = request
-            openPage()
-        }
-    }
-
-    private func openRequestedDefinition() {
-        guard let request = definitionRequest else { return }
-        definitionRequest = nil
-        if let conversationID = request.conversationID,
-           conversationID != session.activeConversationID {
-            guard let conversation = session.conversations.first(where: { $0.id == conversationID }) else {
-                return
-            }
-            switchToConversation(conversation)
-        }
-        // Notification taps replace the current card immediately, including in Canvas Mode.
-        modelTasksPopupState.reset()
-        withAnimation(.springStandard) {
-            definitionState.presentCompletedDefinition(request)
-        }
+        modelCompletionNotifications?.postInsightDefinition(definition, conversationID: session.activeConversationID)
     }
 
     private func presentNextCompletedDefinition() {

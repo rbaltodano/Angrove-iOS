@@ -37,6 +37,8 @@ struct WorktreeStoredItem: Codable, Equatable {
     var sourceID: UUID?
     var sourceConversationID: UUID?
     var sourceTitle: String?
+    /// Completed source turns at placement. Optional for Boards saved before incremental mapping.
+    var sourceMappedTurns: [String: String]?
     var visibleTurnLimit: Int?
     var conversationID: UUID?
     var branches: [ChatBranch]?
@@ -129,6 +131,20 @@ enum WorktreeStore {
         document.updatedAt = Date()
         documents[index] = document
         WorktreeStore.save(documents)
+    }
+
+    func rename(_ id: UUID, to title: String) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let index = documents.firstIndex(where: { $0.id == id }),
+              documents[index].title != trimmed else { return }
+        if let board = openBoard, board.documentID == id {
+            board.customTitle = trimmed
+            save(board)
+        } else {
+            documents[index].title = trimmed
+            documents[index].updatedAt = Date()
+            WorktreeStore.save(documents)
+        }
     }
 
     func delete(_ id: UUID) {

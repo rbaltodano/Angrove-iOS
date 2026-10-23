@@ -1,5 +1,5 @@
 > **Workspace update — October 14, 2026:** active Mac development is now in
-> `~/Developer/Aquinas-iOS-main/macOS`, with common source in `../Shared`.
+> `~/Developer/Angrove-iOS-main/macOS`, with common source in `../Shared`.
 > Both targets build from the canonical checkout. The older paths and branch named
 > below describe historical milestones; see [Workspace-Layout.md](Workspace-Layout.md).
 
@@ -617,7 +617,7 @@ the Mac app's live generation implementation; production actions must still go t
   Report, exact arguments, source snapshot/hash, model digest, stdout and native stderr saved.
 - Host: Apple M4 Pro, 24 GiB installed RAM, macOS 27.0.1. The native log reports a WebGPU
   environment using the Metal adapter and main GPU executor. Embeddings use CPU components.
-- Model: existing `Aquinas-iOS-main/Angrove-iOS/LocalModels/gemma-4-E4B-it.litertlm`, read
+- Model: existing `Angrove-iOS-main/Angrove-iOS/LocalModels/gemma-4-E4B-it.litertlm`, read
   directly without copying or modification. Size 3,659,530,240 bytes; verified SHA-256
   `0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0`.
 - Runtime: existing LiteRT-LM 0.14.0 Mac dylib SHA-256
@@ -663,7 +663,7 @@ the tiers share one cache folder, and launch removes the inactive tiers' caches 
 
 Large is not evaluated and has no download path yet. For local use, put the package in
 `Application Support/Angrove-macOS/Models/` with a `.verified.json` receipt. An APFS clone
-(`cp -c`) from `Aquinas_Backend/models/LiteRT-Stock/` uses no extra disk. In DEBUG builds, the
+(`cp -c`) from `Angrove-Backend/models/LiteRT-Stock/` uses no extra disk. In DEBUG builds, the
 backend copy is read directly. Live check through the production model path, opt-in:
 `TEST_RUNNER_ANGROVE_LIVE_MODEL_TIER=large xcodebuild … test
 -only-testing:Angrove-macOSTests/MacModelTierLiveTests`. On an M4 Pro (24 GiB), 12B loads in
@@ -1289,3 +1289,46 @@ owner's data (conversations, keychain key, models, widget content, import/export
 notifications, App Lock), hosted downloads (`ba-serve` needs a trusted TLS identity for the host;
 TestFlight needs the Mac app record and uploaded packs), and the full Mac suite, whose
 keychain-reading tests stop at a Keychain prompt for each rebuilt ad hoc test host.
+
+
+### Conversation action wiring — October 20, 2026
+
+Mac responses now offer thumbs-down reporting on the latest completed answer, including Board
+conversation responses. The Mac sheet sends the typed note and version metadata through the
+existing `BugReportSubmission`; attaching the flagged question and answer requires an explicit,
+off-by-default opt-in with the exact text previewed. Cancel clears the selection; successful
+submission keeps it selected. No report is submitted during verification.
+
+The conversation dock's jump-to-bottom button now follows its own pane's scroll position and
+scrolls that pane to the end. Tree controls never show it, and pane swaps keep the conversation's
+scroll owner. The Inquire Connection conversation sheet now opens the existing Study Topic
+picker, including topic creation, assignment and removal through `MacConversationState.assignTopic`.
+
+Verification: Mac build, iPhone 17 simulator build, and 13 focused Mac tests passed. Tests cover
+feedback turn selection and attachment opt-in, independent pane scrolling, topic assignment,
+existing topic mutations and scroll chrome. Light/dark reporting-sheet renders were inspected.
+The signed Release update was installed at `/Applications/Angrove.app` with
+`Tools/install-local-mac.sh`. Build/test/install logs: `/tmp/angrove-mac-action-wiring-*.log`.
+
+
+### Inline Study Topic creation — October 21, 2026
+
+New Study Topic opens the complete topic detail page immediately, matching iPhone. The title and
+description are borderless native fields in their normal page positions, with dimmed “New Study
+Topic” and “Briefly describe the topic of this study” placeholders. The title receives focus.
+Edits save as typed; existing topics use the same inline fields, and Rename opens/focuses the
+page title. There is no separate Create/Save form.
+
+New Conversation and Add Existing Conversation are available in Model Controls immediately,
+even before a title is entered. Those actions retain the topic before navigating or opening the
+picker. Leaving an untouched blank topic discards it; edited/used topics, files and conversations
+are retained. `MacStudyTopicsState` owns this lifecycle and preserves topic IDs and creation dates.
+
+Twelve focused Mac tests cover autosave, draft cleanup, action retention, stale edits, existing
+topic behavior and native title/description editing. Empty and typed page renders are checked in
+light, dark and a narrow 560-point content pane. Logs/artifacts:
+`/tmp/angrove-inline-study-topic-tests.log`, `/tmp/angrove-inline-topic-*.png`.
+
+The signed Release update was installed at `/Applications/Angrove.app` with automatic launch
+disabled and left closed. Signature verification passed. Install log:
+`/tmp/angrove-inline-study-topic-install.log`.

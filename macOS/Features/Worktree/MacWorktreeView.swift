@@ -1,7 +1,8 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
-/// A free-form canvas for exploring ideas with commands. It pans like the Insight Tree (drag,
-/// trackpad or wheel; Command-scroll zooms) without the dot background. Typing anywhere places
+/// A free-form canvas for exploring ideas with commands. Empty-canvas drags select items;
+/// Space-drag and trackpad or wheel pan, and Command-scroll zooms. Typing anywhere places
 /// bare text beside the pointer; clicking only selects. Quoted text committed with Return
 /// is answered in place.
 struct MacWorktreeView: View {
@@ -11,7 +12,9 @@ struct MacWorktreeView: View {
     /// Saves the board; called shortly after each change and when leaving.
     var onSave: () -> Void = {}
     @State private var camera = CanvasScrollTransform(scale: 1, offset: .zero)
-    @GestureState private var drag: CGSize = .zero
+    @State private var scene = WorktreeSceneBridge()
+    @GestureState private var selectionRect: CGRect? = nil
+    @State private var selectionSeed: [UUID]?
     @State private var pinchStart: CanvasScrollTransform?
     @State private var viewport: CGSize = .zero
     /// The pointer over the canvas; typing starts 16pt to its right. Held outside SwiftUI state:
@@ -19,6 +22,7 @@ struct MacWorktreeView: View {
     @State private var pointerBox = WorktreePointer()
     /// The pointer in world space, observed only by note boxes that fade in near it.
     @State private var canvasPointer = WorktreeCanvasPointer()
+    @Environment(\.modelCompletionNotifications) private var completionNotifications
     @State private var picker: WorktreePicker?
     @State private var showsTrash = false
     @State private var showsTools = false
@@ -51,12 +55,12 @@ struct MacWorktreeView: View {
             ZStack(alignment: .topLeading) {
                 AngroveTheme.Colors.canvas
                     .contentShape(Rectangle())
-                    .gesture(panGesture)
+                    .gesture(boxSelectionGesture(in: size))
                     .onTapGesture(coordinateSpace: .local) { location in tapCanvas(at: location, in: size) }
                 // The Insight Tree's dots, resting invisible: they only pulse once when something
                 // is selected or finishes.
                 AnimatedDotGridBackground(settledOffset: camera.offset, settledScale: camera.scale,
-                                          dragOffset: drag, ripples: board.ripples, showsIdleField: false)
+                                          dragOffset: .zero, ripples: board.ripples, showsIdleField: false)
                     .frame(width: size.width, height: size.height)
                 if board.items.isEmpty && !board.isCommandOpen {
                     AngroveEmptyState(systemImage: MacIcon.worktree.symbol, title: "A blank canvas",
@@ -65,28 +69,23 @@ struct MacWorktreeView: View {
                         .allowsHitTesting(false)
                         .transition(.opacity)
                 }
-                // One world layer moved by the camera: panning changes only this layer's transform,
-                // so item views aren't recomputed per frame.
-                ZStack(alignment: .topLeading) {
-                    ForEach(board.items) { item in
-                        WorktreeItemView(board: board, item: item, scale: camera.scale, runtime: runtime, pointer: canvasPointer)
-                            .equatable()
-                            .fixedSize()
-                            .offset(x: item.origin.x, y: item.origin.y)
-                            .zIndex(board.selection.contains(item.id) ? 1 : 0)
-                            .transition(.blurFade)
-                    }
-                    if let origin = board.commandOrigin {
-                        WorktreeCommandField(board: board, runtime: runtime)
-                            .offset(x: origin.x, y: origin.y)
-                            .zIndex(2)
-                            .transition(.blurFade)
-                    }
+                WorktreeSceneContent(board: board, runtime: runtime, pointer: canvasPointer, bridge: scene)
+                    .equatable()
+                    .frame(width: size.width, height: size.height)
+                    .background(WorktreeSceneCameraDriver(bridge: scene, camera: camera, viewport: size))
+                if let origin = board.commandOrigin {
+                    WorktreeCommandField(board: board, runtime: runtime)
+                        .fixedSize()
+                        .scaleEffect(camera.scale, anchor: .topLeading)
+                        .offset(x: size.width / 2 + camera.offset.width + origin.x * camera.scale,
+                                y: size.height / 2 + camera.offset.height + origin.y * camera.scale)
+                        .zIndex(2)
+                        .transition(.blurFade)
                 }
-                .frame(width: 0, height: 0, alignment: .topLeading)
-                .scaleEffect(camera.scale, anchor: .topLeading)
-                .offset(x: size.width / 2 + camera.offset.width + drag.width,
-                        y: size.height / 2 + camera.offset.height + drag.height)
+                if let selectionRect {
+                    WorktreeSelectionRectangle(rect: selectionRect)
+                        .zIndex(3)
+                }
                 ForEach(board.guides) { guide in
                     let from = screenPoint(guide.axis == .vertical ? CGPoint(x: guide.position, y: guide.start)
                                                                    : CGPoint(x: guide.start, y: guide.position), in: size)
@@ -149,14 +148,21 @@ struct MacWorktreeView: View {
             .onContinuousHover(coordinateSpace: .local) { phase in
                 if case .active(let location) = phase {
                     pointerBox.location = location
-                    canvasPointer.update(world: worldPoint(location, in: size), board: board, zoom: camera.scale)
                 } else {
                     pointerBox.location = nil
-                    canvasPointer.update(world: nil, board: board, zoom: camera.scale)
                 }
             }
             .simultaneousGesture(pinchGesture(in: size))
-            .dropDestination(for: String.self) { payloads, location in
+            .onDrop(of: [.angroveInsight, .text], delegate: MacWorktreeDropDelegate { payloads, location in
+                defer { onSave() }
+                let insights = payloads.compactMap(WorktreeInsightDrop.decode)
+                if !insights.isEmpty {
+                    for (offset, insight) in insights.enumerated() {
+                        let point = CGPoint(x: location.x + CGFloat(offset) * 24, y: location.y + CGFloat(offset) * 24)
+                        board.placeInsight(insight, at: worldPoint(point, in: size), center: completionNotifications)
+                    }
+                    return true
+                }
                 let restored = payloads.compactMap { WorktreeTrashDrop.itemID(in: $0, boardID: board.documentID) }
                 if !restored.isEmpty {
                     var didRestore = false
@@ -176,7 +182,7 @@ struct MacWorktreeView: View {
                     board.addConversation(id, at: worldPoint(point, in: size))
                 }
                 return true
-            }
+            })
             .onAppear { viewport = size }
             .onChange(of: size) { _, value in viewport = value }
             .clipped()
@@ -204,6 +210,11 @@ struct MacWorktreeView: View {
             }
             .allowsHitTesting(false)
         }
+        .overlay(alignment: .bottom) {
+            // The canvas owns its edge fade; cards can grow above the controls independently.
+            MacConversationEdgeFade(top: false)
+                .ignoresSafeArea(.container, edges: .bottom)
+        }
         .overlay {
             Color.clear.preference(key: MacGlobalModelControlsKey.self,
                                    value: MacGlobalModelControls(configuration: dockConfiguration))
@@ -213,6 +224,9 @@ struct MacWorktreeView: View {
             withAnimation(.springStandard) { showsTools = false; showsTrash = false; queuePopup.reset() }
         }
         .onChange(of: board.fileRequest) { _, _ in openFiles() }
+        .onChange(of: selectionRect) { _, rect in
+            if rect == nil { selectionSeed = nil }
+        }
         .onChange(of: camera.scale) { _, _ in rememberViewport() }
         .onChange(of: camera.offset) { _, _ in rememberViewport() }
         .onDisappear {
@@ -237,7 +251,7 @@ struct MacWorktreeView: View {
         .alert("Replace Conversation?", isPresented: Binding(get: { board.pendingReplacement != nil },
                                                              set: { if !$0 { board.pendingReplacement = nil } }),
                presenting: board.pendingReplacement) { replacement in
-            Button("Replace") { board.replaceOriginal(with: replacement.id) }
+            Button("Replace") { board.replaceOriginal(with: replacement.id, runtime: runtime) }
             Button("Keep Both") { board.saveCopy(of: replacement.id, runtime: runtime, keepingBoth: true) }
             Button("Cancel", role: .cancel) {}
         } message: { replacement in
@@ -250,6 +264,7 @@ struct MacWorktreeView: View {
 
     private var dockConfiguration: ModelControlsConfiguration {
         var configuration = ModelControlsConfiguration(id: "mac-boards")
+        configuration.showsStandardFade = false
         configuration.modelTasks = runtime.modelTasks
         configuration.modelTasksPopupState = queuePopup
         configuration.buttons = AnyView(WorktreeControlDock(board: board, modelTasks: runtime.modelTasks,
@@ -302,19 +317,30 @@ struct MacWorktreeView: View {
         board.viewport = WorktreeViewport(scale: camera.scale, offset: camera.offset)
     }
 
-    private var panGesture: some Gesture {
-        DragGesture(minimumDistance: 2)
-            .updating($drag) { value, state, _ in state = value.translation }
-            .onEnded { value in
-                camera.offset.width += value.translation.width
-                camera.offset.height += value.translation.height
+    /// Empty-canvas drags select; Space-drag, scrolling and pinch retain camera movement.
+    private func boxSelectionGesture(in size: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 4, coordinateSpace: .named(Self.canvasSpace))
+            .updating($selectionRect) { value, rect, _ in
+                rect = WorktreeBoxSelection.rect(from: value.startLocation, to: value.location)
             }
+            .onChanged { value in
+                if selectionSeed == nil {
+                    board.endEditing()
+                    board.closeCommand()
+                    selectionSeed = NSEvent.modifierFlags.intersection([.shift, .command]).isEmpty
+                        ? [] : board.selection
+                }
+                let rect = WorktreeBoxSelection.rect(from: worldPoint(value.startLocation, in: size),
+                                                     to: worldPoint(value.location, in: size))
+                board.select(in: rect, addingTo: selectionSeed ?? [])
+            }
+            .onEnded { _ in selectionSeed = nil }
     }
 
     /// screen = viewport centre + camera offset + world × scale, matching `CanvasScrollTransform`.
     private func screenPoint(_ world: CGPoint, in size: CGSize) -> CGPoint {
-        CGPoint(x: size.width / 2 + camera.offset.width + drag.width + world.x * camera.scale,
-                y: size.height / 2 + camera.offset.height + drag.height + world.y * camera.scale)
+        CGPoint(x: size.width / 2 + camera.offset.width + world.x * camera.scale,
+                y: size.height / 2 + camera.offset.height + world.y * camera.scale)
     }
 
     private func worldPoint(_ screen: CGPoint, in size: CGSize) -> CGPoint {

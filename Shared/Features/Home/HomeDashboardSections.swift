@@ -81,6 +81,7 @@ struct HomeInsightBridgeSection: View {
             )
             .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
             .onTapGesture(perform: onOpen)
+            .homeCardHover()
         }
     }
 }
@@ -183,6 +184,7 @@ struct HomeLooseThreadSection: View {
                 )
             }
             .buttonStyle(.plain)
+            .homeCardHover()
         }
     }
 }
@@ -275,6 +277,7 @@ struct HomeGlossedTermSection: View {
                 )
             }
             .buttonStyle(.plain)
+            .homeCardHover()
         }
     }
 }
@@ -302,15 +305,16 @@ typealias HomeFigmaDivider = AngroveSectionDivider
 
 struct HomeFigmaUsageGrid: View {
     let month: MonthlyUsageMonth
+    var cellSize: CGFloat = 16
 
-    private let columns = Array(repeating: GridItem(.fixed(16), spacing: 4), count: 7)
+    private var columns: [GridItem] { Array(repeating: GridItem(.fixed(cellSize), spacing: 4), count: 7) }
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: 4) {
             ForEach(month.days) { day in
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
                     .fill(day.isPlaceholder ? AngroveTheme.Colors.canvas : figmaUsageColor(for: day.level))
-                    .frame(width: 16, height: 16)
+                    .frame(width: cellSize, height: cellSize)
                     .overlay(
                         RoundedRectangle(cornerRadius: 3, style: .continuous)
                             .stroke(day.isPlaceholder ? Color.clear : AngroveTheme.Colors.controlBorder, lineWidth: 1)
@@ -682,4 +686,38 @@ enum MonthlyUsageStore {
         let day = components.day ?? 0
         return String(format: "%04d-%02d-%02d", year, month, day)
     }
+}
+
+
+// MARK: - Card hover
+
+extension EnvironmentValues {
+    /// The Mac Home lifts a section's card under the pointer; the iPhone leaves it still.
+    @Entry var homeCardsHover = false
+}
+
+/// Lifts only the card, never the section title above it.
+struct HomeCardHover: ViewModifier {
+    @State private var isHovered = false
+    @Environment(\.homeCardsHover) private var hovers
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        if hovers {
+            content
+                .scaleEffect(isHovered && !reduceMotion ? 1.008 : 1)
+                .shadow(color: AngroveTheme.Colors.floatingShadow.opacity(isHovered ? 1 : 0), radius: 18, y: 6)
+                .animation(.springQuick, value: isHovered)
+                .onHover { isHovered = $0 }
+                #if os(macOS)
+                .pointerStyle(.link)
+                #endif
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func homeCardHover() -> some View { modifier(HomeCardHover()) }
 }

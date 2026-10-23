@@ -74,20 +74,21 @@ struct ModelControlsStack<Controls: View>: View {
     }
 
     var body: some View {
+        let presentedCard = notificationInsightCard ?? dockedCard
         VStack(spacing: 16) {
             #if os(macOS)
             // Desktop's idle bar can shrink to two controls; keep notification actions readable.
-            ModelCompletionNotificationList(width: max(315, controlsWidth), presentingCard: dockedCard != nil)
+            ModelCompletionNotificationList(width: max(315, controlsWidth), presentingCard: presentedCard != nil)
             #else
-            ModelCompletionNotificationList(width: controlsWidth, presentingCard: dockedCard != nil)
+            ModelCompletionNotificationList(width: controlsWidth, presentingCard: presentedCard != nil)
             #endif
 
-            if let confirmationTitle {
+            if completionNotifications == nil, let confirmationTitle {
                 TreeUpdateNotificationPill(title: confirmationTitle, onUpdate: onConfirm, onKeepCurrent: onDecline)
-                .transition(.bottomDockCard)
+                    .transition(.bottomDockCard)
             }
 
-            if let dockedCard, dockedCard.staysVisibleDuringInteraction {
+            if let dockedCard = presentedCard, dockedCard.staysVisibleDuringInteraction {
                 dockedCard.view
                     .fixedSize(horizontal: false, vertical: true)
                     .transition(.bottomDockCard)
@@ -113,7 +114,7 @@ struct ModelControlsStack<Controls: View>: View {
             } else if speech.occupiesCardSlot, speech.showsReader {
                 ReadingControlsCard()
                     .transition(.bottomDockCard)
-            } else if let dockedCard, !dockedCard.staysVisibleDuringInteraction {
+            } else if let dockedCard = presentedCard, !dockedCard.staysVisibleDuringInteraction {
                 dockedCard.view
                     #if os(macOS)
                     // Cards can grow independently of the controls pill within the pane.
@@ -172,7 +173,10 @@ struct ModelControlsStack<Controls: View>: View {
         }
         // A docked Insight card takes the slot the expanded Reading card holds.
         .onChange(of: dockedCard?.key) { _, key in
-            if key != nil, speech.occupiesCardSlot { speech.isReadingCardOpen = false }
+            if key != nil {
+                completionNotifications?.closeInsight()
+                if speech.occupiesCardSlot { speech.isReadingCardOpen = false }
+            }
         }
         // Expanding the card claims the slot from whatever was open beside the strip.
         .onChange(of: speech.isReadingCardCollapsed) { _, isCollapsed in
@@ -180,8 +184,17 @@ struct ModelControlsStack<Controls: View>: View {
             contextCard?.reset()
             modelTasksPopupState?.isOpen = false
         }
+        .onChange(of: completionNotifications?.presentedInsight?.id) { _, id in
+            guard id != nil else { return }
+            modelTasksPopupState?.reset()
+            contextCard?.reset()
+            if speech.occupiesCardSlot { speech.isReadingCardOpen = false }
+        }
+        .onChange(of: confirmationTitle, initial: true) { _, _ in syncTreeUpdatePrompt() }
+        .onChange(of: controlsUpdateKey) { _, _ in syncTreeUpdatePrompt() }
         .onDisappear {
             controlsPulseTask?.cancel()
+            completionNotifications?.setTreeUpdatePrompt(title: nil)
         }
         .animation(
             .springStandard,
@@ -217,7 +230,18 @@ struct ModelControlsStack<Controls: View>: View {
         )
         // Docked cards arrive through a preference, which drops the page's transaction;
         // animate their changes here instead.
-        .animation(.springStandard, value: dockedCard?.key)
+        .animation(.springStandard, value: presentedCard?.key)
+    }
+
+    private var notificationInsightCard: ModelControlsDockedCard? {
+        guard let center = completionNotifications, let insight = center.presentedInsight else { return nil }
+        return ModelControlsDockedCard(key: "notification-insight-\(insight.id)",
+            view: AnyView(NotificationInsightCard(presentation: insight, center: center)),
+            staysVisibleDuringInteraction: true)
+    }
+
+    private func syncTreeUpdatePrompt() {
+        completionNotifications?.setTreeUpdatePrompt(title: confirmationTitle, onConfirm: onConfirm, onDecline: onDecline)
     }
 
     private func pulseControls() {

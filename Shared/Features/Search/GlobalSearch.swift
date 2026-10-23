@@ -30,10 +30,50 @@ enum GlobalSearchScope: String, CaseIterable, Identifiable {
     }
 }
 
+/// An app page that search can open, found by its name followed by “Page”.
+enum GlobalSearchPage: Int, CaseIterable {
+    case home = 1, insights, conversations, library, studyTopics, boards, settings
+
+    /// Boards exist only on the Mac.
+    static let iPhonePages: [Self] = [.home, .library, .insights, .conversations, .studyTopics, .settings]
+    static let macPages: [Self] = [.home, .insights, .conversations, .library, .studyTopics, .boards, .settings]
+
+    var title: String {
+        switch self {
+        case .home: String(localized: "Home Page")
+        case .insights: String(localized: "Insights Page")
+        case .conversations: String(localized: "Conversations Page")
+        case .library: String(localized: "Library Page")
+        case .studyTopics: String(localized: "Study Topics Page")
+        case .boards: String(localized: "Boards Page")
+        case .settings: String(localized: "Settings Page")
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .home: AppPage.home.sidebarIconName
+        case .insights: AppPage.insights.sidebarIconName
+        case .conversations: AppPage.openConversations.sidebarIconName
+        case .library: AppPage.library.sidebarIconName
+        case .studyTopics: AppPage.studyTopics.sidebarIconName
+        // Matches the Mac sidebar's Boards symbol (`MacIcon.worktree`).
+        case .boards: "square.on.square.dashed"
+        case .settings: AppPage.settings.sidebarIconName
+        }
+    }
+
+    /// A fixed identity, so a page keeps its row while the query changes.
+    var id: UUID {
+        UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", rawValue))!
+    }
+}
+
 /// One row in the global search results.
 struct GlobalSearchResult: Identifiable, Equatable {
     enum Kind: Equatable {
         case conversation, insight, studyTopic
+        case page(GlobalSearchPage)
     }
 
     let id: UUID
@@ -48,9 +88,16 @@ struct GlobalSearchResult: Identifiable, Equatable {
     var iconName: String {
         switch kind {
         case .conversation: AppPage.openConversations.sidebarIconName
-        case .insight: AppPage.insights.sidebarIconName
+        // The word bubble Insights use everywhere else, not the Insights page's symbol.
+        case .insight: "text.bubble.fill"
         case .studyTopic: AppPage.studyTopics.sidebarIconName
+        case .page(let page): page.iconName
         }
+    }
+
+    /// Conversations and Insights can be dragged onto a page (Mac).
+    var isDraggable: Bool {
+        kind == .conversation || kind == .insight
     }
 }
 
@@ -66,7 +113,8 @@ enum GlobalSearch {
         scope: GlobalSearchScope,
         conversations: [InquiryConversation],
         insights: [ConceptDefinition],
-        studyTopics: [StudyTopic]
+        studyTopics: [StudyTopic],
+        pages: [GlobalSearchPage] = []
     ) -> [GlobalSearchResult] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !needle.isEmpty else { return [] }
@@ -85,6 +133,11 @@ enum GlobalSearch {
         if scope == .all || scope == .studyTopics {
             results += studyTopics.compactMap { topic in
                 titleResult(id: topic.id, kind: .studyTopic, title: topic.title, needle: needle)
+            }
+        }
+        if scope == .all {
+            results += pages.compactMap { page in
+                titleResult(id: page.id, kind: .page(page), title: page.title, needle: needle)
             }
         }
         // Stable, so equally ranked rows keep the conversation → Insight → topic order.

@@ -10,44 +10,47 @@ struct MacStudyTopicsView: View {
     var onAsk: (ConceptDefinition, UUID?) -> Void = { _, _ in }
     var queuePopup: ModelTasksPopupState? = nil
 
-    @State private var topics: [StudyTopic]
+    @State private var state: MacStudyTopicsState
     @State private var searchText = ""
-    @State private var selectedTopicID: UUID?
-    @State private var editor: MacStudyTopicEditor?
     @State private var pendingDelete: StudyTopic?
     @State private var treeTopicID: UUID?
     @State private var showsFilePicker = false
     @State private var showsPhotoPicker = false
     @State private var showsAddConversation = false
     @State private var ownQueuePopup = ModelTasksPopupState()
+    private let creationRequest: UUID?
+    private let runtime: MacApplicationRuntime
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(conversations: [InquiryConversation], onOpenConversation: @escaping (UUID) -> Void,
          onNewConversation: @escaping (UUID) -> Void, onTopicsChanged: @escaping () -> Void,
          onAsk: @escaping (ConceptDefinition, UUID?) -> Void = { _, _ in }, queuePopup: ModelTasksPopupState? = nil,
-         topics: [StudyTopic] = StudyTopicStore.load(), selectedTopicID: UUID? = nil) {
+         topics: [StudyTopic] = StudyTopicStore.load(), selectedTopicID: UUID? = nil, creationRequest: UUID? = nil,
+         state: MacStudyTopicsState? = nil, runtime: MacApplicationRuntime = .shared) {
         self.conversations = conversations
         self.onOpenConversation = onOpenConversation
         self.onNewConversation = onNewConversation
         self.onTopicsChanged = onTopicsChanged
         self.onAsk = onAsk
         self.queuePopup = queuePopup
-        _topics = State(initialValue: topics)
-        _selectedTopicID = State(initialValue: selectedTopicID)
+        self.runtime = runtime
+        self.creationRequest = creationRequest
+        _state = State(initialValue: state ?? MacStudyTopicsState(topics: topics, selectedTopicID: selectedTopicID) {
+            StudyTopicStore.save($0)
+            onTopicsChanged()
+        })
     }
 
+    private var topics: [StudyTopic] { state.topics }
+    private var selectedTopicID: UUID? { state.selectedTopicID }
+    private var conversationTopicIDs: Set<UUID> { Set(conversations.compactMap(\.studyTopicID)) }
     private var selectedTopic: StudyTopic? { topics.first { $0.id == selectedTopicID } }
 
     /// Model Controls hold this page's actions: New Study Topic on the list, and on a topic
     /// New Conversation plus Add Existing Conversation, as on iPhone.
     private var pageActions: [MacPageControlAction] {
-        guard let topic = selectedTopic else {
-            return [MacPageControlAction(title: String(localized: "New Study Topic"), symbol: "plus") { editor = MacStudyTopicEditor(topic: nil) }]
-        }
-        return [
-            MacPageControlAction(title: String(localized: "New Conversation"), symbol: "plus") { onNewConversation(topic.id) },
-            MacPageControlAction(title: String(localized: "Add Existing Conversation"), symbol: "bubble.left.and.bubble.right") { showsAddConversation = true }
-        ]
+        MacStudyTopicPageActions.make(state: state, onNewConversation: onNewConversation,
+                                     onAddConversation: { showsAddConversation = true })
     }
 
     private var visibleTopics: [StudyTopic] {
@@ -61,33 +64,38 @@ struct MacStudyTopicsView: View {
     }
 
     var body: some View {
-        if let treeTopicID, let topic = topics.first(where: { $0.id == treeTopicID }) {
-            MacGlobalInsightWorkspace(queuePopup: queuePopup, onAsk: onAsk, topicID: topic.id)
-                .id(topic.id)
-                .overlay(alignment: .topLeading) {
-                    MacBackCapsule(title: String(localized: "Study Topics")) { self.treeTopicID = nil }
-                }
-        } else {
-            topicPages
+        Group {
+            if let treeTopicID, let topic = topics.first(where: { $0.id == treeTopicID }) {
+                MacGlobalInsightWorkspace(queuePopup: queuePopup, onAsk: onAsk, topicID: topic.id)
+                    .id(topic.id)
+                    .overlay(alignment: .topLeading) {
+                        MacBackCapsule(title: String(localized: "Study Topics")) { self.treeTopicID = nil }
+                    }
+            } else {
+                topicPages
+            }
+        }
+        .onChange(of: creationRequest) { _, request in
+            guard request != nil else { return }
+            treeTopicID = nil
+            state.create()
         }
     }
 
     private var topicPages: some View {
-        MacCollectionScrollPage {
+        MacCollectionScrollPage(artwork: selectedTopic == nil ? .studyTopics : nil) {
             if let topic = selectedTopic {
                 detail(topic).transition(.opacity)
             } else {
                 list.transition(.opacity)
             }
         }
+        .onDisappear { state.discardUntouchedDraft(conversationTopicIDs: conversationTopicIDs) }
         .animation(reduceMotion ? .easeOut(duration: 0.2) : .springStandard, value: selectedTopicID)
         .overlay(alignment: .topLeading) {
             if selectedTopic != nil {
-                MacBackCapsule(title: String(localized: "Study Topics")) { selectedTopicID = nil }
+                MacBackCapsule(title: String(localized: "Study Topics")) { state.close(conversationTopicIDs: conversationTopicIDs) }
             }
-        }
-        .sheet(item: $editor) { editor in
-            MacStudyTopicEditorSheet(editor: editor) { title, description in save(editor, title: title, description: description) }
         }
         .alert("Delete Study Topic?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })) {
             Button("Cancel", role: .cancel) { pendingDelete = nil }
@@ -98,20 +106,19 @@ struct MacStudyTopicsView: View {
         } message: {
             Text("Its conversations stay in Recents.")
         }
-        .onExitCommand { if selectedTopicID != nil { selectedTopicID = nil } }
+        .onExitCommand { if selectedTopicID != nil { state.close(conversationTopicIDs: conversationTopicIDs) } }
         .modifier(MacAttachmentPickers(showsFiles: $showsFilePicker, showsPhotos: $showsPhotoPicker) { files in
-            guard let id = selectedTopicID, let index = topics.firstIndex(where: { $0.id == id }) else { return }
-            topics[index].files.append(contentsOf: files)
-            StudyTopicStore.save(topics)
+            guard let id = selectedTopicID else { return }
+            state.update(id) { $0.files.append(contentsOf: files) }
         })
-        .onReceive(NotificationCenter.default.publisher(for: .macConversationSaved)) { _ in topics = StudyTopicStore.load() }
+        .onReceive(NotificationCenter.default.publisher(for: .macConversationSaved)) { _ in state.reload(StudyTopicStore.load()) }
         .sheet(isPresented: $showsAddConversation) {
             if let topic = selectedTopic {
                 MacAddExistingConversationSheet(topicID: topic.id, conversations: conversations) { showsAddConversation = false }
             }
         }
         .background {
-            MacPageControls(actions: pageActions, modelTasks: MacApplicationRuntime.shared.modelTasks,
+            MacPageControls(actions: pageActions, modelTasks: runtime.modelTasks,
                             queuePopup: queuePopup ?? ownQueuePopup)
         }
     }
@@ -133,7 +140,7 @@ struct MacStudyTopicsView: View {
             ])
             // New Study Topic is the dashed card in the grid; the shortcut stays with the page.
             .background {
-                Button("New Study Topic") { editor = MacStudyTopicEditor(topic: nil) }
+                Button("New Study Topic") { state.create() }
                     .keyboardShortcut("n", modifiers: [.command, .shift])
                     .opacity(0)
                     .allowsHitTesting(false)
@@ -141,16 +148,11 @@ struct MacStudyTopicsView: View {
             }
 
         if topics.isEmpty {
-            MacStudyTopicPlaceholderGrid { editor = MacStudyTopicEditor(topic: nil) }
+            MacStudyTopicPlaceholderGrid { state.create() }
         } else {
             VStack(alignment: .leading, spacing: 24) {
-                HStack(alignment: .center) {
-                    MacCollectionSectionTitle(title: String(localized: "All Topics"))
-                        .fixedSize()
-                    Spacer(minLength: 24)
-                    StudyTopicsSearchField(searchText: $searchText, prompt: Text("Search Study Topics"))
-                        .frame(maxWidth: 360)
-                }
+                MacCollectionSearchBar(title: String(localized: "All Topics"), searchText: $searchText,
+                                       prompt: Text("Search Study Topics"))
                 if visibleTopics.isEmpty {
                     Text("No Study Topics match “\(searchText)”.")
                         .paragraphFont()
@@ -160,10 +162,11 @@ struct MacStudyTopicsView: View {
                               spacing: MacCollectionLayout.gridSpacing) {
                         ForEach(visibleTopics) { topic in
                             MacStudyTopicCard(topic: topic, members: members(of: topic), memberTitle: Self.title(of:),
-                                onSelect: { selectedTopicID = topic.id },
-                                onRename: { editor = MacStudyTopicEditor(topic: topic) },
+                                onSelect: { state.open(topic.id) },
+                                onRename: { state.open(topic.id, focusTitle: true) },
                                 onDelete: { pendingDelete = topic },
                                 onOpenConversation: { onOpenConversation($0.id) })
+                                .macTopicConversationDrop(topicID: topic.id, onFiled: onTopicsChanged)
                         }
                     }
                 }
@@ -175,15 +178,9 @@ struct MacStudyTopicsView: View {
 
     @ViewBuilder private func detail(_ topic: StudyTopic) -> some View {
         let members = members(of: topic)
-        MacCollectionHeader(eyebrow: "Study Topic", title: Self.displayTitle(topic),
-            description: topic.description.isEmpty
-                ? String(localized: "Start a conversation here, or file one from its menu in the sidebar.")
-                : topic.description,
-            stats: [
-                MacCollectionStat(members.count, "Conversation", "Conversations"),
-                MacCollectionStat(topic.files.count, "Image", "Images")
-            ]) {
-            Button("Insight Tree", systemImage: "leaf") { treeTopicID = topic.id }
+        MacStudyTopicDetailHeader(title: textBinding(topic.id, \.title), description: textBinding(topic.id, \.description),
+            titleFocusRequest: state.titleFocusRequest, conversationCount: members.count, imageCount: topic.files.count) {
+            Button("Insight Tree", systemImage: "leaf") { state.retain(topic.id); treeTopicID = topic.id }
                 .buttonStyle(MacSecondaryCapsuleButtonStyle())
                 .help("Open the Insight Tree gathered from this topic’s conversations")
             MacActionMenu(entries: { [
@@ -193,19 +190,20 @@ struct MacStudyTopicsView: View {
                 .buttonStyle(MacSecondaryCapsuleButtonStyle())
                 .fixedSize()
             MacActionMenu(entries: { [
-                MacMenuEntry("Rename", symbol: "pencil.line") { editor = MacStudyTopicEditor(topic: topic) }, .divider,
+                MacMenuEntry("Rename", symbol: "pencil.line") { state.open(topic.id, focusTitle: true) }, .divider,
                 MacMenuEntry("Delete", symbol: "trash", destructive: true) { pendingDelete = topic }
             ] }) { MacCollectionOptionsLabel() }
                 .buttonStyle(.plain)
                 .fixedSize()
                 .accessibilityLabel("Topic options")
         }
+        .id(topic.id)
 
         VStack(alignment: .leading, spacing: 20) {
             MacCollectionSectionTitle(title: String(localized: "Conversations"),
                 detail: members.isEmpty ? nil : String(localized: "\(members.count) filed"))
             if members.isEmpty {
-                MacTopicEmptyConversations { onNewConversation(topic.id) }
+                MacTopicEmptyConversations { startConversation(in: topic.id) }
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(members.enumerated()), id: \.element.id) { index, conversation in
@@ -223,6 +221,8 @@ struct MacStudyTopicsView: View {
                 .macCollectionCard()
             }
         }
+        // Drop a conversation anywhere in the section to file it here.
+        .macTopicConversationDrop(topicID: topic.id, onFiled: onTopicsChanged)
 
         if !topic.files.isEmpty {
             VStack(alignment: .leading, spacing: 20) {
@@ -238,32 +238,25 @@ struct MacStudyTopicsView: View {
     }
 
     private func removeFile(_ fileID: UUID, from topicID: UUID) {
-        guard let index = topics.firstIndex(where: { $0.id == topicID }) else { return }
-        topics[index].files.removeAll { $0.id == fileID }
-        StudyTopicStore.save(topics)
+        state.update(topicID) { $0.files.removeAll { $0.id == fileID } }
     }
 
     private func members(of topic: StudyTopic) -> [InquiryConversation] {
         conversations.filter { $0.studyTopicID == topic.id && !$0.isStudyTopic }.reversed()
     }
 
-    private func save(_ editor: MacStudyTopicEditor, title: String, description: String) {
-        if let id = editor.topic?.id, let index = topics.firstIndex(where: { $0.id == id }) {
-            topics[index].title = title
-            topics[index].description = description
-        } else {
-            let topic = StudyTopic(title: title, description: description)
-            topics.append(topic)
-            selectedTopicID = topic.id
-        }
-        StudyTopicStore.save(topics)
-        onTopicsChanged()
-        self.editor = nil
+    private func textBinding(_ topicID: UUID, _ keyPath: WritableKeyPath<StudyTopic, String>) -> Binding<String> {
+        Binding(get: { state.topics.first { $0.id == topicID }?[keyPath: keyPath] ?? "" },
+                set: { value in state.update(topicID) { $0[keyPath: keyPath] = value } })
+    }
+
+    private func startConversation(in topicID: UUID) {
+        state.retain(topicID)
+        onNewConversation(topicID)
     }
 
     private func delete(_ topic: StudyTopic) {
-        topics.removeAll { $0.id == topic.id }
-        StudyTopicStore.save(topics)
+        state.remove(topic.id)
         var snapshots = StudyTopicInsightTreeStore.load()
         if snapshots.removeValue(forKey: topic.id.uuidString) != nil { StudyTopicInsightTreeStore.save(snapshots) }
         if let snapshot = CurrentConversationsStore.load(),
@@ -271,7 +264,7 @@ struct MacStudyTopicsView: View {
             CurrentConversationsStore.save(updated)
         }
         onTopicsChanged()
-        if selectedTopicID == topic.id { selectedTopicID = nil }
+        if selectedTopicID == topic.id { state.close(conversationTopicIDs: conversationTopicIDs) }
     }
 
     static func displayTitle(_ topic: StudyTopic) -> String {
@@ -366,50 +359,22 @@ private struct MacAddExistingConversationSheet: View {
     }
 }
 
-struct MacStudyTopicEditor: Identifiable {
-    let id = UUID()
-    let topic: StudyTopic?
-}
-
-private struct MacStudyTopicEditorSheet: View {
-    let editor: MacStudyTopicEditor
-    let onSave: (String, String) -> Void
-    @Environment(\.dismiss) private var dismiss
-    @State private var title = ""
-    @State private var description = ""
-    @FocusState private var titleFocused: Bool
-
-    private var trimmedTitle: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            MacPageHeading(title: editor.topic == nil ? "New Study Topic" : "Rename Study Topic")
-            Form {
-                TextField("Name", text: $title, prompt: Text("e.g. Summer Bible Study"))
-                    .macPlainField()
-                    .focused($titleFocused)
-                TextField("Description", text: $description, prompt: Text("Briefly describe this topic"), axis: .vertical)
-                    .macPlainField()
-                    .lineLimit(3...6)
-            }
-            HStack {
-                Spacer()
-                Button("Cancel", role: .cancel) { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                Button {
-                    onSave(trimmedTitle, description.trimmingCharacters(in: .whitespacesAndNewlines))
-                } label: { BlurSwapText(editor.topic == nil ? "Create" : "Save") }
-                .keyboardShortcut(.defaultAction)
-                .disabled(trimmedTitle.isEmpty)
-            }
+/// The same actions are used from a blank topic onward; a name is never required to begin.
+@MainActor enum MacStudyTopicPageActions {
+    static func make(state: MacStudyTopicsState, onNewConversation: @escaping (UUID) -> Void,
+                     onAddConversation: @escaping () -> Void) -> [MacPageControlAction] {
+        guard let topic = state.topics.first(where: { $0.id == state.selectedTopicID }) else {
+            return [MacPageControlAction(title: String(localized: "New Study Topic"), symbol: "plus") { state.create() }]
         }
-        .padding(28)
-        .frame(width: 420)
-        .background(AngroveTheme.Colors.canvas)
-        .onAppear {
-            title = editor.topic?.title ?? ""
-            description = editor.topic?.description ?? ""
-            titleFocused = true
-        }
+        return [
+            MacPageControlAction(title: String(localized: "New Conversation"), symbol: "plus") {
+                state.retain(topic.id)
+                onNewConversation(topic.id)
+            },
+            MacPageControlAction(title: String(localized: "Add Existing Conversation"), symbol: "bubble.left.and.bubble.right") {
+                state.retain(topic.id)
+                onAddConversation()
+            }
+        ]
     }
 }

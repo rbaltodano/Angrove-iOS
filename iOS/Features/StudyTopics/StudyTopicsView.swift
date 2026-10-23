@@ -635,7 +635,7 @@ struct StudyTopicsView: View {
               topics.contains(where: { $0.id == pendingTreeUpdateTopicID }) else {
             return nil
         }
-        return "Update Tree?"
+        return "Update?"
     }
 
     private func updateSelectedTopicTree() {

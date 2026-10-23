@@ -110,7 +110,7 @@ def bundle(website: Path) -> str:
         ("Figtree", "Figtree-SemiBold", 600, "normal"),
         ("Figtree", "Figtree-Bold", 700, "normal"),
     ]:
-        font = data_url(APP_ROOT / "Angrove-iOS" / "Fonts" / (name + ".ttf"))
+        font = data_url(APP_ROOT / "Shared" / "Fonts" / (name + ".ttf"))
         fonts.append(f'@font-face {{ font-family: "{family}"; src: url("{font}"); '
                      f'font-weight: {weight}; font-style: {style}; font-display: block; }}')
 

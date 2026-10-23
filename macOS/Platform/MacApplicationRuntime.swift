@@ -5,6 +5,7 @@ import Observation
 @MainActor @Observable final class MacApplicationRuntime {
     static let shared = MacApplicationRuntime()
     let modelTasks: ModelTaskQueue
+    @ObservationIgnored let conversationTreeMapping = MacConversationTreeMapping()
     let model: any AngroveModel
     let embeddingProvider: any EmbeddingProvider
     let modelIsAvailable: Bool
@@ -17,10 +18,10 @@ import Observation
 
     #if DEBUG
     /// Explicitly injected boundaries for isolated tests; the live app uses `shared`.
-    init(testModel: any AngroveModel, queue: ModelTaskQueue) {
+    init(testModel: any AngroveModel, queue: ModelTaskQueue, testEmbeddingProvider: (any EmbeddingProvider)? = nil) {
         model = testModel
         modelTasks = queue
-        embeddingProvider = LazySemanticEmbeddingProvider()
+        embeddingProvider = testEmbeddingProvider ?? LazySemanticEmbeddingProvider()
         modelIsAvailable = true
         modelURL = nil
         modelTier = .standard

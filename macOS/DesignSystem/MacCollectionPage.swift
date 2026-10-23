@@ -8,12 +8,14 @@ struct MacCollectionHeader<Actions: View>: View {
     let title: String
     let description: String
     var stats: [MacCollectionStat] = []
-    /// A quiet line of counts set as paragraph text beneath the copy, in place of the stat row.
-    var summary: String?
     @ViewBuilder var actions: Actions
+    @Environment(\.collectionArtworkLayout) private var artworkLayout
 
     var body: some View {
-        text.frame(maxWidth: .infinity, alignment: .leading)
+        text
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.trailing, artworkLayout.trailingInset)
+            .frame(minHeight: artworkLayout.minimumHeaderHeight, alignment: .topLeading)
     }
 
     private var text: some View {
@@ -40,13 +42,6 @@ struct MacCollectionHeader<Actions: View>: View {
                 MacCollectionStats(stats: stats)
                     .padding(.top, 24)
             }
-            if let summary {
-                Text(summary)
-                    .paragraphFont()
-                    .foregroundStyle(AngroveTheme.Colors.placeholderText)
-                    .monospacedDigit()
-                    .padding(.top, 4)
-            }
             if Actions.self != EmptyView.self {
                 HStack(spacing: 12) { actions }
                     .padding(.top, 20)
@@ -56,8 +51,8 @@ struct MacCollectionHeader<Actions: View>: View {
 }
 
 extension MacCollectionHeader where Actions == EmptyView {
-    init(eyebrow: String? = nil, title: String, description: String, stats: [MacCollectionStat] = [], summary: String? = nil) {
-        self.init(eyebrow: eyebrow, title: title, description: description, stats: stats, summary: summary) { EmptyView() }
+    init(eyebrow: String? = nil, title: String, description: String, stats: [MacCollectionStat] = []) {
+        self.init(eyebrow: eyebrow, title: title, description: description, stats: stats) { EmptyView() }
     }
 }
 
@@ -122,6 +117,24 @@ struct MacCollectionSectionTitle: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// The row between a collection page's header and its cards: a serif section title on the
+/// left and the page's search field on the right.
+struct MacCollectionSearchBar: View {
+    let title: String
+    @Binding var searchText: String
+    let prompt: Text
+
+    var body: some View {
+        HStack(alignment: .center) {
+            MacCollectionSectionTitle(title: title)
+                .fixedSize()
+            Spacer(minLength: 24)
+            StudyTopicsSearchField(searchText: $searchText, prompt: prompt)
+                .frame(maxWidth: 360)
+        }
     }
 }
 
@@ -223,6 +236,17 @@ struct MacCollectionOptionsLabel: View {
     }
 }
 
+/// The whole square, including its transparent corners, opens the card menu.
+struct MacCollectionCardOptionsLabel: View {
+    var body: some View {
+        Image(systemName: "ellipsis")
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(AngroveTheme.Colors.paragraphText)
+            .frame(width: AngroveTheme.Spacing.controlHeight, height: AngroveTheme.Spacing.controlHeight)
+            .contentShape(Rectangle())
+    }
+}
+
 /// The resting card surface used across the collection pages.
 struct MacCollectionCardSurface: ViewModifier {
     var radius: CGFloat = AngroveTheme.Spacing.cardRadius
@@ -261,19 +285,38 @@ extension View {
 
 /// The scrolling page frame the collection pages share with Home and Library.
 struct MacCollectionScrollPage<Content: View>: View {
+    var artwork: MacCollectionArtworkKind? = nil
     @ViewBuilder var content: Content
+    @State private var artworkParallax = MacCollectionArtworkParallax()
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 56) { content }
-                .frame(maxWidth: MacCollectionLayout.contentMaxWidth, alignment: .leading)
-                .padding(.top, MacConversationStyle.pageTopPadding)
-                .padding(.bottom, 96)
-                .padding(.horizontal, MacConversationStyle.pageHorizontalPadding)
-                .frame(maxWidth: .infinity)
+        GeometryReader { geometry in
+            let artworkLayout = artwork.map {
+                MacCollectionArtworkLayout(kind: $0, pageWidth: geometry.size.width)
+            } ?? MacCollectionArtworkLayout()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 56) { content }
+                    .environment(\.collectionArtworkLayout, artworkLayout)
+                    .frame(maxWidth: MacCollectionLayout.contentMaxWidth, alignment: .leading)
+                    .padding(.top, MacConversationStyle.pageTopPadding)
+                    .padding(.bottom, 96)
+                    .padding(.horizontal, MacConversationStyle.pageHorizontalPadding)
+                    .macOverlayScroller()
+                    .frame(maxWidth: .infinity)
+                    .background(alignment: .topTrailing) {
+                        if let artwork {
+                            MacCollectionArtwork(kind: artwork, parallax: artworkParallax)
+                        }
+                    }
+            }
+            .onScrollGeometryChange(for: CGFloat.self) {
+                $0.contentOffset.y + $0.contentInsets.top
+            } action: { _, offset in
+                artworkParallax.scrollOffset = offset
+            }
+            .scrollIndicators(.automatic)
+            .background(AngroveTheme.Colors.canvas)
         }
-        .scrollIndicators(.automatic)
-        .background(AngroveTheme.Colors.canvas)
     }
 }
 

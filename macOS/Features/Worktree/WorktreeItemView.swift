@@ -10,6 +10,7 @@ struct WorktreeItemView: View, Equatable {
     let runtime: MacApplicationRuntime
     /// Where the pointer is on the canvas; a note's box fades in near it.
     var pointer: WorktreeCanvasPointer? = nil
+    @Environment(\.worktreeCapturesSnapshot) private var capturesSnapshot
     @State private var isHovered = false
     @State private var isGripHovered = false
     @State private var dragStart: CGPoint?
@@ -45,7 +46,7 @@ struct WorktreeItemView: View, Equatable {
         !item.isQuestion && !item.isInsight && !item.isHeading && item.image == nil && !item.isSummarizing
             && !item.isHelp && item.arrivalTitle == nil && item.definitionFailureTerm == nil
     }
-    private var isActive: Bool { isSelectable && board.selection.contains(item.id) }
+    private var isActive: Bool { board.selection.contains(item.id) }
     private static let labelFont = NSFont(name: "LibreBaskerville-Regular", size: 28) ?? .systemFont(ofSize: 28)
     private static let labelDisplayFont = Font.custom("LibreBaskerville-Regular", fixedSize: 28)
     static let headingFont = NSFont(name: "LibreBaskerville-Regular", size: 40) ?? .systemFont(ofSize: 40)
@@ -53,12 +54,6 @@ struct WorktreeItemView: View, Equatable {
     static let headingTracking: CGFloat = 0.5
     /// The first line's height, for centring the grip on it.
     private var firstLineHeight: CGFloat { item.isHeading ? Self.headingLineHeight : WorktreeTextEditor.lineHeight }
-
-    private var liftScale: CGFloat {
-        guard dragStart == nil else { return 1 }
-        return item.image != nil ? (isActive || isHovered ? 1.05 : 1)
-            : isActive ? 1.05 : isSelectable && isHovered ? 1.02 : 1
-    }
 
     var body: some View {
         content
@@ -68,12 +63,13 @@ struct WorktreeItemView: View, Equatable {
                 if item.isQuestion && (isOpen || item.isDropped) {
                     RoundedRectangle(cornerRadius: isOpen ? 28 : 12, style: .continuous)
                         .fill(isOpen ? AngroveTheme.Colors.canvas : AngroveTheme.Colors.systemSelection)
-                        .modifier(WorktreeSelectionShadow(isSelected: isActive))
                 }
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .stroke(AngroveTheme.Colors.popupBorder.opacity(isOpen ? 1 : 0), lineWidth: 1)
+                    .stroke((isActive ? AngroveTheme.Colors.lightGreen : AngroveTheme.Colors.popupBorder)
+                        .opacity(isOpen ? 1 : 0), lineWidth: 1 / scale)
+                    .allowsHitTesting(false)
             }
             // The top edge moves the item, like the grip.
             .overlay(alignment: .top) {
@@ -90,6 +86,13 @@ struct WorktreeItemView: View, Equatable {
                                     minimumHeight: item.isHeading ? Self.headingLineHeight : WorktreeTextEditor.lineHeight)
                 }
             }
+            .overlay {
+                if (isNote || item.isHeading) && isActive {
+                    Rectangle()
+                        .strokeBorder(AngroveTheme.Colors.lightGreen, lineWidth: 1 / scale)
+                        .allowsHitTesting(false)
+                }
+            }
             .overlay(alignment: .topLeading) { grip }
             .overlay(alignment: .topLeading) { label }
             .onHover { hovering in
@@ -97,21 +100,21 @@ struct WorktreeItemView: View, Equatable {
                 // Hovering is enough to aim a command at an item.
                 board.setHovered(item.id, hovering)
             }
-            .onGeometryChange(for: CGSize.self) { $0.size } action: { board.itemSizes[item.id] = $0 }
+            .onChange(of: pointer?.nearIDs.contains(item.id)) { _, nearby in
+                if nearby == false { isHovered = false; isGripHovered = false }
+            }
+            .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+                if size.width > 0, size.height > 0, board.itemSizes[item.id] != size { board.itemSizes[item.id] = size }
+            }
             // The card grows outward so its first line stays where it was typed.
             .offset(x: -padding, y: -padding)
-            // Clicking a conversation window or Insight card selects it: it lifts slightly above the
-            // canvas. Plain text keeps its clicks for editing.
+            // Selection is outlined without changing the item's size.
+            // Plain text keeps its clicks for editing.
             // ⇧- or ⌘-click adds to the selection.
             .simultaneousGesture(TapGesture().onEnded {
                 if !NSEvent.modifierFlags.intersection([.shift, .command]).isEmpty { board.toggleSelection(item.id) }
                 else { board.select(item.id) }
             }, including: isSelectable ? .all : .none)
-            // Photos lift 5% on hover or selection; other selectable items lift 2% on hover.
-            .scaleEffect(liftScale)
-            .animation(.springQuick, value: dragStart != nil)
-            .animation(.springQuick, value: isActive)
-            .animation(.springQuick, value: isHovered)
             .opacity(isOverTrash ? 0.5 : isOverSidebar ? 0 : 1)
             .scaleEffect(isOverTrash ? 0.96 : isOverSidebar ? 0.6 : 1)
             .animation(.springQuick, value: isOverSidebar)
@@ -128,6 +131,15 @@ struct WorktreeItemView: View, Equatable {
     @ViewBuilder private var content: some View {
         if item.isInsight {
             WorktreeInsightContent(board: board, item: item)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .strokeBorder(AngroveTheme.Colors.lightGreen.opacity(isActive ? 1 : 0), lineWidth: 1 / scale)
+                        .allowsHitTesting(false)
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .highPriorityGesture(DragGesture(minimumDistance: 4, coordinateSpace: .global)
+                    .onChanged(moveChanged)
+                    .onEnded { _ in moveEnded() })
         } else if item.isSummarizing {
             Text(item.isHeading ? "Heading…" : "Summarizing…")
                 .font(BrandTypography.font("Figtree-Regular", size: 14))
@@ -153,11 +165,12 @@ struct WorktreeItemView: View, Equatable {
                 .transition(.blurFade)
         } else if item.isQuestion {
             if let session = item.session {
-                WorktreeQuestionCard(board: board, item: item, session: session, runtime: runtime, isOpen: isOpen)
+                WorktreeConversationSurface(card: WorktreeQuestionCard(board: board, item: item, session: session, runtime: runtime, isOpen: isOpen))
+                    .equatable()
                     .transition(.blurFade)
             }
         } else if let image = item.image {
-            WorktreeImage(board: board, item: item, file: image, zoom: scale * liftScale, pointer: pointer, move: boxMove)
+            WorktreeImage(board: board, item: item, file: image, zoom: scale, pointer: pointer, move: boxMove)
         } else if item.isHelp {
             WorktreeHelpCard()
                 .transition(.scale(scale: 0.9, anchor: .topLeading).combined(with: .blurFade))
@@ -236,24 +249,34 @@ struct WorktreeItemView: View, Equatable {
         .alignmentGuide(.top) { $0[.bottom] + 8 }
     }
 
+    private var pointerIsNearGrip: Bool {
+        guard let pointer else { return true }
+        let x = item.isHeading ? -(gripSize.width + 8 / scale) : (isOpen ? 0 : padding) - gripSize.width - Self.gripSpacing
+        let y = item.isHeading ? 0 : padding + (firstLineHeight - gripSize.height) / 2
+        return pointer.isNearControl(CGPoint(x: x + gripSize.width / 2, y: y + gripSize.height / 2),
+            for: item.id, board: board, zoom: scale)
+    }
+
     private var grip: some View {
         Image("WorktreeGrip")
             .renderingMode(.template)
             .resizable()
             .frame(width: gripSize.width, height: gripSize.height)
-            // Accent green at 50%, matching the box and its top grip.
-            .foregroundStyle(AngroveTheme.Colors.lightGreen.opacity(0.5))
+            // Brighter move grips remain distinct from the quieter resize outlines.
+            .foregroundStyle(AngroveTheme.Colors.lightGreen.opacity(0.75))
             .padding(6)
             .contentShape(Rectangle())
-            .opacity(isEditing || isHovered || isGripHovered || dragStart != nil ? 1 : 0)
+            .opacity((isEditing || isHovered || isGripHovered || dragStart != nil) && pointerIsNearGrip ? 1 : 0)
             .animation(.easeOut(duration: 0.15), value: isHovered || isGripHovered || isEditing)
             .onHover { isGripHovered = $0 }
-            .pointerStyle(.grabActive)
+            .pointerStyle(dragStart == nil ? .grabIdle : .grabActive)
             .gesture(moveGesture)
             // Just before the text itself; a card's grip sits just outside its border.
-            .offset(x: (isOpen ? 0 : padding) - (gripSize.width + Self.gripSpacing + 6),
-                    y: padding + (firstLineHeight - gripSize.height) / 2 - 6)
+            .offset(x: item.isHeading ? -(gripSize.width + 8 / scale + 6)
+                        : (isOpen ? 0 : padding) - (gripSize.width + Self.gripSpacing + 6),
+                    y: item.isHeading ? -6 : padding + (firstLineHeight - gripSize.height) / 2 - 6)
             .accessibilityLabel("Move")
+            .opacity(capturesSnapshot ? 0 : 1)
     }
 
     private var moveGesture: some Gesture {
@@ -274,42 +297,21 @@ struct WorktreeItemView: View, Equatable {
         board.move(item.id, to: CGPoint(x: start.x + value.translation.width / scale,
                                         y: start.y + value.translation.height / scale),
                    threshold: 8 / scale, overhang: 84 / scale)
-        board.trashTargetID = board.trashFrame.insetBy(dx: -12, dy: -12).contains(value.location) ? item.id : nil
-        // Over the sidebar, a conversation started here becomes the sidebar's chip.
-        if WorktreeBoard.sidebarFrame.contains(value.location), let title = board.sidebarTitle(for: item.id) {
-            if board.sidebarDrag == nil {
-                withAnimation(.springQuick) { board.sidebarDrag = .init(id: item.id, title: title, location: value.location) }
-            } else {
-                board.sidebarDrag?.location = value.location
-            }
-        } else if board.sidebarDrag != nil {
-            withAnimation(.springQuick) { board.sidebarDrag = nil }
-        }
+        WorktreeItemMove.updateDestination(board: board, id: item.id, location: value.location)
     }
 
     private func moveEnded() {
         defer { board.endHistoryAction() }
         let start = dragStart
         dragStart = nil
-        board.endMove()
-        if board.trashTargetID == item.id {
-            withAnimation(.springQuick) { board.delete(item.id) }
-        } else if board.sidebarDrag?.id == item.id {
-            // The sidebar gets a copy; the window springs back to where it was.
-            withAnimation(.springStandard) {
-                if let start { board.update(item.id) { $0.origin = start } }
-                board.sidebarDrag = nil
-            }
-            board.dropOnSidebar(item.id, runtime: runtime)
-        }
-        board.trashTargetID = nil
+        WorktreeItemMove.end(board: board, id: item.id, start: start, runtime: runtime)
     }
 }
 
 /// The conversation inside a question card, drawn with the conversation page's own response
 /// card (thinking, reveal, Insights). Each question and its answer form one section whose question
 /// sticks to the top until the next section pushes it away.
-private struct WorktreeQuestionCard: View {
+struct WorktreeQuestionCard: View, Equatable {
     let board: WorktreeBoard
     let item: WorktreeBoard.Item
     let session: MacConversationState
@@ -322,6 +324,7 @@ private struct WorktreeQuestionCard: View {
     @State private var position = ScrollPosition(idType: Int.self)
     @State private var canLoadEarlier = false
     @Environment(\.modelCompletionNotifications) private var completionNotifications
+    @Environment(\.worktreeConversationScrollActivity) private var scrollActivity
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hasAskedHere = false
     @State private var isLoadingEarlier = false
@@ -341,13 +344,28 @@ private struct WorktreeQuestionCard: View {
         return min(contentHeight, WorktreeItemView.cardMaxHeight - WorktreeItemView.cardPadding * 2)
     }
 
+    // Camera scale belongs to the outer chrome. Moving, labeling, hovering, or zooming a
+    // window must not rebuild its transcript, response markup, and native composer. Session
+    // properties read in body remain independently observed, including live model output.
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        MainActor.assumeIsolated {
+            lhs.board === rhs.board && lhs.session === rhs.session && lhs.runtime === rhs.runtime
+                && lhs.isOpen == rhs.isOpen && lhs.item.id == rhs.item.id
+                && lhs.item.followUpID == rhs.item.followUpID && lhs.item.followUp == rhs.item.followUp
+                && lhs.item.size == rhs.item.size && lhs.item.visibleTurnLimit == rhs.item.visibleTurnLimit
+        }
+    }
+
     /// Transcript blocks paired as (question index, answer index).
-    private var allTurns: [(question: Int, answer: Int?)] {
-        let blocks = session.transcript
-        return blocks.indices.compactMap { index in
+    private static func pairedTurns(in blocks: [ChatBlock]) -> [(question: Int, answer: Int?)] {
+        blocks.indices.compactMap { index in
             guard case .user = blocks[index] else { return nil }
             return (index, blocks.indices.contains(index + 1) ? index + 1 : nil)
         }
+    }
+
+    private var allTurns: [(question: Int, answer: Int?)] {
+        Self.pairedTurns(in: session.transcript)
     }
 
     /// A dropped conversation shows its latest turns; scrolling to the top loads five more.
@@ -356,10 +374,13 @@ private struct WorktreeQuestionCard: View {
         guard let limit = item.visibleTurnLimit else { return all[...] }
         return all.suffix(limit)
     }
-    private var hasEarlierTurns: Bool { turns.count < allTurns.count }
 
     var body: some View {
         let blocks = session.transcript
+        // Build the transcript and turn list once per update, even with many saved turns.
+        let allTurns = Self.pairedTurns(in: blocks)
+        let turns = item.visibleTurnLimit.map { allTurns.suffix($0) } ?? allTurns[...]
+        let hasEarlierTurns = turns.count < allTurns.count
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16, pinnedViews: .sectionHeaders) {
                 if hasEarlierTurns {
@@ -409,6 +430,10 @@ private struct WorktreeQuestionCard: View {
                     Color.clear.frame(height: max(0, height - WorktreeTextEditor.lineHeight - 32))
                 }
             }
+        }
+        .onScrollPhaseChange { _, _ in scrollActivity?.onScroll?() }
+        .onScrollGeometryChange(for: CGPoint.self) { $0.contentOffset } action: { old, new in
+            if old != new { scrollActivity?.onScroll?() }
         }
         .scrollPosition($position)
         // Dropped conversations open at their latest answer.
@@ -481,13 +506,14 @@ private struct WorktreeQuestionCard: View {
 
     /// A "/" typed first in the follow-up opens the command field outside the window instead.
     private var followUpText: Binding<String> {
-        let text = board.binding(item.id, \.followUp)
-        return Binding(get: { text.wrappedValue }, set: { value in
-            if text.wrappedValue.isEmpty, value == "/" {
+        // Read the narrow item input. Reading board.items through a binding here wakes every
+        // retained transcript whenever any item's origin changes, even offscreen cached cards.
+        return Binding(get: { item.followUp }, set: { value in
+            if item.followUp.isEmpty, value == "/" {
                 board.select(item.id)
                 _ = board.openCommand()
             } else {
-                text.wrappedValue = value
+                board.update(item.id) { $0.followUp = value }
             }
         })
     }
@@ -519,6 +545,8 @@ private struct WorktreeQuestionCard: View {
                 onInlineInsightToggleSaved: session.toggleBookmark,
                 onBodyRevealComplete: { if let run { session.finishResponseBodyReveal(run: run) } },
                 onFinish: { if let run { session.finishResponseReveal(run: run) } })
+                .environment(\.responseFeedbackReport,
+                    session.feedbackReport(transcriptIndex: index).map { report in { report } })
                 .id(run)
                 .environment(\.defineResponseWord, { request in
                     if let term = DefinedTermMarkup.term(in: request.token) { requestDefinition(term, source: text) }
@@ -656,9 +684,8 @@ private struct WorktreeInsightContent: View {
                 WorktreeDefinitionFailure(term: term) { board.dismissDefinitionFailure(item.id) }
                     .transition(.blurFade)
             } else if let insight = item.insight {
-                // The card's own shadow shows only while it is selected.
                 InsightLibraryCard(insight: insight, isSaved: board.savedInsightIDs.contains(insight.id),
-                    shadowOpacity: board.selection.contains(item.id) ? WorktreeSelectionShadow.opacity : 0,
+                    shadowOpacity: 0,
                     onQuote: {
                         guard let session = item.sourceID.flatMap({ id in board.items.first { $0.id == id } })?.session else { return }
                         session.attachQuote(insight)

@@ -76,7 +76,6 @@ struct MacWorkspaceView: View {
     @State private var question = ""
     @State private var completionNotifications = ModelCompletionNotificationCenter()
     @State private var conversationBranches: [UUID: UUID] = [:]
-    @State private var pendingDefinition: MacCompletedDefinition?
     @State private var pendingSourceReturn: MacWorkspacePage?
     @State private var conversationID = MacWorkspaceIdentity.initialConversationID(isPreview: MacDesignPreview.isEnabled,
         savedID: MacDesignPreview.isEnabled ? nil : CurrentConversationsStore.load()?.activeConversationID)
@@ -103,6 +102,7 @@ struct MacWorkspaceView: View {
     @State private var isSearchPresented = false
     @State private var searchedInsightID: UUID?
     @State private var searchedTopicID: UUID?
+    @State private var newTopicRequest: UUID?
     private var ownsPageFade: Bool { selection == .conversations || selection == .insights }
     @Environment(\.isBootPageRevealAnimating) private var bootPageReveal
     @Environment(\.isBootRevealComplete) private var bootRevealComplete
@@ -168,8 +168,11 @@ struct MacWorkspaceView: View {
                         GlobalSearchOverlay(isPresented: isSearchPresented, conversations: conversations,
                                             topInset: MacConversationStyle.pageTopPadding,
                                             horizontalInset: MacConversationStyle.pageHorizontalPadding,
+                                            pages: GlobalSearchPage.macPages,
                                             showsKeyboardSelection: true,
+                                            dragItem: searchDragItem,
                                             onSelect: openSearchResult,
+                                            onAction: startSearchConversation,
                                             onDismiss: { isSearchPresented = false })
                     }
                 }
@@ -186,16 +189,34 @@ struct MacWorkspaceView: View {
                                                       anchors: anchors, onAction: handleConversationAction)
                 }
             })
+            .environment(\.macQuoteDroppedInsight, { drop, id in
+                quote(drop.concept, in: id)
+                drop.complete(in: completionNotifications)
+            })
+            .environment(\.macOpenBoardsForInsight, {
+                worktrees.close()
+                navigate(to: page(for: .worktree))
+            })
+            .modifier(NotificationStackDismissal(center: completionNotifications))
             .focusedSceneValue(\.macWorkspaceCommands, MacWorkspaceCommandTarget(
                 request: $shortcutRequest,
                 recentConversationIDs: MacWorkspaceCommandTarget.recentIDs(in: conversations),
                 canGoBack: history.canGoBack, canGoForward: history.canGoForward,
                 destination: pageTransition.destination?.destination ?? selection))
             .onAppear {
+                completionNotifications.savedInsightIDs = Set(InsightLibraryStore.load().map(\.id))
+                completionNotifications.onQuoteInsight = { concept in
+                    completionNotifications.closeInsight()
+                    quote(concept, in: selection == .conversations ? conversationID : nil)
+                }
+                completionNotifications.onToggleInsightSaved = toggleNotificationInsightSaved
                 applyStartScreen()
                 history.visit(currentPage)
                 MacApplicationRuntime.shared.modelTasks.onTaskCompleted = { task in
-                    let isViewing: (UUID) -> Bool = { selection == .conversations && conversationID == $0 }
+                    let isViewing: (UUID) -> Bool = {
+                        MacCompletionNotifications.isViewing($0, destination: selection,
+                            conversationID: conversationID, board: worktrees.openBoard)
+                    }
                     postCompletedQuestion(task, isViewing: isViewing)
                     MacNotifications.postIfNeeded(for: task, isViewing: isViewing)
                     MacNotifications.readAloudIfFinishedElsewhere(task, isViewing: isViewing)
@@ -214,16 +235,11 @@ struct MacWorkspaceView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .macOpenCompletedDefinition)) { notification in
                 guard let definition = notification.object as? MacCompletedDefinition else { return }
-                navigate(to: MacWorkspacePage(destination: .conversations, conversationID: definition.conversationID)) {
-                    pendingDefinition = definition
-                }
+                completionNotifications.presentInsight(definition.concept, conversationID: definition.conversationID)
             })
             .onReceive(NotificationCenter.default.publisher(for: .macOpenBoardDefinition)) { notification in
                 guard let request = notification.object as? WorktreeDefinitionRequest else { return }
-                navigate(to: page(for: .worktree)) {
-                    queuePopup.reset()
-                    worktrees.openDefinition(request)
-                }
+                completionNotifications.presentInsight(request.concept, conversationID: request.sessionID)
             }
             .onReceive(NotificationCenter.default.publisher(for: .macOpenConversation), perform: openConversation)
             .onReceive(NotificationCenter.default.publisher(for: .macOpenHome)) { notification in
@@ -314,13 +330,33 @@ struct MacWorkspaceView: View {
         }
     }
 
+    private func toggleNotificationInsightSaved(_ concept: ConceptDefinition, conversationID: UUID?) {
+        var saved = InsightLibraryStore.load()
+        let wasSaved = saved.contains { $0.id == concept.id }
+        if wasSaved {
+            saved.removeAll { $0.id == concept.id }
+        } else if let index = saved.firstIndex(where: { $0.word.caseInsensitiveCompare(concept.word) == .orderedSame }) {
+            saved[index] = saved[index].mergingDefinitions(from: concept)
+        } else {
+            saved.append(concept)
+        }
+        InsightLibraryStore.save(saved)
+        completionNotifications.savedInsightIDs = Set(saved.map(\.id))
+        if let conversationID {
+            if wasSaved {
+                ConversationInsightMembershipStore.remove(insightID: concept.id, from: conversationID)
+            } else {
+                ConversationInsightMembershipStore.add(insightID: concept.id, to: conversationID)
+            }
+        }
+    }
+
     @ViewBuilder private var pageStack: some View {
         ZStack {
             if selection == .conversations {
                 MacConversationWorkspace(showsFixture: showFixture, conversationID: conversationID, question: $question,
                     shortcutRequest: $paneShortcut, queuePopup: queuePopup, onActivity: recordPageActivity,
                     initialQuote: pendingQuote, onInitialQuoteHandled: { pendingQuote = nil },
-                    completedDefinition: pendingDefinition, onDefinitionHandled: { pendingDefinition = nil },
                     initialBranchID: conversationBranches[conversationID],
                     onBranchSelectionChange: { conversationBranches[conversationID] = $0 },
                     onNewConversation: {
@@ -358,7 +394,7 @@ struct MacWorkspaceView: View {
                         conversations = CurrentConversationsStore.load()?.conversations ?? []
                         NotificationCenter.default.post(name: .macConversationSaved, object: nil)
                     },
-                    onAsk: quote, queuePopup: queuePopup, selectedTopicID: searchedTopicID)
+                    onAsk: quote, queuePopup: queuePopup, selectedTopicID: searchedTopicID, creationRequest: newTopicRequest)
                     // A topic chosen from search reopens the page on that topic.
                     .id(searchedTopicID)
             } else if selection == .conversationList {
@@ -463,6 +499,10 @@ struct MacWorkspaceView: View {
             navigate(to: page(for: .home))
         case .openGlobalTree:
             toggleGlobalTree()
+        case .newBoard:
+            withAnimation(reduceMotion ? nil : .springStandard) { worktrees.create() }
+        case .newStudyTopic:
+            newTopicRequest = UUID()
         case .newConversation:
             navigate(to: MacWorkspacePage(destination: .conversations, conversationID: UUID())) {
                 paneShortcut = MacShortcutRequest(action: .focusQuestion)
@@ -476,7 +516,7 @@ struct MacWorkspaceView: View {
             withAnimation(.springStandard) { queuePopup.isOpen.toggle() }
         case .openTree:
             navigate(to: page(for: .conversations)) { paneShortcut = request }
-        case .focusQuestion, .swapPanes, .pinPanes, .toggleContext:
+        case .focusQuestion, .swapPanes, .pinPanes, .toggleContext, .submitQuestion:
             navigate(to: page(for: .conversations)) { paneShortcut = request }
         }
     }
@@ -487,11 +527,51 @@ struct MacWorkspaceView: View {
         case .conversation:
             navigate(to: MacWorkspacePage(destination: .conversations, conversationID: result.id))
         case .insight:
-            searchedInsightID = result.id
-            navigate(to: page(for: .insights))
+            // Cleared first so the same Insight chosen twice is still a new request.
+            searchedInsightID = nil
+            navigate(to: page(for: .insights)) {
+                DispatchQueue.main.async { searchedInsightID = result.id }
+            }
         case .studyTopic:
             searchedTopicID = result.id
             navigate(to: page(for: .studyTopics))
+        case .page(let searchPage):
+            searchedInsightID = nil
+            searchedTopicID = nil
+            let destination: MacDestination = switch searchPage {
+            case .home: .home
+            case .insights: .insights
+            case .conversations: .conversationList
+            case .library: .library
+            case .studyTopics: .studyTopics
+            case .boards: .worktree
+            case .settings: .settings
+            }
+            navigate(to: page(for: destination))
+        }
+    }
+
+    /// New Conversation asks the question at once; Define leaves `/define …` typed and focused.
+    private func startSearchConversation(_ action: GlobalSearchAction, query: String) {
+        isSearchPresented = false
+        let id = UUID()
+        conversationDrafts[id] = action.draft(for: query)
+        navigate(to: MacWorkspacePage(destination: .conversations, conversationID: id)) {
+            paneShortcut = MacShortcutRequest(action: action.submitsDraft ? .submitQuestion : .focusQuestion)
+        }
+    }
+
+    /// A dragged conversation travels like a sidebar row (Boards, Study Topics); a dragged
+    /// Insight like a definition card (Boards, or quoted into an open conversation).
+    private func searchDragItem(_ result: GlobalSearchResult) -> NSItemProvider? {
+        switch result.kind {
+        case .conversation:
+            return NSItemProvider(object: WorktreeConversationDrop.payload(result.id) as NSString)
+        case .insight:
+            guard let concept = InsightLibraryStore.load().first(where: { $0.id == result.id }) else { return nil }
+            return WorktreeInsightDrop(concept: concept).itemProvider
+        default:
+            return nil
         }
     }
 

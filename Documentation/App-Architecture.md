@@ -40,6 +40,13 @@ geometry reporters pause presentation updates. The shell composites the thread b
 its fade/offset and prevents that outer animation from animating internal thread state.
 Model generation and persistence continue through the shared queue.
 
+The shared completion center owns the notification stack and the currently opened notification
+Insight. Completed definitions carry their concept and source conversation ID; opening one shows
+the shared reader above the current page's controls without navigating to its source. Only an
+explicit Quote action navigates. Tree-update questions join the same stack while offered by the
+visible controls. Window-level input observers collapse an expanded stack on an outside tap while
+letting that same event reach the Insight, button, or editor underneath.
+
 `CurrentConversationView` owns active conversation and branch presentation, the visible model-task
 experience, conversation-scoped definition flow, slash-command handling, and on-device Insight Tree seeding
 after each completed response. Its `ConversationSession` owns the conversation list, active
@@ -295,3 +302,14 @@ immutable image payload so its digest is computed once. See
 [Attachment storage migration](Attachment-Storage-Migration.md) for the storage, interruption,
 export/import and conservative cleanup contracts. This supersedes the earlier checkpoint's
 statement that attachment saved-data layout was unchanged.
+
+
+### Mac Board conversation transfers
+
+`MacConversationTreeMapping` owns Mac completed-turn checkpoints and immutable analysis jobs.
+The existing runtime and queue are shared with normal chat. Board transfers enqueue foreground
+mapping of eligible completed turns; regular chat continues to enqueue only its just-completed
+turn at background priority. Checkpoints are encrypted scope-specific CanvasState records and
+share the tree reset lifecycle. See [Boards.md](Boards.md#sidebar--canvas) for the persisted
+Board source baseline and incremental return behavior. No model API or shared decoding schema
+changed; the only new document field, `WorktreeStoredItem.sourceMappedTurns`, is Mac-only and optional.

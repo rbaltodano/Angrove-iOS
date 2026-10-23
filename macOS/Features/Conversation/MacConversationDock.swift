@@ -21,6 +21,7 @@ struct MacConversationDock: View {
     var queuePopup: ModelTasksPopupState? = nil
     var onActivity: () -> Void = {}
     var contextToggleRequest: Binding<UUID?> = .constant(nil)
+    @Environment(\.modelCompletionNotifications) private var completionNotifications
     @State private var context = ContextCardState()
     @State private var popup = ModelTasksPopupState()
     @State private var showFilePicker = false
@@ -36,11 +37,11 @@ struct MacConversationDock: View {
             isCanvasMode: isCanvasMode,
             showFilePicker: $showFilePicker, showPhotoPicker: $showPhotoPicker, showCamera: $showCamera,
             selectedPersonality: $personality, isPersonalityMenuOpen: $personalityMenu,
-            isAtBottom: true, showsModelControlsInCanvasMode: true,
+            isAtBottom: session.scroll.isAtBottom, showsModelControlsInCanvasMode: true,
             showsSendButton: false, showsAttachments: !isCanvasMode,
             hasCanvasHover: tree.hasHover, hasCanvasInsightHover: tree.hasInsightHover,
             hasSelectedCanvasItems: tree.selectedCount > 0, selectedCanvasItemCount: tree.selectedCount,
-            onScrollToBottom: {}, onViewEntireCanvas: onCloseTree,
+            onScrollToBottom: { session.scroll.bottomRequest += 1 }, onViewEntireCanvas: onCloseTree,
             onOpenInsights: onOpenTree, onOpenPassages: { showPassages = true }, onSend: onSend,
             onSelectCanvasItem: { onActivity(); tree.selectionRequest += 1 },
             onCreateCanvasConcept: { onActivity(); tree.createConceptRequest += 1 },
@@ -80,6 +81,8 @@ struct MacConversationDock: View {
             surfaceID: isCanvasMode ? "mac-tree" : "mac-conversation"
         )
         .transformPreference(ModelControlsPreferenceKey.self) { configuration in
+            // Keep pane visibility independent of the shared iPhone scroll notification.
+            configuration?.showsScrollToBottom = !isCanvasMode && !session.scroll.isAtBottom
             if isCanvasMode {
                 configuration?.showsStandardFade = false
                 configuration?.extraFade = nil
@@ -87,6 +90,9 @@ struct MacConversationDock: View {
         }
         .onChange(of: (queuePopup ?? popup).isOpen) { _, isOpen in
             if isOpen { context.reset() }
+        }
+        .onChange(of: completionNotifications?.savedInsightIDs) { _, ids in
+            if let ids { session.savedIDs = ids }
         }
         .onChange(of: session.selectedDefinition?.id) { _, id in
             guard id != nil else { return }
@@ -136,6 +142,7 @@ struct MacWorkspaceControlSlot: View {
     var onActivity: () -> Void = {}
     var contextToggleRequest: Binding<UUID?> = .constant(nil)
     @Environment(\.macPageControlsVisible) private var pageControlsVisible
+    @Environment(\.modelCompletionNotifications) private var completionNotifications
 
     var body: some View {
         Color.clear
@@ -162,16 +169,16 @@ struct MacWorkspaceControlSlot: View {
                 }
             }
             .transformPreference(ModelControlsPreferenceKey.self) { $0 = nil }
+            .onChange(of: session.selectedDefinition, initial: true) { _, concept in
+                guard publishesGlobally, let concept, let completionNotifications else { return }
+                completionNotifications.presentInsight(concept, conversationID: session.id)
+                session.selectedDefinition = nil
+            }
     }
 
     private func presentedConfiguration(_ configuration: ModelControlsConfiguration?) -> ModelControlsConfiguration? {
         guard isVisible, var configuration else { return nil }
         configuration.dockedCard = isCanvasMode ? treeCard : nil
-        if publishesGlobally, let concept = session.selectedDefinition {
-            configuration.dockedCard = ModelControlsDockedCard(key: "definition-\(concept.id)",
-                view: AnyView(MacDockedDefinitionCard(session: session, concept: concept)),
-                staysVisibleDuringInteraction: true)
-        }
         return configuration
     }
 }

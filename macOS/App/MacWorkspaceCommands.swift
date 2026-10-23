@@ -3,8 +3,11 @@ import SwiftUI
 
 struct MacShortcutRequest: Equatable {
     enum Action: Equatable {
+        case newBoard, newStudyTopic
         case newConversation, focusQuestion, openTree, swapPanes, pinPanes, openQueue
         case openGlobalTree, goBack, goForward, toggleContext, openSettings, openHome, search
+        /// Sends the composer's text once the conversation opens (search's New Conversation).
+        case submitQuestion
         case recentConversation(Int)
     }
     let id = UUID()
@@ -17,6 +20,21 @@ struct MacWorkspaceCommandTarget {
     var canGoBack = false
     var canGoForward = false
     var destination: MacDestination = .home
+
+    var newItemAction: MacShortcutRequest.Action {
+        switch destination {
+        case .worktree: .newBoard
+        case .studyTopics: .newStudyTopic
+        default: .newConversation
+        }
+    }
+    var newItemTitle: String {
+        switch destination {
+        case .worktree: String(localized: "New Board")
+        case .studyTopics: String(localized: "New Study Topic")
+        default: String(localized: "New Conversation")
+        }
+    }
 
     var canToggleConversationTree: Bool { destination == .conversations }
 
@@ -51,7 +69,9 @@ struct MacWorkspaceCommands: Commands {
                 .disabled(target == nil)
         }
         CommandGroup(replacing: .newItem) {
-            Button("New Conversation") { target?.send(.newConversation) }
+            Button(target?.newItemTitle ?? String(localized: "New Conversation")) {
+                if let target { target.send(target.newItemAction) }
+            }
                 .keyboardShortcut("n")
                 .disabled(target == nil)
             Button("Search…") { target?.send(.search) }

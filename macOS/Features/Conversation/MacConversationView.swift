@@ -23,12 +23,8 @@ struct MacConversationView: View {
 
     private func requestDefinition(_ term: String, source: String) {
         let conversationID = session.id
-        let branchID = session.selectedBranch
         session.define(term, source: source, runtime: MacApplicationRuntime.shared) { concept in
-            completionNotifications?.post(title: concept.word, kind: .insightDefinition) {
-                NotificationCenter.default.post(name: .macOpenCompletedDefinition,
-                    object: MacCompletedDefinition(conversationID: conversationID, branchID: branchID, concept: concept))
-            }
+            completionNotifications?.postInsightDefinition(concept, conversationID: conversationID)
         }
     }
 
@@ -67,6 +63,7 @@ struct MacConversationView: View {
             }
             .scrollIndicators(.never)
             .scrollPosition($position)
+            .modifier(MacConversationScrollTracking(state: session.scroll, position: $position))
             .modifier(MacConversationScrollChrome(title: showsFixture ? "Conversation Title" : session.title,
                 isCompact: geometry.size.height < 700, showsCommands: showsCommands))
             .task {
@@ -78,6 +75,10 @@ struct MacConversationView: View {
             .onChange(of: focusQuestionRequest, initial: true) { _, request in
                 if request > 0 { focusComposer() }
             }
+            .macInsightDropDestination(receive: { drop in
+                session.attachQuote(drop.concept)
+                drop.complete(in: completionNotifications)
+            })
             .onChange(of: session.quoteRequest) { _, _ in focusComposer() }
             .onChange(of: session.isComposerReady) { _, ready in
                 if !ready && question.isEmpty && session.quote == nil {
@@ -104,8 +105,7 @@ struct MacConversationView: View {
     private var eyebrowText: String {
         if showsFixture { return "AUGUSTINIAN PREDESTINATION" }
         if let id = session.studyTopicID, let topic = StudyTopicStore.load().first(where: { $0.id == id }) {
-            let title = topic.title.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !title.isEmpty { return title.uppercased() }
+            return MacStudyTopicsView.displayTitle(topic).uppercased()
         }
         return "ADD TO STUDY TOPIC"
     }
@@ -117,7 +117,7 @@ struct MacConversationView: View {
                 HStack(spacing: 4) {
                     MacIconView(icon: .studyTopic)
                     Text(displayedEyebrow)
-                        .font(AngroveTheme.Typography.uiLabel)
+                        .font(MacConversationStyle.studyTopicLabel)
                         .foregroundStyle(AngroveTheme.Colors.lightGreen)
                         .opacity(isEyebrowHidden ? 0 : 1)
                         .blur(radius: isEyebrowHidden ? 4 : 0)
@@ -222,6 +222,8 @@ struct MacConversationView: View {
                             onInlineInsightToggleSaved: session.toggleBookmark,
                             onBodyRevealComplete: { if let run { session.finishResponseBodyReveal(run: run) } },
                             onFinish: { if let run { session.finishResponseReveal(run: run) } })
+                            .environment(\.responseFeedbackReport,
+                                session.feedbackReport(transcriptIndex: index).map { report in { report } })
                             .id(run)
                             .environment(\.defineResponseWord, { request in
                                 if let term = DefinedTermMarkup.term(in: request.token) { requestDefinition(term, source: text) }

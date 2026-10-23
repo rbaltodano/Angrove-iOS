@@ -93,8 +93,36 @@ struct MacModelEvalBatchTests {
         try #require(promptStyle == .standard || Self.usesBonsai, "Compact Bonsai prompt requires a GGUF runtime")
         let routingName = Self.environment["ANGROVE_EVAL_FOLLOWUP_ROUTING"] ?? "standard"
         let routing = try #require(LiteRTAngroveModel.FollowUpRouting(rawValue: routingName), "Unknown follow-up routing")
+        // `TEST_RUNNER_ANGROVE_EVAL_ORACLE=<json>` ({case id: [{title, source, text}]}) replaces
+        // retrieval with hand-written correct passages per case: an upper bound for perfect retrieval.
+        let oracle = try Self.environment["ANGROVE_EVAL_ORACLE"].map {
+            try JSONDecoder().decode([String: [OraclePassage]].self, from: Data(contentsOf: URL(fileURLWithPath: $0)))
+        }
+        // `TEST_RUNNER_ANGROVE_EVAL_WEB=<json>` (same format) appends per-case web passages to normal
+        // retrieval instead of replacing it: a stand-in for an opt-in web search.
+        let web = try Self.environment["ANGROVE_EVAL_WEB"].map {
+            try JSONDecoder().decode([String: [OraclePassage]].self, from: Data(contentsOf: URL(fileURLWithPath: $0)))
+        }
+        let oracleProvider = OracleGroundingProvider(base: web == nil ? nil : LazyGroundingProvider())
+        let supplied = oracle ?? web
+        // `TEST_RUNNER_ANGROVE_EVAL_RERANK_LOG=1` prints each retrieval's top 30 candidates
+        // (`RetrievalCandidates` lines) while answering normally; `TEST_RUNNER_ANGROVE_EVAL_RERANK=<json>`
+        // ({grounding query: [reference ids, best first]}) answers with that order instead.
+        let rerankOrder = try Self.environment["ANGROVE_EVAL_RERANK"].map {
+            try JSONDecoder().decode([String: [String]].self, from: Data(contentsOf: URL(fileURLWithPath: $0)))
+        }
+        let logsCandidates = Self.environment["ANGROVE_EVAL_RERANK_LOG"] == "1"
+        let groundingProvider: any AngroveGroundingProviding = if supplied != nil {
+            oracleProvider
+        } else if rerankOrder != nil || logsCandidates {
+            RerankingGroundingProvider(order: rerankOrder, logsCandidates: logsCandidates)
+        } else {
+            LazyGroundingProvider()
+        }
         let model = LiteRTAngroveModel(
-            runtime: runtime, groundingProvider: LazyGroundingProvider(), conversationPromptStyle: promptStyle,
+            runtime: runtime,
+            groundingProvider: groundingProvider,
+            conversationPromptStyle: promptStyle,
             followUpRouting: routing
         )
 
@@ -106,6 +134,14 @@ struct MacModelEvalBatchTests {
                 turn.role == "assistant" ? .text(turn.text) : .user(turn.text, nil, [])
             }
             transcript.append(.user(evalCase.question, nil, []))
+            if let supplied {
+                oracleProvider.set((supplied[evalCase.id] ?? []).enumerated().map { index, passage in
+                    AngroveGroundingReference(
+                        id: "oracle-\(evalCase.id)-\(index)", title: passage.title, sourceName: passage.source,
+                        facts: passage.text, retrievalAliases: []
+                    )
+                })
+            }
             let start = ContinuousClock.now
             let response = await model.respond(to: ConversationContext(transcript: transcript))
             let elapsed = Self.seconds(since: start)
@@ -153,12 +189,71 @@ struct MacModelEvalBatchTests {
             "bonsaiSamplingProfile": Self.usesBonsai ? profileName : "notApplicable",
             "conversationPromptStyle": promptStyleName,
             "followUpRouting": routingName,
+            "oracleFile": Self.environment["ANGROVE_EVAL_ORACLE"].map { URL(fileURLWithPath: $0).lastPathComponent } ?? "none",
+            "rerankFile": Self.environment["ANGROVE_EVAL_RERANK"].map { URL(fileURLWithPath: $0).lastPathComponent } ?? "none",
+            "webFile": Self.environment["ANGROVE_EVAL_WEB"].map { URL(fileURLWithPath: $0).lastPathComponent } ?? "none",
             "physicalMemoryBytes": ProcessInfo.processInfo.physicalMemory,
             "finishedAt": Date.now.ISO8601Format(),
         ]
         let data = try JSONSerialization.data(withJSONObject: summary, options: [.sortedKeys])
         print("MacEvalSummary \(String(decoding: data, as: UTF8.self))")
         try? data.write(to: output.appending(path: "litert-eval-result.json"), options: .atomic)
+    }
+
+    nonisolated private struct OraclePassage: Decodable {
+        let title: String
+        let source: String
+        let text: String
+    }
+
+    /// Returns the current case's oracle passages for every retrieval call.
+    nonisolated private final class OracleGroundingProvider: AngroveGroundingProviding, @unchecked Sendable {
+        private let lock = NSLock()
+        private var current: [AngroveGroundingReference] = []
+        /// When set, supplied passages are appended to this provider's results.
+        private let base: (any AngroveGroundingProviding)?
+
+        init(base: (any AngroveGroundingProviding)? = nil) {
+            self.base = base
+        }
+
+        func set(_ references: [AngroveGroundingReference]) {
+            lock.lock(); defer { lock.unlock() }
+            current = references
+        }
+
+        func references(for question: String, limit: Int) -> [AngroveGroundingReference] {
+            let retrieved = base?.references(for: question, limit: limit) ?? []
+            lock.lock(); defer { lock.unlock() }
+            return base == nil ? Array(current.prefix(limit)) : retrieved + current
+        }
+    }
+
+    /// Library retrieval with an external reranker: retrieves 30 candidates, then either logs
+    /// them (answering with the normal top results) or returns them in a supplied order.
+    nonisolated private struct RerankingGroundingProvider: AngroveGroundingProviding {
+        static let candidateCount = 30
+        let base = LazyGroundingProvider()
+        let order: [String: [String]]?
+        let logsCandidates: Bool
+
+        func references(for question: String, limit: Int) -> [AngroveGroundingReference] {
+            let candidates = base.references(for: question, limit: Self.candidateCount)
+            if logsCandidates {
+                let line: [String: Any] = [
+                    "query": question, "limit": limit,
+                    "candidates": candidates.map {
+                        ["id": $0.id, "title": $0.title, "source": $0.sourceName, "text": $0.facts]
+                    },
+                ]
+                if let data = try? JSONSerialization.data(withJSONObject: line, options: [.sortedKeys]) {
+                    print("RetrievalCandidates \(String(decoding: data, as: UTF8.self))")
+                }
+            }
+            guard let ids = order?[question] else { return base.references(for: question, limit: limit) }
+            let byID = Dictionary(candidates.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            return Array(ids.compactMap { byID[$0] }.prefix(limit))
+        }
     }
 
     private static func seconds(since start: ContinuousClock.Instant) -> Double {

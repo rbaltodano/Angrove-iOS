@@ -14,14 +14,23 @@ enum ModelCompletionNotificationKind {
     case question
     case insightDefinition
     case pageReturn
+    case treeUpdate
+}
+
+struct NotificationInsightPresentation: Identifiable {
+    let id = UUID()
+    let concept: ConceptDefinition
+    let conversationID: UUID?
 }
 
 struct ModelCompletionNotification: Identifiable {
-    let id = UUID()
+    var id = UUID()
     let title: String
     let kind: ModelCompletionNotificationKind
     let returnPage: AppPage?
     let openAction: @MainActor () -> Void
+    var declineAction: (@MainActor () -> Void)? = nil
+    var insight: ConceptDefinition? = nil
 }
 
 @MainActor
@@ -29,10 +38,63 @@ struct ModelCompletionNotification: Identifiable {
 final class ModelCompletionNotificationCenter {
     private(set) var notifications: [ModelCompletionNotification] = []
     private(set) var isStackExpanded = false
+    private(set) var presentedInsight: NotificationInsightPresentation?
+    var savedInsightIDs: Set<UUID> = []
+    @ObservationIgnored var onQuoteInsight: (ConceptDefinition) -> Void = { _ in }
+    @ObservationIgnored var onToggleInsightSaved: (ConceptDefinition, UUID?) -> Void = { _, _ in }
+
+    func presentInsight(_ concept: ConceptDefinition, conversationID: UUID?) {
+        savedInsightIDs = Set(InsightLibraryStore.load().map(\.id))
+        withAnimation(.springStandard) {
+            presentedInsight = NotificationInsightPresentation(concept: concept, conversationID: conversationID)
+        }
+    }
+
+    func closeInsight() {
+        withAnimation(.springStandard) { presentedInsight = nil }
+    }
+
+    func postInsightDefinition(_ concept: ConceptDefinition, conversationID: UUID?, postsSystemNotification: Bool = true) {
+        post(title: concept.word, kind: .insightDefinition, postsSystemNotification: postsSystemNotification, insight: concept) { [weak self] in
+            self?.presentInsight(concept, conversationID: conversationID)
+        }
+    }
+
+    /// The visible page supplies its live update question; it shares the completion stack.
+    func setTreeUpdatePrompt(title: String?, onConfirm: @escaping @MainActor () -> Void = {},
+                             onDecline: @escaping @MainActor () -> Void = {}) {
+        guard let title else {
+            withAnimation(.springStandard) {
+                notifications.removeAll { $0.kind == .treeUpdate }
+                resetEmptyStack()
+            }
+            return
+        }
+        var prompt = ModelCompletionNotification(title: title, kind: .treeUpdate, returnPage: nil,
+                                                openAction: onConfirm, declineAction: onDecline)
+        if let index = notifications.firstIndex(where: { $0.kind == .treeUpdate }) {
+            prompt.id = notifications[index].id
+            notifications[index] = prompt
+        } else {
+            withAnimation(.springStandard) { notifications.insert(prompt, at: 0) }
+        }
+    }
+
+    func decline(id: UUID) {
+        let action = notifications.first { $0.id == id }?.declineAction
+        dismiss(id: id)
+        action?()
+    }
 
     func expandStack() {
         withAnimation(.springStandard) {
             isStackExpanded = notifications.count > 1
+        }
+    }
+
+    func collapseStack() {
+        withAnimation(.springStandard) {
+            isStackExpanded = false
         }
     }
 
@@ -53,6 +115,7 @@ final class ModelCompletionNotificationCenter {
         postsSystemNotification: Bool = true,
         systemNotificationTitle: String? = nil,
         systemNotificationBody: String? = nil,
+        insight: ConceptDefinition? = nil,
         openAction: @escaping @MainActor () -> Void
     ) {
         withAnimation(.springStandard) {
@@ -64,20 +127,21 @@ final class ModelCompletionNotificationCenter {
                     title: title,
                     kind: kind,
                     returnPage: returnPage,
-                    openAction: openAction
+                    openAction: openAction,
+                    insight: insight
                 ),
                 at: 0
             )
         }
         #if os(iOS)
-        if postsSystemNotification, kind != .pageReturn, UIApplication.shared.applicationState != .active {
+        if postsSystemNotification, kind != .pageReturn, kind != .treeUpdate, UIApplication.shared.applicationState != .active {
             AngroveSystemNotifications.postCompletedResponse(
                 title: systemNotificationTitle ?? "Response Ready",
                 body: systemNotificationBody ?? title
             )
         }
         #else
-        if postsSystemNotification, kind != .pageReturn, !NSApplication.shared.isActive {
+        if postsSystemNotification, kind != .pageReturn, kind != .treeUpdate, !NSApplication.shared.isActive {
             AngroveSystemNotifications.postCompletedResponse(title: systemNotificationTitle ?? "Response Ready", body: systemNotificationBody ?? title)
         }
         #endif
@@ -157,20 +221,20 @@ struct ModelCompletionNotificationPill: View {
         switch kind {
         case .question: "QuestionNotificationIcon"
         case .insightDefinition: "InsightNotificationIcon"
-        case .pageReturn: "QuestionNotificationIcon"
+        case .pageReturn, .treeUpdate: "QuestionNotificationIcon"
         }
     }
 
     private var iconColor: Color {
         switch kind {
-        case .question, .pageReturn: AngroveTheme.Colors.headingText
+        case .question, .pageReturn, .treeUpdate: AngroveTheme.Colors.headingText
         case .insightDefinition: AngroveTheme.Colors.lightGreen
         }
     }
 
     private var titleColor: Color {
         switch kind {
-        case .question, .pageReturn: AngroveTheme.Colors.paragraphText
+        case .question, .pageReturn, .treeUpdate: AngroveTheme.Colors.paragraphText
         case .insightDefinition: AngroveTheme.Colors.lightGreen
         }
     }
@@ -181,7 +245,7 @@ struct ModelCompletionNotificationPill: View {
             String(localized: "View completed question: \(title)")
         case .insightDefinition:
             String(localized: "View completed Insight Definition: \(title)")
-        case .pageReturn:
+        case .pageReturn, .treeUpdate:
             title
         }
     }
@@ -258,20 +322,23 @@ struct ModelCompletionNotificationList: View {
             let expanded = center.showsExpandedStack(presentingCard: presentingCard)
             let stacked = !expanded && center.notifications.count > 1
             let depth = min(center.notifications.count - 1, 2)
+            // Older cards stay in the center, without accumulating hidden transforms.
+            let visibleNotifications = expanded ? center.notifications : Array(center.notifications.prefix(3))
 
             ScrollView(.vertical) {
                 ZStack(alignment: .top) {
-                    ForEach(center.notifications.enumerated(), id: \.element.id) { index, notification in
+                    ForEach(visibleNotifications.enumerated(), id: \.element.id) { index, notification in
                         ModelCompletionNotificationRow(
                             notification: notification,
                             width: Self.cardWidth,
                             onOpen: { center.open(id: notification.id) },
-                            onDismiss: { center.dismiss(id: notification.id) }
+                            onDismiss: { center.decline(id: notification.id) }
                         )
-                        .scaleEffect(x: expanded ? 1 : 1 - CGFloat(min(index, 2)) * 0.10,
-                                     y: 1, anchor: .top)
-                        .offset(y: expanded ? CGFloat(index) * 66 : CGFloat(min(index, 2)) * 8)
-                        .opacity(expanded || index < 3 ? 1 : 0)
+                        // The first card arrives with the whole list; avoid scaling it twice.
+                        .transition(center.notifications.count == 1 ? .identity :
+                            (index == 0 ? notificationTransition : .opacity))
+                        .scaleEffect(expanded ? 1 : 1 - CGFloat(index) * 0.08, anchor: .top)
+                        .offset(y: CGFloat(index) * (expanded ? 66 : 8))
                         .zIndex(Double(center.notifications.count - index))
                         .allowsHitTesting(!stacked && (expanded || index == 0))
                         .accessibilityHidden(stacked || (!expanded && index > 0))
@@ -300,14 +367,49 @@ struct ModelCompletionNotificationList: View {
             }
             .scrollDisabled(!expanded)
             .scrollIndicators(.hidden)
+            .scrollClipDisabled(!expanded)
             .frame(width: Self.cardWidth, height: expanded
                 ? min(248, 50 + CGFloat(center.notifications.count - 1) * 66)
                 : 50 + CGFloat(depth) * 8)
             .animation(reduceMotion ? .easeInOut(duration: 0.2) : .springStandard, value: expanded)
             .animation(reduceMotion ? .easeInOut(duration: 0.2) : .springStandard,
                        value: center.notifications.map(\.id))
-            .transition(.bottomDockCard)
+            .anchorPreference(key: NotificationStackBoundsPreferenceKey.self, value: .bounds) {
+                expanded ? [$0] : []
+            }
+            .accessibilityAction(named: "Collapse notifications") { center.collapseStack() }
+            .transition(notificationTransition)
         }
+    }
+
+    private var notificationTransition: AnyTransition {
+        .asymmetric(
+            insertion: reduceMotion ? .opacity : .blurFade.combined(with: .scale(scale: 1.05)),
+            removal: .opacity
+        )
+    }
+}
+
+/// Observe outside taps without taking the hit away from the page underneath.
+struct NotificationStackDismissal: ViewModifier {
+    let center: ModelCompletionNotificationCenter
+
+    func body(content: Content) -> some View {
+        content.backgroundPreferenceValue(NotificationStackBoundsPreferenceKey.self) { anchors in
+            GeometryReader { geometry in
+                NotificationOutsideTapObserver(center: center, stackBounds: anchors.map { geometry[$0] })
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+}
+
+private struct NotificationStackBoundsPreferenceKey: PreferenceKey {
+    static let defaultValue: [Anchor<CGRect>] = []
+
+    static func reduce(value: inout [Anchor<CGRect>], nextValue: () -> [Anchor<CGRect>]) {
+        value.append(contentsOf: nextValue())
     }
 }
 
@@ -319,24 +421,35 @@ private struct ModelCompletionNotificationRow: View {
 
     var body: some View {
         ZStack {
-            if notification.kind == .pageReturn {
-                ModelControlsConfirmationPill(
-                    title: notification.title,
+            if notification.kind == .treeUpdate {
+                TreeUpdateNotificationPill(title: notification.title, onUpdate: onOpen, onKeepCurrent: onDismiss)
+            } else if notification.kind == .pageReturn {
+                ConfirmationNotificationPill(
+                    title: String(localized: "Return?"),
+                    iconName: "arrow.uturn.backward",
                     width: width,
+                    confirmLabel: notification.title,
+                    declineLabel: String(localized: "Dismiss return notification"),
                     onConfirm: onOpen,
-                    onDecline: onDismiss,
-                    iconName: (notification.returnPage ?? .conversation).sidebarIconName,
-                    showsControlBorder: true
+                    onDecline: onDismiss
                 )
             } else {
-                ModelCompletionNotificationPill(
-                    title: notification.title,
-                    kind: notification.kind,
-                    width: width,
-                    onOpen: onOpen,
-                    onDismiss: onDismiss
-                )
+                #if os(macOS)
+                if let concept = notification.insight {
+                    completionPill
+                        .modifier(MacInsightDragSource(concept: concept, notificationID: notification.id))
+                } else {
+                    completionPill
+                }
+                #else
+                completionPill
+                #endif
             }
         }
+    }
+
+    private var completionPill: some View {
+        ModelCompletionNotificationPill(title: notification.title, kind: notification.kind,
+            width: width, onOpen: onOpen, onDismiss: onDismiss)
     }
 }

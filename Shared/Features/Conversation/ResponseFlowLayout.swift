@@ -10,7 +10,7 @@ struct FlowLayout: Layout {
 
     var spacing: CGFloat = 4.5
     var alignment: TextAlignment = .center
-    /// Stretches every wrapped row except the last to the full width by widening the word gaps.
+    /// Stretches wrapped rows by widening word gaps; the final row starts at the left edge.
     var justified = false
     /// Changes when a word other than the trailing one can have a new width (a plain word
     /// turned into an Insight link), which drops every cached measurement.
@@ -145,7 +145,7 @@ struct FlowLayout: Layout {
                 }
                 let offset: CGFloat
                 switch alignment {
-                case .center:
+                case .center where !justified:
                     offset = max(0, (maxWidth - width) / 2)
                 default:
                     offset = 0

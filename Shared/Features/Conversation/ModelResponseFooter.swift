@@ -102,14 +102,16 @@ struct ModelResponseFooter: View {
         .task(id: shouldAnimateOnAppear) {
             await revealFooter()
         }
-        #if os(iOS)
         .sheet(isPresented: $showsFeedbackSheet, onDismiss: {
             // Cancelling the sheet means no feedback was given, so the thumbs down un-selects.
             if !feedbackSent { isThumbsDownSelected = false }
         }) {
+            #if os(macOS)
+            MacResponseFeedbackSheet(report: feedbackReport?(), onSent: { feedbackSent = true })
+            #else
             ResponseFeedbackSheet(report: feedbackReport?(), onSent: { feedbackSent = true })
+            #endif
         }
-        #endif
     }
 
     private func actionButton(symbol: String, index: Int, label: String, action: @escaping () -> Void) -> some View {

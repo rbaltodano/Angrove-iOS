@@ -93,6 +93,8 @@ struct InsightTreeView: View {
     @State private var selectedInsight: InsightModel?
     @State private var selectedNode: NodeModel?
     @State private var hoveredConcept: ConceptDefinition?
+    /// A requested Insight whose node hadn't been laid out yet; retried as nodes arrive.
+    @State private var hasPendingInsightRestore = false
     /// Insight id of a just-placed midpoint while it "loads" on the canvas.
     @State private var midpointPlacedInsightID: UUID?
     /// Matches the placed id only after its generated content has replaced the loading
@@ -393,6 +395,9 @@ struct InsightTreeView: View {
                         },
                         onClose: closeDockedInsight
                     )
+                    #if os(macOS)
+                    .modifier(MacInsightDragSource(concept: concept))
+                    #endif
                     .id(concept.id)
                     .growsWhileTouched()
                     .offset(y: dockedCardDragY)
@@ -416,6 +421,9 @@ struct InsightTreeView: View {
                             showInsightCard(insight)
                         }
                     )
+                    #if os(macOS)
+                    .modifier(MacInsightDragSource(concept: concept(for: selectedInsight)))
+                    #endif
                     .id(selectedInsight.id)
                     .growsWhileTouched(whileReading: selectedInsight.definition)
                     .offset(y: dockedCardDragY)
@@ -440,6 +448,9 @@ struct InsightTreeView: View {
                         onFork: { performForkNode(selectedNode) },
                         onClose: closeDockedInsight
                     )
+                    #if os(macOS)
+                    .modifier(MacInsightDragSource(concept: viewModel.bookmarkConcept(for: currentNode)))
+                    #endif
                     .id(selectedNode.id)
                     .growsWhileTouched()
                     .offset(y: dockedCardDragY)
@@ -811,6 +822,7 @@ struct InsightTreeView: View {
             }
         }
         .onChange(of: viewModel.nodes) { _, _ in
+            if hasPendingInsightRestore { restoreRequestedInsightSelection() }
             if studyBranchIsPromoted, let sourceID = studyBranchSource?.id { focusBranchedNode(for: sourceID) }
             bookmarkAllNodeConcepts()
             let visibleIDs = Set(viewModel.visibleNodes.map(\.id))
@@ -1041,14 +1053,20 @@ struct InsightTreeView: View {
     }
 
     private func restoreRequestedInsightSelection() {
-        guard let restoreSelectedInsightID,
-              selectedInsight?.id != restoreSelectedInsightID,
-              let insight = viewModel.nodes
-                .lazy
-                .flatMap(\.insights)
-                .first(where: { $0.id == restoreSelectedInsightID }) else {
+        guard let restoreSelectedInsightID, selectedInsight?.id != restoreSelectedInsightID else {
+            hasPendingInsightRestore = false
             return
         }
+        // The tree can lay out after the request arrives (a page that just opened loads its
+        // Insights in a task), so keep the request until the Insight's node exists.
+        guard let insight = viewModel.nodes
+            .lazy
+            .flatMap(\.insights)
+            .first(where: { $0.id == restoreSelectedInsightID }) else {
+            hasPendingInsightRestore = true
+            return
+        }
+        hasPendingInsightRestore = false
         showInsightCard(insight)
     }
 

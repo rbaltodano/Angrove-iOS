@@ -9,7 +9,10 @@ import SwiftUI
 struct SidebarSearchButton: View {
     /// Shows the ⌘K hint on the Mac.
     var showsShortcut = false
+    /// The hint appears only while Command is held, with Recents' ⌘1 (same timing, no delay).
+    var isShortcutVisible = false
     var action: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: action) {
@@ -33,6 +36,9 @@ struct SidebarSearchButton: View {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .stroke(AngroveTheme.Colors.lightGreen.opacity(0.15), lineWidth: 1)
                     )
+                    .opacity(isShortcutVisible ? 1 : 0)
+                    .animation(reduceMotion ? nil : isShortcutVisible ? .easeIn(duration: 0.15) : .easeOut(duration: 0.15),
+                               value: isShortcutVisible)
                     .accessibilityHidden(true)
                 }
             }
@@ -58,9 +64,16 @@ struct GlobalSearchOverlay: View {
     var topInset: CGFloat = 48
     var horizontalInset: CGFloat = 48
     var maxContentWidth: CGFloat = 560
+    /// App pages that can be opened by name (“Home Page”).
+    var pages: [GlobalSearchPage] = []
     /// Marks the keyboard-selected row, for arrow-key navigation on the Mac.
     var showsKeyboardSelection = false
+    /// What a dragged result carries (Mac). A drag closes search so the page beneath can take
+    /// the drop; results without an item aren't draggable.
+    var dragItem: ((GlobalSearchResult) -> NSItemProvider?)? = nil
     var onSelect: (GlobalSearchResult) -> Void
+    /// The no-results actions, given the searched text.
+    var onAction: (GlobalSearchAction, String) -> Void = { _, _ in }
     var onDismiss: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -89,8 +102,18 @@ struct GlobalSearchOverlay: View {
             scope: scope,
             conversations: conversations,
             insights: insights,
-            studyTopics: studyTopics
+            studyTopics: studyTopics,
+            pages: pages
         )
+    }
+
+    /// With no matches, the rows become actions on the searched text instead.
+    private var showsActions: Bool {
+        !trimmedQuery.isEmpty && results.isEmpty
+    }
+
+    private var selectableCount: Int {
+        showsActions ? GlobalSearchAction.allCases.count : results.count
     }
 
     var body: some View {
@@ -167,6 +190,11 @@ struct GlobalSearchOverlay: View {
                     ) {
                         onSelect(result)
                     }
+                    .modifier(GlobalSearchDragSource(
+                        result: result,
+                        item: result.isDraggable ? dragItem.map { make in { make(result) } } : nil,
+                        onBegin: onDismiss
+                    ))
                     .transition(.blurFadeShrink)
                     #if os(macOS)
                     .onHover { if $0 { selectedIndex = index } }
@@ -175,13 +203,29 @@ struct GlobalSearchOverlay: View {
             }
             .animation(.springQuick, value: results.map(\.id))
 
-            if results.isEmpty, !trimmedQuery.isEmpty {
+            if showsActions {
                 AngroveEmptyState(
                     systemImage: "magnifyingglass",
                     title: "No Matches Found",
                     message: scope.emptyMessage(for: trimmedQuery)
                 )
                 .padding(.top, 24)
+                .transition(.blurFade)
+
+                VStack(alignment: .leading, spacing: 14) {
+                    ForEach(Array(GlobalSearchAction.allCases.enumerated()), id: \.element) { index, action in
+                        GlobalSearchActionRow(
+                            action: action,
+                            query: trimmedQuery,
+                            isSelected: showsKeyboardSelection && index == selectedIndex
+                        ) {
+                            onAction(action, trimmedQuery)
+                        }
+                        #if os(macOS)
+                        .onHover { if $0 { selectedIndex = index } }
+                        #endif
+                    }
+                }
                 .transition(.blurFade)
             }
         }
@@ -215,13 +259,19 @@ struct GlobalSearchOverlay: View {
     }
 
     private func moveSelection(by offset: Int) -> KeyPress.Result {
-        let count = results.count
+        let count = selectableCount
         guard count > 0 else { return .ignored }
         selectedIndex = min(max(selectedIndex + offset, 0), count - 1)
         return .handled
     }
 
     private func openSelection() {
+        if showsActions {
+            let actions = GlobalSearchAction.allCases
+            guard actions.indices.contains(selectedIndex) else { return }
+            onAction(actions[selectedIndex], trimmedQuery)
+            return
+        }
         let results = results
         guard results.indices.contains(selectedIndex) else { return }
         onSelect(results[selectedIndex])
@@ -260,8 +310,101 @@ struct GlobalSearchOverlay: View {
     }
 }
 
-/// The search bar's capsule, shared by the sidebar row and the open field (Figma 1154:1358 /
-/// 1154:1404): Canvas Secondary with the Model Controls border.
+/// What search offers when nothing matches: ask about the searched text, or define it.
+enum GlobalSearchAction: CaseIterable, Hashable {
+    case newConversation, define
+
+    var title: String {
+        switch self {
+        case .newConversation: String(localized: "New Conversation")
+        case .define: String(localized: "Define")
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .newConversation: "plus"
+        case .define: "text.bubble.fill"
+        }
+    }
+
+    /// New Conversation asks right away; Define leaves `/define …` ready to send.
+    var submitsDraft: Bool { self == .newConversation }
+
+    /// The question placed in the new conversation's field, ready to send.
+    func draft(for query: String) -> String {
+        switch self {
+        case .newConversation: "What is \(query)"
+        case .define: "/define \(query)"
+        }
+    }
+}
+
+/// An action styled as a result row: label and icon, then the searched text, which truncates.
+struct GlobalSearchActionRow: View {
+    let action: GlobalSearchAction
+    let query: String
+    var isSelected = false
+    var perform: () -> Void
+
+    var body: some View {
+        Button(action: perform) {
+            HStack(spacing: 24) {
+                HStack(spacing: 8) {
+                    Image(systemName: action.iconName)
+                        .font(.system(size: action == .newConversation ? 11 : 13, weight: .semibold))
+                        .frame(width: 16, height: 16)
+                    Text(action.title)
+                        .font(AngroveTheme.Typography.uiSubheading)
+                        .fixedSize()
+                }
+                .foregroundStyle(AngroveTheme.Colors.lightGreen)
+                // Space-between: the action at the leading edge, the searched text at the trailing.
+                Text(query)
+                    .font(AngroveTheme.Typography.body)
+                    .foregroundStyle(AngroveTheme.Colors.placeholderText)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .modifier(GlobalSearchRowChrome(isSelected: isSelected))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(action.title) \(query)")
+    }
+}
+
+/// Starts a drag from a result when it has an item, closing search as the drag begins.
+private struct GlobalSearchDragSource: ViewModifier {
+    let result: GlobalSearchResult
+    let item: (() -> NSItemProvider?)?
+    let onBegin: () -> Void
+
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        if let item {
+            content.onDrag {
+                // Out of the way of the page's drop targets beneath.
+                DispatchQueue.main.async(execute: onBegin)
+                return item() ?? NSItemProvider()
+            } preview: {
+                // The grabbed row collapses to hug its icon and text.
+                GlobalSearchResultLabel(result: result)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(maxWidth: 360, alignment: .leading)
+                    .modifier(GlobalSearchRowChrome())
+            }
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
+    }
+}
+
+/// The search capsule used by every page, picker, sidebar, and canvas search on both platforms.
+/// Matches global Search (Figma 1154:1358 / 1154:1404): Canvas Secondary and the Model Controls border.
 struct GlobalSearchBarStyle: ViewModifier {
     static let font = BrandTypography.font("Figtree-SemiBold", size: 14)
 
@@ -322,33 +465,28 @@ struct GlobalSearchResultRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 9) {
-                Image(systemName: result.iconName)
-                    .font(.system(size: result.kind == .studyTopic ? 11 : 14, weight: .medium))
-                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                    .frame(width: 16, height: 16)
-                Text(GlobalSearchHighlight.attributed(result))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 12)
-            .frame(minHeight: 52)
-            .background(
-                AngroveTheme.Colors.canvasSecondary,
-                in: RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous)
-                    .stroke(
-                        isSelected ? AngroveTheme.Colors.lightGreen.opacity(0.5) : AngroveTheme.Colors.brownBorder,
-                        lineWidth: 1
-                    )
-            )
-            .contentShape(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous))
+            GlobalSearchResultLabel(result: result)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .modifier(GlobalSearchRowChrome(isSelected: isSelected))
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// A result's icon and highlighted text, shared by the row and its drag preview.
+struct GlobalSearchResultLabel: View {
+    let result: GlobalSearchResult
+
+    var body: some View {
+        HStack(spacing: 9) {
+            Image(systemName: result.iconName)
+                .font(.system(size: result.kind == .studyTopic ? 11 : 14, weight: .medium))
+                .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                .frame(width: 16, height: 16)
+            Text(GlobalSearchHighlight.attributed(result))
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
     }
 }
 
@@ -378,5 +516,26 @@ enum GlobalSearchHighlight {
         segment.font = font
         segment.foregroundColor = color
         return segment
+    }
+}
+
+/// The card behind every search row, result or action.
+struct GlobalSearchRowChrome: ViewModifier {
+    var isSelected = false
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous)
+        content
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
+            .frame(minHeight: 52)
+            .background(AngroveTheme.Colors.canvasSecondary, in: shape)
+            .overlay(
+                shape.stroke(
+                    isSelected ? AngroveTheme.Colors.lightGreen.opacity(0.5) : AngroveTheme.Colors.brownBorder,
+                    lineWidth: 1
+                )
+            )
+            .contentShape(shape)
     }
 }

@@ -55,6 +55,7 @@ enum WorktreeWork: Equatable { case queued, running }
         /// The sidebar conversation a dropped window was copied from, and its name then.
         var sourceConversationID: UUID?
         var sourceTitle: String?
+        var sourceMappedTurns: [String: String]?
         /// The model work behind a pending Insight card or summary.
         var outputWork: WorktreeWork?
         var isQuestion: Bool { session != nil }
@@ -90,7 +91,7 @@ enum WorktreeWork: Equatable { case queued, running }
         guard !item.isSummarizing, item.definitionFailureTerm == nil, item.definingTerm == nil || item.insight != nil else { return nil }
         return WorktreeStoredItem(id: item.id, origin: item.origin, text: item.text, size: item.size,
             label: item.label, isHeading: item.isHeading, isHelp: item.isHelp, image: item.image, insight: item.insight, sourceID: item.sourceID,
-            sourceConversationID: item.sourceConversationID, sourceTitle: item.sourceTitle,
+            sourceConversationID: item.sourceConversationID, sourceTitle: item.sourceTitle, sourceMappedTurns: item.sourceMappedTurns,
             visibleTurnLimit: item.visibleTurnLimit, conversationID: item.session?.id,
             branches: item.session?.branches, promotedIDs: item.session?.promotedIDs, photoLayout: item.photoLayout)
     }
@@ -107,6 +108,7 @@ enum WorktreeWork: Equatable { case queued, running }
         item.sourceID = stored.sourceID
         item.sourceConversationID = stored.sourceConversationID
         item.sourceTitle = stored.sourceTitle
+        item.sourceMappedTurns = stored.sourceMappedTurns
         item.visibleTurnLimit = stored.visibleTurnLimit
         if let branches = stored.branches, let first = branches.first {
             let session = MacConversationState()
@@ -129,6 +131,8 @@ enum WorktreeWork: Equatable { case queued, running }
             hasher.combine(item.id)
             hasher.combine(item.origin.x); hasher.combine(item.origin.y)
             hasher.combine(item.text); hasher.combine(item.label); hasher.combine(item.isHeading)
+            hasher.combine(item.sourceConversationID); hasher.combine(item.sourceTitle)
+            hasher.combine(item.sourceMappedTurns)
             hasher.combine(item.photoLayout?.contentSize.width); hasher.combine(item.photoLayout?.contentSize.height)
             hasher.combine(item.photoLayout?.offset.x); hasher.combine(item.photoLayout?.offset.y)
             hasher.combine(item.size?.width); hasher.combine(item.size?.height)
@@ -154,14 +158,26 @@ enum WorktreeWork: Equatable { case queued, running }
     /// Moves a dragged item, snapping its left, centre or right (and top, centre or bottom) to
     /// another item's when within `threshold`, and shows a guide along each alignment.
     func move(_ id: UUID, to proposed: CGPoint, threshold: CGFloat, overhang: CGFloat) {
+        guard let anchor = items.first(where: { $0.id == id }) else { return }
+        let moving: Set<UUID> = selection.contains(id) ? Set(selection) : [id]
+        // Apply the snapped anchor's delta to the whole selection, preserving every offset.
+        func place(at origin: CGPoint) {
+            let delta = CGPoint(x: origin.x - anchor.origin.x, y: origin.y - anchor.origin.y)
+            var placed = items
+            for index in placed.indices where moving.contains(placed[index].id) {
+                placed[index].origin.x += delta.x
+                placed[index].origin.y += delta.y
+            }
+            items = placed
+        }
         guard let current = frame(of: id) else {
-            update(id) { $0.origin = proposed }
+            place(at: proposed)
             return
         }
         let padding = current.minX - (items.first { $0.id == id }?.origin.x ?? current.minX)
         var moved = CGRect(x: proposed.x + padding, y: proposed.y + padding, width: current.width, height: current.height)
         let others = items.compactMap { item -> CGRect? in
-            guard item.id != id, let size = itemSizes[item.id] else { return nil }
+            guard !moving.contains(item.id), let size = itemSizes[item.id] else { return nil }
             let padding = item.isQuestion ? WorktreeItemView.cardPadding : WorktreeItemView.textPadding
             return CGRect(x: item.origin.x - padding, y: item.origin.y - padding, width: size.width, height: size.height)
         }
@@ -183,7 +199,7 @@ enum WorktreeWork: Equatable { case queued, running }
         let dx = snap(.vertical), dy = snap(.horizontal)
         moved.origin.x += dx ?? 0
         moved.origin.y += dy ?? 0
-        update(id) { $0.origin = CGPoint(x: moved.minX - padding, y: moved.minY - padding) }
+        place(at: CGPoint(x: moved.minX - padding, y: moved.minY - padding))
 
         var next: [WorktreeGuide] = []
         for (axis, snapped) in [(WorktreeGuide.Axis.vertical, dx != nil), (.horizontal, dy != nil)] where snapped {
@@ -303,7 +319,11 @@ enum WorktreeWork: Equatable { case queued, running }
     /// Dropping a window on the sidebar copies it there; the window stays on the canvas. One that
     /// came from the sidebar first asks whether to replace the version it came from.
     func dropOnSidebar(_ id: UUID, runtime: MacApplicationRuntime) {
-        guard let item = items.first(where: { $0.id == id }), item.session != nil else { return }
+        guard let item = items.first(where: { $0.id == id }), let session = item.session else { return }
+        guard session.pendingResponses.isEmpty else {
+            errorMessage = String(localized: "Let the current answer finish before copying this conversation to the sidebar.")
+            return
+        }
         if item.sourceConversationID != nil {
             pendingReplacement = .init(id: id, title: sidebarTitle(for: id) ?? "")
         } else {
@@ -315,12 +335,28 @@ enum WorktreeWork: Equatable { case queued, running }
     /// without one, by the model.
     func saveCopy(of id: UUID, runtime: MacApplicationRuntime, keepingBoth: Bool = false) {
         guard let item = items.first(where: { $0.id == id }), let session = item.session else { return }
+        guard session.pendingResponses.isEmpty else {
+            errorMessage = String(localized: "Let the current answer finish before copying this conversation to the sidebar.")
+            return
+        }
         let named = item.label ?? item.sourceTitle
         let fallback = session.branches.first.flatMap { MacConversationState.automaticTitle(for: $0.topQuestionText) }
         let title = named ?? fallback ?? String(localized: "New Conversation")
         let copy = InquiryConversation(title: keepingBoth ? Self.copyTitle(title) : title,
                                        branches: session.branches, promotedInsightIDs: session.promotedIDs)
+        for insightID in ConversationInsightMembershipStore.insightIDs(for: session.id) {
+            ConversationInsightMembershipStore.add(insightID: insightID, to: copy.id)
+        }
         Self.store(copy)
+        runtime.conversationTreeMapping.enqueue(conversationID: copy.id,
+            turns: MacConversationMappingTurn.completed(in: copy.branches), runtime: runtime,
+            onFailure: { [weak self] in self?.errorMessage = String(localized: "The Insight Tree couldn’t finish updating. Your conversation and existing tree are saved. Drag the conversation back to the sidebar to retry.") })
+        // This window now has a sidebar original. A later return updates that same tree.
+        update(id) {
+            $0.sourceConversationID = copy.id
+            $0.sourceTitle = copy.title
+            $0.sourceMappedTurns = [:]
+        }
         guard !keepingBoth, named == nil, runtime.modelIsAvailable,
               let question = session.branches.first?.topQuestionText, !question.isEmpty else { return }
         let model = runtime.model
@@ -340,14 +376,30 @@ enum WorktreeWork: Equatable { case queued, running }
     }
 
     /// Overwrites the sidebar conversation the window came from with the window's version.
-    func replaceOriginal(with id: UUID) {
+    func replaceOriginal(with id: UUID, runtime: MacApplicationRuntime) {
         guard let item = items.first(where: { $0.id == id }), let session = item.session,
               let sourceID = item.sourceConversationID,
               var original = CurrentConversationsStore.load()?.conversations.first(where: { $0.id == sourceID }) else { return }
+        guard session.pendingResponses.isEmpty else {
+            errorMessage = String(localized: "Let the current answer finish before copying this conversation to the sidebar.")
+            return
+        }
+        let baseline = item.sourceMappedTurns ?? MacConversationMappingTurn.fingerprints(in: original.branches)
         original.branches = session.branches
-        original.promotedInsightIDs = session.promotedIDs
+        // Board windows have no tree editor; retain any promotions added in the sidebar meanwhile.
+        original.promotedInsightIDs += session.promotedIDs.filter { !original.promotedInsightIDs.contains($0) }
         if let label = item.label { original.title = label }
+        if session.id != sourceID {
+            for insightID in ConversationInsightMembershipStore.insightIDs(for: session.id) {
+                ConversationInsightMembershipStore.add(insightID: insightID, to: sourceID)
+            }
+        }
         Self.store(original)
+        // Persist the legacy fallback once; later failed additions must remain retryable.
+        if item.sourceMappedTurns == nil { update(id) { $0.sourceMappedTurns = baseline } }
+        runtime.conversationTreeMapping.enqueue(conversationID: sourceID,
+            turns: MacConversationMappingTurn.completed(in: original.branches), baseline: baseline, runtime: runtime,
+            onFailure: { [weak self] in self?.errorMessage = String(localized: "The Insight Tree couldn’t finish updating. Your conversation and existing tree are saved. Drag the conversation back to the sidebar to retry.") })
     }
 
     private static func store(_ conversation: InquiryConversation) {
@@ -373,7 +425,9 @@ enum WorktreeWork: Equatable { case queued, running }
         if hoveredID == id { hoveredID = nil }
         if let session = item.session {
             session.markDeleted()
-            MacApplicationRuntime.shared.modelTasks.cancelTasks { $0.conversationID == session.id }
+            MacApplicationRuntime.shared.modelTasks.cancelTasks {
+                $0.conversationID == session.id && (item.sourceConversationID == nil || !$0.kind.isInsightTreeTask)
+            }
         }
         if commandTargetID == id { closeCommand() }
         items.removeAll { $0.id == id }
@@ -465,6 +519,7 @@ enum WorktreeWork: Equatable { case queued, running }
         item.visibleTurnLimit = 5
         item.sourceConversationID = conversationID
         item.sourceTitle = conversation.title
+        item.sourceMappedTurns = MacConversationMappingTurn.fingerprints(in: conversation.branches)
         item.size = lastWindowSize ?? CGSize(width: WorktreeItemView.cardWidth, height: WorktreeItemView.cardMaxHeight)
         items.append(item)
         let id = item.id
@@ -623,9 +678,9 @@ enum WorktreeWork: Equatable { case queued, running }
     /// Bumped by `/file`; the page opens its file browser in response.
     var fileRequest = 0
 
-    func closeCommand(animated: Bool = true) {
+    func closeCommand(animated: Bool = true, pulses: Bool = true) {
         guard isCommandOpen else { return }
-        if let origin = commandOrigin {
+        if pulses, let origin = commandOrigin {
             pulse(at: CGPoint(x: origin.x + commandFieldSize.width / 2, y: origin.y + commandFieldSize.height / 2))
         }
         var transaction = Transaction(animation: animated ? .easeOut(duration: 0.25) : nil)
@@ -661,7 +716,9 @@ enum WorktreeWork: Equatable { case queued, running }
         }
         // A command that makes something replaces the field in place, without fading.
         let origin = commandOrigin
-        closeCommand(animated: !commands.contains(where: \.isObjectDependent))
+        // A heading supplies its own arrival ripple; closing its command is the same action.
+        let makesHeading = commands.contains { if case .heading = $0 { return true }; return false }
+        closeCommand(animated: !commands.contains(where: \.isObjectDependent), pulses: !makesHeading)
         run(commands, on: targets, at: origin, runtime: runtime)
     }
 

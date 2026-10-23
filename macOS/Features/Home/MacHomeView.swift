@@ -28,6 +28,7 @@ struct MacHomeView: View {
     @State private var yourQuote: YourQuoteCard?
     @State private var bridge: HomeInsightBridgeSuggestion?
     @State private var vineParallax = HomeVineParallax()
+    @State private var isSingleColumn = false
     @Environment(\.isBootPageRevealAnimating) private var isPageRevealed
 
     private var regularConversations: [InquiryConversation] { conversations.filter { !$0.isStudyTopic } }
@@ -43,40 +44,62 @@ struct MacHomeView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 56) {
-                ViewThatFits(in: .horizontal) {
-                    // The greeting and the calendar share one row, 84 points apart.
-                    HStack(alignment: .center, spacing: 84) {
-                        MacHomeHeader()
-                        calendar
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 72) {
+                if isSingleColumn {
                     VStack(alignment: .leading, spacing: 48) {
                         MacHomeHeader()
-                        calendar
+                        ViewThatFits(in: .horizontal) {
+                            calendarRow
+                            calendarStack
+                        }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    ViewThatFits(in: .horizontal) {
+                        // The greeting and the calendar share one row, 84 points apart.
+                        HStack(alignment: .center, spacing: 84) {
+                            MacHomeHeader()
+                            calendarRow
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        // Narrower: the stats drop below the calendar, and the greeting lines up with its top.
+                        HStack(alignment: .top, spacing: 84) {
+                            MacHomeHeader()
+                            calendarStack
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .top, spacing: 40) {
-                        leadingColumn.frame(minWidth: 280, idealWidth: 280, maxWidth: .infinity)
-                        trailingColumn.frame(minWidth: 280, idealWidth: 280, maxWidth: .infinity)
+                // The question of the day takes a row of its own.
+                MacHomeModelDownloadCard()
+                if let questionOfTheDay {
+                    // Alone in its row, but only as wide as one column's cards.
+                    columns(stackedSpacing: 0) {
+                        HomeFigmaQuestionCard(question: questionOfTheDay.question, surfaceColor: AngroveTheme.Colors.canvasSecondary) {
+                            onStart(questionOfTheDay.conversationRequest)
+                        }
+                        .macHomeHover()
+                    } trailing: {
+                        Color.clear.frame(height: 0)
                     }
-                    VStack(alignment: .leading, spacing: 56) {
-                        leadingColumn
-                        trailingColumn
-                    }
+                    .transition(.blurFade)
                 }
+                columns { leadingColumn } trailing: { trailingColumn }
+                readingSection
             }
-            .frame(maxWidth: MacConversationStyle.pageContentMaxWidth, alignment: .leading)
+            .frame(maxWidth: Self.contentMaxWidth, alignment: .leading)
+            // Once the cards stack, the calendar moves under the greeting and the vine shrinks.
+            .onGeometryChange(for: Bool.self) { $0.size.width < Self.twoColumnMinWidth } action: { isSingleColumn = $0 }
             .padding(.horizontal, MacConversationStyle.pageHorizontalPadding)
             .padding(.top, MacConversationStyle.pageTopPadding)
-            .padding(.bottom, 64)
+            // Clears the floating New Conversation control at the bottom of the window.
+            .padding(.bottom, 140)
+            .macOverlayScroller()
             .frame(maxWidth: .infinity)
             .zIndex(1)
             // The vine sits on its own layer beneath all of the page's content.
             .background(alignment: .topTrailing) {
-                HomeVineWind(width: 211, parallax: vineParallax)
+                // In two columns, twice the iPhone's size, so the vine reaches down into the question row.
+                HomeVineWind(width: isSingleColumn ? 211 : 422, parallax: vineParallax)
                     .padding(.top, 24)
                     .zIndex(-1)
             }
@@ -85,6 +108,7 @@ struct MacHomeView: View {
             vineParallax.scrollOffset = offset
         }
         .scrollIndicators(.automatic)
+        .environment(\.homeCardsHover, true)
         .background(AngroveTheme.Colors.canvas)
         .background {
             MacPageControls(actions: [MacPageControlAction(title: String(localized: "New Conversation"), symbol: "plus", action: onNewConversation)],
@@ -112,19 +136,33 @@ struct MacHomeView: View {
 
     // MARK: Columns
 
-    private var leadingColumn: some View {
-        VStack(alignment: .leading, spacing: 48) {
-            MacHomeModelDownloadCard()
-            if let questionOfTheDay {
-                HomeFigmaQuestionCard(question: questionOfTheDay.question, surfaceColor: AngroveTheme.Colors.canvasSecondary) {
-                    onStart(questionOfTheDay.conversationRequest)
-                }
-                .macHomeHover()
-                .transition(.blurFade)
-            }
+    /// Two 448-point columns and their gutter: wider than a reading page, narrower than the
+    /// card grids, so lines and cards keep a comfortable length on a large display.
+    static let contentMaxWidth: CGFloat = 960
+    /// Two 320-point columns and their gutter; below this the columns stack.
+    static let twoColumnMinWidth: CGFloat = 320 * 2 + 64
 
+    /// Side by side when the window allows, stacked otherwise; empty trailing content collapses.
+    private func columns(stackedSpacing: CGFloat = 64, @ViewBuilder _ leading: () -> some View,
+                         @ViewBuilder trailing: () -> some View) -> some View {
+        let leading = leading()
+        let trailing = trailing()
+        return ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 64) {
+                leading.frame(minWidth: 320, idealWidth: 320, maxWidth: .infinity)
+                trailing.frame(minWidth: 320, idealWidth: 320, maxWidth: .infinity)
+            }
+            VStack(alignment: .leading, spacing: stackedSpacing) {
+                leading
+                trailing
+            }
+        }
+    }
+
+    private var leadingColumn: some View {
+        VStack(alignment: .leading, spacing: 64) {
             if let featuredConversation {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 20) {
                     HomeFigmaSectionTitle("Where You Left Off")
                     MacHomeResumeCard(conversation: featuredConversation,
                                       latestText: HomeDashboardContent.latestText(in: featuredConversation),
@@ -155,22 +193,8 @@ struct MacHomeView: View {
     }
 
     private var trailingColumn: some View {
-        VStack(alignment: .leading, spacing: 48) {
-            if !readingWorks.isEmpty {
-                VStack(alignment: .leading, spacing: 24) {
-                    HomeFigmaSectionTitle("Read Material")
-                    ForEach(readingWorks, id: \.title) { work in
-                        Button {
-                            openInLibrary(LibraryNavigationRequest(sourceTitle: work.title, sourceName: work.sourceName))
-                        } label: { HomeFigmaReadingRow(work: work).contentShape(Rectangle()) }
-                        .buttonStyle(.plain)
-                        .pointerStyle(.link)
-                    }
-                }
-            }
-
+        VStack(alignment: .leading, spacing: 64) {
             if let todayInHistory {
-                HomeFigmaDivider()
                 HomeTodayInHistorySection(card: todayInHistory, isPageVisible: true) {
                     onStart(NewConversationRequest(question: todayInHistory.title, eyebrow: "TODAY IN HISTORY",
                         promptContext: todayInHistory.taggedPromptContext, subtitle: todayInHistory.description))
@@ -181,30 +205,48 @@ struct MacHomeView: View {
         }
     }
 
-    private var calendar: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .center, spacing: 24) {
-                HomeFigmaUsageGrid(month: usageMonth)
-                statsGrid
-            }
-            .fixedSize()
-            VStack(alignment: .leading, spacing: 24) {
-                HomeFigmaUsageGrid(month: usageMonth)
-                statsGrid
+    /// Reading suggestions close the page, below everything else.
+    @ViewBuilder private var readingSection: some View {
+        if !readingWorks.isEmpty {
+            VStack(alignment: .leading, spacing: 20) {
+                HomeFigmaSectionTitle("Read Material")
+                ForEach(readingWorks, id: \.title) { work in
+                    Button {
+                        openInLibrary(LibraryNavigationRequest(sourceTitle: work.title, sourceName: work.sourceName))
+                    } label: { HomeFigmaReadingRow(work: work).contentShape(Rectangle()) }
+                    .buttonStyle(.plain)
+                    .pointerStyle(.link)
+                }
             }
         }
+    }
+
+    private var calendarRow: some View {
+        HStack(alignment: .center, spacing: 24) {
+            HomeFigmaUsageGrid(month: usageMonth, cellSize: 22)
+            statsGrid
+        }
+        .fixedSize()
+    }
+
+    private var calendarStack: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            HomeFigmaUsageGrid(month: usageMonth, cellSize: 22)
+            statsGrid
+        }
+        .fixedSize()
     }
 
     private var statsGrid: some View {
         HomeFigmaStatsGrid(conversationCount: regularConversations.count, insightCount: savedInsights.count,
                            studyTopicCount: studyTopics.count, unfinishedCount: unfinishedCount)
-            .frame(width: 180)
+            .frame(width: 220)
     }
 
     @ViewBuilder private var discoveryColumn: some View {
         let sections = discoverySections
         if !sections.isEmpty {
-            VStack(alignment: .leading, spacing: 40) {
+            VStack(alignment: .leading, spacing: 48) {
                 ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
                     if index > 0 { HomeFigmaDivider() }
                     section.view
@@ -218,21 +260,19 @@ struct MacHomeView: View {
         if let bridge {
             result.append(MacHomeSection(id: "bridge", view: AnyView(
                 HomeInsightBridgeSection(suggestion: bridge, surfaceColor: AngroveTheme.Colors.canvasSecondary,
-                    onOpenInsight: { activeInsight = $0 }, onOpen: onOpenInsights)
-                    .macHomeHover())))
+                    onOpenInsight: { activeInsight = $0 }, onOpen: onOpenInsights))))
         }
         if let looseThread {
             result.append(MacHomeSection(id: "loose", view: AnyView(
                 HomeLooseThreadSection(card: looseThread, surfaceColor: AngroveTheme.Colors.canvasSecondary) {
                     onOpenConversation(looseThread.conversationID)
-                }
-                    .macHomeHover())))
+                })))
         }
         if let glossedTerm {
             result.append(MacHomeSection(id: "glossed", view: AnyView(
                 HomeGlossedTermSection(card: glossedTerm, surfaceColor: AngroveTheme.Colors.canvasSecondary) {
                     activeInsight = glossedTerm.concept
-                }.macHomeHover())))
+                })))
         }
         if let yourQuote {
             result.append(MacHomeSection(id: "quote", view: AnyView(HomeYourQuoteSection(card: yourQuote))))
@@ -492,20 +532,6 @@ private struct MacHomeInsightSheet: View {
     }
 }
 
-private struct MacHomeHover: ViewModifier {
-    @State private var isHovered = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func body(content: Content) -> some View {
-        content
-            .scaleEffect(isHovered && !reduceMotion ? 1.008 : 1)
-            .shadow(color: AngroveTheme.Colors.floatingShadow.opacity(isHovered ? 1 : 0), radius: 18, y: 6)
-            .animation(.springQuick, value: isHovered)
-            .onHover { isHovered = $0 }
-            .pointerStyle(.link)
-    }
-}
-
 private extension View {
-    func macHomeHover() -> some View { modifier(MacHomeHover()) }
+    func macHomeHover() -> some View { homeCardHover() }
 }

@@ -3,6 +3,14 @@ import Observation
 
 /// One complete handoff into a new conversation. Display text and hidden prompt context stay
 /// distinct, while metadata can no longer be left behind for an unrelated later request.
+/// A one-time request to fill and focus a conversation's first question field.
+struct TopQuestionPrefill: Equatable {
+    let id = UUID()
+    let text: String
+    /// Sends the question right away instead of leaving it for the person to send.
+    var submits = false
+}
+
 struct NewConversationRequest: Identifiable, Equatable {
     let id: UUID
     let question: String
@@ -12,6 +20,10 @@ struct NewConversationRequest: Identifiable, Equatable {
     let topicID: UUID?
     let isStudyTopic: Bool
     let quote: NewConversationInsightQuoteRequest?
+    /// Text placed in the new conversation's question field, focused and ready to send.
+    let draft: String
+    /// Sends `draft` as soon as the conversation opens.
+    let submitsDraft: Bool
 
     init(
         id: UUID = UUID(),
@@ -21,7 +33,9 @@ struct NewConversationRequest: Identifiable, Equatable {
         subtitle: String = "",
         topicID: UUID? = nil,
         isStudyTopic: Bool = false,
-        quote: NewConversationInsightQuoteRequest? = nil
+        quote: NewConversationInsightQuoteRequest? = nil,
+        draft: String = "",
+        submitsDraft: Bool = false
     ) {
         self.id = id
         self.question = question.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -31,6 +45,8 @@ struct NewConversationRequest: Identifiable, Equatable {
         self.topicID = topicID
         self.isStudyTopic = isStudyTopic
         self.quote = quote
+        self.draft = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.submitsDraft = submitsDraft
     }
 }
 

@@ -2202,8 +2202,8 @@ a { color: inherit; text-decoration: none; transition: color 0.25s ease, border-
   border-radius: 36px;
   color: rgba(var(--guide-ink-rgb), 0.5625);   /* paragraphText at 75% */
   overflow: clip;
-  /* The card's height follows its rows with the app's springLively feel. */
-  transition: height 0.5s cubic-bezier(0.34, 1.2, 0.64, 1);
+  /* Make room before arrivals sharpen in; shrink after departures blur out. */
+  transition: height 0.36s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .mt-card__head { display: flex; align-items: baseline; justify-content: space-between; }
 .mt-card__title { font-weight: 700; font-size: 18px; color: var(--heading); }
@@ -2219,13 +2219,23 @@ a { color: inherit; text-decoration: none; transition: color 0.25s ease, border-
   touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
-  transition: translate 0.45s cubic-bezier(0.34, 1.3, 0.64, 1), opacity 0.4s ease, transform 0.4s ease, scale 0.25s ease;
+  transition: translate 0.36s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.24s ease-out, filter 0.24s ease-out, scale 0.25s ease;
 }
 .mt-row[data-phase="upcoming"] { cursor: grab; }
-.mt-row.is-entering { opacity: 0; transition: none; }
-.mt-row.is-leaving { opacity: 0; transform: translateX(24px); pointer-events: none; }
+.mt-row.is-entering { opacity: 0; filter: blur(8px); pointer-events: none; }
+.mt-row.is-leaving { opacity: 0; filter: blur(8px); pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
+  .mt-card, .mt-row { transition: none; }
+  .mt-row.is-entering, .mt-row.is-leaving { filter: none; }
+}
 .mt-row.is-dragging { opacity: 0.35; scale: 0.97; transform-origin: left center; cursor: grabbing; }
 .mt-row__status { position: relative; width: 14px; height: 14px; flex: none; display: grid; place-items: center; }
+/* Status changes share the row's blur/fade timing without changing its size. */
+.mt-row__status-layer { position: absolute; inset: 0; display: grid; place-items: center; transition: opacity 0.24s ease-in-out, filter 0.24s ease-in-out; }
+.mt-row__status-layer.is-entering, .mt-row__status-layer.is-leaving { opacity: 0; filter: blur(8px); }
+@media (prefers-reduced-motion: reduce) {
+  .mt-row__status-layer.is-entering, .mt-row__status-layer.is-leaving { filter: none; }
+}
 .mt-row__title { flex: 1; min-width: 0; margin-right: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mt-row__action { width: 14px; height: 14px; flex: none; display: grid; place-items: center; padding: 0; border: 0; background: none; color: var(--paragraph); cursor: pointer; }
 .mt-row__action[hidden] { display: none; }
@@ -4303,7 +4313,7 @@ code.cmd { background: var(--canvas-secondary); }
 <script>
 // Insight Tree preview for the home page's "A Map of Your Own Thinking" section.
 //
-// A small port of the iOS app's Insight Tree canvas and Study mode (Aquinas-iOS-main):
+// A small port of the iOS app's Insight Tree canvas and Study mode (Angrove-iOS-main):
 //   - OrbitCamera.swift           perspective camera orbiting a target (project / turn)
 //   - InsightTreeCamera.swift     overhead tree camera (focal length 3990)
 //   - InsightClusterSpatialLayout Insights at ±45° elevation, alternating around the node
@@ -6095,7 +6105,7 @@ code.cmd { background: var(--canvas-secondary); }
   var card = root.querySelector('.mt-card');
   var NS = 'http://www.w3.org/2000/svg';
   var WORDS = ['prudence', 'grace', 'virtue', 'charity', 'habit'];
-  var EXIT = 400, STAGGER = 150, CLEAR_AFTER = 700;
+  var EXIT = 240, RESIZE = 360, CLEAR_AFTER = 700;
 
   var completed = [], current = null, upcoming = [];
   var nextId = 1, wordIndex = 0, runTimer = null, clearTimer = null;
@@ -6211,13 +6221,30 @@ code.cmd { background: var(--canvas-secondary); }
     if (row.dataset.phase === phase) return;
     row.dataset.phase = phase;
     var status = row.querySelector('.mt-row__status');
-    status.innerHTML = '';
-    status.appendChild(svg(ICON[phase], 'mt-icon mt-icon--' + phase));
+    // Keep the outgoing wheel alive while it fades into blur, and reveal the
+    // replacement in the same fixed slot. Never clear the icon between phases.
+    var outgoing = Array.prototype.slice.call(status.children).filter(function (layer) {
+      return !layer.classList.contains('is-leaving');
+    });
+    outgoing.forEach(function (layer) {
+      layer.classList.remove('is-entering');
+      layer.classList.add('is-leaving');
+      setTimeout(function () { layer.remove(); }, EXIT);
+    });
+    var layer = document.createElement('span');
+    layer.className = 'mt-row__status-layer' + (outgoing.length ? ' is-entering' : '');
+    layer.setAttribute('aria-hidden', 'true');
+    layer.appendChild(svg(ICON[phase], 'mt-icon mt-icon--' + phase));
     if (phase === 'current') {
       var spin = document.createElement('span');
       spin.className = 'mt-spin';
       spin.appendChild(svg(ICON.arc, 'mt-icon'));
-      status.appendChild(spin);
+      layer.appendChild(spin);
+    }
+    status.appendChild(layer);
+    if (outgoing.length) {
+      void layer.offsetWidth;
+      requestAnimationFrame(function () { layer.classList.remove('is-entering'); });
     }
     var action = row.querySelector('.mt-row__action');
     action.innerHTML = '';
@@ -6237,55 +6264,92 @@ code.cmd { background: var(--canvas-secondary); }
     var before = {};
     Object.keys(rows).forEach(function (id) { before[id] = rows[id].getBoundingClientRect().top; });
 
-    // Rows leave with a 24 pt slide and fade, staggered 0.15 s by their place in the list.
+    // Keep each departing row in its slot while it fades and blurs. Its removal
+    // starts the height/reflow animation only after the visual exit has finished.
     var keep = {};
     tasks.forEach(function (t) { keep[t.id] = true; });
-    var leaving = Object.keys(rows).filter(function (id) { return !keep[id]; });
-    leaving.forEach(function (id, n) {
-      var row = rows[id];
-      delete rows[id];
-      var index = Array.prototype.indexOf.call(rowsEl.children, row);
-      row.classList.add('is-leaving');
-      row.style.transitionDelay = reduceMotion ? '0s' : (Math.max(0, index) * STAGGER) / 1000 + 's';
-      setTimeout(function () { row.remove(); fitCard(); }, reduceMotion ? 0 : EXIT + index * STAGGER);
+    var leaving = Object.keys(rows).filter(function (id) {
+      return !keep[id] && !rows[id].classList.contains('is-leaving');
     });
+    leaving.forEach(function (id) {
+      var row = rows[id];
+      row.classList.add('is-leaving');
+      row.inert = true;
+      row.setAttribute('aria-hidden', 'true');
+    });
+    if (leaving.length) setTimeout(function () {
+      var positions = rowPositions();
+      leaving.forEach(function (id) { rows[id].remove(); delete rows[id]; });
+      updateEmpty();
+      fitCard();
+      animateReflow(positions);
+    }, reduceMotion ? 0 : EXIT);
 
     tasks.forEach(function (t, i) {
       var row = rows[t.id];
       if (!row) {
         row = rows[t.id] = makeRow(t);
         row.classList.add('is-entering');
-        requestAnimationFrame(function () { requestAnimationFrame(function () { row.classList.remove('is-entering'); }); });
+        row.inert = true;
+        setTimeout(function () {
+          if (row.classList.contains('is-leaving')) return;
+          row.classList.remove('is-entering');
+          row.inert = false;
+        }, reduceMotion ? 0 : RESIZE);
       }
       setPhase(row, t === current ? 'current' : completed.indexOf(t) >= 0 ? 'completed' : 'upcoming');
       row.classList.toggle('is-dragging', drag && drag.id === t.id);
     });
-    // Order: live rows in queue order; leaving rows stay where they are until they're gone.
+    // Reorder live rows around the slots still occupied by departing rows.
     var ordered = tasks.map(function (t) { return rows[t.id]; });
-    ordered.forEach(function (row, i) {
+    var slots = Array.prototype.slice.call(rowsEl.children).filter(function (row) {
+      return row !== empty && row.classList.contains('is-leaving');
+    });
+    var layout = ordered.slice();
+    slots.forEach(function (row) {
+      var index = Array.prototype.indexOf.call(rowsEl.children, row);
+      layout.splice(Math.min(index, layout.length), 0, row);
+    });
+    layout.forEach(function (row, i) {
       var at = rowsEl.children[i];
       if (at !== row) rowsEl.insertBefore(row, at || null);
     });
-
-    if (!tasks.length) { if (!empty.parentNode) rowsEl.appendChild(empty); }
-    else if (empty.parentNode) empty.remove();
+    updateEmpty();
 
     countEl.hidden = !tasks.length;
     countEl.textContent = (completed.length + (current ? 1 : 0)) + ' of ' + tasks.length;
     fitCard();
 
+    animateReflow(before);
+  }
+
+  function updateEmpty() {
+    // Show idle only once the last departing row has faded away.
+    if (!Object.keys(rows).length) {
+      if (!empty.parentNode) rowsEl.appendChild(empty);
+    } else if (empty.parentNode) empty.remove();
+  }
+
+  function rowPositions() {
+    var positions = {};
+    Object.keys(rows).forEach(function (id) { positions[id] = rows[id].getBoundingClientRect().top; });
+    return positions;
+  }
+
+  function animateReflow(before) {
     if (reduceMotion) return;
-    ordered.forEach(function (row) {
-      var was = before[row.dataset.id];
+    Object.keys(rows).forEach(function (id) {
+      var row = rows[id];
+      if (row.classList.contains('is-leaving')) return;
+      var was = before[id];
       if (was === undefined) return;
       var dy = was - row.getBoundingClientRect().top;
       if (!dy) return;
-      row.style.transition = 'none';
-      row.style.translate = '0 ' + dy + 'px';
-      requestAnimationFrame(function () {
-        row.style.transition = '';
-        row.style.translate = '';
-      });
+      // Animate translate alone so an interrupted reorder cannot suppress a row's fade.
+      if (row.reflow) row.reflow.cancel();
+      row.reflow = row.animate([
+        { translate: '0 ' + dy + 'px' }, { translate: '0 0' }
+      ], { duration: 360, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' });
     });
   }
 
@@ -6305,7 +6369,7 @@ code.cmd { background: var(--canvas-secondary); }
 
   var drag = null;
   function beginDrag(e, row, task) {
-    if (row.dataset.phase !== 'upcoming' || e.target.closest('button')) return;
+    if ((row.classList.contains('is-leaving') || row.classList.contains('is-entering')) || row.dataset.phase !== 'upcoming' || e.target.closest('button')) return;
     e.preventDefault();
     drag = { id: task.id, y: e.clientY, started: false, pointer: e.pointerId, row: row };
     row.setPointerCapture(e.pointerId);

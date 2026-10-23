@@ -296,6 +296,11 @@ struct MacConversationWorkspace: View {
                 }
                 presentCompletedDefinition()
             }
+            .onChange(of: initialQuote) { _, concept in
+                guard let concept else { return }
+                session.attachQuote(concept)
+                onInitialQuoteHandled()
+            }
             .onChange(of: initialBranchID) { _, _ in restoreBranchSelection() }
             .onChange(of: session.selectedBranch) { _, branchID in onBranchSelectionChange(branchID) }
             .onChange(of: completedDefinition?.id) { _, _ in presentCompletedDefinition() }
@@ -336,6 +341,13 @@ struct MacConversationWorkspace: View {
                     pane.applyShortcut(request.action, workspaceWidth: geometry.size.width)
                 }
                 if request.action == .focusQuestion { focusQuestionRequest += 1 }
+                if request.action == .submitQuestion {
+                    // After the new conversation's session has configured itself.
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(150))
+                        send()
+                    }
+                }
                 if request.action == .toggleContext { contextToggleRequest = request.id }
                 shortcutRequest = nil
             }

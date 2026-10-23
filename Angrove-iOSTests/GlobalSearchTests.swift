@@ -26,6 +26,25 @@ struct GlobalSearchTests {
         #expect(GlobalSearch.rank(passage) == 4)
     }
 
+    @Test("Pages are found by name under All only")
+    func pages() {
+        let all = GlobalSearch.results(for: "home page", scope: .all, conversations: [], insights: [],
+                                       studyTopics: [], pages: GlobalSearchPage.iPhonePages)
+        #expect(all.map(\.kind) == [.page(.home)])
+        let filtered = GlobalSearch.results(for: "home", scope: .conversations, conversations: [], insights: [],
+                                            studyTopics: [], pages: GlobalSearchPage.iPhonePages)
+        #expect(filtered.isEmpty)
+        #expect(!GlobalSearchPage.iPhonePages.contains(.boards))
+        #expect(Set(GlobalSearchPage.allCases.map(\.id)).count == GlobalSearchPage.allCases.count)
+    }
+
+    @Test("No-result actions draft a question or a /define command")
+    func actionDrafts() {
+        #expect(GlobalSearchAction.newConversation.draft(for: "Virtue") == "What is Virtue")
+        #expect(GlobalSearchAction.define.draft(for: "Virtue") == "/define Virtue")
+        #expect(NewConversationRequest(draft: "  What is Virtue ").draft == "What is Virtue")
+    }
+
     @Test("A scope limits results to its kind")
     func scopeFilters() {
         #expect(search("virtue", scope: .insights).map(\.kind) == [.insight])

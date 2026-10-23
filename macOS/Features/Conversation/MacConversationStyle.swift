@@ -56,6 +56,8 @@ struct MacIconView: View {
 /// Mac-specific additions to the shared visual language; shared colors and
 /// existing type styles continue to come from AngroveTheme.
 enum MacConversationStyle {
+    /// The topic eyebrow keeps its specified size instead of the shared 13pt desktop baseline.
+    static let studyTopicLabel = Font.custom("Figtree-Bold", fixedSize: 14)
     /// One size for the sidebar menu, response paragraphs, and native question editor.
     static let bodyFontSize: ConversationFontSizeOption = .medium
     /// The widest any page's content grows, matching the conversation column.

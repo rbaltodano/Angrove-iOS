@@ -469,7 +469,7 @@ struct InquiryControlDock: View {
                     .foregroundColor(AngroveTheme.Colors.searchIcon)
 
                 Text("Search")
-                    .font(BrandTypography.font("Figtree-SemiBold", size: 14))
+                    .font(GlobalSearchBarStyle.font)
                     .fixedSize(horizontal: true, vertical: false)
             }
             .foregroundColor(AngroveTheme.Colors.paragraphText.opacity(0.75))
@@ -494,6 +494,7 @@ struct InquiryControlDock: View {
                 .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
                 .accessibilityLabel("Dismiss Insight search")
 
+                GlobalSearchGlass()
                 CanvasSearchTextField(text: text)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -508,7 +509,7 @@ struct InquiryControlDock: View {
                 .accessibilityLabel("Previous search result")
 
                 Text(searchResultFraction)
-                    .font(BrandTypography.font("Figtree-SemiBold", size: 14))
+                    .font(GlobalSearchBarStyle.font)
                     .monospacedDigit()
                     .fixedSize()
 
@@ -523,12 +524,8 @@ struct InquiryControlDock: View {
             .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
             .foregroundColor(AngroveTheme.Colors.placeholderText)
         }
-        .padding(.horizontal, 32)
-        .padding(.vertical, 24)
         .frame(maxWidth: .infinity)
-        .background(AngroveTheme.Colors.canvasSecondary)
-        .clipShape(Capsule())
-        .overlay(Capsule().stroke(AngroveTheme.Colors.controlBorder, lineWidth: 1))
+        .modifier(GlobalSearchBarStyle())
         .modifier(FloatingControlPressFeedback(isButtonPressed: isControlButtonPressed))
     }
 
@@ -905,7 +902,7 @@ private struct CanvasSearchTextField: View {
         )
         .textFieldStyle(.plain)
         .focusEffectDisabled()
-        .font(BrandTypography.font("Figtree-SemiBold", size: 14))
+        .font(GlobalSearchBarStyle.font)
         .foregroundColor(AngroveTheme.Colors.paragraphText)
         #if os(iOS)
         .textInputAutocapitalization(.never)

@@ -9,8 +9,14 @@ struct MacTreeUpdateNotificationRenderTests {
         for scheme in [ColorScheme.light, .dark] {
             let view = VStack {
                 Spacer()
-                TreeUpdateNotificationPill(title: "Update Tree?", onUpdate: {}, onKeepCurrent: {})
-                    .padding(24)
+                TreeUpdateNotificationPill(title: "Update?", onUpdate: {}, onKeepCurrent: {})
+                ConfirmationNotificationPill(
+                    title: "Return?", iconName: "arrow.uturn.backward",
+                    width: ModelCompletionNotificationList.cardWidth,
+                    confirmLabel: "Return to Conversation", declineLabel: "Dismiss return notification",
+                    onConfirm: {}, onDecline: {}
+                )
+                .padding(.bottom, 16)
             }
             .frame(width: 320, height: 150)
             .background(AngroveTheme.Colors.canvas)

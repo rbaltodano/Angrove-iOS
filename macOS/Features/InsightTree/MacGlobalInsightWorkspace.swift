@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MacGlobalInsightWorkspace: View {
+    @Environment(\.modelCompletionNotifications) private var completionNotifications
     @State private var session = MacConversationState()
     @State private var controls = MacTreeControls()
     @State private var offersUpdate = false
@@ -8,6 +9,7 @@ struct MacGlobalInsightWorkspace: View {
     @State private var acceptedGlobalUpdateIDs: Set<UUID> = []
     @State private var showsConnectionComposer = false
     @State private var connectionQuestion = ""
+    @State private var showsConnectionTopicPicker = false
     @State private var askConcept: ConceptDefinition?
     @State private var showsConversationPicker = false
     private let runtime = MacApplicationRuntime.shared
@@ -35,9 +37,10 @@ struct MacGlobalInsightWorkspace: View {
             }
             .transformPreference(ModelControlsPreferenceKey.self) { configuration in
                 guard configuration != nil else { return }
-                configuration?.confirmationTitle = offersUpdate || offersTopicUpdate ? "Update Tree?" : nil
+                configuration?.confirmationTitle = offersUpdate || offersTopicUpdate ? "Update?" : nil
                 configuration?.onConfirm = confirmTreeUpdate
                 configuration?.onDecline = declineTreeUpdate
+                configuration?.controlsUpdateKey += "|tree-update-\(topicID?.uuidString ?? "global")"
             }
             .macPageFade()
             .overlayPreferenceValue(ModelControlsPreferenceKey.self) { configuration in
@@ -66,6 +69,16 @@ struct MacGlobalInsightWorkspace: View {
                     acknowledgedLibraryIDs: GlobalInsightTreeUpdatePrompt.loadAcknowledgedLibraryIDs(),
                     treeNeedsUpdate: ids != Set(session.concepts.map(\.id)))
             }
+            .onChange(of: completionNotifications?.savedInsightIDs) { _, _ in
+                if let topicID {
+                    offersTopicUpdate = StudyTopicInsightTreeBuilder.needsUpdate(accepted: session.concepts, incoming: topicSnapshot(topicID))
+                } else {
+                    let ids = Set(InsightLibraryStore.load().map(\.id))
+                    offersUpdate = GlobalInsightTreeUpdatePrompt.shouldOffer(libraryIDs: ids,
+                        acknowledgedLibraryIDs: GlobalInsightTreeUpdatePrompt.loadAcknowledgedLibraryIDs(),
+                        treeNeedsUpdate: ids != Set(session.concepts.map(\.id)))
+                }
+            }
             .onChange(of: session.connectionConcepts) { _, concepts in
                 if concepts.count >= 2 { showsConnectionComposer = true }
             }
@@ -74,7 +87,13 @@ struct MacGlobalInsightWorkspace: View {
                     HStack { MacPageHeading(title: "Inquire Connection"); Spacer(); Button("Done") { showsConnectionComposer = false } }.padding(24)
                     MacConversationView(showsFixture: false, session: session, onSend: {
                         if session.send(connectionQuestion, runtime: runtime) { connectionQuestion = "" }
-                    }, question: $connectionQuestion)
+                    }, question: $connectionQuestion, onChooseTopic: { showsConnectionTopicPicker = true })
+                    .sheet(isPresented: $showsConnectionTopicPicker) {
+                        MacConversationTopicPicker(selectedID: session.studyTopicID) { topicID in
+                            session.assignTopic(topicID)
+                            showsConnectionTopicPicker = false
+                        }
+                    }
                 }
                 .frame(width: 600, height: 650)
                 .background(AngroveTheme.Colors.canvas)

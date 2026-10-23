@@ -1,9 +1,34 @@
+import AppKit
+import SwiftUI
 import Foundation
 import Testing
 @testable import AngroveMac
 
 @MainActor
 struct MacStudyTopicsTests {
+    @Test func newTopicRequestOpensANewDraftFromTheTopicPage() async throws {
+        let old = StudyTopic(title: "Existing")
+        let state = MacStudyTopicsState(topics: [old], selectedTopicID: old.id, save: { _ in })
+        func page(_ request: UUID?) -> MacStudyTopicsView {
+            MacStudyTopicsView(conversations: [], onOpenConversation: { _ in }, onNewConversation: { _ in },
+                onTopicsChanged: {}, topics: [old], creationRequest: request, state: state,
+                runtime: MacApplicationRuntime(testModel: UnavailableAngroveModel(), queue: ModelTaskQueue()))
+        }
+        let host = NSHostingView(rootView: page(nil))
+        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 1000, height: 800),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        defer { window.contentView = nil; window.close() }
+        try await Task.sleep(for: .milliseconds(100))
+        host.rootView = page(UUID())
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(state.topics.count == 2)
+        #expect(state.selectedTopicID != old.id)
+        #expect(state.titleFocusRequest > 0)
+        #expect(state.topics.contains(old))
+    }
+
     @Test func deletingATopicUnfilesOnlyItsConversations() throws {
         let topicID = UUID()
         let otherTopicID = UUID()

@@ -14,6 +14,15 @@ extension Notification.Name {
 
 @MainActor
 enum MacCompletionNotifications {
+    static func isViewing(_ id: UUID, destination: MacDestination,
+                          conversationID: UUID, board: WorktreeBoard?) -> Bool {
+        switch destination {
+        case .conversations: conversationID == id
+        case .worktree: board?.items.contains { $0.session?.id == id } == true
+        default: false
+        }
+    }
+
     static func postQuestion(
         _ task: ModelTaskSnapshot,
         to center: ModelCompletionNotificationCenter,
