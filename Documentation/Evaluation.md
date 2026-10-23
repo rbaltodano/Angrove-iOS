@@ -103,7 +103,7 @@ observations on that build, not a test run of today's working tree.
 | Model failure and evidence routing | `EvidenceAblationTests`, `DefinedTermMarkupTests` |
 | Queued labels and semantic membership | `InsightTreeLabelQueueTests`, `InsightTreeSemanticMembershipTests` |
 | Durable conversation identity and late-result reconciliation | `InquiryPersistenceStoreTests`, `StreamingMessageNavigationTests` |
-| Development encryption, migration, key loss and widget separation | `PersonalDataEncryptionTests`, `DailyQuestionWidgetStoreTests` |
+| Implemented storage encryption, migration, key loss and widget separation | `PersonalDataEncryptionTests`, `DailyQuestionWidgetStoreTests` |
 
 Asset-dependent tests explicitly skip without the gitignored grounding export. Test presence
 is not a claim that a new full suite has passed. The encryption change's focused simulator

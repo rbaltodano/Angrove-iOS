@@ -4,6 +4,11 @@ Dated working records, kept as written. They show how release and model decision
 checked. Some describe states that later changed; the [documentation index](../README.md) points to
 the current descriptions.
 
+**Current encryption status (October 23, 2026): implemented on iPhone and Mac.** Older release
+plans below may list encryption integration as pending. The [encryption guide](../Data-Encryption.md)
+records the implemented storage coverage and the remaining physical-device lock and
+backup/restore validation; historical checklist items are not the current implementation status.
+
 ## Release and App Store
 
 | Record | Date |
@@ -41,4 +46,4 @@ the current descriptions.
 
 ## Other
 
-- [Product walkthrough recording plan](Demo-Outline.md)
+- [Product walkthrough recordings and original outline](Demo-Outline.md)

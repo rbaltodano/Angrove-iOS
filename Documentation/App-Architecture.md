@@ -200,6 +200,12 @@ structural refactor, not a change to graph layout, gesture policy, discovery sto
 
 ## Persistence boundaries
 
+**Personal-data encryption is implemented on both iPhone and Mac.** Both targets use the
+shared AES-256-GCM persistence boundaries and the `AngroveCore` cipher, with separate personal
+Keychain services and storage roots. The paths below describe iOS; Mac uses its own
+`Application Support/Angrove-macOS` root. See [Data Encryption](Data-Encryption.md) for current
+coverage, readable-export exceptions, and remaining device-validation requirements.
+
 Conversation branches and chat blocks are persisted as one Codable snapshot in
 `Application Support/Aquinas/ConversationStore/conversations-v1.json`. The file store writes
 atomically with AES-256-GCM encryption and Complete File Protection, keeps up to five rotating

@@ -1,9 +1,11 @@
-# Product walkthrough recording plan
+# Product walkthrough recordings
 
-The maintainer will record the full demo. Until then, the README uses existing screenshots and
-links to the real Study clip; it does not advertise an unrecorded video.
+The recorded walkthroughs are linked in the [README](../../README.md#watch-angrove-in-use):
+a 1:49 conversation and Insight Tree demo, a 0:24 saved-ideas demo, and a 0:50 read-aloud demo,
+captured October 8, 2026. The [October 22 media set](../Screenshots/2026-10-22/README.md)
+also includes Mac Boards recordings.
 
-Aim for 90–120 seconds, recorded on the current build with staged, non-personal data:
+The original outline below records the intended narrative for a 90–120 second walkthrough:
 
 | Time | Show | Explain |
 | --- | --- | --- |
@@ -18,7 +20,3 @@ Use a question whose answer and citations you have checked against the bundled L
 presenting the website's editorial examples as live model output. Show the build, device and
 capture date in the description. If demonstrating encryption, explain saved-data coverage rather
 than suggesting an unlocked screen or exported JSON is encrypted.
-
-When the recording is ready, add a poster image and a link in the README's “A look inside” section,
-and add a captioned video in the case study's product walkthrough section. Keep captions or a
-short transcript available, and preserve the static screenshots for readers who skip video.

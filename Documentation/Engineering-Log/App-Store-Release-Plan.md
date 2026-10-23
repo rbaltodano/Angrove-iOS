@@ -167,8 +167,6 @@ Check off with: archived manifest/privacy report, final policy, declarations and
 - [ ] Explain AI limitations and source checking accurately, without unsupported quality claims.
 - [ ] Draft reviewer notes: install/model delivery expectations, how to ask a question, inspect a
   source, save an Insight and use Study; include model/build versions and offline behavior.
-- [ ] Ryan records the portfolio walkthrough using [Demo-Outline.md](Demo-Outline.md). This is
-  useful for hiring and optional store preview work, not itself a mandatory submission gate.
 - [ ] Ryan confirms final pricing, countries, contact details and release timing.
 
 Check off with: reviewed store copy, valid links, actual screenshots and usable reviewer steps.
@@ -201,6 +199,6 @@ Check off with: reviewed store copy, valid links, actual screenshots and usable 
 
 Codex can implement delivery, recovery UI, manifests, release configuration fixes and regression
 checks, and prepare store/reviewer/policy drafts. Account-holder agreements and declarations,
-product scope decisions, owner-only phone interactions and the demo recording need Ryan.
+product scope decisions and owner-only phone interactions need Ryan.
 Access-dependent uploads can be assisted once access is available. No hosting account or
 self-hosting budget is planned for the selected Apple-hosted route.

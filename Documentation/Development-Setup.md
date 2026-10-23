@@ -1,8 +1,11 @@
 # Build and run Angrove
 
-Angrove is in development. A source checkout can build the interface and run asset-independent
-regression tests, but it does not contain the large model or full Library export. There is no
-server to configure, account to create, or API key to supply.
+The iPhone app is in public beta on [TestFlight](https://testflight.apple.com/join/qHDFeAUa);
+the App Store release is next, and the Mac app remains in development. This guide covers the
+source checkout, which can include changes beyond the distributed beta. A checkout can build
+the interface and run asset-independent regression tests, but it does not contain the large
+model or full Library export. There is no server to configure, account to create, or API key
+to supply.
 
 ## Prerequisites
 

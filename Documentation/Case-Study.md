@@ -4,6 +4,11 @@
 integration, retrieval, persistence and evaluation. **Status:** iPhone public beta on
 [TestFlight](https://testflight.apple.com/join/qHDFeAUa); App Store release next; Mac app in progress. [Website](https://angrove.app/) · [Product guide](https://angrove.app/guide.html)
 
+The repository includes changes beyond the distributed iPhone beta. Its strongest implementation
+evidence is native SwiftUI, local ML, retrieval, and persistence; it does not demonstrate a
+deployed web application or production backend operation. Public beta availability and the
+engineering results below do not establish an audience size or a user-outcome result.
+
 ## The problem and product hypothesis
 
 A chat transcript is easy to create and difficult to build understanding around. Angrove's
@@ -51,6 +56,15 @@ instances and unsafe native teardown; explicit failure states avoid fabricated f
 
 ## Decisions and tradeoffs
 
+**Moving the backend onto the device.** Earlier development used a Mac-hosted Python/FastAPI
+service for inference and tree operations. The current app removes those HTTP clients and runs
+generation, embeddings, retrieval, and tree work locally. This supports private, offline use
+without an account or server dependency, at the cost of fitting model memory and execution into
+the phone's thermal and lifecycle limits. The backend repository remains useful for corpus
+preparation, model conversion, and evaluation; it is no longer a live app dependency. The
+[runtime boundary record](https://github.com/rbaltodano/Angrove-Foundations/blob/main/MODEL-INTEGRATION.md)
+separates the current architecture from the earlier service contracts.
+
 **Local retrieval rather than a hosted vector database.** A Core ML MiniLM encoder creates
 384-dimensional vectors. A memory-mapped passage matrix supports a vectorized cosine scan.
 Source routing and passage locators complement semantic ranking: similarity can match the city
@@ -74,8 +88,9 @@ median answer times increased from 23.0 to 43.7 seconds on one set and 23.5 to 4
 That supported leaving thinking off by default. These are pattern-scored development comparisons,
 not independent accuracy or phone-speed claims. See [methodology and hashed evidence](Evaluation.md).
 
-**Encrypted local storage.** The development encryption implementation uses
-AES-256-GCM and Keychain-managed keys for personal stores, with a separate widget key. Startup
+**Encrypted local storage — implemented on iPhone and Mac.** Both apps use
+AES-256-GCM and Keychain-managed keys for personal stores, with separate personal keys per
+platform and a separate widget key. Repository tests cover the implementation. Startup
 validates ciphertext before migrating plaintext. Deliberate JSON exports remain readable;
 display, screenshots and Apple-managed backup protection are separate boundaries. Physical-device lock and backup-restoration validation are still pending release work.
 See [coverage and recovery](Data-Encryption.md).
@@ -91,9 +106,10 @@ process-scoped model queue. Separate test targets cover platform behavior.
 This keeps fixes to common behavior in one implementation while allowing each interface to fit
 its device. The [workspace layout](Workspace-Layout.md) documents ownership and build commands;
 [Mac navigation tests](../Angrove-macOSTests/MacPageHistoryTests.swift) exercise history and draft
-preservation without opening personal stores. The linked screenshots and recordings document
-the iPhone experience. The Mac front end remains in progress; no Mac visual showcase is
-included yet.
+preservation without opening personal stores. The [October 22 media set](Screenshots/2026-10-22/README.md)
+includes Mac Boards, Home, and split conversation/tree views alongside iPhone captures.
+The Mac front end remains in progress; its development recordings do not establish Mac release
+availability.
 
 ## Models and runtimes explored
 
@@ -125,10 +141,18 @@ summary preserves the exact experiment build and hashes; it does not claim today
 been re-evaluated. Historical phone scores whose raw runs were lost are omitted from the public
 headline results.
 
-There is no published adoption, retention or learning-outcome evidence yet. The next product
-validation is whether people revisit saved Insights, check source passages and find the map
-useful. The next engineering gates are sustained phone memory/thermal/lifecycle performance,
-model delivery, encryption migration and backup recovery, and a supported-device matrix.
+There is no published adoption, retention or learning-outcome evidence yet. Public TestFlight
+availability establishes access to a beta, not measured use. The recorded latency comparison is
+an engineering decision based on development fixtures; it is not evidence of improved learning
+or feedback from beta participants.
+
+The next product validation is whether people revisit saved Insights, check source passages and
+find the map useful. A useful follow-up would record the beta build, participant context, tasks,
+observed behavior, and resulting design changes before claiming a user-driven improvement.
+The remaining engineering validation includes sustained phone memory/thermal/lifecycle
+performance, the distributed model-delivery path, encryption migration and backup recovery,
+and a supported-device matrix. Encryption itself is already implemented; these are validation
+requirements, not a plan to add it.
 
 ## What to inspect
 

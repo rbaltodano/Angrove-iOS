@@ -19,7 +19,7 @@ for how it is built and measured.
 | [Workspace layout](Workspace-Layout.md) | How `iOS/`, `macOS/`, and `Shared/` divide the two apps |
 | [Model runtime](Model-Runtime.md) | The process-scoped LiteRT-LM runtime, task queue, and recovery |
 | [Apple-hosted model delivery](Apple-Hosted-Model-Delivery.md) | Shipping the multi-gigabyte model as an Apple-hosted asset pack |
-| [Data encryption](Data-Encryption.md) | AES-256-GCM storage, Keychain keys, and recovery |
+| [Data encryption](Data-Encryption.md) | Implemented on iPhone and Mac: AES-256-GCM storage, Keychain keys, coverage, and recovery |
 | [Attachment storage migration](Attachment-Storage-Migration.md) | Moving attachments to immutable, encrypted originals |
 | [LiteRT privacy and crypto audit](LiteRT-Privacy-Crypto-Audit.md) | Privacy-manifest and encryption review of the vendored runtime binaries |
 | [Complete Library reader](Complete-Library-Reader.md) | Full-text reading of the 37 bundled works |

@@ -1,8 +1,9 @@
 # Personal data encryption
 
-**Status (October 8, 2026):** integrated into the app's storage and covered by tests in the
-repository. Physical-device lock and backup-restore checks remain pending, and the app is not
-publicly released yet. This document records the storage boundary.
+**Status (October 23, 2026): implemented on iPhone and Mac.** AES-256-GCM encryption is
+integrated into both apps' shared persistence and covered by repository tests. Physical-device
+lock and backup-restore checks remain pending validation. This document records the current
+storage boundary; dated engineering-log checklists describe their historical state.
 
 Angrove's saved personal data is **Fully Encrypted on your device** using authenticated
 AES-256-GCM through Apple CryptoKit. Generation and retrieval run locally; there is no model
@@ -13,7 +14,8 @@ server or server-side user store.
 Encryption covers conversation questions, responses, drafts, hidden context and attached image
 bytes; saved Insights and definitions; Study Topics and their attachments; tree topology, labels,
 seeds and embeddings; discovery and reading history; personalized Home cards and usage records;
-the user's name and custom instructions; and every rotating conversation backup. The shared
+the user's name and custom instructions; Mac Boards and their saved content; and every rotating
+conversation backup. The shared
 Question of the Day widget text is encrypted with a separate key. Opt-in debug generation
 recordings are also encrypted, and existing recordings migrate at startup.
 
@@ -32,17 +34,24 @@ applies to app storage.
 - A random 256-bit personal-data key lives in the app's private Keychain access group with
   `kSecAttrAccessibleWhenUnlocked`. It is not synchronized through iCloud Keychain, embedded in
   the binary, written alongside ciphertext or exported by the app.
+- iPhone and Mac use separate personal Keychain services and storage roots. Both compile the
+  cipher and Keychain implementation from
+  [`AngroveCore`](../Packages/AngroveCore/Sources/AngroveCore/LocalDataEncryption.swift), with
+  migration and startup validation in
+  [`PersonalDataPreparation`](../Shared/Persistence/PersonalDataPreparation.swift).
 - The widget has its own random 256-bit key in the existing App Group. Its
   `kSecAttrAccessibleAfterFirstUnlock` policy allows Lock Screen widget refreshes after the first
   device unlock following a restart. The extension cannot access the personal-data key.
 - Personal property-list values are encrypted before entering UserDefaults. Ordinary UI
   preferences remain compatible with AppStorage; personal strings use encrypted bindings.
-- Personal files use atomic replacement and Complete File Protection in addition to AES-GCM.
+- Personal files use atomic replacement and, on iOS, Complete File Protection in addition to AES-GCM.
   Historical `.json` filenames remain stable but now contain binary ciphertext.
 - Before mounting the app interface, startup verifies all existing ciphertext before migrating
   legacy plaintext. Replacement ciphertext is authenticated before the legacy representation is
-  overwritten. Backup modification times survive migration. A failure preserves stored data and
-  shows a retry screen. Runtime storage failures block further preference writes.
+  overwritten. Backup modification times survive migration. If no existing ciphertext can be
+  verified, startup preserves the files and shows recovery controls. Once the key is verified,
+  damaged files can be preserved separately so valid conversation backups remain available.
+  Runtime integrity failures block further preference writes.
 
 ## Backup and recovery
 

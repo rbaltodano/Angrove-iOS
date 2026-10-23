@@ -34,6 +34,11 @@ and a native Mac app in progress. **The iPhone app is in public beta on
 [Website](https://angrove.app/) · [User Guide](https://angrove.app/guide.html) ·
 [FAQ](https://angrove.app/faq.html)
 
+The beta is available to try; general App Store availability is still pending. This repository
+also contains ongoing work beyond the distributed beta, including the Mac app. Screenshots,
+tests, and development evaluations document that work; they are not adoption or learning-outcome
+metrics. See the [case study's evidence and open questions](Documentation/Case-Study.md#evidence-and-what-remains-open).
+
 ## Watch Angrove in use
 
 Three iPhone app recordings captured October 8, 2026. Select a preview to watch the clip
@@ -108,6 +113,7 @@ These are useful starting points in the implementation:
 | Runtime ownership and cancellation | [Shared task queue](Shared/Features/Conversation/ModelTaskQueue.swift), [iPhone runtime](iOS/Services/AngroveApplicationRuntime.swift), [Mac runtime](macOS/Platform/MacApplicationRuntime.swift) |
 | Source-grounded answers | [Local retrieval](Shared/Services/MiniLMGroundingProvider.swift), [retrieval regressions](Angrove-iOSTests/MiniLMGroundingRetrievalTests.swift) |
 | Durable conversations and saved ideas | [Shared persistence](Shared/Persistence), [migration regressions](Angrove-iOSTests/EncryptedAttachmentMigrationTests.swift), [architecture](Documentation/App-Architecture.md) |
+| Implemented storage encryption | [Coverage and recovery](Documentation/Data-Encryption.md), [AES-GCM and Keychain implementation](Packages/AngroveCore/Sources/AngroveCore/LocalDataEncryption.swift), [encryption regressions](Angrove-iOSTests/PersonalDataEncryptionTests.swift) |
 | Mac port in progress | [Mac workspace](macOS/Features/MacWorkspaceView.swift), [navigation history tests](Angrove-macOSTests/MacPageHistoryTests.swift) |
 | Measured model tradeoffs | [Evaluation methodology and artifacts](Documentation/Evaluation.md) |
 
@@ -142,11 +148,13 @@ Generation, source retrieval, and Insight Tree work run on-device. Conversations
 Insights stay in the app's local storage; answering questions and building the tree make no
 network requests. Once the model is installed, Angrove works offline. No account is required.
 
-**Encrypted local storage.** Angrove encrypts saved personal data on the device with
-AES-256-GCM, including conversations, attachments, Insights, Study Topics, personal settings, and
-local backups. Keys are protected by Apple Keychain. User-created conversation exports are
-readable JSON. The encryption is integrated into the app's storage and covered by tests;
-physical-device lock and backup-restore validation is still pending. See [encryption coverage and recovery](Documentation/Data-Encryption.md).
+**Encrypted local storage — implemented on iPhone and Mac.** Angrove encrypts saved personal
+data on the device with AES-256-GCM, including conversations, attachments, Insights, Study Topics,
+Boards, reading history, personal settings, and local backups. Keys are protected by Apple
+Keychain, with separate personal-data keys for each platform and a separate widget key.
+User-created conversation exports are readable JSON. Encryption is integrated into storage
+and covered by repository tests. Physical-device lock and backup-restore validation is still
+pending. See [encryption coverage and recovery](Documentation/Data-Encryption.md).
 
 The current model is **Gemma 4 E4B, instruction-tuned, from the LiteRT Community package**,
 running through Google's LiteRT-LM runtime. It is not an Angrove fine-tune. Angrove’s default
@@ -212,6 +220,14 @@ For model-evaluation methodology and recorded evidence, see [Evaluation](Documen
 The app is one part of a three-repository project. The backend repository holds offline tooling
 for the grounding corpus, model conversion, and evaluation; the app does not call it at runtime.
 The Foundations repository holds the shared product and architecture contracts.
+
+**Backend history.** Earlier development used a Mac-hosted Python/FastAPI service for model
+and tree operations. Those contracts were moved on-device, and the app's HTTP clients were
+removed to support private, offline use without a running server. The tradeoff is that model
+memory, thermal limits, retrieval assets, and lifecycle recovery must fit the person's device.
+The Python work remains part of the project's development history and offline toolchain;
+it is not a production service required by the current app. See the
+[architecture decision](Documentation/Case-Study.md#decisions-and-tradeoffs).
 
 | Repository | Role |
 | --- | --- |
