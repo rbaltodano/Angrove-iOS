@@ -63,9 +63,9 @@ Boards bring notes, images, saved Insights, and conversations into a spatial stu
   <a href="Documentation/Screenshots/2026-10-22/mac-split-conversation-view.png"><img src="Documentation/Screenshots/2026-10-22/mac-split-conversation-view.png" alt="Mac conversation beside its Insight Tree" width="49%"></a>
 </p>
 
-| Lay your ideas out · 0:11 | Learn easier · 0:19 |
+| Lay your ideas out · 0:12 | Learn easier · 0:17 |
 | --- | --- |
-| [![Common Good study Board](Documentation/Screenshots/2026-10-22/lay-your-ideas-out.jpg)](Documentation/Screenshots/2026-10-22/lay-your-ideas-out.mp4) | [![Just War Theory conversation on a Board](Documentation/Screenshots/2026-10-22/learn-easier.jpg)](Documentation/Screenshots/2026-10-22/learn-easier.mp4) |
+| [![Common Good study Board](Documentation/Screenshots/2026-10-22/lay-your-ideas-out.jpg)](Documentation/Screenshots/2026-10-22/lay-your-ideas-out.mp4) | [![Right to Self Defense conversation on a Board](Documentation/Screenshots/2026-10-22/learn-easier.jpg)](Documentation/Screenshots/2026-10-22/learn-easier.mp4) |
 
 Select a preview to open its recording. [Full media set and capture context](Documentation/Screenshots/2026-10-22/README.md).
 

@@ -8,8 +8,8 @@ Owner-provided screenshots and silent recordings of the iPhone app and native Ma
 - [Conversation and Insight Tree side by side](mac-split-conversation-view.png)
 - [Common Good study Board](mac-boards-1.png)
 - [Just War Theory Board with a saved Insight](mac-boards-2.png)
-- [Lay your ideas out — 11 seconds](lay-your-ideas-out.mp4): arranging a study Board with text and imagery.
-- [Learn easier — 19 seconds](learn-easier.mp4): a conversation embedded in a study Board.
+- [Lay your ideas out — 12 seconds](lay-your-ideas-out.mp4): adding a heading to a study Board's notes with /heading.
+- [Learn easier — 17 seconds](learn-easier.mp4): a conversation dragged onto a study Board, with a saved Insight found by search beside it.
 
 ## iPhone
 
