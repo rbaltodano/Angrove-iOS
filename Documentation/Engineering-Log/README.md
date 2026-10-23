@@ -9,6 +9,11 @@ plans below may list encryption integration as pending. The [encryption guide](.
 records the implemented storage coverage and the remaining physical-device lock and
 backup/restore validation; historical checklist items are not the current implementation status.
 
+The [October 23 evidence review](../Data-Encryption.md#evidence-review--october-23-2026) found
+partial installation/backup evidence, not a completed device-validation record. The
+[device-validation template](Device-Validation-TEMPLATE.md) provides empty fields for recording
+the missing checks and results.
+
 ## Release and App Store
 
 | Record | Date |

@@ -118,6 +118,12 @@ verified model hash, failure-state checks and successful offline generation.
 
 ## 4. Physical-device release gates
 
+**Evidence note — October 23, 2026:** the repository and local history contain phone-installation
+and backup-preservation notes, but no complete lock/unlock and Keychain-inclusive backup/restore
+validation record. These historical checklist items remain unchanged. See the
+[evidence review](../Data-Encryption.md#evidence-review--october-23-2026) and
+[blank recording template](Device-Validation-TEMPLATE.md).
+
 - [ ] Back up existing personal data before migration or recovery experiments.
 - [ ] Verify plaintext-to-encrypted migration, existing saves, new saves and startup failure
   recovery on a phone; inspect stored data to confirm expected encrypted coverage.
