@@ -41,8 +41,9 @@ struct MacGlobalModelControlsTests {
                 session.selectedDefinition = concept
             }
             center.open(id: try #require(center.notifications.first).id)
-            try await Task.sleep(for: .milliseconds(500))
-            #expect(session.selectedDefinition == concept)
+            try await wait { center.presentedInsight?.concept == concept }
+            #expect(center.presentedInsight?.conversationID == session.id)
+            #expect(session.selectedDefinition == nil)
             #expect(center.notifications.isEmpty)
             #expect(window.attachedSheet == nil)
             host.layoutSubtreeIfNeeded()
