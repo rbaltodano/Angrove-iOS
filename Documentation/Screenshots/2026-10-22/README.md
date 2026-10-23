@@ -18,4 +18,4 @@ Owner-provided screenshots and silent recordings of the iPhone app and native Ma
 - [Side menu and search](ios-sidebar.png)
 - [Augustinian Predestination Study Topic](ios-study-topics.png)
 
-Screenshots retain their supplied resolution. The original Desktop MOV recordings are preserved there; repository copies use H.264 MP4 at 1920 pixels wide for browser compatibility and smaller downloads. JPEG previews link to the full clips from the main README. Both recordings are silent.
+Screenshots retain their supplied resolution. The original Desktop MOV recordings are preserved there; repository copies are cropped to the app window and use H.264 MP4 at 1920 pixels wide for browser compatibility and smaller downloads. JPEG previews link to the full clips from the main README. Both recordings are silent.
