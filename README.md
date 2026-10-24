@@ -40,7 +40,6 @@ integration, and the [website](https://angrove.app/). **The iPhone app is in pub
   input. 900+ tests across both targets.
 - **Measured decisions.** Model defaults are chosen from [recorded evaluations](Documentation/Evaluation.md).
 
-[Portfolio](https://ryanbaltodano.com/) ·
 [Watch the 1:49 demo](https://angrove.app/case-study.html#demo-conversation) ·
 [Technical case study](Documentation/Case-Study.md) ·
 [Try the iPhone beta](https://testflight.apple.com/join/qHDFeAUa) ·
