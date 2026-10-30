@@ -30,7 +30,8 @@ Collected from the [iOS] and [Shared] entries below.
 - **[Shared] Settings typography uses Figtree sans serif.** Page titles, section headings, labels
   and prose use Figtree while retaining the selected text size. Introductory paragraphs beneath
   Settings page titles are removed, including the iPhone bundled User Guide introductions.
-  The iPhone Settings menu also omits secondary text beneath every destination name.
+  The iPhone Settings menu also omits secondary text beneath every destination name. Menu
+  labels use the paragraph text color in Figtree SemiBold.
 
 ## 2026-10-28
 

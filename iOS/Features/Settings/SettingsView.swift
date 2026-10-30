@@ -294,7 +294,7 @@ private struct SettingsHubRow: View {
 
                 Text(item.title)
                     .font(AngroveTheme.Typography.settingsHubEntry)
-                    .foregroundStyle(AngroveTheme.Colors.primaryReadable)
+                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
 
                 Spacer(minLength: 8)
 

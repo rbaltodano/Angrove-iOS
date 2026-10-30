@@ -170,7 +170,7 @@ enum AngroveTheme {
         // Settings subpages follow the iPhone's Text Size setting.
         static let settingsTitle = BrandTypography.font("Figtree-Regular", size: 28, relativeTo: .title)
         static let settingsDetailTitleTracking: CGFloat = 0
-        static let settingsHubEntry = BrandTypography.font("Figtree-Regular", fixedSize: 16)
+        static let settingsHubEntry = BrandTypography.font("Figtree-SemiBold", fixedSize: 16)
         static let settingsDetailTitle = BrandTypography.font("Figtree-Regular", fixedSize: 40)
         static let settingsGuideTitleLineSpacing: CGFloat = 1.6
         static let settingsGuideTitle = BrandTypography.font("Figtree-Regular", size: 34, relativeTo: .largeTitle)
