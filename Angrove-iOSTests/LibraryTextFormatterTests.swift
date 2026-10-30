@@ -16,6 +16,13 @@ struct LibraryTextFormatterTests {
         }
     }
 
+    @Test("Inline citations fused onto punctuation get a space, without splitting verse lists")
+    func spacesFusedCitations() {
+        #expect(LibraryTextFormatter.cleaned("unto judgment,Psalm 94:15 and it obtains") == "unto judgment, Psalm 94:15 and it obtains")
+        #expect(LibraryTextFormatter.cleaned("for them.2 Corinthians 5:15 But") == "for them. 2 Corinthians 5:15 But")
+        #expect(LibraryTextFormatter.cleaned("abode not in the truth,John 8:44 are") == "abode not in the truth, John 8:44 are")
+        #expect(LibraryTextFormatter.cleaned("13:14 14:3 Joel 2:12") == "13:14 14:3 Joel 2:12")    }
+
     @Test("Separate website navigation paragraphs disappear")
     func stripsStandaloneNavigation() {
         for navigation in [

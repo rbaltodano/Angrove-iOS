@@ -226,6 +226,20 @@ private struct ModelPicker: View {
     private let runtime = MacApplicationRuntime.shared
 
     var body: some View {
+        if MacModelTier.offered.count > 1 {
+            menu
+        } else {
+            name
+        }
+    }
+
+    private var name: some View {
+        Text(runtime.modelTier.modelName)
+            .font(BrandTypography.font("Figtree-Bold", size: 12))
+            .foregroundColor(AngroveTheme.Colors.paragraphText.opacity(0.75))
+    }
+
+    private var menu: some View {
         MacActionMenu(entries: {
             runtime.availableTiers.map { tier in
                 MacMenuEntry(

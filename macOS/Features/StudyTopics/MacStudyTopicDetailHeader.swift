@@ -6,7 +6,6 @@ struct MacStudyTopicDetailHeader<Actions: View>: View {
     @Binding var description: String
     let titleFocusRequest: Int
     let conversationCount: Int
-    let imageCount: Int
     @ViewBuilder var actions: Actions
     @FocusState private var titleIsFocused: Bool
 
@@ -39,8 +38,7 @@ struct MacStudyTopicDetailHeader<Actions: View>: View {
                 .opacity(description.isEmpty ? 0.5 : 1)
                 .accessibilityLabel("Study Topic description")
             MacCollectionStats(stats: [
-                MacCollectionStat(conversationCount, "Conversation", "Conversations"),
-                MacCollectionStat(imageCount, "Image", "Images")
+                MacCollectionStat(conversationCount, "Conversation", "Conversations")
             ])
             .padding(.top, 24)
             HStack(spacing: 12) { actions }

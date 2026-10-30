@@ -1127,9 +1127,10 @@ struct ContentView: View {
                     activePage: activePage,
                     isStudyTopicDetailVisible: isStudyTopicDetailVisible,
                     isSettingsDetailVisible: isSettingsDetailVisible,
-                    isBlocked: isInsightLibraryVisible,
+                    isBlocked: isInsightLibraryVisible || isGlobalSearchPresented,
                     onBeginDrag: dismissKeyboard,
                     onDismiss: { dismissGlobalSideMenu() },
+                    onOpenSearch: presentGlobalSearch,
                     menu: globalSideMenu
                 )
 
@@ -1384,8 +1385,11 @@ struct ContentView: View {
     // MARK: - Global Search
 
     private func presentGlobalSearch() {
-        // The search veil grows over the page while the panel slides away.
-        dismissGlobalSideMenu()
+        // Match the slower exit used when search interrupts a partially opened sidebar.
+        // The search veil starts immediately while the panel settles out of view.
+        withAnimation(.springRelaxed) {
+            isGlobalSideMenuOpen = false
+        }
         isGlobalSearchPresented = true
     }
 

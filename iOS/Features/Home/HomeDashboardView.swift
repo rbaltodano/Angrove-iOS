@@ -261,7 +261,7 @@ struct HomeDashboardView: View {
                 .background(alignment: .topTrailing) {
                     if !dynamicTypeSize.isAccessibilitySize {
                         HomeVineWind(parallax: vineParallax)
-                            .padding(.top, usesLandscapeLayout ? 48 : 72)
+                            .padding(.top, usesLandscapeLayout ? 48 : 56)
                     }
                 }
                 // Hang the left vine 132 points below the streak calendar, behind the page.

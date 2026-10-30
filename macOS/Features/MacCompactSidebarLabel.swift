@@ -29,6 +29,9 @@ struct MacCompactSidebarButton: View {
                 .background(isSelected || isHovered ? AngroveTheme.Colors.sideMenuSelection : .clear,
                             in: RoundedRectangle(cornerRadius: AngroveTheme.Spacing.selectionRadius, style: .continuous))
                 .contentShape(Rectangle())
+                // The icon hides itself from VoiceOver, which left the Mac button unnamed.
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(destination.title))
         }
         .focused($isFocused)
         .onHover { isHovered = $0 }

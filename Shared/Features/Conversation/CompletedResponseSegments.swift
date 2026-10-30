@@ -242,8 +242,12 @@ struct CompletedResponseSegments: View {
                     isVisible: isVisible,
                     underlineDelay: underlineDelay
                 )
+                // The whole term, multiword ones included, names the link (Mac announced them blank).
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(link.title))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(link.title)
             .disabled(isLoading || isQueued)
         } else {
             let bodyText = styledText(

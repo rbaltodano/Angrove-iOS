@@ -7,6 +7,22 @@ nonisolated struct PrivatePreferences {
     var cipher: LocalDataCipher = .personal
     var attachmentStore: EncryptedAttachmentStore? = nil
 
+    /// Personal bytes are not AppStorage settings. UserDefaults.set synchronously calls
+    /// SwiftUI observers, which can deadlock against a main-thread cold persistence read
+    /// while SwiftUI holds its graph lock. Use the same preferences domain without that
+    /// synchronous observer callout. Ordinary appearance settings retain UserDefaults.set.
+    private func writePersonalValue(_ value: Data?, key: String) throws {
+        guard defaults === UserDefaults.standard else {
+            if let value { defaults.set(value, forKey: key) }
+            else { defaults.removeObject(forKey: key) }
+            return
+        }
+        CFPreferencesSetAppValue(key as CFString, value as CFData?, kCFPreferencesCurrentApplication)
+        guard CFPreferencesAppSynchronize(kCFPreferencesCurrentApplication) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+    }
+
     func attachments(for key: String) -> EncryptedAttachmentStore? {
         key == "aquinas.study-topics.v1" ? attachmentStore : nil
     }
@@ -73,7 +89,7 @@ nonisolated struct PrivatePreferences {
         guard try cipher.open(encrypted, context: "preferences:" + key) == plain else {
             throw LocalDataEncryptionError.invalidEnvelope
         }
-        defaults.set(encrypted, forKey: key)
+        try writePersonalValue(encrypted, key: key)
     }
 
     func object(forKey key: String) -> Any? {
@@ -94,7 +110,10 @@ nonisolated struct PrivatePreferences {
     }
     func removeObject(forKey key: String) {
         guard !PersonalDataProtection.isBlocked else { return }
-        defaults.removeObject(forKey: key)
+        do {
+            if Self.protects(key) { try writePersonalValue(nil, key: key) }
+            else { defaults.removeObject(forKey: key) }
+        } catch { PersonalDataProtection.report(error, duringWrite: true) }
     }
 
     /// A JSON-encoded value, or `nil` when it is missing or no longer decodes as `Value`.

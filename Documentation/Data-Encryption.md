@@ -44,6 +44,9 @@ applies to app storage.
   device unlock following a restart. The extension cannot access the personal-data key.
 - Personal property-list values are encrypted before entering UserDefaults. Ordinary UI
   preferences remain compatible with AppStorage; personal strings use encrypted bindings.
+  Encrypted writes and removals in the standard application domain use CFPreferences, avoiding
+  synchronous UserDefaults observer callbacks from the persistence worker into SwiftUI. The
+  domain, ciphertext and keys remain unchanged; a failed synchronization reports a save error.
 - Personal files use atomic replacement and, on iOS, Complete File Protection in addition to AES-GCM.
   Historical `.json` filenames remain stable but now contain binary ciphertext.
 - Before mounting the app interface, startup verifies all existing ciphertext before migrating

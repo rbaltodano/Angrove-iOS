@@ -242,7 +242,9 @@ struct MacSidebarRenameField: NSViewRepresentable {
                 return event
             }
             DispatchQueue.main.async { [weak self] in
-                guard let self, self.window != nil else { return }
+                // The sidebar can re-attach the field; selectText on a field already being
+                // edited ends that edit first, which would commit and close the rename.
+                guard let self, self.window != nil, self.currentEditor() == nil else { return }
                 self.selectText(nil)
             }
         }

@@ -11,6 +11,12 @@ nonisolated enum MacModelTier: String, CaseIterable, Identifiable, Sendable {
 
     static let selectionKey = "angrove.mac.modelTier"
 
+    /// Tiers Settings and Model Tasks offer. Large is held back from the first beta: it scored no
+    /// better than Standard on the Mac evaluation, ran 2.6x slower, its memory floor is unmeasured
+    /// and its Apple-hosted pack has not been uploaded or tested. A stored Large selection resolves
+    /// to Standard until it returns here.
+    static let offered: [MacModelTier] = [.standard]
+
     var id: String { rawValue }
 
     var manifest: LiteRTModelManifest { assetPack.manifest }
@@ -75,9 +81,10 @@ nonisolated enum MacModelTier: String, CaseIterable, Identifiable, Sendable {
     static func resolve(
         selected: MacModelTier?,
         physicalMemory: UInt64,
+        offered: [MacModelTier] = offered,
         isInstalled: (MacModelTier) -> Bool
     ) -> MacModelTier {
-        guard let selected, selected.isEligible(physicalMemory: physicalMemory), isInstalled(selected) else {
+        guard let selected, offered.contains(selected), selected.isEligible(physicalMemory: physicalMemory), isInstalled(selected) else {
             return .standard
         }
         return selected

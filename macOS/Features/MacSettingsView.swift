@@ -452,7 +452,7 @@ private struct MacSupportSettings: View {
             .pointerStyle(.link)
             Divider()
             Button(action: openHotKeys) {
-                MacSettingsRow(title: "Hot Keys", description: "Keyboard shortcuts for conversations, the Insight Tree, navigation, and Model Tasks.") {
+                MacSettingsRow(title: "Hot Keys", description: "Keyboard shortcuts for navigation, conversations, the Insight Tree and Boards.") {
                     MacSettingsChevron()
                 }
                 .contentShape(Rectangle())
@@ -480,6 +480,7 @@ private struct MacSupportSettings: View {
             Divider()
             MacSettingsRow(title: "Reset settings", description: "Restore default preferences. Your conversations and saved content are preserved.") {
                 Button("Reset Settings") { confirmsReset = true }
+                    .accessibilityLabel("Reset Settings")
             }
         }
         .sheet(isPresented: $showsReport) { MacBugReportSheet() }
@@ -498,22 +499,40 @@ private struct MacHotKeys: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 32) {
             MacPageIntroduction(title: "Hot Keys", description: "Keyboard shortcuts for moving through Angrove without leaving the keys.")
-            MacSettingsSection(title: "Conversations", description: "Follow a question wherever it leads.") {
-                MacSettingsRow(title: "Ask and follow up", description: "Press Command-N for a new conversation. Command-Return focuses the question field; Return submits and Shift-Return adds a line.") { Text("⌘N · ⌘↵") }
+            // Keep in step with MacWorkspaceCommands, WorktreeKeyShortcuts and MacActionMenu.
+            MacSettingsSection(title: "Anywhere", description: "Work from any page.") {
+                MacSettingsRow(title: "New", description: "Command-N starts a new conversation, or a new Board or Study Topic on those pages.") { Text("⌘N") }
                 Divider()
-                MacSettingsRow(title: "Context and Thinking", description: "Command-Shift-C toggles Context. Show Thinking reveals the approach and sources, and native model thoughts when enabled.") { Text("⇧⌘C") }
+                MacSettingsRow(title: "Search", description: "Command-K opens Search. Up and Down move through results, Return opens one, Escape closes.") { Text("⌘K") }
+                Divider()
+                MacSettingsRow(title: "Home and Settings", description: "Command-Shift-H opens Home. Command-Comma opens Settings; Command-[ or Escape leaves a page like this one.") { Text("⇧⌘H · ⌘,") }
+                Divider()
+                MacSettingsRow(title: "Next page", description: "Command-Shift-R goes forward. Previous Page is in the Conversation menu.") { Text("⇧⌘R") }
+                Divider()
+                MacSettingsRow(title: "Model Tasks", description: "Command-M toggles the task queue. Minimize moves to Command-Shift-M.") { Text("⌘M · ⇧⌘M") }
+                Divider()
+                MacSettingsRow(title: "Menus", description: "Up and Down move, Return chooses, typing jumps to an item, Left goes back from a submenu, Escape closes.") { Text("↑↓ · ↵ · ⎋") }
+            }
+            MacSettingsSection(title: "Conversations", description: "Follow a question wherever it leads.") {
+                MacSettingsRow(title: "Ask and follow up", description: "Command-Return focuses the question field. Return sends; Shift-Return adds a line. Type / for commands.") { Text("⌘↵") }
+                Divider()
+                MacSettingsRow(title: "Recent conversations", description: "Command-1 through Command-9 open conversations in sidebar order. Hold Command to see their numbers.") { Text("⌘1–9") }
+                Divider()
+                MacSettingsRow(title: "Context", description: "Command-Shift-C toggles Context.") { Text("⇧⌘C") }
             }
             MacSettingsSection(title: "Insight Tree", description: "Connect ideas and explore what they mean.") {
-                MacSettingsRow(title: "Explore your tree", description: "Command-T toggles the conversation’s secondary pane. Select an idea to see its card, save it, quote it, or study it. Command-Shift-T toggles the global tree and returns to your previous page.") { Text("⌘T · ⇧⌘T") }
+                MacSettingsRow(title: "Explore your tree", description: "Command-T toggles the conversation’s tree. Command-Shift-T toggles the global tree and returns to your previous page.") { Text("⌘T · ⇧⌘T") }
                 Divider()
                 MacSettingsRow(title: "Arrange your workspace", description: "Command-Shift-S swaps the conversation and tree. Command-P pins or unpins the panes.") { Text("⇧⌘S · ⌘P") }
             }
-            MacSettingsSection(title: "Navigation & Model Tasks", description: "Move around without losing your place.") {
-                MacSettingsRow(title: "Recent pages", description: "Command-Shift-R goes forward. Command-1 through Command-9 selects a recent conversation.") { Text("⇧⌘R · ⌘1–9") }
+            MacSettingsSection(title: "Boards", description: "Build on the canvas.") {
+                MacSettingsRow(title: "Tools", description: "With something hovered or selected: Command-H adds a heading, Command-R renames, Command-S summarizes, Command-D defines. Command-Shift-K adds pictures.") { Text("⌘H ⌘R ⌘S ⌘D · ⇧⌘K") }
                 Divider()
-                MacSettingsRow(title: "Home", description: "Command-Shift-H opens Home: your month at a glance, the Question of the Day, and where you left off.") { Text("⇧⌘H") }
+                MacSettingsRow(title: "Write", description: "Start typing anywhere to add text. Slash opens the selected item’s command field.") { Text("/") }
                 Divider()
-                MacSettingsRow(title: "Model Tasks", description: "Command-M toggles the task queue. Review pending work, cancel a task, or change the order of upcoming tasks.") { Text("⌘M") }
+                MacSettingsRow(title: "Move and zoom", description: "Hold Space and drag to pan. Command-Plus and Command-Minus resize what’s selected, or zoom when nothing is. Command-0 resets the zoom.") { Text("Space · ⌘± · ⌘0") }
+                Divider()
+                MacSettingsRow(title: "Undo and step back", description: "Command-Z undoes and Command-Shift-Z redoes. Escape closes cards and tools, then clears the selection.") { Text("⌘Z · ⇧⌘Z · ⎋") }
             }
         }
         .lineSpacing(4)

@@ -281,8 +281,8 @@ struct MacConversationWorkspace: View {
             .onReceive(NotificationCenter.default.publisher(for: LocalInsightTreeSeedStore.didChange)) { notification in
                 if !pane.isSwapped, notification.object as? UUID == session.id { secondaryUpdateSignal += 1 }
             }
-            .onChange(of: session.concepts) { old, new in
-                if !pane.isSwapped, old != new { secondaryUpdateSignal += 1 }
+            .onChange(of: session.insightUpdateCount) { old, new in
+                if !pane.isSwapped, new > old { secondaryUpdateSignal += 1 }
             }
             .onChange(of: session.completedResponseCount) { old, new in
                 if pane.isSwapped, new > old { secondaryUpdateSignal += 1 }

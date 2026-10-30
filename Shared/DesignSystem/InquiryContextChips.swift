@@ -23,6 +23,8 @@ struct BranchContextChip: View {
         icon == "text.bubble" || icon == "text.bubble.fill"
     }
     private var isLibraryChip: Bool { icon == "books.vertical" }
+    private var openLabel: String { "Open \(title) \(isLibraryChip ? "Library quote" : "Insight")" }
+    private var removeLabel: String { "Remove \(title)" }
 
     private var labelContents: some View {
         HStack(spacing: 6) {
@@ -44,9 +46,12 @@ struct BranchContextChip: View {
         if let onTap {
             Button(action: onTap) {
                 paddedLabelContents
+                    // Named on the content, as on the Mac a plain button's own label went unannounced.
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(openLabel))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Open \(title) \(isLibraryChip ? "Library quote" : "Insight")")
+            .accessibilityLabel(openLabel)
         } else {
             paddedLabelContents
         }
@@ -73,9 +78,11 @@ struct BranchContextChip: View {
                         .padding(.trailing, isMinimal ? 0 : 20)
                         .padding(.vertical, isMinimal ? 0 : 16)
                         .contentShape(Rectangle())
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(Text(removeLabel))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Remove \(title)")
+                .accessibilityLabel(removeLabel)
             }
         }
         .background(isFilled && !isMinimal ? fillColor : Color.clear)
