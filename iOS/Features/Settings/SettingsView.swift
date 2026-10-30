@@ -293,7 +293,7 @@ private struct SettingsHubRow: View {
                     .frame(width: 20)
 
                 Text(item.title)
-                    .font(AngroveTheme.Typography.settingsHubEntry)
+                    .settingsText(.menuEntry)
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
 
                 Spacer(minLength: 8)
