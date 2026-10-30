@@ -207,7 +207,7 @@ struct UserGuideTypographyTests {
         let values = try #require(try await webView.evaluateJavaScript("(() => { const s = getComputedStyle(document.querySelector('.lede')); return { family: s.fontFamily, size: parseFloat(s.fontSize), lineHeight: parseFloat(s.lineHeight) }; })()") as? [String: Any])
         let nativeFont = try #require(UIFont(name: "Figtree-Regular", size: size.pointSize))
         #expect((values["family"] as? String)?.contains("Figtree") == true,
-                "Settings and guide prose stay in Figtree for either response-font preference")
+                "Settings and guide prose stay sans serif for either response-font preference")
         let actualSize = try #require(values["size"] as? Double)
         let actualLineHeight = try #require(values["lineHeight"] as? Double)
         #expect(abs(actualSize - Double(size.pointSize)) < 0.01)

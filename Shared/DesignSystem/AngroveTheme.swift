@@ -168,12 +168,13 @@ enum AngroveTheme {
         static let chipLabel = BrandTypography.font("Figtree-Bold", size: 12)
 
         // Settings subpages follow the iPhone's Text Size setting.
-        static let settingsTitle = BrandTypography.font("LibreBaskerville-Regular", size: 28, relativeTo: .title)
-        static let settingsDetailTitleTracking: CGFloat = -2
-        static let settingsHubEntry = BrandTypography.font("LibreBaskerville-Regular", fixedSize: 16)
-        static let settingsDetailTitle = BrandTypography.font("LibreBaskerville-Regular", fixedSize: 40)
+        static let settingsTitle = BrandTypography.font("Figtree-Regular", size: 28, relativeTo: .title)
+        static let settingsDetailTitleTracking: CGFloat = 0
+        static let settingsHubEntry = BrandTypography.font("Figtree-Regular", fixedSize: 16)
+        static let settingsDetailTitle = BrandTypography.font("Figtree-Regular", fixedSize: 40)
         static let settingsGuideTitleLineSpacing: CGFloat = 1.6
-        static let settingsGuideTitle = BrandTypography.font("LibreBaskerville-Regular", size: 34, relativeTo: .largeTitle)
+        static let settingsGuideTitle = BrandTypography.font("Figtree-Regular", size: 34, relativeTo: .largeTitle)
+        static let settingsPartTitle = BrandTypography.font("Figtree-Regular", size: 24, relativeTo: .title2)
         static let settingsHeading = BrandTypography.font("Figtree-Bold", size: 17, relativeTo: .headline)
         static let settingsLabel = BrandTypography.font("Figtree-Bold", size: 17, relativeTo: .body)
         static let settingsBody = BrandTypography.font("Figtree-Regular", size: 17, relativeTo: .body)

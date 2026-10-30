@@ -83,7 +83,7 @@ struct LicenseTextView: View {
     let license: BundledLicense
 
     var body: some View {
-        SettingsDetailScaffold(title: license.title, intro: "Read the terms and notices for this work.") {
+        SettingsDetailScaffold(title: license.title) {
             SettingsControlCard {
                 ForEach(Array(license.paragraphs.enumerated()), id: \.offset) { _, paragraph in
                     Text(paragraph)

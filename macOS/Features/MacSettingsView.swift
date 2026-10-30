@@ -23,13 +23,13 @@ struct MacSettingsView: View {
             .overlay(alignment: .topLeading) {
                 MacBackCapsule(title: "Settings") { showsHotKeys = false }
             }
-            .font(AngroveTheme.Typography.body)
+            .settingsText(.control)
             .foregroundStyle(AngroveTheme.Colors.paragraphText)
             .tint(AngroveTheme.Colors.lightGreen)
             .background(AngroveTheme.Colors.canvas)
         } else if showsGuide {
             MacUserGuideView(onExit: { showsGuide = false })
-                .font(AngroveTheme.Typography.body)
+                .settingsText(.control)
                 .foregroundStyle(AngroveTheme.Colors.paragraphText)
                 .tint(AngroveTheme.Colors.lightGreen)
         } else {
@@ -40,7 +40,7 @@ struct MacSettingsView: View {
     private var settingsPage: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
-                    MacPageIntroduction(title: "Settings", description: "Choose how Angrove looks, works, and fits your conversations.")
+                    SettingsDetailHeading(title: "Settings")
                     MacPersonalizationSettings()
                     MacAppearanceSettings()
                     MacResponseSettings()
@@ -58,7 +58,7 @@ struct MacSettingsView: View {
             .frame(maxWidth: .infinity)
         }
         .macSettingsScrollEdges()
-        .font(AngroveTheme.Typography.body)
+        .settingsText(.control)
         .foregroundStyle(AngroveTheme.Colors.paragraphText)
         .tint(AngroveTheme.Colors.lightGreen)
         .background(AngroveTheme.Colors.canvas)
@@ -173,7 +173,7 @@ struct MacSettingsSection<Content: View>: View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(title)
-                    .font(AngroveTheme.Typography.uiHeading)
+                    .font(AngroveTheme.Typography.settingsHeading)
                     .foregroundStyle(AngroveTheme.Colors.headingText)
                 Text(description)
                     .macStaticParagraph()
@@ -498,7 +498,7 @@ private struct MacSupportSettings: View {
 private struct MacHotKeys: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 32) {
-            MacPageIntroduction(title: "Hot Keys", description: "Keyboard shortcuts for moving through Angrove without leaving the keys.")
+            SettingsDetailHeading(title: "Hot Keys")
             // Keep in step with MacWorkspaceCommands, WorktreeKeyShortcuts and MacActionMenu.
             MacSettingsSection(title: "Anywhere", description: "Work from any page.") {
                 MacSettingsRow(title: "New", description: "Command-N starts a new conversation, or a new Board or Study Topic on those pages.") { Text("⌘N") }

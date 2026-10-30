@@ -43,7 +43,6 @@ struct SettingsPageScaffold<Content: View>: View {
 
 struct SettingsDetailScaffold<Content: View>: View {
     let title: LocalizedStringResource
-    var intro: LocalizedStringResource? = nil
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -52,12 +51,6 @@ struct SettingsDetailScaffold<Content: View>: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
                     SettingsDetailHeading(title: title)
-
-                    if let intro {
-                        Text(intro)
-                            .settingsParagraph()
-                            .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                    }
 
                     content
                         .frame(maxWidth: .infinity, alignment: .leading)

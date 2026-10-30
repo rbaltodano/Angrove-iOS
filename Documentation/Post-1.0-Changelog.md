@@ -25,6 +25,13 @@ Collected from the [iOS] and [Shared] entries below.
   instead of "judgment,Psalm 94:15").
 - VoiceOver reads the answer actions as Copy, Regenerate, Bad response and Read aloud.
 
+## 2026-10-30
+
+- **[Shared] Settings typography uses Figtree sans serif.** Page titles, section headings, labels
+  and prose use Figtree while retaining the selected text size. Introductory paragraphs beneath
+  Settings page titles are removed, including the iPhone bundled User Guide introductions.
+  The iPhone Settings menu also omits secondary text beneath every destination name.
+
 ## 2026-10-28
 
 - **[Shared] Fixed a freeze when starting a new conversation on iOS 27.** An encrypted
