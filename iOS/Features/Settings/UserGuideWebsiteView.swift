@@ -113,10 +113,6 @@ struct UserGuideWebsiteView: UIViewRepresentable {
         let css = """
         .page-hero__inner { align-items: flex-start; text-align: start; }
         .page-hero__inner > .lede, .guide-topic__intro { display: none; }
-        h1, h2, h3, h4, h5, h6, h1.display, .heading-md,
-        .guide-topic h2, .guide-step h3, .guide-label, .guide-tech__toggle {
-            font-family: "\(family)", sans-serif;
-        }
         .lede, .para, .guide-text, .guide-topic__intro, .guide-tech__panel p,
         .guide-tech__list li, .w-card__body, .w-read__answer, .w-read--thread .w-read__answer,
         .w-home__body, .mid-card__body, .flow-insight__body, .flow-answer__text {
