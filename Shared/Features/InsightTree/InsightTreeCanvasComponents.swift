@@ -154,7 +154,7 @@ struct MidpointHandle: View {
                     .shadow(color: AngroveTheme.Colors.scrim.opacity(0.25), radius: 4, x: 0, y: 2)
 
                 Image(systemName: "text.bubble.fill")
-                    .font(.system(size: 14, weight: .semibold))
+                    .angroveIcon(.medium)
                     .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     .shadow(color: AngroveTheme.Colors.scrim.opacity(0.18), radius: 3, x: 0, y: 1)
                     .opacity(Double(1.0 - phase * 0.5))   // 100% at bottom, 50% at top
@@ -186,7 +186,7 @@ struct RevealedInsightLabel: View {
     var body: some View {
         HStack(spacing: 0) {
             Image(systemName: "text.bubble.fill")
-                .font(.system(size: 14, weight: .semibold))
+                .angroveIcon(.medium)
                 .foregroundStyle(AngroveTheme.Colors.lightGreen)
             Text(title)
                 .font(.figtreeHeading2)

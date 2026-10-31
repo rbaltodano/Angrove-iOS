@@ -262,7 +262,7 @@ struct AngroveSideMenu: View, Equatable {
             HStack(alignment: .center) {
                 Button(action: onOpenSettings) {
                     Image(systemName: AppPage.settings.sidebarIconName)
-                        .font(.system(size: 16, weight: .semibold))
+                        .angroveIcon(.large)
                         .sfSymbolDrawOn()
                         // A 56 pt target around the 16 pt icon, so a tap near it never
                         // lands on the conversation row behind.
@@ -280,7 +280,7 @@ struct AngroveSideMenu: View, Equatable {
                 Button(action: onNewChat) {
                     HStack(spacing: 8) {
                         Image(systemName: "plus")
-                            .font(.system(size: 10, weight: .semibold))
+                            .angroveIcon(.xSmall)
                             .sfSymbolDrawOn()
                         Text("New Conversation")
                             .font(.custom("Figtree-Bold", size: 14))

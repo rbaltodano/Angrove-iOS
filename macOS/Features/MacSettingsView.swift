@@ -78,7 +78,7 @@ struct MacBackCapsule: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 12, weight: .medium))
+                    .angroveIcon(.small, .navigation)
                     .foregroundStyle(AngroveTheme.Colors.darkGreen)
                     .frame(width: 14, height: 14)
                 BlurSwapText(title)
@@ -182,9 +182,9 @@ struct MacSettingsSection<Content: View>: View {
             VStack(spacing: 0) { content }
                 .padding(.horizontal, 20)
                 .background(AngroveTheme.Colors.canvasSecondary,
-                            in: RoundedRectangle(cornerRadius: AngroveTheme.Spacing.smallCardRadius))
+                            in: RoundedRectangle(cornerRadius: AngroveTheme.Spacing.smallCardRadius, style: .continuous))
                 .overlay {
-                    RoundedRectangle(cornerRadius: AngroveTheme.Spacing.smallCardRadius)
+                    RoundedRectangle(cornerRadius: AngroveTheme.Spacing.smallCardRadius, style: .continuous)
                         .stroke(AngroveTheme.Colors.border, lineWidth: 1)
                 }
         }
@@ -427,7 +427,7 @@ private struct MacModelSettings: View {
 private struct MacSettingsChevron: View {
     var body: some View {
         Image(systemName: "chevron.right")
-            .font(.system(size: 12, weight: .semibold))
+            .angroveIcon(.small)
             .foregroundStyle(AngroveTheme.Colors.lightGreen)
             .frame(width: 16, height: 16)
             .accessibilityHidden(true)
@@ -473,7 +473,7 @@ private struct MacSupportSettings: View {
                     HStack(spacing: 6) {
                         Text("Privacy Policy")
                         Image(systemName: "arrow.up.right")
-                            .font(.system(size: 11, weight: .semibold))
+                            .angroveIcon(.small)
                     }
                 }
             }

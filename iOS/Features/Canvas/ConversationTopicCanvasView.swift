@@ -546,7 +546,7 @@ struct ConversationTopicCanvasView: View {
                                     TravelingPulseLine(width: 48, progress: progress)
                                     HStack(spacing: 6) {
                                         Image(systemName: "text.bubble.fill")
-                                            .font(.system(size: 14, weight: .semibold))
+                                            .angroveIcon(.medium)
                                             .foregroundColor(AngroveTheme.Colors.lightGreen)
                                         Text(label)
                                             .font(.figtreeHeading2)
@@ -739,7 +739,7 @@ struct ConversationTopicCanvasView: View {
         let nextScale = min(max(scale, 1.15), 2.6)
         let target = CGPoint(x: size.width / 2, y: size.height * 0.5)
 
-        withAnimation(.spring(response: 0.58, dampingFraction: 0.64, blendDuration: 0.08)) {
+        withAnimation(.springCamera) {
             scale = nextScale
             offset = CGSize(
                 width: target.x - size.width / 2 - (worldPosition.x * nextScale),
@@ -953,7 +953,7 @@ struct TopicBubbleView: View {
                         Button(action: onTapInsightChip) {
                             HStack(spacing: 4) {
                                 Image(systemName: "text.bubble.fill")
-                                    .font(.system(size: 14, weight: .semibold))
+                                    .angroveIcon(.medium)
                                     .foregroundColor(AngroveTheme.Colors.lightGreen)
                                 Text("+\(collapsedCount)")
                                     .font(.figtreeHeading2)

@@ -13,14 +13,14 @@ struct MacAttachmentStrip: View {
             ForEach(files) { file in
                 MacAttachmentThumbnail(file: file)
                     .frame(width: 72, height: 72)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(AngroveTheme.Colors.border, lineWidth: 1))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(AngroveTheme.Colors.border, lineWidth: 1))
                     .rotationEffect(.degrees(file.rotationDegrees))
                     .overlay(alignment: .topTrailing) {
                         if let onRemove {
                             Button { onRemove(file.id) } label: {
                                 Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 16, weight: .semibold))
+                                    .angroveIcon(.large)
                                     .symbolRenderingMode(.palette)
                                     .foregroundStyle(AngroveTheme.Colors.canvas, AngroveTheme.Colors.lightGreen)
                             }

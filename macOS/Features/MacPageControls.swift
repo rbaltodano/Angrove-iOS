@@ -64,7 +64,7 @@ private struct MacPageControlActionButton: View {
         Button(action: action.action) {
             HStack(spacing: 6) {
                 Image(systemName: action.symbol)
-                    .font(.system(size: 12, weight: .semibold))
+                    .angroveIcon(.small)
                     .frame(width: 16, height: 16)
                 Text(action.title)
                     .font(BrandTypography.font("Figtree-Bold", size: 14))

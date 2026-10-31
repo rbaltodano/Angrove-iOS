@@ -91,7 +91,7 @@ private struct SpokenWordFill: ViewModifier {
             .mask {
                 LinearGradient(
                     stops: [
-                        .init(color: .black, location: start),
+                        .init(color: AngroveTheme.Colors.mask, location: start),
                         .init(color: .clear, location: end),
                     ],
                     startPoint: .leading, endPoint: .trailing
@@ -119,7 +119,7 @@ private struct SpeechScrubGesture: ViewModifier {
         let isScaled = isReadingThis && speech.isScrubbing
         content
             .scaleEffect(isScaled ? 1.05 : 1)
-            .animation(.spring(response: 0.3, dampingFraction: 0.75), value: isScaled)
+            .animation(.springLively, value: isScaled)
             .background {
                 SpeechScrubRecognizer(isEnabled: isReadingThis && speech.phase == .speaking)
             }

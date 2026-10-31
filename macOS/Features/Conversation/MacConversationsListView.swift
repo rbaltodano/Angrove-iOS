@@ -213,7 +213,7 @@ private struct MacConversationCard: View {
             HStack(alignment: .center, spacing: 8) {
                 if conversation.isPinned {
                     Image(systemName: "pin.fill")
-                        .font(.system(size: 11, weight: .semibold))
+                        .angroveIcon(.small)
                         .foregroundStyle(AngroveTheme.Colors.lightGreen)
                         .accessibilityLabel("Pinned")
                 }
@@ -266,7 +266,7 @@ private struct MacFirstConversationCard: View {
         Button(action: onStart) {
             HStack(alignment: .center, spacing: 28) {
                 Image(systemName: AppPage.openConversations.sidebarIconName)
-                    .font(.system(size: 26, weight: .semibold))
+                    .angroveIcon(.hero)
                     .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     .frame(width: 64, height: 64)
                     .background(AngroveTheme.Colors.canvasSecondary, in: Circle())

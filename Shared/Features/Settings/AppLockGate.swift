@@ -135,7 +135,7 @@ struct AppLockGate: View {
 
             VStack(spacing: 18) {
                 Image(systemName: "lock.shield.fill")
-                    .font(.system(size: 42, weight: .semibold))
+                    .angroveIcon(.feature)
                     .foregroundStyle(AngroveTheme.Colors.darkGreen)
 
                 Text("Angrove is Locked")

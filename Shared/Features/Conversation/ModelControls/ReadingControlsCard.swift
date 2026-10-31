@@ -139,7 +139,7 @@ struct ReadingControlsCard: View {
             Image(systemName: speech.isReadingCardCollapsed
                   ? "arrow.up.left.and.arrow.down.right"
                   : "arrow.down.right.and.arrow.up.left")
-                .font(.system(size: 13, weight: .semibold))
+                .angroveIcon(.medium)
                 .foregroundStyle(AngroveTheme.Colors.placeholderText)
                 .frame(width: 32, height: 32)
                 .contentShape(Rectangle())
@@ -154,7 +154,7 @@ struct ReadingControlsCard: View {
             if speech.isPaused { speech.resume() } else { speech.pause() }
         } label: {
             Image(systemName: speech.isPaused ? "play.fill" : "pause.fill")
-                .font(.system(size: 16, weight: .semibold))
+                .angroveIcon(.large)
                 .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 .contentTransition(.symbolEffect(.replace))
                 .frame(width: 32, height: 32)
@@ -170,7 +170,7 @@ struct ReadingControlsCard: View {
             withAnimation(.springStandard) { speech.stop() }
         } label: {
             Image(systemName: "xmark")
-                .font(.system(size: 13, weight: .semibold))
+                .angroveIcon(.medium)
                 .foregroundStyle(AngroveTheme.Colors.placeholderText)
                 .frame(width: 32, height: 32)
                 .contentShape(Rectangle())
@@ -220,9 +220,9 @@ struct ReadingControlsCard: View {
             LinearGradient(
                 stops: [
                     .init(color: .clear, location: 0),
-                    .init(color: .black, location: 0.24),
-                    .init(color: .black, location: masksTrailingEdge ? 0.76 : 1),
-                    .init(color: masksTrailingEdge ? .clear : .black, location: 1),
+                    .init(color: AngroveTheme.Colors.mask, location: 0.24),
+                    .init(color: AngroveTheme.Colors.mask, location: masksTrailingEdge ? 0.76 : 1),
+                    .init(color: masksTrailingEdge ? .clear : AngroveTheme.Colors.mask, location: 1),
                 ],
                 startPoint: .leading, endPoint: .trailing
             )
@@ -282,7 +282,7 @@ struct ReadingSpeakerButton: View {
             }
         } label: {
             Image(systemName: "speaker.wave.2.fill")
-                .font(.system(size: 14, weight: .semibold))
+                .angroveIcon(.medium)
                 .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 .symbolEffect(
                     .variableColor.iterative,

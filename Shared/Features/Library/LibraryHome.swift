@@ -388,7 +388,7 @@ struct LibrarySpeakingIndicator: View {
         if let activeWorkID = speech.activeLibraryWorkID,
            workID == nil || activeWorkID == workID, speech.phase != .idle {
             Image(systemName: "speaker.wave.2.fill")
-                .font(.system(size: 12, weight: .semibold))
+                .angroveIcon(.small)
                 .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 .symbolEffect(.variableColor.iterative, isActive: speech.phase == .speaking && !speech.isPaused && !reduceMotion)
                 .accessibilityLabel("Reading aloud")
@@ -458,7 +458,7 @@ struct LibraryListeningCard: View {
                                 .frame(width: 12, height: 12)
                         } else {
                             Image(systemName: "play.fill")
-                                .font(.system(size: 12, weight: .semibold))
+                                .angroveIcon(.small)
                                 .frame(width: 12, height: 12)
                         }
                         Text(isListening ? "Listening" : "Listen")
@@ -688,7 +688,7 @@ private struct LibraryPassageOfTheDayCard: View {
                         .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     Spacer()
                     Image(systemName: "quote.opening")
-                        .font(.system(size: 14, weight: .semibold))
+                        .angroveIcon(.medium)
                         .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 }
 
@@ -712,7 +712,7 @@ private struct LibraryPassageOfTheDayCard: View {
                         Text("Read")
                             .font(AngroveTheme.Typography.uiLabel)
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 10, weight: .bold))
+                            .angroveIcon(.xSmall, .strong)
                     }
                     .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 }
@@ -779,7 +779,7 @@ private struct LibraryBookCover: View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
                     Image(systemName: subject.systemImage)
-                        .font(.system(size: 15, weight: .semibold))
+                        .angroveIcon(.large)
                         .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     Spacer(minLength: 4)
                     LibrarySpeakingIndicator(workID: work.id)
@@ -887,7 +887,7 @@ private struct LibraryIndexRow: View {
                     .monospacedDigit()
                 LibrarySpeakingIndicator(workID: work.id)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
+                    .angroveIcon(.small)
                     .foregroundStyle(AngroveTheme.Colors.placeholderText)
             }
             .padding(.vertical, 14)
@@ -932,13 +932,13 @@ private struct LibrarySearchResultCard: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
                     Image(systemName: subject.systemImage)
-                        .font(.system(size: 14, weight: .semibold))
+                        .angroveIcon(.medium)
                     Text(subject.title.uppercased())
                         .font(AngroveTheme.Typography.uiLabel)
                     Spacer()
                     LibrarySpeakingIndicator(workID: work.id)
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
+                        .angroveIcon(.small)
                         .foregroundStyle(AngroveTheme.Colors.placeholderText)
                 }
                 .foregroundStyle(AngroveTheme.Colors.lightGreen)

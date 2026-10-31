@@ -213,7 +213,7 @@ private struct MacCapsuleButtonBody: View {
 private struct MacCapsuleLabelStyle: LabelStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: 8) {
-            configuration.icon.font(.system(size: 12, weight: .bold))
+            configuration.icon.angroveIcon(.small, .strong)
             configuration.title
         }
     }
@@ -227,7 +227,7 @@ struct MacCollectionOptionsLabel: View {
 
     var body: some View {
         Image(systemName: "ellipsis")
-            .font(.system(size: 13, weight: .bold))
+            .angroveIcon(.medium, .strong)
             .foregroundStyle(AngroveTheme.Colors.paragraphText)
             .frame(width: size, height: size)
             .background(isOutlined ? AngroveTheme.Colors.canvasSecondary : .clear, in: Circle())
@@ -240,7 +240,7 @@ struct MacCollectionOptionsLabel: View {
 struct MacCollectionCardOptionsLabel: View {
     var body: some View {
         Image(systemName: "ellipsis")
-            .font(.system(size: 13, weight: .bold))
+            .angroveIcon(.medium, .strong)
             .foregroundStyle(AngroveTheme.Colors.paragraphText)
             .frame(width: AngroveTheme.Spacing.controlHeight, height: AngroveTheme.Spacing.controlHeight)
             .contentShape(Rectangle())

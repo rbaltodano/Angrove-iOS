@@ -264,7 +264,7 @@ private struct MacExpandedSidebar: View {
                 Spacer(minLength: 8)
                 Button(action: newConversation) {
                     Image(systemName: MacIcon.plus.symbol)
-                        .font(.system(size: MacIcon.plus.size, weight: .medium))
+                        .angroveIcon(MacIcon.plus.iconSize, .navigation)
                         .foregroundStyle(AngroveTheme.Colors.placeholderText)
                         .frame(width: 28, height: 27)
                         .contentShape(Rectangle())

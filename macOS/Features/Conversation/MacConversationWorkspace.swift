@@ -165,8 +165,8 @@ struct MacConversationWorkspace: View {
                     .frame(width: conversationWidth,
                            height: pane.isSwapped ? secondaryHeight : geometry.size.height, alignment: .leading)
                     .clipped()
-                    .clipShape(RoundedRectangle(cornerRadius: conversationIsFloating ? 24 : 0))
-                    .contentShape(RoundedRectangle(cornerRadius: conversationIsFloating ? 24 : 0))
+                    .clipShape(RoundedRectangle(cornerRadius: conversationIsFloating ? 24 : 0, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: conversationIsFloating ? 24 : 0, style: .continuous))
                     .opacity(!pane.isSwapped || isTreeOpen ? 1 : 0)
                     .allowsHitTesting(!pane.isSwapped || isTreeOpen)
                     .accessibilityHidden(pane.isSwapped && !isTreeOpen)
@@ -189,10 +189,10 @@ struct MacConversationWorkspace: View {
                 .frame(width: pane.isSwapped || isTreeOpen ? treeWidth : treeButtonWidth,
                        height: pane.isSwapped ? geometry.size.height : (isTreeOpen ? secondaryHeight : 48),
                        alignment: pane.isSwapped ? .topLeading : .topTrailing)
-                .clipShape(RoundedRectangle(cornerRadius: pane.isSwapped || (pane.isPinned && isTreeOpen) ? 0 : 24))
-                .contentShape(RoundedRectangle(cornerRadius: pane.isSwapped || (pane.isPinned && isTreeOpen) ? 0 : 24))
+                .clipShape(RoundedRectangle(cornerRadius: pane.isSwapped || (pane.isPinned && isTreeOpen) ? 0 : 24, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: pane.isSwapped || (pane.isPinned && isTreeOpen) ? 0 : 24, style: .continuous))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 24)
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
                         .strokeBorder(AngroveTheme.Colors.controlBorder, lineWidth: 1)
                         .opacity(!pane.isSwapped && !isTreeOpen ? 1 : 0)
                         .allowsHitTesting(false)
@@ -231,7 +231,7 @@ struct MacConversationWorkspace: View {
             }
             // Draw the floating frame above the controls' fade, including its bottom edge.
             .overlay(alignment: .topTrailing) {
-                RoundedRectangle(cornerRadius: 24)
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .strokeBorder(AngroveTheme.Colors.controlBorder, lineWidth: 1)
                     .frame(width: secondaryWidth, height: secondaryHeight)
                     .padding(24)

@@ -277,7 +277,7 @@ struct ModelCompletionNotificationPill: View {
                 .mask {
                     HStack(spacing: 0) {
                         Rectangle()
-                        LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                        LinearGradient(colors: [AngroveTheme.Colors.mask, .clear], startPoint: .leading, endPoint: .trailing)
                             .frame(width: 24)
                         Color.clear.frame(width: 40)
                     }

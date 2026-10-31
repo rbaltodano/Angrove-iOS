@@ -317,7 +317,7 @@ struct MacWorkspaceView: View {
             ContentUnavailableView {
                 VStack(spacing: 16) {
                     Image(systemName: "desktopcomputer.trianglebadge.exclamationmark")
-                        .font(.system(size: 28, weight: .semibold))
+                        .angroveIcon(.hero)
                     MacPageHeading(title: "This Mac isn’t supported", font: MacPageHeading.pageFont)
                 }
             } description: {

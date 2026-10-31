@@ -180,7 +180,7 @@ struct StudyTopicDetailView: View {
                                     }
                                 } label: {
                                     Image(systemName: "ellipsis")
-                                        .font(.system(size: 13, weight: .bold))
+                                        .angroveIcon(.medium, .strong)
                                         .foregroundColor(AngroveTheme.Colors.paragraphText)
                                         .frame(width: 22, height: 22)
                                 }

@@ -77,7 +77,7 @@ struct StudyBranchScene: View {
                     if isPromoted {
                         VStack(spacing: 18) {
                             Image(systemName: "brain.head.profile")
-                                .font(.system(size: 24, weight: .semibold))
+                                .angroveIcon(.display)
                                 .foregroundStyle(AngroveTheme.Colors.lightGreen)
                             BranchLoadingTitle(title: sourceTitle, isLoading: !isReady)
                         }
@@ -89,7 +89,7 @@ struct StudyBranchScene: View {
                 }
                 .frame(maxWidth: min(proxy.size.width - 48, 260))
                 .padding(8)
-                .background(AngroveTheme.Colors.canvas, in: RoundedRectangle(cornerRadius: 16))
+                .background(AngroveTheme.Colors.canvas, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { nodeHeight = $0 }
                 .position(origin)
                 .offset(recoil)
@@ -181,7 +181,7 @@ extension StudyBranchScene {
                     .transition(.glideFadeUp)
             } else {
                 Image(systemName: "brain.head.profile")
-                    .font(.system(size: 14, weight: .semibold))
+                    .angroveIcon(.medium)
                     .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     .opacity(loadingFlash)
                     .modifier(InsightTreeChipChrome())

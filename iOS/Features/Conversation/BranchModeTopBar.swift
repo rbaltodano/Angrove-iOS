@@ -55,7 +55,7 @@ struct BranchModeTopBar: View {
                     } else if isInStudyTopic {
                         HStack(spacing: 4) {
                             Image(systemName: "square.stack")
-                                .font(.system(size: titleFontSize - 3, weight: .medium))
+                                .angroveIcon(textRelativeSize: titleFontSize - 3, .navigation)
                                 .foregroundColor(AngroveTheme.Colors.lightGreen)
                             ConversationHeading(title: title) { title in
                                 SettingsAnimatedHeading(

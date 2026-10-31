@@ -16,6 +16,10 @@ extension Animation {
     static let springCamera = Animation.spring(response: 0.58, dampingFraction: 0.64, blendDuration: 0.08)
     /// Visible bounce for playful confirmations.
     static let springBouncy = Animation.spring(response: 0.4, dampingFraction: 0.68)
+    /// The outward beat of the 5% button pulse; `springBouncy` brings it back.
+    static let springPulse = Animation.spring(response: 0.22, dampingFraction: 0.52)
+    /// Follows a drag closely, such as a Midpoint handle.
+    static let springTracking = Animation.interactiveSpring(response: 0.2, dampingFraction: 0.9)
 }
 
 /// The shared rubberband used by released Insights and their Midpoint transfer.

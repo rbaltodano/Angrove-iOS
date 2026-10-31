@@ -329,7 +329,7 @@ extension InsightTreeCanvasView {
             return
         }
 
-        withAnimation(.interactiveSpring(response: 0.2, dampingFraction: 0.9)) {
+        withAnimation(.springTracking) {
             midpointHandleWorld = constrainHandle(newHandle)
         }
         reportMidpointWeights()

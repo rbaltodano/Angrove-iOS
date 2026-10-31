@@ -25,7 +25,7 @@ struct InsightLibraryCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center, spacing: 8) {
                 Image(systemName: insight.isLibraryQuote ? "books.vertical" : "text.bubble.fill")
-                    .font(.system(size: 12, weight: .bold))
+                    .angroveIcon(.small, .strong)
                     .foregroundColor(AngroveTheme.Colors.lightGreen)
                     .sfSymbolDrawOn()
 

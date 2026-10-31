@@ -3,7 +3,7 @@ import SwiftUI
 /// An SF Symbol that coordinates the existing source-row entrance.
 struct LibrarySubjectIcon: View {
     let subject: LibrarySubject
-    var symbolSize: CGFloat = 15
+    var symbolSize: AngroveTheme.IconSize = .large
     var shelfIsVisible: Bool = true
     var entranceDelay: Duration? = nil
     /// Mirrors the entrance fade, so neighbouring content can enter in step with the icon.
@@ -21,7 +21,7 @@ struct LibrarySubjectIcon: View {
 
     var body: some View {
         Image(systemName: subject.systemImage)
-            .font(.system(size: symbolSize, weight: .medium))
+            .angroveIcon(symbolSize, .navigation)
             .foregroundStyle(AngroveTheme.Colors.lightGreen)
             .accessibilityHidden(true)
         .opacity(reduceMotion || entranceDelay == nil || isRevealed ? 1 : 0)

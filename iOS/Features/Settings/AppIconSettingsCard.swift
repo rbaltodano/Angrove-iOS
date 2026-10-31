@@ -123,7 +123,7 @@ private struct AppIconChoiceButton: View {
                     if isSelected {
                         // Draw On is a symbol transition effect: it runs as the icon is inserted.
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 12, weight: .semibold))
+                            .angroveIcon(.small)
                             .transition(.symbolEffect(.drawOn).combined(with: CheckmarkBlurFadeTransition()))
                     }
                 }

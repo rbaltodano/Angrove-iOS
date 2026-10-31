@@ -136,7 +136,7 @@ struct WorktreeBoxChrome: View {
         let solid = (WorktreeTextBoxResize.revealDistance - WorktreeTextBoxResize.spotlightFeather)
             / WorktreeTextBoxResize.revealDistance
         return Circle()
-            .fill(RadialGradient(stops: [.init(color: .white, location: 0), .init(color: .white, location: solid),
+            .fill(RadialGradient(stops: [.init(color: AngroveTheme.Colors.mask, location: 0), .init(color: AngroveTheme.Colors.mask, location: solid),
                                          .init(color: .clear, location: 1)],
                                  center: .center, startRadius: 0, endRadius: radius))
             .frame(width: radius * 2, height: radius * 2)
@@ -160,7 +160,7 @@ struct WorktreeBoxChrome: View {
         }
         .mask(alignment: .topLeading) {
             Circle()
-                .fill(RadialGradient(stops: [.init(color: .white, location: 0), .init(color: .white, location: 0.7),
+                .fill(RadialGradient(stops: [.init(color: AngroveTheme.Colors.mask, location: 0), .init(color: AngroveTheme.Colors.mask, location: 0.7),
                                              .init(color: .clear, location: 1)],
                                      center: .center, startRadius: 0, endRadius: reach))
                 .frame(width: reach * 2, height: reach * 2)

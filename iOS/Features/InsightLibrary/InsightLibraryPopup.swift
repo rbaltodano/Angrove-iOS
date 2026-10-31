@@ -276,7 +276,7 @@ private struct InsightLibraryPager: View {
         HStack(spacing: 12) {
             Button(action: onPrevious) {
                 Image(systemName: "arrow.left")
-                    .font(.system(size: 12, weight: .regular))
+                    .angroveIcon(.small, .navigation)
                     .foregroundColor(AngroveTheme.Colors.primaryReadable)
                     .frame(width: 48, height: 48)
                     .background(AngroveTheme.Colors.surface)
@@ -293,7 +293,7 @@ private struct InsightLibraryPager: View {
 
             Button(action: onNext) {
                 Image(systemName: "arrow.right")
-                    .font(.system(size: 12, weight: .regular))
+                    .angroveIcon(.small, .navigation)
                     .foregroundColor(AngroveTheme.Colors.primaryReadable)
                     .frame(width: 48, height: 48)
                     .background(AngroveTheme.Colors.surface)
@@ -336,7 +336,7 @@ private struct InsightLibraryEmptyState: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: symbol)
-                .font(.system(size: 28, weight: .semibold))
+                .angroveIcon(.hero)
                 .foregroundColor(AngroveTheme.Colors.lightGreen)
                 .sfSymbolDrawOn()
 

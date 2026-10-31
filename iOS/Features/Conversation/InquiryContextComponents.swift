@@ -55,10 +55,10 @@ struct UploadedFileThumbnail: View {
                 AttachmentPreview(file: file) {
                     VStack(spacing: 8) {
                         Image(systemName: "doc.fill")
-                            .font(.system(size: 24, weight: .semibold))
+                            .angroveIcon(.display)
                             .sfSymbolDrawOn()
                         Text(file.name)
-                            .font(.system(size: 8, weight: .semibold))
+                            .font(AngroveTheme.Typography.attachmentName)
                             .lineLimit(2)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 4)
@@ -82,7 +82,7 @@ struct UploadedFileThumbnail: View {
                     }
                 }) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .bold))
+                        .angroveIcon(.xSmall, .strong)
                         .foregroundStyle(AngroveTheme.Colors.deepSurface)
                         .frame(width: 22, height: 22)
                         .background(AngroveTheme.Colors.uploadBorder)

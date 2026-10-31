@@ -328,16 +328,16 @@ struct InsightTreeView: View {
                 Text("Undo")
                     .font(BrandTypography.font("Figtree-Bold", size: 16))
                 Image(systemName: "arrow.uturn.backward")
-                    .font(.system(size: 14, weight: .semibold))
+                    .angroveIcon(.medium)
             }
             .foregroundColor(AngroveTheme.Colors.onAccent)
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
             .background(canvasTertiary)
-            .cornerRadius(12)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .shadow(color: canvasTertiary.opacity(0.2), radius: 8, x: 0, y: 8)
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .inset(by: 0.5)
                     .stroke(canvasTertiary.opacity(0.05), lineWidth: 1)
             )
@@ -651,7 +651,7 @@ struct InsightTreeView: View {
                     if let onClose {
                         Button(action: { studySubject == nil ? onClose() : exitStudy() }) {
                             Image(systemName: "xmark")
-                                .font(.system(size: 12, weight: .semibold))
+                                .angroveIcon(.small)
                                 .sfSymbolDrawOn()
                                 .angroveIconControl()
                         }

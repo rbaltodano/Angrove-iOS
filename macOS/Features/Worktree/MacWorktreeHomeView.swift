@@ -157,7 +157,7 @@ private struct WorktreeCard: View {
                     .lineLimit(1)
                 Spacer(minLength: 8)
                 Image(systemName: "arrow.up.right")
-                    .font(.system(size: 11, weight: .bold))
+                    .angroveIcon(.small, .strong)
                     .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     .opacity(isHovered ? 1 : 0)
                     .offset(x: isHovered ? 0 : -4, y: isHovered ? 0 : 4)
@@ -188,7 +188,7 @@ private struct WorktreeNewCard: View {
         Button(action: action) {
             VStack(spacing: 14) {
                 Image(systemName: "plus")
-                    .font(.system(size: 16, weight: .bold))
+                    .angroveIcon(.large, .strong)
                     .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     .frame(width: 48, height: 48)
                     .background(AngroveTheme.Colors.canvasSecondary, in: Circle())

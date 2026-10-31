@@ -62,7 +62,7 @@ struct DynamicInsightSheetCard: View {
     private var loadedHeader: some View {
         HStack(alignment: .center, spacing: 8) {
             Image(systemName: "text.bubble.fill")
-                .font(.system(size: 12, weight: .bold))
+                .angroveIcon(.small, .strong)
                 .foregroundColor(AngroveTheme.Colors.darkGreen)
 
             Text(word.capitalized)
@@ -92,7 +92,7 @@ struct DynamicInsightSheetCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center, spacing: 8) {
                 Image(systemName: "books.vertical")
-                    .font(.system(size: 12, weight: .semibold))
+                    .angroveIcon(.small)
                     .foregroundColor(AngroveTheme.Colors.darkGreen)
                 Text(concept.word)
                     .font(.custom("Figtree-Bold", size: 18))

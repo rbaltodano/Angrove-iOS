@@ -19,9 +19,18 @@ bundled LiteRT framework. When working from a worktree, verify that the project 
 ## UI work
 
 Use the Figma source of truth when a design node is available; do not approximate it from a
-screenshot. Use `AngroveTheme` from `DesignSystem/SharedTypography.swift` for typography and
-color. Before handing off UI work, check small phone widths, light and dark modes, navigation,
-and empty states.
+screenshot. Use `AngroveTheme` (`Shared/DesignSystem/AngroveTheme.swift`) for typography and
+color, the named springs in `Motion.swift`, and `.angroveIcon(_:_:)` (`AngroveIcon.swift`) for
+every SF Symbol. Before handing off UI work, check small phone widths, light and dark modes,
+navigation, and empty states, then run the token check:
+
+```sh
+python3 scripts/check_design_tokens.py
+```
+
+It flags raw colors, system colors and text styles, `.system` fonts, raw springs and
+non-continuous corners outside `*/DesignSystem/`. A line that truly needs a raw value ends with
+`// design-tokens: allow <reason>`.
 
 ## Device work
 

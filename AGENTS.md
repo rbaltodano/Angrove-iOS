@@ -35,8 +35,9 @@ duplicate architecture specifications.
   `<current main app name> – <work name>` and verify the exact signed app's
   `CFBundleDisplayName` before installation. Follow the naming procedure in
   [`Documentation/Development-Workflow.md`](Documentation/Development-Workflow.md).
-- Use `AngroveTheme` typography and color tokens. Do not introduce ad hoc system colors or raw
-  visual constants when an existing semantic token applies.
+- Use `AngroveTheme` typography and color tokens, `.angroveIcon(_:_:)` for SF Symbols, and the
+  named springs in `Motion.swift`. Do not introduce ad hoc system colors or raw visual constants
+  when an existing semantic token applies. `python3 scripts/check_design_tokens.py` must pass.
 - All live generation goes through `AngroveModel` and the shared runtime/queue. `MockAngroveModel`
   is for previews and tests only; live actions fail explicitly rather than inventing fallback
   content.

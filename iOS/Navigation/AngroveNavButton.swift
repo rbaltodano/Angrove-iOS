@@ -34,12 +34,12 @@ struct AngroveNavButton: View {
                 ZStack {
                     if isDetailVisible {
                         Image(systemName: "chevron.left")
-                            .font(.system(size: 12, weight: .medium))
+                            .angroveIcon(.small, .navigation)
                             .foregroundColor(AngroveTheme.Colors.darkGreen)
                             .transition(.blurFade)
                     } else {
                         Image(systemName: "line.3.horizontal.decrease")
-                            .font(.system(size: 12, weight: .medium))
+                            .angroveIcon(.small, .navigation)
                             .foregroundColor(AngroveTheme.Colors.darkGreen)
                             .transition(.blurFade)
                     }
@@ -84,11 +84,11 @@ struct AngroveNavButton: View {
     }
 
     private func triggerPulse() {
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.42)) {
+        withAnimation(.springPulse) {
             pulseScale = 1.05
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.58)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            withAnimation(.springBouncy) {
                 pulseScale = 1.0
             }
         }

@@ -39,7 +39,7 @@ struct DockedInsightTreeCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center, spacing: 8) {
-                DockedCardTextBubbleIcon(size: 12, delay: 0.18, color: AngroveTheme.Colors.lightGreen)
+                DockedCardTextBubbleIcon(size: .small, delay: 0.18, color: AngroveTheme.Colors.lightGreen)
 
                 Text(insight.title)
                     .font(BrandTypography.font("Figtree-Bold", size: 18))
@@ -357,11 +357,11 @@ private struct DockedNodeScrollMask: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            LinearGradient(colors: [.white.opacity(hasContentAbove ? 0 : 1), .white],
+            LinearGradient(colors: [AngroveTheme.Colors.mask.opacity(hasContentAbove ? 0 : 1), AngroveTheme.Colors.mask],
                            startPoint: .top, endPoint: .bottom)
                 .frame(height: edgeHeight)
-            Rectangle().fill(.white)
-            LinearGradient(colors: [.white, .white.opacity(hasContentBelow ? 0 : 1)],
+            Rectangle().fill(AngroveTheme.Colors.mask)
+            LinearGradient(colors: [AngroveTheme.Colors.mask, AngroveTheme.Colors.mask.opacity(hasContentBelow ? 0 : 1)],
                            startPoint: .top, endPoint: .bottom)
                 .frame(height: edgeHeight)
         }
@@ -382,7 +382,7 @@ private struct DockedInsightLinkRow: View {
             onTap(insight)
         } label: {
             HStack(spacing: 8) {
-                DockedCardTextBubbleIcon(size: 14, delay: 0, color: AngroveTheme.Colors.lightGreen)
+                DockedCardTextBubbleIcon(size: .medium, delay: 0, color: AngroveTheme.Colors.lightGreen)
 
                 // No minimumScaleFactor: it interacts with the insertion transition below and
                 // locks later-inserted rows at a slightly reduced scale. Fixed size + truncation
@@ -414,7 +414,7 @@ struct DockedConceptCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center, spacing: 8) {
-                DockedCardTextBubbleIcon(size: 12, delay: 0.18, color: AngroveTheme.Colors.lightGreen)
+                DockedCardTextBubbleIcon(size: .small, delay: 0.18, color: AngroveTheme.Colors.lightGreen)
                 Text(concept.word.capitalized)
                     .font(BrandTypography.font("Figtree-Bold", size: 18))
                     .foregroundColor(AngroveTheme.Colors.lightGreen)
@@ -488,7 +488,7 @@ struct MidpointPercentCard: View {
     private func row(index: Int, concept: ConceptDefinition) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "text.bubble.fill")
-                .font(.system(size: 14, weight: .semibold))
+                .angroveIcon(.medium)
                 .foregroundColor(AngroveTheme.Colors.lightGreen)
             Text(concept.word.capitalized)
                 .font(BrandTypography.font("Figtree-Bold", size: 14))
@@ -525,7 +525,7 @@ private struct PercentStepper: View {
     private func chevron(_ name: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: name)
-                .font(.system(size: 14, weight: .semibold))
+                .angroveIcon(.medium)
                 .foregroundColor(AngroveTheme.Colors.headingText)
                 .frame(width: 18, height: 18)
                 .contentShape(Rectangle())
@@ -601,7 +601,7 @@ private struct EditablePercent: View {
                             Spacer()
                             Button(action: commit) {
                                 Image(systemName: "checkmark")
-                                    .font(.system(size: 16, weight: .semibold))
+                                    .angroveIcon(.large)
                                     .foregroundColor(AngroveTheme.Colors.lightGreen)
                             }
                         }
@@ -653,14 +653,14 @@ private struct EditablePercent: View {
 }
 
 private struct DockedCardTextBubbleIcon: View {
-    let size: CGFloat
+    let size: AngroveTheme.IconSize
     var delay: TimeInterval = 0
     var color: Color = AngroveTheme.Colors.lightGreen
     @State private var isVisible = false
 
     var body: some View {
         Image(systemName: "text.bubble.fill")
-            .font(.system(size: size, weight: .semibold))
+            .angroveIcon(size)
             .foregroundColor(color)
             .scaleEffect(isVisible ? 1 : 0.86)
             .opacity(isVisible ? 1 : 0)

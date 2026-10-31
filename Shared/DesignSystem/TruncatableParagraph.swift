@@ -89,7 +89,7 @@ struct TruncatableParagraph: View {
             if canExpand {
                 Button(action: toggleExpanded) {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 12, weight: .bold))
+                        .angroveIcon(.small, .strong)
                         .foregroundColor(AngroveTheme.Colors.lightGreen)
                         .frame(width: 32, height: 18)
                         .background(AngroveTheme.Colors.canvas.opacity(0.72))

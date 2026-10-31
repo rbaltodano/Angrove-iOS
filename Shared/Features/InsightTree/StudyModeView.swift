@@ -462,7 +462,7 @@ private struct StudyDotMatrix: View {
 private struct StudyInsightCenterIcon: View {
     var body: some View {
         Image(systemName: "text.bubble.fill")
-            .font(.system(size: 14, weight: .semibold))
+            .angroveIcon(.medium)
             .foregroundStyle(AngroveTheme.Colors.lightGreen)
     }
 }

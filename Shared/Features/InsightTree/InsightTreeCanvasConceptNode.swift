@@ -26,7 +26,7 @@ struct InsightTreeCanvasConceptNode: View {
                 // previously the icon had no entrance treatment of its own and stayed static
                 // while the label blurred/faded in.
                 Image(systemName: isSuggested ? "sparkles" : "brain.head.profile")
-                    .font(.system(size: isSuggested ? 20 : 24, weight: .semibold))
+                    .angroveIcon(isSuggested ? .xxLarge : .display)
                     .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     .blur(radius: hasAppeared ? 0 : 8)
                     .animation(.springRelaxed.delay(0.1), value: hasAppeared)
@@ -68,7 +68,7 @@ struct InsightTreeCanvasConceptNode: View {
                     onDismiss()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
+                        .angroveIcon(.small, .strong)
                         .foregroundStyle(AngroveTheme.Colors.primaryReadable)
                         .frame(width: 32, height: 32)
                         .contentShape(Rectangle())

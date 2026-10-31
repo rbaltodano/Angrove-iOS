@@ -125,7 +125,7 @@ struct HomeInsightBridgeLabel: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: "text.bubble.fill")
-                    .font(.system(size: 14, weight: .semibold))
+                    .angroveIcon(.medium)
                     .foregroundColor(AngroveTheme.Colors.lightGreen)
                     .frame(width: 14, height: 14)
 
@@ -228,7 +228,7 @@ struct HomeTodayInHistorySection: View {
             Button(action: onStartConversation) {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.turn.down.right")
-                        .font(.system(size: 12, weight: .bold))
+                        .angroveIcon(.small, .strong)
 
                     Text("Tell me more...")
                         .paragraphFont()

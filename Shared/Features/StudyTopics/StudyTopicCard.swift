@@ -28,7 +28,7 @@ struct StudyTopicCardHeader<Trailing: View>: View {
             HStack(alignment: .center, spacing: 12) {
                 HStack(spacing: 8) {
                     Image(systemName: "square.stack")
-                        .font(.system(size: 16, weight: .semibold))
+                        .angroveIcon(.large)
                         .foregroundColor(AngroveTheme.Colors.lightGreen)
 
                     Text(title)
@@ -90,7 +90,7 @@ struct StudyTopicCard: View {
                     MacMenuEntry("Delete", symbol: "trash", destructive: true, action: onDelete)
                 ] }) {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 13, weight: .bold))
+                        .angroveIcon(.medium, .strong)
                         .foregroundStyle(AngroveTheme.Colors.paragraphText)
                         .frame(width: 22, height: 22)
                 }
@@ -101,7 +101,7 @@ struct StudyTopicCard: View {
                     Button("Delete", systemImage: "trash", role: .destructive) { onDelete() }
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 13, weight: .bold))
+                        .angroveIcon(.medium, .strong)
                         .foregroundColor(AngroveTheme.Colors.paragraphText)
                         .frame(width: 22, height: 22)
                 }
@@ -135,7 +135,7 @@ struct StudyTopicCard: View {
                             }
                         }) {
                             Image(systemName: "ellipsis")
-                                .font(.system(size: 12, weight: .bold))
+                                .angroveIcon(.small, .strong)
                                 .foregroundColor(AngroveTheme.Colors.lightGreen)
                                 .frame(width: 34, height: 18)
                                 .background(AngroveTheme.Colors.canvas.opacity(0.72))

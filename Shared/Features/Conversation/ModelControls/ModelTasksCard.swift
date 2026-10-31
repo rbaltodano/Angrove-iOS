@@ -134,7 +134,7 @@ struct ModelTasksCard: View {
                 if showsIdle {
                     HStack(spacing: 4) {
                         Image(systemName: "circle.dotted")
-                            .font(.system(size: 12, weight: .regular))
+                            .angroveIcon(.small, .navigation)
                             .frame(width: 12, height: 12)
 
                         Text("Model is currently idle...")
@@ -238,7 +238,7 @@ private struct ModelPicker: View {
                 Text(runtime.modelTier.modelName)
                     .font(BrandTypography.font("Figtree-Bold", size: 12))
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
+                    .angroveIcon(.xSmall)
             }
             .foregroundColor(AngroveTheme.Colors.paragraphText.opacity(0.75))
             .contentShape(Rectangle())
@@ -315,7 +315,7 @@ private struct ModelTaskRow: View {
             switch task.phase {
             case .completed:
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 14, weight: .semibold))
+                    .angroveIcon(.medium)
                     .foregroundColor(AngroveTheme.Colors.headingText)
                     .transition(reduceMotion ? .opacity : .blurFade)
             case .current:
@@ -327,7 +327,7 @@ private struct ModelTaskRow: View {
                 .transition(reduceMotion ? .opacity : .blurFade)
             case .upcoming:
                 Image(systemName: "circle.dotted")
-                    .font(.system(size: 14, weight: .regular))
+                    .angroveIcon(.medium, .navigation)
                     .transition(reduceMotion ? .opacity : .blurFade)
             }
         }
@@ -345,7 +345,7 @@ private struct ModelTaskRow: View {
                 Button(action: onStop) {
                     Image(systemName: "stop.circle.fill")
                         .symbolRenderingMode(.hierarchical)
-                        .font(.system(size: 14, weight: .semibold))
+                        .angroveIcon(.medium)
                         .foregroundColor(AngroveTheme.Colors.paragraphText)
                 }
                 .buttonStyle(.plain)
@@ -354,7 +354,7 @@ private struct ModelTaskRow: View {
             case .upcoming:
                 Button(action: onRemove) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .bold))
+                        .angroveIcon(.small, .strong)
                         .foregroundColor(AngroveTheme.Colors.paragraphText.opacity(0.5))
                         .frame(width: 14, height: 14)
                 }

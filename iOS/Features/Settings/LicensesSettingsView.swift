@@ -70,7 +70,7 @@ private struct LicenseWorkRow: View {
             Spacer(minLength: 8)
 
             Image(systemName: "chevron.right")
-                .font(.system(size: 10, weight: .bold))
+                .angroveIcon(.xSmall, .strong)
                 .foregroundStyle(AngroveTheme.Colors.placeholderText)
         }
         .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)

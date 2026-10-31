@@ -22,7 +22,7 @@ struct MacResponseFeedbackSheet: View {
                         .scrollContentBackground(.hidden)
                         .padding(12)
                         .frame(height: 150)
-                        .background(AngroveTheme.Colors.canvasSecondary, in: RoundedRectangle(cornerRadius: AngroveTheme.Spacing.smallCardRadius))
+                        .background(AngroveTheme.Colors.canvasSecondary, in: RoundedRectangle(cornerRadius: AngroveTheme.Spacing.smallCardRadius, style: .continuous))
                         .accessibilityLabel("What went wrong with this response")
                     if let report {
                         Toggle("Include this response and the question before it", isOn: $includesResponse)
@@ -33,7 +33,7 @@ struct MacResponseFeedbackSheet: View {
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(12)
-                                .background(AngroveTheme.Colors.canvasSecondary, in: RoundedRectangle(cornerRadius: AngroveTheme.Spacing.smallCardRadius))
+                                .background(AngroveTheme.Colors.canvasSecondary, in: RoundedRectangle(cornerRadius: AngroveTheme.Spacing.smallCardRadius, style: .continuous))
                         }
                     }
                     if hasFailed {

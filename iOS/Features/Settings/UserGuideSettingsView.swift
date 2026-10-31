@@ -88,7 +88,7 @@ private struct UserGuideTechnicalDetails: View {
                     Text(isOpen ? "Hide Technical Details" : "Show Technical Details")
                         .settingsText(.label)
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
+                        .angroveIcon(.small)
                         .rotationEffect(.degrees(isOpen ? 180 : 0))
                 }
                 .foregroundStyle(AngroveTheme.Colors.lightGreen)
@@ -132,7 +132,7 @@ private struct UserGuideTechnicalDetails: View {
             }
             if let formula = section.formula {
                 Text(formula)
-                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                    .font(AngroveTheme.Typography.formula)
                     .foregroundStyle(AngroveTheme.Colors.headingText)
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -181,7 +181,7 @@ private struct UserGuideTopicRow: View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: topic.icon)
-                    .font(.system(size: 14, weight: .medium))
+                    .angroveIcon(.medium, .navigation)
                     .frame(width: 20)
                     .accessibilityHidden(true)
                 Text(topic.title)
@@ -189,7 +189,7 @@ private struct UserGuideTopicRow: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+                    .angroveIcon(.small)
                     .accessibilityHidden(true)
             }
             .foregroundStyle(AngroveTheme.Colors.paragraphText)

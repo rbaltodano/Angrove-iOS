@@ -81,7 +81,7 @@ struct SideMenuStudyTopicPickerSheet: View {
                 Button(action: { isShowingNewTopicSheet = true }) {
                     HStack(spacing: 8) {
                         Image(systemName: "plus")
-                            .font(.system(size: 10, weight: .bold))
+                            .angroveIcon(.xSmall, .strong)
                             .sfSymbolDrawOn()
                         Text("Add New Study Topic")
                             .paragraphFont()
@@ -162,7 +162,7 @@ private struct SideMenuStudyTopicPickerCard: View {
             Group {
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 18, weight: .semibold))
+                        .angroveIcon(.xLarge)
                         .foregroundColor(AngroveTheme.Colors.lightGreen)
                 } else {
                     Color.clear

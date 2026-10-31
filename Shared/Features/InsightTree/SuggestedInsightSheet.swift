@@ -32,7 +32,7 @@ struct SuggestedInsightSheet: View {
 
                     Button(action: onDismissSuggestedNode) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .semibold))
+                            .angroveIcon(.small)
                             .angroveIconControl()
                     }
                     .buttonStyle(.plain)

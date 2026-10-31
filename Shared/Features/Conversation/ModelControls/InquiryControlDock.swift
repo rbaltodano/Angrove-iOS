@@ -465,7 +465,7 @@ struct InquiryControlDock: View {
         Button(action: activateCanvasSearch) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 14, weight: .regular))
+                    .angroveIcon(.medium, .navigation)
                     .foregroundColor(AngroveTheme.Colors.searchIcon)
 
                 Text("Search")
@@ -488,7 +488,7 @@ struct InquiryControlDock: View {
             HStack(spacing: 8) {
                 Button(action: dismissCanvasSearch) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .semibold))
+                        .angroveIcon(.medium)
                         .foregroundColor(AngroveTheme.Colors.placeholderText)
                 }
                 .buttonStyle(FloatingControlButtonStyle(isPressed: $isControlButtonPressed))
@@ -502,7 +502,7 @@ struct InquiryControlDock: View {
             HStack(spacing: 9) {
                 Button(action: onCanvasSearchPrevious) {
                     Image(systemName: "arrow.left")
-                        .font(.system(size: 11, weight: .medium))
+                        .angroveIcon(.small, .navigation)
                         .frame(width: 14, height: 14)
                 }
                 .disabled(canvasSearchResultCount == 0)
@@ -515,7 +515,7 @@ struct InquiryControlDock: View {
 
                 Button(action: onCanvasSearchNext) {
                     Image(systemName: "arrow.right")
-                        .font(.system(size: 11, weight: .medium))
+                        .angroveIcon(.small, .navigation)
                         .frame(width: 14, height: 14)
                 }
                 .disabled(canvasSearchResultCount == 0)
@@ -577,7 +577,7 @@ struct InquiryControlDock: View {
             return items
         }) {
             Image(systemName: "plus")
-                .font(.system(size: 12, weight: .semibold))
+                .angroveIcon(.small)
                 .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 .frame(width: 16, height: 16)
         }
@@ -616,7 +616,7 @@ struct InquiryControlDock: View {
             #endif
         } label: {
             Image(systemName: "plus")
-                .font(.system(size: 12, weight: .semibold))
+                .angroveIcon(.small)
                 .foregroundColor(AngroveTheme.Colors.lightGreen)
                 .frame(width: 16, height: 16)
         }
@@ -650,7 +650,7 @@ struct InquiryControlDock: View {
             )
         } label: {
             Image(systemName: "speaker.wave.2.fill")
-                .font(.system(size: 14, weight: .semibold))
+                .angroveIcon(.medium)
                 .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 .symbolEffect(
                     .variableColor.iterative,
@@ -774,7 +774,7 @@ struct InquiryControlDock: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: icon)
-                    .font(.system(size: 14, weight: .semibold))
+                    .angroveIcon(.medium)
                     .id("\(title)-\(canvasActionDrawID)")
                     .sfSymbolDrawOn()
                 Text(title)
@@ -793,7 +793,7 @@ struct InquiryControlDock: View {
         Button(action: onToggleStudyTools) {
             HStack(spacing: 8) {
                 Image(systemName: "arrow.triangle.branch")
-                    .font(.system(size: 14, weight: .semibold))
+                    .angroveIcon(.medium)
                 Text("Branch")
                     .font(BrandTypography.font("Figtree-Bold", size: 14))
             }
@@ -827,7 +827,7 @@ struct InquiryControlDock: View {
     private var clearCanvasSelectionButton: some View {
         Button(action: onClearCanvasSelection) {
             Image(systemName: "xmark")
-                .font(.system(size: 12, weight: .semibold))
+                .angroveIcon(.small)
                 .frame(width: 16, height: 16)
                 .foregroundColor(AngroveTheme.Colors.paragraphText.opacity(0.75))
         }
@@ -841,7 +841,7 @@ struct InquiryControlDock: View {
     private var cancelCanvasAskButton: some View {
         Button(action: onCancelCanvasAsk) {
             Image(systemName: "xmark")
-                .font(.system(size: 12, weight: .semibold))
+                .angroveIcon(.small)
                 .frame(width: 16, height: 16)
                 .foregroundColor(AngroveTheme.Colors.paragraphText.opacity(0.75))
         }
@@ -866,7 +866,7 @@ struct InquiryControlDock: View {
             .transition(.scale(scale: 0.5).combined(with: .opacity))
         } else {
             Image(systemName: "circle.dashed")
-                .font(.system(size: 14, weight: .semibold))
+                .angroveIcon(.medium)
                 .id("select-\(canvasActionDrawID)")
                 .sfSymbolDrawOn()
         }
@@ -875,7 +875,7 @@ struct InquiryControlDock: View {
     private var sendButton: some View {
         Button(action: onSend) {
             Image(systemName: "paperplane.fill")
-                .font(.system(size: 16, weight: .semibold))
+                .angroveIcon(.large)
                 .foregroundColor(AngroveTheme.Colors.lightGreen)
                 .frame(width: 16, height: 16)
         }

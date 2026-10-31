@@ -76,9 +76,9 @@ struct MacHomeModelDownloadCard: View {
                 }
                 .padding(.horizontal, 20)
                 .background(AngroveTheme.Colors.canvasSecondary,
-                            in: RoundedRectangle(cornerRadius: AngroveTheme.Spacing.smallCardRadius))
+                            in: RoundedRectangle(cornerRadius: AngroveTheme.Spacing.smallCardRadius, style: .continuous))
                 .overlay {
-                    RoundedRectangle(cornerRadius: AngroveTheme.Spacing.smallCardRadius)
+                    RoundedRectangle(cornerRadius: AngroveTheme.Spacing.smallCardRadius, style: .continuous)
                         .stroke(AngroveTheme.Colors.border, lineWidth: 1)
                 }
                 .transition(.opacity)

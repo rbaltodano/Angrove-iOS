@@ -24,13 +24,13 @@ struct SideMenuRow: View {
                 Group {
                     if showsIcon {
                         Image(systemName: icon)
-                            .font(.system(size: 16, weight: .medium))
+                            .angroveIcon(.large, .navigation)
                             .foregroundColor(AngroveTheme.Colors.lightGreen)
                             .frame(width: 16, height: 16)
                             .sfSymbolDrawOn()
                     } else {
                         Image(systemName: icon)
-                            .font(.system(size: 16, weight: .medium))
+                            .angroveIcon(.large, .navigation)
                             .frame(width: 16, height: 16)
                             .hidden()
                     }
@@ -188,7 +188,7 @@ struct ConversationSpeakingIndicator: View {
     var body: some View {
         if speech.activeConversationID == conversationID, speech.phase != .idle {
             Image(systemName: "speaker.wave.2.fill")
-                .font(.system(size: 12, weight: .semibold))
+                .angroveIcon(.small)
                 .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 .symbolEffect(.variableColor.iterative, isActive: speech.phase == .speaking && !speech.isPaused && !reduceMotion)
                 .accessibilityLabel("Reading aloud")
@@ -210,7 +210,7 @@ struct PageSpeakingIndicator: View {
     var body: some View {
         if isCurrentPage, speech.phase != .idle {
             Image(systemName: "speaker.wave.2.fill")
-                .font(.system(size: 12, weight: .semibold))
+                .angroveIcon(.small)
                 .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 .symbolEffect(.variableColor.iterative, isActive: speech.phase == .speaking && !speech.isPaused && !reduceMotion)
                 .accessibilityLabel("Reading aloud")
@@ -244,7 +244,7 @@ struct ConversationMenuRow: View {
                         showUnpinConfirmation = true
                     } label: {
                         Image(systemName: "pin.fill")
-                            .font(.system(size: 11, weight: .medium))
+                            .angroveIcon(.small, .navigation)
                             .foregroundColor(AngroveTheme.Colors.accent)
                     }
                     .buttonStyle(.plain)
@@ -288,7 +288,7 @@ struct ConversationMenuRow: View {
                     Button("Delete", systemImage: "trash", role: .destructive) { onDelete() }
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 14, weight: .bold))
+                        .angroveIcon(.medium, .strong)
                         .foregroundColor(AngroveTheme.Colors.paragraphText)
                         .sfSymbolDrawOn(delay: delay + 0.08)
                         .frame(width: 22, height: 22)
@@ -399,7 +399,7 @@ struct StudyTopicMenuRow: View {
             // ── Topic header row ─────────────────────────────────────────────
             HStack(spacing: 12) {
                 Image(systemName: "square.stack")
-                    .font(.system(size: 16, weight: .medium))
+                    .angroveIcon(.large, .navigation)
                     .foregroundColor(AngroveTheme.Colors.lightGreen)
                     .frame(width: 16, height: 16)
                     .sfSymbolDrawOn()
@@ -421,7 +421,7 @@ struct StudyTopicMenuRow: View {
                     Button("Delete", systemImage: "trash", role: .destructive) { onDelete() }
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 14, weight: .bold))
+                        .angroveIcon(.medium, .strong)
                         .foregroundColor(AngroveTheme.Colors.paragraphText)
                         .sfSymbolDrawOn(delay: delay + 0.08)
                         .frame(width: 22, height: 22)
@@ -532,7 +532,7 @@ private struct TopicConversationRow: View {
         Button(action: onTap) {
             HStack(spacing: 10) {
                 Image(systemName: "text.word.spacing")
-                    .font(.system(size: 11))
+                    .angroveIcon(.small, .navigation)
                     .foregroundColor(AngroveTheme.Colors.paragraphText.opacity(0.4))
                     .frame(width: 14, height: 14)
                     .sfSymbolDrawOn(delay: Double(index) * 0.15 + 0.05)

@@ -126,6 +126,10 @@ enum AngroveTheme {
         static let cardGlowBase = Color(hex: 0x220F00)
         static let cardGlow = cardGlowBase.opacity(0.15)
         static let scrim = Color.black
+        /// Opaque fill for masks only; its color never shows.
+        static let mask = Color.white
+        /// The Mac conversation's top and bottom fade, a hair lighter than Canvas in light mode.
+        static let edgeFade = Color(light: 0xF4EFE4, dark: 0x120F0C)
         static let onAccent = Color(hex: 0xFFFAF0)
         static let pulse = Color(hex: 0x877D4F)
         static let deepSurface = Color(light: 0x201C18, dark: 0x130F0C)
@@ -166,6 +170,10 @@ enum AngroveTheme {
         static let bodyLarge = BrandTypography.font("Figtree-Regular", size: 16)
         static let inlineInsight = BrandTypography.font("Figtree-Bold", size: 16)
         static let chipLabel = BrandTypography.font("Figtree-Bold", size: 12)
+        /// The file name under an attachment thumbnail.
+        static let attachmentName = BrandTypography.font("Figtree-SemiBold", size: 8)
+        /// User Guide formulas, the only monospaced text in the app.
+        static let formula = Font.system(size: 14, weight: .medium, design: .monospaced)
 
         // Settings subpages follow the iPhone's Text Size setting.
         static let settingsTitle = BrandTypography.font("LibreBaskerville-Regular", size: 28, relativeTo: .title)

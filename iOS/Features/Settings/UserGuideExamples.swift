@@ -630,7 +630,7 @@ private struct UserGuideMidpointDock: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: item.icon)
-                            .font(.system(size: 14, weight: .semibold))
+                            .angroveIcon(.medium)
                             .id("\(item.id)-\(item.title)")
                             .sfSymbolDrawOn()
                         Text(item.title)
@@ -717,12 +717,12 @@ private struct UserGuideModelTasksExample: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "plus")
-                    .font(.system(size: 12, weight: .bold))
+                    .angroveIcon(.small, .strong)
                 Text(title)
                     .settingsText(.label)
                 Spacer(minLength: 8)
                 Image(systemName: icon)
-                    .font(.system(size: 13, weight: .semibold))
+                    .angroveIcon(.medium)
                     .opacity(0.6)
             }
             .foregroundStyle(AngroveTheme.Colors.lightGreen)

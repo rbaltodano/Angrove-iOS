@@ -423,7 +423,7 @@ private struct MacHomeResumeCard: View {
                 HStack(spacing: 8) {
                     if conversation.isPinned {
                         Image(systemName: "pin.fill")
-                            .font(.system(size: 11, weight: .semibold))
+                            .angroveIcon(.small)
                             .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     }
                     Text(MacStudyTopicsView.title(of: conversation))
@@ -432,7 +432,7 @@ private struct MacHomeResumeCard: View {
                         .lineLimit(1)
                     Spacer(minLength: 8)
                     Image(systemName: "arrow.up.right")
-                        .font(.system(size: 12, weight: .bold))
+                        .angroveIcon(.small, .strong)
                         .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 }
                 Text(verbatim: MacHomePreviewText.plainText(from: latestText))

@@ -35,7 +35,7 @@ struct LibraryReaderHeader: View {
             Button(action: onListen) {
                 HStack(spacing: 8) {
                     Image(systemName: isListening ? "pause.fill" : "speaker.wave.2.fill")
-                        .font(.system(size: 12, weight: .semibold))
+                        .angroveIcon(.small)
                     Text(isListening ? "Pause" : "Listen")
                         .font(.custom("Figtree-Bold", size: 14))
                 }
@@ -279,7 +279,7 @@ struct LibraryContentsBreadcrumb: View {
                 .buttonStyle(.plain)
                 if node.id != path.dropLast().last?.id {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 9, weight: .semibold))
+                        .angroveIcon(.xSmall)
                         .foregroundStyle(AngroveTheme.Colors.placeholderText)
                 }
             }
@@ -297,7 +297,7 @@ struct ContentsRow: View {
             HStack {
                 HStack(spacing: 4) {
                     if isSelected {
-                        Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold)).foregroundStyle(AngroveTheme.Colors.lightGreen).transition(.scale.combined(with: .opacity))
+                        Image(systemName: "chevron.right").angroveIcon(.xSmall, .strong).foregroundStyle(AngroveTheme.Colors.lightGreen).transition(.scale.combined(with: .opacity))
                     }
                     Text(title).font(.custom(isSelected ? "Figtree-SemiBold" : "Figtree-Regular", size: 14)).foregroundStyle(isSelected ? AngroveTheme.Colors.lightGreen : AngroveTheme.Colors.paragraphText)
                 }

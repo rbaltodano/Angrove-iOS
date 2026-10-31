@@ -763,7 +763,7 @@ struct BugReportSettingsView: View {
                     if !statusMessage.isEmpty {
                         HStack(alignment: .top, spacing: 10) {
                             Image(systemName: hasFailed ? "exclamationmark.circle" : hasSent ? "checkmark.circle" : "ellipsis.circle")
-                                .font(.system(size: 16, weight: .medium))
+                                .angroveIcon(.large, .navigation)
                                 .foregroundStyle(hasFailed ? AngroveTheme.Colors.accentRed : AngroveTheme.Colors.lightGreen)
                                 .accessibilityHidden(true)
                             Text(statusMessage)

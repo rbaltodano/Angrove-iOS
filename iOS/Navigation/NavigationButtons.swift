@@ -12,7 +12,7 @@ struct SideMenuTriggerButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "line.3.horizontal.decrease")
-                .font(.system(size: 12, weight: .medium))
+                .angroveIcon(.small, .navigation)
                 .foregroundColor(AngroveTheme.Colors.darkGreen)
                 .sfSymbolDrawOn()
                 .frame(width: 48, height: 48)
@@ -37,7 +37,7 @@ struct StudyExitButton: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .medium))
+                    .angroveIcon(.small, .navigation)
                     .foregroundColor(AngroveTheme.Colors.darkGreen)
                     .frame(width: 14, height: 14)
                 Text("Exit")
@@ -70,7 +70,7 @@ struct NavBackCapsuleButton: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 12, weight: .medium))
+                    .angroveIcon(.small, .navigation)
                     .foregroundColor(AngroveTheme.Colors.darkGreen)
                     .frame(width: 14, height: 14)
                 BlurSwapText(title)
@@ -133,12 +133,12 @@ struct CanvasModeToggleButton: View {
                 ZStack {
                     if isActive {
                         Image(systemName: "chevron.left")
-                            .font(.system(size: 12, weight: .medium))
+                            .angroveIcon(.small, .navigation)
                             .foregroundColor(AngroveTheme.Colors.darkGreen)
                             .transition(.blurFade)
                     } else {
                         Image(systemName: "point.3.connected.trianglepath.dotted")
-                            .font(.system(size: 14, weight: .semibold))
+                            .angroveIcon(.medium)
                             .foregroundColor(AngroveTheme.Colors.lightGreen)
                             .sfSymbolDrawOn()
                             .transition(.blurFade)
@@ -294,7 +294,7 @@ struct CanvasModeToggleButton: View {
     }
 
     private func triggerPulse() {
-        withAnimation(.spring(response: 0.22, dampingFraction: 0.52)) {
+        withAnimation(.springPulse) {
             pulseScale = 1.05
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {

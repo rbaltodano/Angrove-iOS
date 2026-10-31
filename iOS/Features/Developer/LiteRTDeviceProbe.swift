@@ -807,7 +807,8 @@ private struct LiteRTProbeStatus: View {
         .background(
             AngroveTheme.Colors.componentBackground,
             in: RoundedRectangle(
-                cornerRadius: AngroveTheme.Spacing.smallCardRadius
+                cornerRadius: AngroveTheme.Spacing.smallCardRadius,
+                style: .continuous
             )
         )
     }

@@ -121,7 +121,7 @@ struct ResponseButtons: View {
 
     private func buttonIcon(for action: ResponseButtonAction) -> some View {
         Image(systemName: action.systemName)
-            .font(.system(size: 16, weight: action.weight))
+            .angroveIcon(.large, action.weight)
             .symbolEffect(.variableColor.iterative, isActive: action == .speak && isSpeaking && !reduceMotion)
             .rotationEffect(action == .fork ? .degrees(90) : .degrees(0))
             .foregroundColor(iconColor(for: action))
@@ -236,12 +236,12 @@ private enum ResponseButtonAction: Equatable {
         }
     }
 
-    var weight: Font.Weight {
+    var weight: AngroveTheme.IconWeight {
         switch self {
         case .fork:
-            return .bold
+            return .strong
         default:
-            return .semibold
+            return .standard
         }
     }
 

@@ -269,7 +269,7 @@ struct InsightQuestionBar: View {
         VStack(spacing: 8) {
 
             // Drag handle — outside the container
-            RoundedRectangle(cornerRadius: 3)
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
                 .fill(AngroveTheme.Colors.brownBorder.opacity(0.5))
                 .frame(width: 36, height: 5)
                 .gesture(collapseGesture)
@@ -343,7 +343,7 @@ struct InsightQuestionBar: View {
                             }
                         } label: {
                             Image(systemName: "arrow.down")
-                                .font(.system(size: 8, weight: .semibold))
+                                .angroveIcon(.micro)
                                 .foregroundColor(AngroveTheme.Colors.onAccent)
                                 .frame(width: 24, height: 24)
                                 .background(AngroveTheme.Colors.lightBrown)
@@ -451,7 +451,7 @@ struct InsightQuestionBar: View {
 
                         if message.isComplete {
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 10, weight: .bold))
+                                .angroveIcon(.xSmall, .strong)
                                 .foregroundColor(AngroveTheme.Colors.placeholderText)
                                 .transition(.opacity.combined(with: .scale(scale: 0.8)))
                         }
@@ -543,7 +543,7 @@ struct InsightQuestionBar: View {
     private func insightChip(title: String, showRemove: Bool = false, onRemove: (() -> Void)? = nil) -> some View {
         HStack(spacing: 6) {
             Image(systemName: "text.bubble.fill")
-                .font(.system(size: 14, weight: .semibold))
+                .angroveIcon(.medium)
                 .foregroundColor(AngroveTheme.Colors.lightGreen)
             Text(title)
                 .font(.figtreeHeading2)
@@ -552,7 +552,7 @@ struct InsightQuestionBar: View {
             if showRemove, let onRemove {
                 Button(action: onRemove) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .bold))
+                        .angroveIcon(.xSmall, .strong)
                         .foregroundColor(AngroveTheme.Colors.lightGreen)
                 }
                 .buttonStyle(.plain)

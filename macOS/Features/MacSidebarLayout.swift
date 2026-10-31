@@ -54,7 +54,7 @@ struct MacSidebarToggle: View {
                     }
                 } label: {
                     Image(systemName: "inset.filled.leftthird.rectangle")
-                        .font(.system(size: 16, weight: .medium))
+                        .angroveIcon(.large, .navigation)
                         .foregroundStyle(AngroveTheme.Colors.paragraphText)
                         .frame(width: 24, height: 24)
                         .contentShape(Rectangle())

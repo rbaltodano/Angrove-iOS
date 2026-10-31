@@ -23,7 +23,7 @@ struct MacStudyTopicCard: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: "square.stack")
-                    .font(.system(size: 13, weight: .semibold))
+                    .angroveIcon(.medium)
                 Text(members.count == 1 ? "1 CONVERSATION" : "\(members.count) CONVERSATIONS")
                     .font(AngroveTheme.Typography.uiLabel)
                     .monospacedDigit()
@@ -71,7 +71,7 @@ struct MacStudyTopicCard: View {
                                     .lineLimit(1)
                                 Spacer(minLength: 8)
                                 Image(systemName: "chevron.right")
-                                    .font(.system(size: 10, weight: .bold))
+                                    .angroveIcon(.xSmall, .strong)
                                     .foregroundStyle(AngroveTheme.Colors.placeholderText)
                             }
                             .padding(.vertical, 10)
@@ -133,7 +133,7 @@ struct MacStudyTopicPlaceholderGrid: View {
         Button(action: onCreate) {
             HStack(alignment: .center, spacing: 28) {
                 Image(systemName: "square.stack")
-                    .font(.system(size: 28, weight: .semibold))
+                    .angroveIcon(.hero)
                     .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     .frame(width: 64, height: 64)
                     .background(AngroveTheme.Colors.canvasSecondary, in: Circle())
@@ -172,7 +172,7 @@ struct MacTopicEmptyConversations: View {
         Button(action: onStart) {
             HStack(spacing: 16) {
                 Image(systemName: "plus")
-                    .font(.system(size: 14, weight: .bold))
+                    .angroveIcon(.medium, .strong)
                     .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     .frame(width: 40, height: 40)
                     .background(AngroveTheme.Colors.canvasSecondary, in: Circle())
@@ -221,7 +221,7 @@ struct MacTopicConversationRow: View {
                     HStack(spacing: 6) {
                         if isPinned {
                             Image(systemName: "pin.fill")
-                                .font(.system(size: 10, weight: .semibold))
+                                .angroveIcon(.xSmall)
                                 .foregroundStyle(AngroveTheme.Colors.lightGreen)
                         }
                         Text(title)
@@ -239,7 +239,7 @@ struct MacTopicConversationRow: View {
                     .font(AngroveTheme.Typography.chipLabel)
                     .foregroundStyle(AngroveTheme.Colors.placeholderText)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .bold))
+                    .angroveIcon(.small, .strong)
                     .foregroundStyle(isHovered ? AngroveTheme.Colors.lightGreen : AngroveTheme.Colors.placeholderText)
                     .offset(x: isHovered ? 2 : 0)
             }
@@ -274,7 +274,7 @@ struct MacTopicImageTile: View {
             .overlay(alignment: .topTrailing) {
                 Button(action: onRemove) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18, weight: .semibold))
+                        .angroveIcon(.xLarge)
                         .symbolRenderingMode(.palette)
                         .foregroundStyle(AngroveTheme.Colors.canvas, AngroveTheme.Colors.lightGreen)
                 }

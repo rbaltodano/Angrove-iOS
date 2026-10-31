@@ -414,7 +414,7 @@ private struct BranchMapPreviewView: View {
             HStack(spacing: 8) {
                 if branch.parentBranchID != nil {
                     Image(systemName: "pin.fill")
-                        .font(.system(size: 12, weight: .bold))
+                        .angroveIcon(.small, .strong)
                         .foregroundColor(AngroveTheme.Colors.accent)
                         .rotationEffect(.degrees(-18))
                 }
@@ -431,7 +431,7 @@ private struct BranchMapPreviewView: View {
     private func contextChip(title: String, icon: String) -> some View {
         let isInsightChip = icon == "text.bubble" || icon == "text.bubble.fill"
         return HStack(spacing: 8) {
-            Image(systemName: icon).font(.system(size: isInsightChip ? 14 : 12, weight: .semibold))
+            Image(systemName: icon).angroveIcon(isInsightChip ? .medium : .small)
             Text(title).font(isInsightChip ? .figtreeHeading2 : .figtreeChipLabel).lineLimit(1)
         }
         .foregroundColor(isInsightChip ? AngroveTheme.Colors.lightGreen : AngroveTheme.Colors.darkGreen)
@@ -469,7 +469,7 @@ private struct BranchMapPreviewView: View {
                 .overlay { RoundedRectangle(cornerRadius: 28, style: .continuous)
                             .stroke(AngroveTheme.Colors.border, lineWidth: 1) }
             Image(systemName: "book.pages")
-                .font(.system(size: 38, weight: .semibold))
+                .angroveIcon(.feature)
                 .foregroundColor(AngroveTheme.Colors.lightGreen)
             VStack {
                 HStack {
@@ -510,7 +510,7 @@ private struct BranchMapPreviewView: View {
             if let concept {
                 HStack(spacing: 8) {
                     Image(systemName: "text.bubble.fill")
-                        .font(.system(size: 14, weight: .semibold))
+                        .angroveIcon(.medium)
                     Text(concept.word.capitalized)
                         .font(.figtreeHeading2)
                 }
@@ -569,7 +569,7 @@ private struct BranchIconPreviewView: View {
                 let isInsightChip = contextIcon == "text.bubble" || contextIcon == "text.bubble.fill"
                 HStack(spacing: 8) {
                     Image(systemName: contextIcon)
-                        .font(.system(size: isInsightChip ? 14 : 12, weight: .semibold))
+                        .angroveIcon(isInsightChip ? .medium : .small)
                     Text(ctx)
                         .font(isInsightChip ? .figtreeHeading2 : .figtreeChipLabel)
                 }
@@ -601,7 +601,7 @@ private struct BranchIconPreviewView: View {
                 .overlay { RoundedRectangle(cornerRadius: 28, style: .continuous)
                             .stroke(AngroveTheme.Colors.border, lineWidth: 1) }
             Image(systemName: "book.pages")
-                .font(.system(size: 42, weight: .semibold))
+                .angroveIcon(.feature)
                 .foregroundColor(AngroveTheme.Colors.lightGreen)
         }
         .frame(maxWidth: .infinity).frame(height: height)

@@ -146,7 +146,7 @@ struct ModelResponseFooter: View {
 
     private func actionIcon(_ symbol: String) -> some View {
         Image(systemName: symbol)
-            .font(.system(size: 14, weight: .semibold))
+            .angroveIcon(.medium)
             .foregroundStyle(AngroveTheme.Colors.responseButton)
             .frame(width: 14, height: 16)
             .contentShape(Rectangle())

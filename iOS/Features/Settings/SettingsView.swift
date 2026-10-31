@@ -311,7 +311,7 @@ private struct SettingsHubRow: View {
         } label: {
             HStack(spacing: 16) {
                 Image(systemName: item.iconName)
-                    .font(.system(size: 15, weight: .medium))
+                    .angroveIcon(.large, .navigation)
                     .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     .frame(width: 20)
 
@@ -329,7 +329,7 @@ private struct SettingsHubRow: View {
                 Spacer(minLength: 8)
 
                 Image(systemName: item.opensExternally ? "arrow.up.right" : "chevron.right")
-                    .font(.system(size: 11, weight: .bold))
+                    .angroveIcon(.small, .strong)
                     .foregroundStyle(AngroveTheme.Colors.placeholderText)
             }
             .padding(.vertical, 16)

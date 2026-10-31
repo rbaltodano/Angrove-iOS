@@ -826,7 +826,7 @@ private struct WorktreeHelpCard: View {
                         .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
+                        .angroveIcon(.small)
                         .foregroundStyle(AngroveTheme.Colors.lightGreen)
                         .rotationEffect(.degrees(isOpen ? 90 : 0))
                 }

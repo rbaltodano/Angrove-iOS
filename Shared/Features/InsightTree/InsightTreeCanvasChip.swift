@@ -23,7 +23,7 @@ struct InsightTreeCanvasChip: View {
             // fades out and blurs as the solid content cross-fades in.
             if isLoading {
                 Image(systemName: isNodeConceptLoading ? "brain.head.profile" : "text.bubble.fill")
-                    .font(.system(size: isNodeConceptLoading ? 24 : 14, weight: .semibold))
+                    .angroveIcon(isNodeConceptLoading ? .display : .medium)
                     .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     .opacity(loadingFlashOpacity)
                     .transition(.fadeBlur)

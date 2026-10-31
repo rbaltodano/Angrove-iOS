@@ -188,7 +188,7 @@ struct SettingsChoiceRow<Option: SettingsChoice>: View {
                     BlurSwapText(Text(selection.title), value: selection)
                         .fixedSize(horizontal: false, vertical: true)
                     Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 8, weight: .bold))
+                        .angroveIcon(.micro, .strong)
                 }
                 .settingsText(.label)
                 .foregroundStyle(AngroveTheme.Colors.primaryReadable)
@@ -285,7 +285,7 @@ struct SettingsNavigationLabel: View {
             Spacer()
 
             Image(systemName: "chevron.right")
-                .font(.system(size: 10, weight: .bold))
+                .angroveIcon(.xSmall, .strong)
                 .foregroundStyle(AngroveTheme.Colors.placeholderText)
         }
         .frame(maxWidth: .infinity, minHeight: 32)
@@ -329,7 +329,7 @@ struct AppearanceButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: option.iconName)
-                .font(.system(size: 16, weight: .medium))
+                .angroveIcon(.large, .navigation)
                 .foregroundStyle(
                     isSelected
                         ? AngroveTheme.Colors.lightGreen
@@ -409,7 +409,7 @@ struct ConversationAlignmentSegmentedControl: View {
                     }
                 } label: {
                     Image(systemName: option.iconName)
-                        .font(.system(size: 12, weight: .bold))
+                        .angroveIcon(.small, .strong)
                         .foregroundStyle(AngroveTheme.Colors.primaryReadable)
                         .frame(width: 44, height: 26)
                         .background {

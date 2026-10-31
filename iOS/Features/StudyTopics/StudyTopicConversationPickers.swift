@@ -51,7 +51,7 @@ struct InsightConversationPickerSheet: View {
 
                     Button(action: onCancel) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .bold))
+                            .angroveIcon(.small, .strong)
                             .foregroundColor(AngroveTheme.Colors.paragraphText)
                             .frame(width: 32, height: 32)
                             .contentShape(Rectangle())
@@ -345,7 +345,7 @@ struct ExistingConversationPickerSheet: View {
     }
 
     private func triggerAddButtonPulse() {
-        withAnimation(.spring(response: 0.22, dampingFraction: 0.52)) {
+        withAnimation(.springPulse) {
             addButtonPulseScale = 1.05
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {

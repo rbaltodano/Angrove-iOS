@@ -25,7 +25,7 @@ struct WorktreeControlDock: View {
 
             Button(action: toggleTools) {
                 label("Tools", icon: Image(systemName: "command")
-                    .font(.system(size: 11, weight: .semibold))
+                    .angroveIcon(.small)
                     .frame(width: 12, height: 12)
                     .accessibilityHidden(true))
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)

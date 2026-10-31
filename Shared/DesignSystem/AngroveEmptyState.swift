@@ -20,7 +20,7 @@ struct AngroveEmptyState: View {
             // at its resting spot while the text visibly slides. A plain image participates in
             // the container's transition like every other view here, so it all animates together.
             Image(systemName: systemImage)
-                .font(.system(size: 28, weight: .semibold))
+                .angroveIcon(.hero)
                 .foregroundColor(AngroveTheme.Colors.lightGreen)
 
             #if os(macOS)

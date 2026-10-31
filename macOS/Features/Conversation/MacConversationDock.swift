@@ -198,7 +198,7 @@ struct MacTreeHeaderButton: View {
                     .transition(.blurFade)
             }
             .animation(.springStandard, value: symbol)
-            .font(.system(size: 14, weight: .semibold))
+            .angroveIcon(.medium)
             .foregroundStyle(isActive ? AngroveTheme.Colors.accentRed : AngroveTheme.Colors.lightGreen)
             .frame(minWidth: 48, minHeight: 48)
             .contentShape(Rectangle())
@@ -233,7 +233,7 @@ struct MacTreeToggleButton: View {
                         .id(symbol)
                         .transition(reduceMotion ? .opacity : .blurFade)
                 }
-                .font(.system(size: 14, weight: .semibold))
+                .angroveIcon(.medium)
                 .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 .frame(width: 18, height: 18)
                 .animation(reduceMotion ? .easeInOut(duration: 0.2) : .easeInOut(duration: 0.28), value: symbol)

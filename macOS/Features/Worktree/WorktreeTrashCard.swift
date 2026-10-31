@@ -86,7 +86,7 @@ private struct WorktreeTrashRow: View {
             let columnWidth = max(0, (geometry.size.width - 24) / 2)
             HStack(spacing: 24) {
                 Image(systemName: symbol)
-                    .font(.system(size: 16, weight: .semibold))
+                    .angroveIcon(.large)
                     .accessibilityLabel(Text(kind))
                     .foregroundStyle(AngroveTheme.Colors.headingText)
                     .frame(width: columnWidth, alignment: .leading)

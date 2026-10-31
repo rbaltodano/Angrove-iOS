@@ -271,7 +271,7 @@ struct ModelControlsConfirmationPill: View {
         HStack(spacing: 12) {
             HStack(spacing: 8) {
                 Image(systemName: iconName)
-                    .font(.system(size: 14, weight: .semibold))
+                    .angroveIcon(.medium)
                     .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     .sfSymbolDrawOn()
                     .frame(width: 18, height: 18)
@@ -329,7 +329,7 @@ private struct ScrollToBottomStackButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "arrow.down")
-                .font(.system(size: 8, weight: .semibold))
+                .angroveIcon(.micro)
                 .foregroundColor(AngroveTheme.Colors.onAccent)
                 .frame(width: Self.size, height: Self.size)
                 .background(AngroveTheme.Colors.lightBrown)

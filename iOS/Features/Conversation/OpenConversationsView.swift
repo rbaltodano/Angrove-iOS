@@ -114,7 +114,7 @@ struct OpenConversationsView: View {
                             }) {
                                 HStack(spacing: 6) {
                                     Image(systemName: "square.stack")
-                                        .font(.system(size: 12, weight: .bold))
+                                        .angroveIcon(.small, .strong)
 
                                     Text("Study Topics")
                                         .font(AngroveTheme.Typography.uiSubheading)
@@ -551,7 +551,7 @@ struct OpenConversationCard: View {
             HStack(alignment: .center, spacing: 8) {
                 if conversation.isPinned {
                     Image(systemName: "pin.fill")
-                        .font(.system(size: 11, weight: .semibold))
+                        .angroveIcon(.small)
                         .foregroundColor(AngroveTheme.Colors.lightGreen)
                 }
 
@@ -597,7 +597,7 @@ struct OpenConversationCard: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis")
-                            .font(.system(size: 13, weight: .bold))
+                            .angroveIcon(.medium, .strong)
                             .foregroundColor(AngroveTheme.Colors.paragraphText)
                             .frame(width: 22, height: 22)
                     }
@@ -629,7 +629,7 @@ struct OpenConversationCard: View {
                             }
                         }) {
                             Image(systemName: "ellipsis")
-                                .font(.system(size: 12, weight: .bold))
+                                .angroveIcon(.small, .strong)
                                 .foregroundColor(AngroveTheme.Colors.lightGreen)
                                 .frame(width: 32, height: 18)
                                 .background(AngroveTheme.Colors.canvas.opacity(0.72))
@@ -696,7 +696,7 @@ struct InsightLine: View {
     var body: some View {
         HStack(spacing: 7) {
             Image(systemName: "text.bubble.fill")
-                .font(.system(size: 14, weight: .semibold))
+                .angroveIcon(.medium)
                 .foregroundColor(AngroveTheme.Colors.lightGreen)
                 .frame(width: 14, height: 14)
 

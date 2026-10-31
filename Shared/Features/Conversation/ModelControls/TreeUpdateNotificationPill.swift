@@ -33,7 +33,7 @@ struct ConfirmationNotificationPill: View {
         HStack(spacing: 0) {
             HStack(spacing: 12) {
                 Image(systemName: iconName)
-                    .font(.system(size: 14, weight: .semibold))
+                    .angroveIcon(.medium)
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
                     .frame(width: 14, height: 18)
                     .accessibilityHidden(true)

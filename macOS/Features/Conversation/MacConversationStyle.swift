@@ -20,13 +20,14 @@ enum MacIcon: String {
         case .contextRing: "circle"
         }
     }
-    var size: CGFloat {
+    var iconSize: AngroveTheme.IconSize {
         switch self {
-        case .studyTopic, .plus: 10
-        case .ellipsis, .statusArrow: 12
-        default: 16
+        case .studyTopic, .plus: .xSmall
+        case .ellipsis, .statusArrow: .small
+        default: .large
         }
     }
+    var size: CGFloat { iconSize.rawValue }
     var color: Color {
         switch self {
         case .home, .insights, .conversations, .library, .topics, .studyTopic, .worktree, .send, .statusArrow:
@@ -45,7 +46,7 @@ struct MacIconView: View {
                 .accessibilityHidden(true)
         } else {
             Image(systemName: icon.symbol)
-                .font(.system(size: icon.size, weight: .medium))
+                .angroveIcon(icon.iconSize, .navigation)
                 .foregroundStyle(icon.color)
                 .frame(width: icon.size, height: icon.size)
                 .accessibilityHidden(true)
@@ -95,7 +96,7 @@ enum MacConversationStyle {
     static let pinnedTitle = BrandTypography.font("LibreBaskerville-Regular", size: 18, relativeTo: .headline)
     static let status = BrandTypography.font("Figtree-SemiBold", size: 14, relativeTo: .body)
     static let border = AngroveTheme.Colors.darkBrown.opacity(0.08)
-    static let edgeFade = Color(light: 0xF4EFE4, dark: 0x120F0C)
+    static let edgeFade = AngroveTheme.Colors.edgeFade
 }
 
 /// Figma's line boxes include leading above and below the glyphs, while

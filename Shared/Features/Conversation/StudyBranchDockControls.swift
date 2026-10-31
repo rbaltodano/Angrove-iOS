@@ -48,7 +48,7 @@ struct StudyBranchDockControls: View {
             HStack(spacing: compact ? 10 : 14) {
                 Button(action: decrement) {
                     Image(systemName: "minus")
-                        .font(.system(size: 13, weight: .medium))
+                        .angroveIcon(.medium, .navigation)
                         .frame(width: 14, height: 24)
                 }
                 .buttonStyle(.plain)
@@ -67,7 +67,7 @@ struct StudyBranchDockControls: View {
 
                 Button(action: increment) {
                     Image(systemName: "plus")
-                        .font(.system(size: 13, weight: .medium))
+                        .angroveIcon(.medium, .navigation)
                         .frame(width: 14, height: 24)
                 }
                 .buttonStyle(.plain)

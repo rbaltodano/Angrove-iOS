@@ -219,7 +219,7 @@ struct ModelResponseCard: View {
                                     .font(responseFont.textFont(size: conversationFontSize))
 
                                 Image(systemName: isThinkingExpanded ? "chevron.down" : "chevron.right")
-                                    .font(.system(size: 10, weight: .bold))
+                                    .angroveIcon(.xSmall, .strong)
                                     .transition(.opacity.combined(with: .scale(scale: 0.8)))
                             }
                             .foregroundColor(AngroveTheme.Colors.headingText)
@@ -238,7 +238,7 @@ struct ModelResponseCard: View {
                         VStack(alignment: responseTextAlignment.horizontalAlignment, spacing: 8) {
                             HStack(spacing: 4) {
                                 Image(systemName: "questionmark.circle")
-                                    .font(.system(size: conversationFontSize.pointSize, weight: .semibold))
+                                    .angroveIcon(textRelativeSize: conversationFontSize.pointSize)
                                 Text(responseBasisTitle)
                                     .font(responseFont.textFont(size: conversationFontSize).weight(.bold))
                             }
@@ -300,7 +300,7 @@ struct ModelResponseCard: View {
                                     .font(responseFont.textFont(size: conversationFontSize))
 
                                 Image(systemName: "chevron.right")
-                                    .font(.system(size: 10, weight: .bold))
+                                    .angroveIcon(.xSmall, .strong)
                             }
                             .foregroundStyle(AngroveTheme.Colors.headingText)
                             .contentShape(Rectangle())
@@ -812,7 +812,7 @@ private struct GroundingSourceRow: View {
                     // the icon-driven entrance.
                     LibrarySubjectIcon(
                         subject: subject,
-                        symbolSize: 13,
+                        symbolSize: .medium,
                         shelfIsVisible: isShown,
                         entranceDelay: usesDisclosureEntrance || hasPlayedEntrance
                             ? nil
@@ -835,7 +835,7 @@ private struct GroundingSourceRow: View {
                         .offset(x: isEntranceRevealed ? 0 : -8)
 
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 10, weight: .bold))
+                        .angroveIcon(.xSmall, .strong)
                         .opacity(isEntranceRevealed ? 1 : 0)
                         .offset(x: isEntranceRevealed ? 0 : -8)
                 }

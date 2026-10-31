@@ -211,7 +211,7 @@ private struct ContextUsageCard: View {
                 if isCompactionComplete {
                     HStack(spacing: 8) {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 14, weight: .semibold))
+                            .angroveIcon(.medium)
                             .foregroundColor(AngroveTheme.Colors.paragraphText.opacity(0.75))
                             .sfSymbolDrawOn()
                         Text("Compacted")
@@ -319,7 +319,7 @@ private struct ContextCompactingIcon: View {
 
     var body: some View {
         Image(systemName: "line.diagonal.trianglehead.up.right")
-            .font(.system(size: 14, weight: .semibold))
+            .angroveIcon(.medium)
             .foregroundColor(AngroveTheme.Colors.paragraphText.opacity(0.75))
             .rotationEffect(.degrees(rotation))
             .opacity(iconOpacity)

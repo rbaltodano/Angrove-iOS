@@ -65,7 +65,7 @@ private struct MacInsightDropDestination: ViewModifier {
     func body(content: Content) -> some View {
         content
             .overlay {
-                RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius)
+                RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous)
                     .strokeBorder(AngroveTheme.Colors.lightGreen.opacity(hover.isTargeted ? 1 : 0), lineWidth: 1)
                     .allowsHitTesting(false)
             }

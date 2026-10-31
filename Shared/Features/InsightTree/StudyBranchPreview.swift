@@ -21,7 +21,7 @@ struct StudyBranchPreviewView: View {
         VStack(spacing: 0) {
             HStack {
                 Text("Branch Preview · Test Content")
-                    .font(.caption)
+                    .font(AngroveTheme.Typography.uiLabel)
                 Spacer()
                 Button("Reset", action: reset)
             }

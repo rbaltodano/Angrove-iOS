@@ -25,7 +25,7 @@ struct SidebarSearchButton: View {
                 if showsShortcut {
                     HStack(spacing: 4) {
                         Image(systemName: "command")
-                            .font(.system(size: 9, weight: .bold))
+                            .angroveIcon(.xSmall, .strong)
                         Text(verbatim: "K")
                             .font(AngroveTheme.Typography.uiLabel)
                     }
@@ -352,7 +352,7 @@ struct GlobalSearchActionRow: View {
             HStack(spacing: 24) {
                 HStack(spacing: 8) {
                     Image(systemName: action.iconName)
-                        .font(.system(size: action == .newConversation ? 11 : 13, weight: .semibold))
+                        .angroveIcon(action == .newConversation ? .small : .medium)
                         .frame(width: 16, height: 16)
                     Text(action.title)
                         .font(AngroveTheme.Typography.uiSubheading)
@@ -420,7 +420,7 @@ struct GlobalSearchBarStyle: ViewModifier {
 struct GlobalSearchGlass: View {
     var body: some View {
         Image(systemName: "magnifyingglass")
-            .font(.system(size: 14, weight: .medium))
+            .angroveIcon(.medium, .navigation)
             .foregroundStyle(AngroveTheme.Colors.searchIcon)
             .frame(width: 14, height: 14)
             .accessibilityHidden(true)
@@ -480,7 +480,7 @@ struct GlobalSearchResultLabel: View {
     var body: some View {
         HStack(spacing: 9) {
             Image(systemName: result.iconName)
-                .font(.system(size: result.kind == .studyTopic ? 11 : 14, weight: .medium))
+                .angroveIcon(result.kind == .studyTopic ? .small : .medium, .navigation)
                 .foregroundStyle(AngroveTheme.Colors.paragraphText)
                 .frame(width: 16, height: 16)
             Text(GlobalSearchHighlight.attributed(result))

@@ -38,8 +38,8 @@ struct WorktreeToolsCard: View {
                 }
                 if let shortcut = tool.shortcut {
                     WorktreeKeyChip {
-                        Image(systemName: "command").font(.system(size: 11, weight: .bold))
-                        if shortcut.shift { Image(systemName: "shift").font(.system(size: 10, weight: .bold)) }
+                        Image(systemName: "command").angroveIcon(.small, .strong)
+                        if shortcut.shift { Image(systemName: "shift").angroveIcon(.xSmall, .strong) }
                         chipText(shortcut.key.uppercased())
                     }
                     .accessibilityElement(children: .ignore)

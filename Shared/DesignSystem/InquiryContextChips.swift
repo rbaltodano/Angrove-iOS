@@ -27,7 +27,7 @@ struct BranchContextChip: View {
     private var labelContents: some View {
         HStack(spacing: 6) {
             Image(systemName: icon)
-                .font(.system(size: (isInsightChip || isLibraryChip) ? 14 : 12, weight: .bold))
+                .angroveIcon((isInsightChip || isLibraryChip) ? .medium : .small, .strong)
                 .foregroundColor(AngroveTheme.Colors.darkGreen)
                 .rotationEffect(icon == "arrow.triangle.branch" ? .degrees(90) : .degrees(0))
                 .id(icon)
@@ -67,7 +67,7 @@ struct BranchContextChip: View {
             if showRemove, let onRemove {
                 Button(action: onRemove) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
+                        .angroveIcon(.small, .strong)
                         .foregroundColor(AngroveTheme.Colors.darkGreen)
                         .sfSymbolDrawOn()
                         .padding(.trailing, isMinimal ? 0 : 20)
@@ -79,9 +79,9 @@ struct BranchContextChip: View {
             }
         }
         .background(isFilled && !isMinimal ? fillColor : Color.clear)
-        .cornerRadius(12)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .inset(by: 0.5)
                 .trim(from: 0, to: isMinimal ? 0 : borderDrawProgress)
                 .stroke(AngroveTheme.Colors.brownBorder, lineWidth: 1)
@@ -131,7 +131,7 @@ struct ConnectionContextChip: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "point.3.connected.trianglepath.dotted")
-                .font(.system(size: 10, weight: .semibold))
+                .angroveIcon(.xSmall)
                 .foregroundColor(AngroveTheme.Colors.darkGreen)
 
             Text(concepts.map { $0.word.capitalized }.formatted())
@@ -142,7 +142,7 @@ struct ConnectionContextChip: View {
             if let onRemove {
                 Button(action: onRemove) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
+                        .angroveIcon(.small, .strong)
                         .foregroundColor(AngroveTheme.Colors.darkGreen)
                         .sfSymbolDrawOn()
                 }
@@ -152,9 +152,9 @@ struct ConnectionContextChip: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
-        .cornerRadius(12)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .inset(by: 0.5)
                 .trim(from: 0, to: borderDrawProgress)
                 .stroke(AngroveTheme.Colors.brownBorder, lineWidth: 1)

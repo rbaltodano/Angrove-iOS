@@ -87,7 +87,7 @@ private struct ConversationSketch: View {
 
             HStack(spacing: 6) {
                 Image(systemName: "plus")
-                    .font(.system(size: 9, weight: .semibold))
+                    .angroveIcon(.xSmall)
                 Text("Idle")
                     .font(.custom("Figtree-Bold", fixedSize: 10))
             }
@@ -121,7 +121,7 @@ private struct TreeSketch: View {
         HStack(spacing: 0) {
             VStack(spacing: 8) {
                 Image(systemName: "brain.head.profile")
-                    .font(.system(size: 22, weight: .semibold))
+                    .angroveIcon(.display)
                     .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 Text("Virtue")
                     .font(.custom("Figtree-Bold", fixedSize: 15))
@@ -135,7 +135,7 @@ private struct TreeSketch: View {
 
             HStack(spacing: 6) {
                 Image(systemName: "text.bubble.fill")
-                    .font(.system(size: 13, weight: .semibold))
+                    .angroveIcon(.medium)
                 Text("Habit")
                     .font(.custom("Figtree-Bold", fixedSize: 13))
                     .lineLimit(1)

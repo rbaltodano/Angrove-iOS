@@ -540,14 +540,14 @@ struct StudyToolResultsLayer: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: icon(for: result.kind))
-                    .font(.system(size: 12, weight: .semibold))
+                    .angroveIcon(.small)
                 Text(result.title)
                     .font(.figtreeHeading2)
                     .lineLimit(1)
                     .fixedSize()
                 if inStudy, result.isKept {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .bold))
+                        .angroveIcon(.xSmall, .strong)
                 }
             }
             .foregroundStyle(AngroveTheme.Colors.lightGreen.opacity(result.isKept ? 1 : 0.75))

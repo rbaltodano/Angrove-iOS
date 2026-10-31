@@ -40,7 +40,7 @@ struct InsightTreeInsightCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center, spacing: 8) {
                 Image(systemName: "text.bubble.fill")
-                    .font(.system(size: 12, weight: .semibold))
+                    .angroveIcon(.small)
                     .foregroundColor(AngroveTheme.Colors.lightGreen)
                     .sfSymbolDrawOn()
 
@@ -58,7 +58,7 @@ struct InsightTreeInsightCard: View {
                 Button(action: { onStartConversation?() }) {
                     HStack(spacing: 8) {
                         Image(systemName: "plus")
-                            .font(.system(size: 11, weight: .semibold))
+                            .angroveIcon(.small)
                         Text("Start Conversation")
                             .font(.figtreeHeading3)
                     }

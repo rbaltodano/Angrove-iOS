@@ -20,7 +20,7 @@ struct PhotoAttachmentControl: View {
             return entries
         }) {
             Image(systemName: "plus")
-                .font(.system(size: 12, weight: .semibold))
+                .angroveIcon(.small)
                 .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 .frame(width: 16, height: 16)
         }
@@ -30,7 +30,7 @@ struct PhotoAttachmentControl: View {
         #else
         Button { isMenuOpen.toggle() } label: {
             Image(systemName: "plus")
-                .font(.system(size: 12, weight: .semibold))
+                .angroveIcon(.small)
                 .foregroundStyle(AngroveTheme.Colors.lightGreen)
                 .frame(width: 16, height: 16)
         }

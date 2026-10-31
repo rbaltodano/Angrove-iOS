@@ -582,12 +582,12 @@ struct MacMenuPicker<Value: Hashable>: View {
         }) {
             HStack(spacing: 8) {
                 BlurSwapText(Text(options.first(where: { $0.0 == selection })?.1 ?? ""), value: selection)
-                Image(systemName: "chevron.up.chevron.down").font(.system(size: 10, weight: .semibold))
+                Image(systemName: "chevron.up.chevron.down").angroveIcon(.xSmall)
             }
             .font(AngroveTheme.Typography.body)
             .foregroundStyle(AngroveTheme.Colors.lightGreen)
             .padding(.horizontal, 10).padding(.vertical, 5)
-            .background(AngroveTheme.Colors.componentBackground, in: RoundedRectangle(cornerRadius: 6))
+            .background(AngroveTheme.Colors.componentBackground, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
         .buttonStyle(.plain)
         .animation(.springStandard, value: selection)

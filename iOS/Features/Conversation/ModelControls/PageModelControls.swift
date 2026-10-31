@@ -203,7 +203,7 @@ struct LibraryModelControls<Contents: View>: View {
             Button(action: toggleContents) {
                 HStack(spacing: 8) {
                     Image(systemName: "list.bullet")
-                        .font(.system(size: 14, weight: .semibold))
+                        .angroveIcon(.medium)
                     Text("Contents")
                         .font(.custom("Figtree-SemiBold", size: 14))
                 }
@@ -275,7 +275,7 @@ private struct ReaderChapterControlButton: View {
 
     private var iconView: some View {
         Image(systemName: icon)
-            .font(.system(size: 11, weight: .semibold))
+            .angroveIcon(.small)
             .sfSymbolDrawOn()
     }
 }
@@ -289,7 +289,7 @@ private struct PageModelControlActionButton: View {
         Button(action: action) {
             HStack(spacing: 4) {
                 Image(systemName: "plus")
-                    .font(.system(size: 12, weight: .semibold))
+                    .angroveIcon(.small)
                     .frame(width: 16, height: 16)
 
                 BlurSwapText(title)
