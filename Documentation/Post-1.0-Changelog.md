@@ -32,7 +32,8 @@ Collected from the [iOS] and [Shared] entries below.
   Introductory paragraphs beneath Settings page titles are removed, including the iPhone bundled
   User Guide introductions. The iPhone Settings menu also omits secondary text beneath every
   destination name. Menu labels use the paragraph text color in Figtree SemiBold at the
-  conversation text size.
+  conversation text size, and the serif part headings (General, Conversation, and so on) match
+  that size.
 
 ## 2026-10-28
 

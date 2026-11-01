@@ -173,7 +173,6 @@ enum AngroveTheme {
         static let settingsDetailTitle = BrandTypography.font("LibreBaskerville-Regular", fixedSize: 40)
         static let settingsGuideTitleLineSpacing: CGFloat = 1.6
         static let settingsGuideTitle = BrandTypography.font("LibreBaskerville-Regular", size: 34, relativeTo: .largeTitle)
-        static let settingsPartTitle = BrandTypography.font("LibreBaskerville-Regular", size: 24, relativeTo: .title2)
         static let settingsHeading = BrandTypography.font("Figtree-Bold", size: 17, relativeTo: .headline)
         static let settingsLabel = BrandTypography.font("Figtree-Bold", size: 17, relativeTo: .body)
         static let settingsBody = BrandTypography.font("Figtree-Regular", size: 17, relativeTo: .body)

@@ -249,7 +249,7 @@ private struct SettingsHubPart: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(title)
-                .font(AngroveTheme.Typography.settingsPartTitle)
+                .settingsText(.partTitle)
                 .foregroundStyle(AngroveTheme.Colors.headingText)
                 .accessibilityAddTraits(.isHeader)
 
