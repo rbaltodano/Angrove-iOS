@@ -62,7 +62,13 @@ struct MacBoardHeadingCacheTests {
         let state = try #require(scene.presentationState(for: id))
         if state.imageVisible {
             let image = try #require(scene.cachedImage(for: id))
-            #expect(inkedPixels(in: image) > 11_000, "A visible heading bitmap must show its whole text")
+            // This test pans without zooming, so the cache resolution follows the window's
+            // backing scale. Count point area: CI's 1x display has one quarter of the pixels
+            // of a local 2x display, even when both bitmaps contain the complete heading.
+            let scale = window.backingScaleFactor
+            let inkedPointArea = CGFloat(inkedPixels(in: image)) / (scale * scale)
+            #expect(inkedPointArea > 2_750,
+                    "A visible heading bitmap must show its whole text (\(image.width)×\(image.height), \(scale)x)")
         } else {
             #expect(state.liveVisible)
         }
