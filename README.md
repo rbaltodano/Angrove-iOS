@@ -21,23 +21,29 @@ Angrove is a private study workspace for philosophy, history, and theology. Ask 
 check the primary sources behind an answer, and save useful ideas in a semantic map.
 Generation and retrieval run on-device, without a model server or an account.
 
-Built by **Ryan Baltodano** across product design and engineering, with a SwiftUI iPhone app
-and a native Mac app in progress. **The iPhone app is in public beta on
-[TestFlight](https://testflight.apple.com/join/qHDFeAUa); the App Store release is next.**
+Designed and built solo by **Ryan Baltodano**: product design, SwiftUI engineering, model
+integration, and the [website](https://angrove.app/). **The iPhone app is in public beta on
+[TestFlight](https://testflight.apple.com/join/qHDFeAUa); the native Mac app is in development.**
 
-[Try the iPhone beta](https://testflight.apple.com/join/qHDFeAUa) ·
+### Highlights for reviewers
+
+- **On-device LLM.** Gemma 4 E4B runs through LiteRT-LM on iPhone and Mac. No model server, no
+  account, works offline.
+- **Shared model runtime.** One process-scoped runtime serves answers, definitions, and tree
+  updates through a [task queue](Shared/Features/Conversation/ModelTaskQueue.swift) with
+  cancellation, reordering, and lifecycle management.
+- **Offline grounding.** [Local retrieval](Shared/Services/MiniLMGroundingProvider.swift) over
+  51,836 passages from 37 primary works, using Core ML MiniLM embeddings.
+- **Encrypted storage.** AES-256-GCM with Keychain-managed keys and in-place
+  [plaintext migration](Packages/AngroveCore/Sources/AngroveCore/LocalDataEncryption.swift).
+- **Two native apps, one core.** Shared Swift logic with platform-owned navigation, windows, and
+  input. 900+ tests across both targets.
+- **Measured decisions.** Model defaults are chosen from [recorded evaluations](Documentation/Evaluation.md).
+
 [Watch the 1:49 demo](https://angrove.app/case-study.html#demo-conversation) ·
-[Engineering overview](#building-the-product-around-the-model) ·
 [Technical case study](Documentation/Case-Study.md) ·
+[Try the iPhone beta](https://testflight.apple.com/join/qHDFeAUa) ·
 [Build and run](Documentation/Development-Setup.md)
-
-[Website](https://angrove.app/) · [User Guide](https://angrove.app/guide.html) ·
-[FAQ](https://angrove.app/faq.html)
-
-The beta is available to try; general App Store availability is still pending. This repository
-also contains ongoing work beyond the distributed beta, including the Mac app. Screenshots,
-tests, and development evaluations document that work; they are not adoption or learning-outcome
-metrics. See the [case study's evidence and open questions](Documentation/Case-Study.md#evidence-and-what-remains-open).
 
 ## Watch Angrove in use
 
@@ -169,6 +175,10 @@ Angrove is in public beta on [TestFlight](https://testflight.apple.com/join/qHDF
 free, with no subscription or paywalled features. Development uses iPhone 17 and Apple silicon
 Macs. The Mac front end is still in progress and currently requires macOS 27;
 final supported-device requirements and release availability will be shared before launch.
+Screenshots, tests, and development evaluations document the work; they are not adoption or
+learning-outcome metrics. See the [case study's evidence and open questions](Documentation/Case-Study.md#evidence-and-what-remains-open).
+More: [Website](https://angrove.app/) · [User Guide](https://angrove.app/guide.html) ·
+[FAQ](https://angrove.app/faq.html).
 
 The local model and grounding assets are large and intentionally excluded from source control.
 A clean checkout can build the interface, but full inference requires the development artifacts.

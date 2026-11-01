@@ -61,6 +61,10 @@ duplicate architecture specifications.
 
 ## Working conventions
 
+- Make the best decision that will elevate all three: the user experience (UX), developer
+  experience (DX), and agent experience (AX) always, without breaking anything.
+- Cut taglines, helper text and secondary labels. If a screen needs them to make sense, fix the
+  layout.
 - One canonical checkout at `~/Developer/Angrove-iOS-main` owns both native app targets.
 - iPhone-only code lives in `iOS/`; Mac-only code lives in `macOS/`; code and resources
   compiled by both apps live in `Shared/`. Read `Documentation/Workspace-Layout.md`.
