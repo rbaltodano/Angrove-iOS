@@ -21,7 +21,7 @@ private struct LeafPullToRefresh: ViewModifier {
     let action: @MainActor () async -> Void
 
     /// Pull distance at which releasing triggers a refresh.
-    private let threshold: CGFloat = 84
+    private let threshold = PullDownActivation.revealedDistance
     /// Space held open above the content while refreshing.
     private let refreshingGap: CGFloat = 56
     /// A synchronous refresh would otherwise flash the leaf for a single frame.

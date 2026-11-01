@@ -238,10 +238,11 @@ struct GlobalSearchOverlay: View {
     private var field: some View {
         HStack(spacing: 8) {
             GlobalSearchGlass()
-            TextField("", text: $query, prompt: Text("Search").foregroundStyle(AngroveTheme.Colors.placeholderText))
+            TextField("", text: $query, prompt: SearchFieldPrompt.native(Text("Search")))
                 .textFieldStyle(.plain)
                 .focusEffectDisabled()
                 .font(GlobalSearchBarStyle.font)
+                .searchFieldPrompt(Text("Search"), isShown: query.isEmpty)
                 .tint(AngroveTheme.Colors.secondaryMuted)
                 .autocorrectionDisabled()
                 .submitLabel(.search)

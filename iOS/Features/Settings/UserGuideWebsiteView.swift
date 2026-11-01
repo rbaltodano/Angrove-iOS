@@ -9,7 +9,7 @@ struct UserGuideWebsiteView: UIViewRepresentable {
     var onSelectTopic: (String) -> Void
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .serif
-    @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .medium
+    @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .small
     @AppStorage(UserGuideReadingHistory.key) private var visitedTopicsJSON = "[]"
 
     private var visitedTopics: [String] {
@@ -105,13 +105,14 @@ struct UserGuideWebsiteView: UIViewRepresentable {
 
     /// Web paragraphs use the same registered font metrics and extra line spacing as native prose.
     static func typographyScript(font _: ConversationFontOption, size: ConversationFontSizeOption) -> String {
-        // Settings prose stays in Figtree even when conversation responses use serif.
+        // Settings prose stays sans serif regardless of the conversation response preference.
         let fontName = "Figtree-Regular"
         let family = "Figtree"
         let nativeFont = UIFont(name: fontName, size: size.pointSize) ?? UIFont.systemFont(ofSize: size.pointSize)
         let lineHeight = nativeFont.lineHeight + FlowLayout.rowSpacing
         let css = """
         .page-hero__inner { align-items: flex-start; text-align: start; }
+        .page-hero__inner > .lede, .guide-topic__intro { display: none; }
         .lede, .para, .guide-text, .guide-topic__intro, .guide-tech__panel p,
         .guide-tech__list li, .w-card__body, .w-read__answer, .w-read--thread .w-read__answer,
         .w-home__body, .mid-card__body, .flow-insight__body, .flow-answer__text {

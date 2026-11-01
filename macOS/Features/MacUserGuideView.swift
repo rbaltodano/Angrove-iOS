@@ -60,6 +60,11 @@ private struct MacUserGuideWebView: NSViewRepresentable {
             forMainFrameOnly: true
         ))
         configuration.userContentController.addUserScript(WKUserScript(
+            source: MacUserGuideCopy.script,
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: true
+        ))
+        configuration.userContentController.addUserScript(WKUserScript(
             source: Self.pageScript,
             injectionTime: .atDocumentEnd,
             forMainFrameOnly: true
@@ -222,5 +227,87 @@ private struct MacUserGuideWebView: NSViewRepresentable {
             default: break
             }
         }
+    }
+}
+
+/// The bundled guide is the website's iPhone guide. On the Mac, this swaps the passages that
+/// describe iPhone-only controls for what Mac Settings and the Mac workspace actually offer, then
+/// converts the remaining touch wording.
+enum MacUserGuideCopy {
+    enum Part: String { case intro, does = "What it does", how = "How to use it", helps = "When it helps" }
+
+    static let overrides: [String: [Part: String]] = [
+        "conversation": [
+            .intro: "A conversation is where you ask Angrove a question and talk it through. Press Command-N to begin. Think of it as a patient study partner: you can ask anything, push back, and keep going.",
+        ],
+        "tree": [
+            .intro: "Every conversation has an Insight Tree: a map of the ideas you’ve explored. Open it with the Insight Tree button at the top of a conversation, or press Command-T. It shows how your saved Insights relate to one another, so you can see the shape of a subject instead of scrolling back through a long discussion.",
+        ],
+        "organization": [
+            .how: "Open Conversations to search, rename, pin, move to a Study Topic, or delete a conversation; Control-click a conversation in the sidebar for the same actions. Open Study Topics to create a topic, give it a short description, and add conversations to it.",
+        ],
+        "model-tasks": [
+            .intro: "Angrove runs entirely on your Mac, so it works on one thing at a time: answering a question, defining a word, updating your tree. Anything else you ask for waits in line. Model Tasks shows that line, so you can see what Angrove is doing and change what happens next. Open it with the status button in the model controls, which reads Idle or Thinking, or press Command-M.",
+        ],
+        "personalization": [
+            .intro: "You can make Angrove more comfortable to read and tell it what to call you. Everything is in Settings, at the bottom of the sidebar, or press Command-Comma.",
+            .how: "Appearance chooses light, dark, or your Mac’s setting, and the backgrounds behind conversations and the Insight Tree. Conversations sets the response and question fonts, text size, how conversations are titled, and where Angrove opens. Personalization sets the name Angrove greets you with. Read Aloud and Notifications set listening and reminders.",
+        ],
+        "privacy": [
+            .intro: "Everything you do in Angrove stays on your Mac. Your conversations, saved Insights, and the model that answers you are never sent to a server. In Settings, Privacy locks the app, and Your Data backs up or clears your data.",
+            .does: "Your conversations and Insights are stored only on your Mac, and the model runs on it too.",
+            .how: "Turn on App Lock to require Touch ID or your Mac password, and choose how soon it locks. Export saves your conversations to a file, and Import reads one back. Clear Insight Tree removes saved Insights and tree data but keeps your conversations.",
+        ],
+    ]
+
+    /// Ordered so longer phrases are replaced before the words inside them.
+    static let wording: [(String, String)] = [
+        ("on your phone", "on your Mac"), ("your phone", "your Mac"), ("iOS version", "macOS version"),
+        ("at the bottom of the menu", "at the bottom of the sidebar"), ("in the menu", "in the sidebar"),
+        ("from the menu", "from the sidebar"), ("press and drag", "drag"),
+        ("Tapping", "Clicking"), ("tapping", "clicking"), ("Tap", "Click"), ("tap", "click"),
+    ]
+
+    static var script: String {
+        let parts = overrides.mapValues { Dictionary(uniqueKeysWithValues: $0.map { ($0.key.rawValue, $0.value) }) }
+        let data = try! JSONSerialization.data(withJSONObject: ["overrides": parts, "wording": wording.map { [$0.0, $0.1] }], options: [.sortedKeys])
+        return """
+        (() => {
+            const copy = \(String(decoding: data, as: UTF8.self));
+            for (const [id, parts] of Object.entries(copy.overrides)) {
+                const article = document.getElementById(id);
+                if (!article) continue;
+                for (const [part, text] of Object.entries(parts)) {
+                    const target = part === 'intro'
+                        ? article.querySelector('.guide-topic__intro')
+                        : [...article.querySelectorAll('h3.guide-label')].find(h => h.textContent.trim() === part)?.nextElementSibling;
+                    if (target) target.textContent = text;
+                }
+            }
+            const words = copy.wording.map(([from, to]) => [new RegExp('\\\\b' + from + '\\\\b', 'g'), to]);
+            const convert = text => words.reduce((result, [pattern, to]) => result.replace(pattern, to), text);
+            // Demo windows write their hints after load, so text added later is converted too.
+            const convertTree = root => {
+                if (root.nodeType === Node.TEXT_NODE) {
+                    if (root.parentElement?.closest('script, style')) return;
+                    const text = convert(root.nodeValue);
+                    if (text !== root.nodeValue) root.nodeValue = text;
+                    return;
+                }
+                if (root.nodeType !== Node.ELEMENT_NODE || root.matches('script, style')) return;
+                for (const element of [root, ...root.querySelectorAll('[aria-label]')]) {
+                    const label = element.getAttribute('aria-label');
+                    if (label && convert(label) !== label) element.setAttribute('aria-label', convert(label));
+                }
+                const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+                for (let node = walker.nextNode(); node; node = walker.nextNode()) convertTree(node);
+            };
+            convertTree(document.body);
+            new MutationObserver(records => records.forEach(record => {
+                if (record.type === 'characterData') convertTree(record.target);
+                record.addedNodes.forEach(convertTree);
+            })).observe(document.body, { childList: true, characterData: true, subtree: true });
+        })();
+        """
     }
 }

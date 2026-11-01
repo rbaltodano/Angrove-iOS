@@ -85,6 +85,8 @@ nonisolated enum LibraryTextFormatter {
         (regex("\\[\\d{1,3}\\]"), ""),
         // Line-end hyphenation from scanned editions: "be- cause", "Di- onysius".
         (regex("(\\p{Ll})- (\\p{Ll})"), "$1$2"),
+        // New Advent inlines its footnote citations after punctuation: "judgment,Psalm 94:15".
+        (regex("(?<=[\\p{L})\\]])([,;.!?])(?=(?:[1-4] )?\\p{Lu}\\p{Ll}{1,11}\\.? \\d{1,3}:\\d{1,3})"), "$1 "),
         // Words fused where a line or heading break was lost: "Questions" + "The".
         (regex("([a-z][.!?;:])([A-Z][a-z])"), "$1 $2"),
         (regex("(\\p{Ll}{4,})(\\p{Lu}\\p{Ll})"), "$1 $2"),

@@ -52,7 +52,14 @@ import SwiftUI
     }
     var selectedDefinition: ConceptDefinition?
     var definingTerms: Set<String> = []
-    var concepts: [ConceptDefinition] = []
+    var concepts: [ConceptDefinition] = [] {
+        didSet {
+            if hasConfigured, oldValue != concepts { insightUpdateCount += 1 }
+        }
+    }
+    /// Restoring saved Insights establishes the baseline; only subsequent edits notify the dock.
+    private(set) var insightUpdateCount = 0
+    @ObservationIgnored private var hasConfigured = false
     var savedIDs: Set<UUID> = []
     var promotedIDs: [UUID] = []
     var connectionConcepts: [ConceptDefinition] = []
@@ -94,6 +101,7 @@ import SwiftUI
 
     func configure(preview: Bool, conversationID: UUID? = nil, global: Bool = false) {
         guard branches.isEmpty else { return }
+        defer { hasConfigured = true }
         isPreview = preview
         isGlobalTree = global
         if let conversationID { id = conversationID }

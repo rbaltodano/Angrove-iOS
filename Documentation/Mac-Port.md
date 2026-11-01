@@ -1332,3 +1332,19 @@ light, dark and a narrow 560-point content pane. Logs/artifacts:
 The signed Release update was installed at `/Applications/Angrove.app` with automatic launch
 disabled and left closed. Signature verification passed. Install log:
 `/tmp/angrove-inline-study-topic-install.log`.
+
+### Editorial conversation cards — October 24, 2026
+
+The Conversations page's resume and grid cards now use the approved editorial treatment:
+a conversation/date header above a hairline, multiline Libre Baskerville titles, three-line
+answer previews, and a bottom row showing the Study Topic (or answer count), pin and open arrow.
+Cards use the theme's small-card radius and a consistent 270-point height. Existing open and
+context-menu actions are retained; the first-conversation and search-empty states are unchanged.
+
+Verification: the Mac build passed. Native renders of `MacConversationCardContent` were inspected
+in light and dark appearance at desktop and 280-point card widths. These renders use sample data
+and a static options label; live menu/navigation interaction was not exercised. Artifacts are
+under `output/conversation-card-preview/implemented-*.png`; build and install logs are
+`/tmp/angrove-conversation-cards-{build,install}.log`.
+The signed Release update was installed at `/Applications/Angrove.app` and launched by the
+standard installer; strict deep signature verification passed.

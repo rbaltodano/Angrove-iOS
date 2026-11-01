@@ -34,7 +34,7 @@ struct WorktreeSceneContent: View, Equatable {
     let pointer: WorktreeCanvasPointer
     let bridge: WorktreeSceneBridge
     @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .serif
-    @AppStorage("aquinas.settings.conversationFontSize") private var responseSize: ConversationFontSizeOption = .medium
+    @AppStorage("aquinas.settings.conversationFontSize") private var responseSize: ConversationFontSizeOption = .small
 
     nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
         MainActor.assumeIsolated { lhs.board === rhs.board && lhs.runtime === rhs.runtime && lhs.pointer === rhs.pointer && lhs.bridge === rhs.bridge }
@@ -454,15 +454,18 @@ private struct WorktreeNativeScene: NSViewRepresentable {
         guard viewport.width > 0, viewport.height > 0 else { return }
         if changed {
             interactingID = nil
+            let now = CACurrentMediaTime()
             if !isMoving {
-                for node in nodes.values where node.host.superview != nil && node.interactionDirty && !node.entry.needsLiveContent && !node.entry.isEditing && !node.isScrolling {
+                // A word reveal still playing stays live; a bitmap now would freeze it half-drawn.
+                for node in nodes.values where node.host.superview != nil && node.interactionDirty && !node.entry.needsLiveContent && !node.entry.isEditing && !node.isScrolling
+                    && now >= node.cacheAfter {
                     node.host.layoutSubtreeIfNeeded()
                     _ = capture(node, resolution: max(0.25, node.resolution))
                 }
             }
             isMoving = true
             for node in nodes.values where !node.entry.needsLiveContent && !node.entry.isEditing && !node.isScrolling
-                && (CACurrentMediaTime() >= node.captureAfter || node.snapshotPreparedAt != nil)
+                && now >= node.cacheAfter && (now >= node.captureAfter || node.snapshotPreparedAt != nil)
                 && !node.dirty && node.image.contents != nil {
                 // A gesture never replaces content with an empty or stale cache.
                 node.host.removeFromSuperview()
@@ -774,6 +777,7 @@ private struct WorktreeNativeScene: NSViewRepresentable {
         dragImageIDs = Set(ids)
         let pending = ids.compactMap { nodes[$0] }.filter {
             !hasSharpDragImage($0) && !$0.entry.needsLiveContent && !$0.entry.isEditing && !$0.isScrolling
+                && CACurrentMediaTime() >= $0.cacheAfter
         }
         guard !pending.isEmpty else { return }
         for node in pending {

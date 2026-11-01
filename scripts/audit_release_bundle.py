@@ -42,6 +42,9 @@ def audit(path):
         path = apps[0]
     info = load_plist(path / 'Info.plist')
     blockers = []
+    for resource in ('MiniLM.mlmodelc', 'embeddings.bin', 'passages.json', 'vocab.txt', 'library-index.json'):
+        if not (path / resource).exists():
+            blockers.append(f'Missing required on-device Library/retrieval resource: {resource}')
     if list(path.rglob('*.litertlm')):
         blockers.append('A model is bundled in the app instead of delivered as an asset pack')
     bundles = [path, *path.rglob('*.appex'), *path.rglob('*.framework')]

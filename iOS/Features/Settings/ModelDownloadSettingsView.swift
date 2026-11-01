@@ -32,10 +32,20 @@ struct ModelDownloadStatusView: View {
     var body: some View {
         if delivery.phase.showsStatus {
             VStack(alignment: .leading, spacing: 12) {
-                Text(delivery.phase.title)
-                    .font(AngroveTheme.Typography.settingsHeading)
-                    .foregroundStyle(AngroveTheme.Colors.headingText)
-                    .accessibilityIdentifier("model-delivery-title")
+                HStack(alignment: .firstTextBaseline) {
+                    Text(delivery.phase.title)
+                        .font(AngroveTheme.Typography.settingsHeading)
+                        .foregroundStyle(AngroveTheme.Colors.headingText)
+                        .accessibilityIdentifier("model-delivery-title")
+                    if let fraction = delivery.phase.fractionCompleted {
+                        Spacer(minLength: 8)
+                        Text(fraction, format: .percent.precision(.fractionLength(0)))
+                            .font(AngroveTheme.Typography.settingsDetail)
+                            .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                            .monospacedDigit()
+                            .contentTransition(.numericText(value: fraction))
+                    }
+                }
 
                 if case let .downloading(completed, total) = delivery.phase, total > 0 {
                     ProgressView(value: delivery.phase.fractionCompleted ?? 0)

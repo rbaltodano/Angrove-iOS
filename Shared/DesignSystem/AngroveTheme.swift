@@ -178,7 +178,6 @@ enum AngroveTheme {
         // Settings subpages follow the iPhone's Text Size setting.
         static let settingsTitle = BrandTypography.font("LibreBaskerville-Regular", size: 28, relativeTo: .title)
         static let settingsDetailTitleTracking: CGFloat = -2
-        static let settingsHubEntry = BrandTypography.font("LibreBaskerville-Regular", fixedSize: 16)
         static let settingsDetailTitle = BrandTypography.font("LibreBaskerville-Regular", fixedSize: 40)
         static let settingsGuideTitleLineSpacing: CGFloat = 1.6
         static let settingsGuideTitle = BrandTypography.font("LibreBaskerville-Regular", size: 34, relativeTo: .largeTitle)

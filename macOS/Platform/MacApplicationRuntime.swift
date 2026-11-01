@@ -88,7 +88,7 @@ import Observation
     /// Tiers this Mac has the memory for, whether or not their model is downloaded yet.
     var eligibleTiers: [MacModelTier] {
         let memory = ProcessInfo.processInfo.physicalMemory
-        return MacModelTier.allCases.filter { $0.isEligible(physicalMemory: memory) }
+        return MacModelTier.offered.filter { $0.isEligible(physicalMemory: memory) }
     }
 
     /// Whether a model switch is possible at all in this process (not the Bonsai flag or no model).

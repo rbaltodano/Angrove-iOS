@@ -165,7 +165,7 @@ struct ContentView: View {
     @State private var dailyQuestionRefreshTask: Task<Void, Never>? = nil
     @State private var dailyQuestionGenerationRetryNotBefore = Date.distantPast
     @State private var isDailyQuestionGenerationErrorPresented: Bool = false
-    @AppStorage("aquinas.settings.conversationFontSize") private var conversationFontSize: ConversationFontSizeOption = .medium
+    @AppStorage("aquinas.settings.conversationFontSize") private var conversationFontSize: ConversationFontSizeOption = .small
     @AppStorage(SettingsStorageKey.conversationTextAlignment) private var conversationTextAlignment: ConversationTextAlignmentOption = .left
     @AppStorage("aquinas.settings.inputFont") private var inputFont: ConversationFontOption = .serif
     @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .serif
@@ -240,6 +240,13 @@ struct ContentView: View {
     }
 
     // MARK: - Navigation Actions
+
+    /// Dismissing the prompt only hides it; the next model action asks again.
+    private func offerModelInstall() {
+        modelCompletionNotifications.postModelInstallPrompt {
+            ModelDeliveryState.shared.retry()
+        }
+    }
 
     private func presentGlobalSideMenu() {
         dismissKeyboard()
@@ -1127,9 +1134,10 @@ struct ContentView: View {
                     activePage: activePage,
                     isStudyTopicDetailVisible: isStudyTopicDetailVisible,
                     isSettingsDetailVisible: isSettingsDetailVisible,
-                    isBlocked: isInsightLibraryVisible,
+                    isBlocked: isInsightLibraryVisible || isGlobalSearchPresented,
                     onBeginDrag: dismissKeyboard,
                     onDismiss: { dismissGlobalSideMenu() },
+                    onOpenSearch: presentGlobalSearch,
                     menu: globalSideMenu
                 )
 
@@ -1251,6 +1259,17 @@ struct ContentView: View {
         .environment(\.openReadingConversation, openReadingConversation)
         .preferredColorScheme(colorSchemeOverride)
         .eraseToAnyView()
+        .task {
+            await ModelDeliveryState.shared.refreshAvailability()
+            if ModelDeliveryState.shared.phase.needsInstall { offerModelInstall() }
+        }
+        .onChange(of: ModelDeliveryState.shared.phase.needsInstall) { _, needsInstall in
+            if needsInstall {
+                offerModelInstall()
+            } else {
+                modelCompletionNotifications.dismissModelInstallPrompt()
+            }
+        }
         .dailyQuestionGenerationAlert(
             isPresented: $isDailyQuestionGenerationErrorPresented,
             retry: {
@@ -1283,6 +1302,9 @@ struct ContentView: View {
                 redirect(to: .conversation)
             }
             modelCompletionNotifications.onToggleInsightSaved = toggleNotificationInsightSaved
+            modelTasks.onForegroundWorkRequested = {
+                if ModelDeliveryState.shared.phase.needsInstall { offerModelInstall() }
+            }
             let savedInsights = InsightLibraryStore.load()
             modelCompletionNotifications.savedInsightIDs = Set(savedInsights.map(\.id))
             if !savedInsights.isEmpty {
@@ -1384,8 +1406,11 @@ struct ContentView: View {
     // MARK: - Global Search
 
     private func presentGlobalSearch() {
-        // The search veil grows over the page while the panel slides away.
-        dismissGlobalSideMenu()
+        // Match the slower exit used when search interrupts a partially opened sidebar.
+        // The search veil starts immediately while the panel settles out of view.
+        withAnimation(.springRelaxed) {
+            isGlobalSideMenuOpen = false
+        }
         isGlobalSearchPresented = true
     }
 

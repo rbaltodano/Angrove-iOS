@@ -15,6 +15,7 @@ enum ModelCompletionNotificationKind {
     case insightDefinition
     case pageReturn
     case treeUpdate
+    case modelInstall
 }
 
 struct NotificationInsightPresentation: Identifiable {
@@ -77,6 +78,26 @@ final class ModelCompletionNotificationCenter {
             notifications[index] = prompt
         } else {
             withAnimation(.springStandard) { notifications.insert(prompt, at: 0) }
+        }
+    }
+
+    /// One install prompt at a time. It leaves the stack once the model starts downloading.
+    func postModelInstallPrompt(onInstall: @escaping @MainActor () -> Void) {
+        guard !notifications.contains(where: { $0.kind == .modelInstall }) else { return }
+        withAnimation(.springStandard) {
+            notifications.insert(
+                ModelCompletionNotification(title: String(localized: "Install?"), kind: .modelInstall,
+                                            returnPage: nil, openAction: onInstall),
+                at: 0
+            )
+        }
+    }
+
+    func dismissModelInstallPrompt() {
+        guard notifications.contains(where: { $0.kind == .modelInstall }) else { return }
+        withAnimation(.springStandard) {
+            notifications.removeAll { $0.kind == .modelInstall }
+            resetEmptyStack()
         }
     }
 
@@ -221,20 +242,20 @@ struct ModelCompletionNotificationPill: View {
         switch kind {
         case .question: "QuestionNotificationIcon"
         case .insightDefinition: "InsightNotificationIcon"
-        case .pageReturn, .treeUpdate: "QuestionNotificationIcon"
+        case .pageReturn, .treeUpdate, .modelInstall: "QuestionNotificationIcon"
         }
     }
 
     private var iconColor: Color {
         switch kind {
-        case .question, .pageReturn, .treeUpdate: AngroveTheme.Colors.headingText
+        case .question, .pageReturn, .treeUpdate, .modelInstall: AngroveTheme.Colors.headingText
         case .insightDefinition: AngroveTheme.Colors.lightGreen
         }
     }
 
     private var titleColor: Color {
         switch kind {
-        case .question, .pageReturn, .treeUpdate: AngroveTheme.Colors.paragraphText
+        case .question, .pageReturn, .treeUpdate, .modelInstall: AngroveTheme.Colors.paragraphText
         case .insightDefinition: AngroveTheme.Colors.lightGreen
         }
     }
@@ -245,7 +266,7 @@ struct ModelCompletionNotificationPill: View {
             String(localized: "View completed question: \(title)")
         case .insightDefinition:
             String(localized: "View completed Insight Definition: \(title)")
-        case .pageReturn, .treeUpdate:
+        case .pageReturn, .treeUpdate, .modelInstall:
             title
         }
     }
@@ -423,6 +444,16 @@ private struct ModelCompletionNotificationRow: View {
         ZStack {
             if notification.kind == .treeUpdate {
                 TreeUpdateNotificationPill(title: notification.title, onUpdate: onOpen, onKeepCurrent: onDismiss)
+            } else if notification.kind == .modelInstall {
+                ConfirmationNotificationPill(
+                    title: notification.title,
+                    iconName: "arrow.down.circle",
+                    width: width,
+                    confirmLabel: String(localized: "Install model"),
+                    declineLabel: String(localized: "Dismiss install notification"),
+                    onConfirm: onOpen,
+                    onDecline: onDismiss
+                )
             } else if notification.kind == .pageReturn {
                 ConfirmationNotificationPill(
                     title: String(localized: "Return?"),

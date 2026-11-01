@@ -43,7 +43,7 @@ struct ModelResponseFooter: View {
             feedbackSent = false
             showsFeedbackSheet = isThumbsDownSelected
         } label: {
-            actionIcon(isThumbsDownSelected ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+            actionIcon(isThumbsDownSelected ? "hand.thumbsdown.fill" : "hand.thumbsdown", label: String(localized: "Bad response"))
                 .foregroundStyle(isThumbsDownSelected ? AngroveTheme.Colors.lightGreen : AngroveTheme.Colors.responseButton)
         }
         .buttonStyle(.plain)
@@ -116,7 +116,7 @@ struct ModelResponseFooter: View {
 
     private func actionButton(symbol: String, index: Int, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            actionIcon(symbol)
+            actionIcon(symbol, label: label)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
@@ -130,13 +130,14 @@ struct ModelResponseFooter: View {
     /// Reads the response aloud; tapping again while it is preparing or speaking stops it.
     private var speakButton: some View {
         let phase = speech.phase(for: copyText)
+        let label = phase == .idle ? String(localized: "Read response aloud") : String(localized: "Stop reading")
         return Button { speech.toggle(copyText, units: spokenUnits, source: speechSource) } label: {
-            actionIcon("speaker.wave.2")
+            actionIcon("speaker.wave.2", label: label)
                 .symbolEffect(.variableColor.iterative, isActive: phase != .idle && !reduceMotion)
                 .foregroundStyle(phase == .idle ? AngroveTheme.Colors.responseButton : AngroveTheme.Colors.accent)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(phase == .idle ? String(localized: "Read response aloud") : String(localized: "Stop reading"))
+        .accessibilityLabel(label)
         .modifier(ResponseActionEntrance(
             isVisible: (feedbackIndex + (feedbackReport == nil ? 0 : 1)) < visibleActionCount,
             animates: shouldAnimateOnAppear && !reduceMotion
@@ -144,12 +145,19 @@ struct ModelResponseFooter: View {
         .frame(width: 18, height: 16)
     }
 
-    private func actionIcon(_ symbol: String) -> some View {
-        Image(systemName: symbol)
-            .angroveIcon(.medium)
-            .foregroundStyle(AngroveTheme.Colors.responseButton)
-            .frame(width: 14, height: 16)
-            .contentShape(Rectangle())
+    /// An icon-only Label, not a bare Image: on Mac a plain button takes its accessibility title
+    /// from its content, so a bare Image announced the SF Symbol name ("doc.on.doc").
+    private func actionIcon(_ symbol: String, label: String) -> some View {
+        Label {
+            Text(label)
+        } icon: {
+            Image(systemName: symbol)
+                .angroveIcon(.medium)
+                .foregroundStyle(AngroveTheme.Colors.responseButton)
+        }
+        .labelStyle(.iconOnly)
+        .frame(width: 14, height: 16)
+        .contentShape(Rectangle())
     }
 
     private func revealFooter() async {

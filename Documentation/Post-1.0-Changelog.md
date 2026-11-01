@@ -21,6 +21,87 @@ Collected from the [iOS] and [Shared] entries below.
 - New Search in the side menu. Find any conversation, saved Insight or Study Topic by its name,
   or a conversation by something said in it, and filter to one kind with All, Conversations,
   Insights or Study Topics. Matching words are highlighted; tap a result to open it.
+- Library scripture citations no longer run into the word before them ("judgment, Psalm 94:15"
+  instead of "judgment,Psalm 94:15").
+- VoiceOver reads the answer actions as Copy, Regenerate, Bad response and Read aloud.
+- Text size choices now read Small, Medium, Large from left to right, Small is the new default,
+  and the selection slides between choices.
+- If the on-device model isn't installed, an Install? notification offers to download it. Dismiss
+  it and it returns the next time you ask the model for something. While the model downloads,
+  Model Controls show Loading..., and Model Tasks shows Downloading Model with its percentage and a progress bar.
+
+## 2026-10-31
+
+- **[Shared] Text size control and default.** Options run Small, Medium, Large (left to right),
+  and the selection capsule animates between them (AppStorage writes drop the tap's animation,
+  so the controls animate on their selection value). New installs and Reset default to Small;
+  existing choices are kept.
+- **[iOS] Model install prompt and download status.** When the E4B pack is not installed or
+  failed, an Install? notification (check / X) appears at launch or when a download fails.
+  Check starts the download; X dismisses it, and the next foreground model action shows it
+  again. Questions are never refused: they wait while the model downloads, as in 1.0, so a
+  reviewer who asks before iOS finishes the essential download still gets an answer. During download
+  and verification, Model Controls show Loading... and Model Tasks shows Downloading Model with
+  its percentage and an accent-green progress bar from Apple's reported progress. The Home
+  download card and Settings > On-device Model also show the percentage beside the title.
+
+## 2026-10-30
+
+- **[Shared] Settings typography.** Page titles and part headings stay Libre Baskerville serif,
+  now without italics. Labels and prose use Figtree while retaining the selected text size.
+  Introductory paragraphs beneath Settings page titles are removed, including the iPhone bundled
+  User Guide introductions. The iPhone Settings menu also omits secondary text beneath every
+  destination name. Menu labels use the paragraph text color in Figtree SemiBold at the
+  conversation text size, and the serif part headings (General, Conversation, and so on) match
+  that size.
+
+## 2026-10-28
+
+- **[Shared] Fixed a freeze when starting a new conversation on iOS 27.** An encrypted
+  preference save could wait for SwiftUI while the chat screen waited for that save's worker.
+  Personal preference writes now avoid synchronous AppStorage notifications; the encryption,
+  keys and storage locations are unchanged. Reproduced on an iPhone 16 Pro simulator.
+
+## 2026-10-26
+
+- **[Shared] Multiword linked terms and quoted Insight chips have spoken names.** On Mac,
+  VoiceOver read multiword term links (such as "divine goodness") and the composer's quoted
+  Insight chip as blank buttons, and the chip's remove button as "xmark".
+- **[macOS] The User Guide describes the Mac.** It used the iPhone's copy: haptics, text
+  alignment, Face ID, tapping and "your phone". Mac Settings, Touch ID, clicking and Mac
+  shortcuts are now described instead.
+- **[macOS] Large (Gemma 4 12B) is held back from the first beta.** It scored no better than
+  Standard and ran 2.6 times slower; Standard is the only model offered.
+- **[macOS] The app ships a privacy manifest** with the same declarations as the iPhone app.
+- **[Shared] Library citations get their missing space.** About 900 inline scripture citations in
+  the New Advent texts (City of God and others) followed punctuation with no space. The reader
+  now adds the space on display; the bundled passages, and so retrieval, are unchanged.
+- **[Shared] Answer action buttons have spoken names.** On Mac, VoiceOver read the copy,
+  regenerate, thumbs-down and read-aloud buttons by their SF Symbol names. Each icon is now an
+  icon-only label carrying the action's name.
+- **[macOS] Collapsed sidebar buttons and Reset Settings are named for VoiceOver.**
+- **[macOS] Hot Keys page lists every shortcut.** Added an Anywhere section (⌘N on Boards and Study
+  Topics, ⌘K Search, ⌘, Settings, ⇧⌘M Minimize, menu keys) and a Boards section (tool shortcuts,
+  Space to pan, resize and zoom, undo, Escape). Removed Command-Shift-R's claim to go back and
+  Previous Page's missing shortcut.
+
+## 2026-10-24
+
+- **[macOS] Redesigned Conversation, Study Topic and Board cards.** All three collection pages
+  now share one card: a kind-and-date strip with the options menu, a rule, a serif title and
+  preview, and a green footer (topic or answer count, conversation count, or item count) ending
+  in an open arrow. Study Topic cards keep quick links to their first two conversations.
+  Inside a Study Topic, its conversations now show as these cards in a grid instead of a
+  stacked list.
+- **[macOS] Search bar placeholders use the app's placeholder color** instead of the system gray.
+
+## 2026-10-23
+
+- **[macOS] Board headings no longer appear blank for seconds.** Panning, zooming or picking up
+  an item while a heading's words were still revealing froze a snapshot of the half-drawn
+  heading; it stayed blank until a later redraw. Snapshots now wait for the reveal to finish.
+- **[macOS] Renaming a conversation in the sidebar works again.** The rename field re-selected
+  its text when the sidebar re-attached it, which ended the edit and closed it immediately.
 
 ## 2026-10-22
 

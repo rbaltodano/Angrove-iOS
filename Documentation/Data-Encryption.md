@@ -44,6 +44,9 @@ applies to app storage.
   device unlock following a restart. The extension cannot access the personal-data key.
 - Personal property-list values are encrypted before entering UserDefaults. Ordinary UI
   preferences remain compatible with AppStorage; personal strings use encrypted bindings.
+  Encrypted writes and removals in the standard application domain use CFPreferences, avoiding
+  synchronous UserDefaults observer callbacks from the persistence worker into SwiftUI. The
+  domain, ciphertext and keys remain unchanged; a failed synchronization reports a save error.
 - Personal files use atomic replacement and, on iOS, Complete File Protection in addition to AES-GCM.
   Historical `.json` filenames remain stable but now contain binary ciphertext.
 - Before mounting the app interface, startup verifies all existing ciphertext before migrating
@@ -87,6 +90,39 @@ legacy property-list and file migration, backup ciphertext, missing-key preserva
 preflight and the widget's real App Group Keychain. Existing conversation and tree persistence
 suites exercise recovery and stable identifiers through encrypted storage. Physical-device
 backup/restore and lock/unlock lifecycle checks remain release-validation requirements.
+
+### Evidence review — October 23, 2026
+
+**Classification B: partial related evidence; physical-device encryption validation is not
+verified complete.** A repository-wide search of current files (including ignored build/output
+artifacts, screenshots' accompanying records, scripts, and design assets) and local git history
+found no dated record containing the device model, iOS version, app build, lock/unlock steps and
+results, and backup/restore steps with the Keychain-restore outcome. This does not establish
+whether an unrecorded owner check occurred. The pending status above is unchanged.
+
+- The [October 6 integration record](Engineering-Log/Today-Changes-Integration.md) documents
+  SHA-256-verified copies of phone-container data before installation. It explicitly says the
+  backup excluded Keychain keys and no history restoration was performed.
+- The October 7 installation history in
+  [commit `37b92d2`](https://github.com/rbaltodano/Angrove-iOS/commit/37b92d29461b69c8d6ffeb72cc1bb2802cdb2615)
+  records an app-source rollback and preservation of 67 persistent files during installation.
+  It explicitly says no older data snapshot was restored; remote launch could not be confirmed.
+  Restoring the app build is not evidence of restoring encrypted data and its Keychain.
+- The [October 5 preflight](Engineering-Log/Preflight-Check.md) identifies its encryption checks
+  as simulator/fixture checks. The [October 17 attachment-migration report](Attachment-Storage-Migration.md)
+  likewise records simulator and Mac tests and leaves physical lock/unlock and encrypted
+  backup/restore validation open. Existing local test logs identify iOS Simulator destinations;
+  build/signing validation and successful installation do not establish these device outcomes.
+- Local artifacts corroborate that distinction: `output/performance-final-focused-tests.log`
+  selects an iOS Simulator destination, and `output/performance-test-summary.json` identifies
+  iPhone 17 / iOS 27.0 as `iOS Simulator`. `build/preflight/ui/launch-verification.md` explicitly
+  excludes physical-phone checks. `build/release-audit/ready-artifacts.json` lists physical
+  encrypted-data validation as remaining work; its completed validation field concerns the
+  distribution artifact. These generated files are local evidence, not tracked release records.
+
+Use the [device-validation template](Engineering-Log/Device-Validation-TEMPLATE.md) to record
+the missing identity, actions, results, and supporting evidence. Its empty fields are not a
+completed validation record.
 
 Apple references: [CryptoKit keys in Keychain](https://developer.apple.com/documentation/cryptokit/storing-cryptokit-keys-in-the-keychain),
 [Keychain sharing](https://developer.apple.com/documentation/security/sharing-access-to-keychain-items-among-a-collection-of-apps),

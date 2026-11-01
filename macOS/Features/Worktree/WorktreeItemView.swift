@@ -329,7 +329,7 @@ struct WorktreeQuestionCard: View, Equatable {
     @State private var hasAskedHere = false
     @State private var isLoadingEarlier = false
     @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .serif
-    @AppStorage("aquinas.settings.conversationFontSize") private var responseSize: ConversationFontSizeOption = .medium
+    @AppStorage("aquinas.settings.conversationFontSize") private var responseSize: ConversationFontSizeOption = .small
 
     /// The fade beneath the pinned question reaches full strength over this much scrolling.
     static let fadeHeight: CGFloat = 40

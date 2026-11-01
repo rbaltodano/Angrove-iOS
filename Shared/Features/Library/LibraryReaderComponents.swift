@@ -66,7 +66,7 @@ struct LibraryTextSection: View {
     let onClip: (String) -> Void
     var onReadFromHere: (Int, Int) -> Void = { _, _ in }
     @AppStorage("aquinas.settings.conversationFontSize")
-    private var conversationFontSize: ConversationFontSizeOption = .medium
+    private var conversationFontSize: ConversationFontSizeOption = .small
     @AppStorage("aquinas.settings.responseFont")
     private var responseFont: ConversationFontOption = .serif
 

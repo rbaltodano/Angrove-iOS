@@ -10,15 +10,23 @@ struct MacModelTierTests {
     }
 
     @Test func eligibleInstalledSelectionIsUsed() {
-        #expect(MacModelTier.resolve(selected: .large, physicalMemory: 24 * gib, isInstalled: { _ in true }) == .large)
+        #expect(MacModelTier.resolve(selected: .large, physicalMemory: 24 * gib, offered: MacModelTier.allCases, isInstalled: { _ in true }) == .large)
     }
 
     @Test func largeFallsBackBelowItsMemoryMinimum() {
-        #expect(MacModelTier.resolve(selected: .large, physicalMemory: 16 * gib, isInstalled: { _ in true }) == .standard)
+        #expect(MacModelTier.resolve(selected: .large, physicalMemory: 16 * gib, offered: MacModelTier.allCases, isInstalled: { _ in true }) == .standard)
     }
 
     @Test func missingModelFallsBackToStandard() {
         #expect(MacModelTier.resolve(selected: .large, physicalMemory: 64 * gib, isInstalled: { $0 == .standard }) == .standard)
+    }
+
+    @Test func firstBetaOffersOnlyStandard() {
+        #expect(MacModelTier.offered == [.standard])
+    }
+
+    @Test func storedLargeSelectionResolvesToStandardWhileNotOffered() {
+        #expect(MacModelTier.resolve(selected: .large, physicalMemory: 64 * gib, isInstalled: { _ in true }) == .standard)
     }
 
     @Test func standardKeepsTheIPhonePackageAndContext() {

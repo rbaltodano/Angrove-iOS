@@ -226,7 +226,7 @@ struct ParagraphFontModifier: ViewModifier {
     }
 
     let role: Role
-    @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .medium
+    @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .small
 
     func body(content: Content) -> some View {
         let size = role.baseSize + (fontSize.pointSize - ConversationFontSizeOption.medium.pointSize)
@@ -252,17 +252,19 @@ extension View {
 /// Settings prose always uses Figtree, while retaining the person's text-size preference.
 struct SettingsTextModifier: ViewModifier {
     enum Role {
-        case label, control, paragraph, detail
+        case label, control, menuEntry, partTitle, paragraph, detail
     }
 
     let role: Role
-    @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .medium
+    @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .small
 
     func body(content: Content) -> some View {
         let base = fontSize.pointSize
         switch role {
         case .label: content.font(BrandTypography.font("Figtree-Bold", fixedSize: base))
         case .control: content.font(BrandTypography.font("Figtree-Regular", fixedSize: base))
+        case .menuEntry: content.font(BrandTypography.font("Figtree-SemiBold", fixedSize: base))
+        case .partTitle: content.font(BrandTypography.font("LibreBaskerville-Regular", fixedSize: base))
         case .detail: content.font(BrandTypography.font("Figtree-Regular", fixedSize: max(base - 2, 11)))
         case .paragraph:
             content.font(BrandTypography.font("Figtree-Regular", fixedSize: base)).lineSpacing(FlowLayout.rowSpacing)

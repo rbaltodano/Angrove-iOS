@@ -21,7 +21,7 @@ struct AppearanceSettingsView: View {
     }
 
     var body: some View {
-        SettingsDetailScaffold(title: "Appearance", intro: "Choose the colors, backgrounds, and app icon that feel right for you.") {
+        SettingsDetailScaffold(title: "Appearance") {
             VStack(alignment: .leading, spacing: 24) {
                 SettingsControlCard {
                     SettingsLabeledControl(title: "Color Scheme") {
@@ -68,7 +68,7 @@ struct AppExperienceSettingsView: View {
     @State private var showsResetConfirmation = false
 
     var body: some View {
-        SettingsDetailScaffold(title: "App Experience", intro: "Choose where Angrove opens and how it responds to your touch.") {
+        SettingsDetailScaffold(title: "App Experience") {
             VStack(alignment: .leading, spacing: 24) {
                 SettingsControlCard {
                     SettingsChoiceRow(
@@ -122,7 +122,7 @@ struct NotificationSettingsView: View {
     private var dailyQuestionReminderSeconds = 9.0 * 60.0 * 60.0
 
     var body: some View {
-        SettingsDetailScaffold(title: "Notifications", intro: "Choose when Angrove lets you know a daily question or finished response is ready.") {
+        SettingsDetailScaffold(title: "Notifications") {
             SettingsControlCard {
                 SettingsToggleRow(
                     title: "Question of the Day",
@@ -223,7 +223,7 @@ struct PrivacyAndDataSettingsView: View {
     var onDeleteAllAppData: () async throws -> Void = {}
 
     var body: some View {
-        SettingsDetailScaffold(title: "Privacy & Data", intro: "Protect access to Angrove and manage the conversations and Insights stored on this device.") {
+        SettingsDetailScaffold(title: "Privacy & Data") {
             VStack(alignment: .leading, spacing: 24) {
                 SettingsSubsection(title: "Security") {
                     SettingsToggleRow(title: "App Lock", isOn: $appLock)
@@ -498,7 +498,7 @@ struct PersonalizationSettingsView: View {
     @Binding var userName: String
 
     var body: some View {
-        SettingsDetailScaffold(title: "Personalization", intro: "Choose the name Angrove should use when addressing you. You can leave it blank if you prefer.") {
+        SettingsDetailScaffold(title: "Personalization") {
             SettingsControlCard {
                 SettingsTextInputRow(
                     title: "Preferred name",
@@ -519,7 +519,7 @@ private struct ResearchAndCitationsSettingsView: View {
     private var linkHandling: LinkHandlingOption = .inApp
 
     var body: some View {
-        SettingsDetailScaffold(title: "Research & Citations", intro: "Choose how sources and citations appear, and where their links open.") {
+        SettingsDetailScaffold(title: "Research & Citations") {
             SettingsControlCard {
                 SettingsChoiceRow(
                     title: "Citation Preference",
@@ -548,18 +548,18 @@ struct TextAndDisplaySettingsView: View {
     @Binding var responseFont: ConversationFontOption
 
     var body: some View {
-        SettingsDetailScaffold(title: "Text & Display", intro: "Choose the size, fonts, and alignment of your conversation text.") {
+        SettingsDetailScaffold(title: "Text & Display") {
             SettingsControlCard {
-                SettingsLabeledControl(title: "Font Size") {
+                SettingsStackedControl(title: "Font Size") {
                     FontSizeSegmentedControl(selection: $conversationFontSize)
                 }
-                SettingsLabeledControl(title: "Conversation Text Alignment") {
+                SettingsStackedControl(title: "Alignment") {
                     ConversationAlignmentSegmentedControl(selection: $conversationTextAlignment)
                 }
-                SettingsLabeledControl(title: "Input Font") {
+                SettingsStackedControl(title: "Input Font") {
                     FontSegmentedControl(selection: $inputFont)
                 }
-                SettingsLabeledControl(title: "Response Font") {
+                SettingsStackedControl(title: "Response Font") {
                     FontSegmentedControl(selection: $responseFont)
                 }
             }
@@ -578,7 +578,7 @@ struct AudioSettingsView: View {
     private var showsReaderInControls = true
 
     var body: some View {
-        SettingsDetailScaffold(title: "Audio", intro: "Choose when responses are read aloud and how playback behaves when you leave Angrove.") {
+        SettingsDetailScaffold(title: "Audio") {
             SettingsControlCard {
                 SettingsToggleRow(
                     title: "Read Responses Automatically",
@@ -613,7 +613,7 @@ struct ConversationDefaultsSettingsView: View {
     private var conversationTitles: ConversationTitleOption = .automatic
 
     var body: some View {
-        SettingsDetailScaffold(title: "Conversation Defaults", intro: "Choose how your conversations are titled so they’re easier to find later.") {
+        SettingsDetailScaffold(title: "Conversation Defaults") {
             SettingsControlCard {
                 SettingsChoiceRow(
                     title: "Conversation Titles",
@@ -635,7 +635,7 @@ private struct InsightsAndDailyStudySettingsView: View {
     private var dailyQuestionFocus: DailyQuestionFocusOption = .varied
 
     var body: some View {
-        SettingsDetailScaffold(title: "Insights & Daily Study", intro: "Choose how ideas are highlighted and connected, and what your daily study focuses on.") {
+        SettingsDetailScaffold(title: "Insights & Daily Study") {
             VStack(alignment: .leading, spacing: 24) {
                 SettingsSubsection(title: "Insight Tree") {
                     SettingsChoiceRow(

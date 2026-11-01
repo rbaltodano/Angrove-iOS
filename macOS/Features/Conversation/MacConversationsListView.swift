@@ -77,7 +77,7 @@ struct MacConversationsListView: View {
                         if let featured {
                             VStack(alignment: .leading, spacing: 20) {
                                 MacCollectionSectionTitle(title: String(localized: "Where You Left Off"))
-                                MacConversationCard(conversation: featured,
+                                MacConversationCard(conversation: featured, topicTitle: topicTitle(for: featured),
                                     onOpen: { onOpen(featured.id) },
                                     onAction: { onAction($0, featured) })
                             }
@@ -96,7 +96,7 @@ struct MacConversationsListView: View {
                                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: MacCollectionLayout.gridSpacing, alignment: .top)],
                                               spacing: MacCollectionLayout.gridSpacing) {
                                         ForEach(section.conversations) { conversation in
-                                            MacConversationCard(conversation: conversation,
+                                            MacConversationCard(conversation: conversation, topicTitle: topicTitle(for: conversation),
                                                 onOpen: { onOpen(conversation.id) },
                                                 onAction: { onAction($0, conversation) })
                                         }
@@ -193,9 +193,10 @@ enum MacConversationSummary {
     }
 }
 
-/// The compact mobile card layout: title, pin, options, and a two-line answer preview.
+/// Editorial conversation card, retaining the collection’s existing actions.
 private struct MacConversationCard: View {
     let conversation: InquiryConversation
+    let topicTitle: String?
     var onOpen: () -> Void
     var onAction: (MacSidebarConversationMenuAction) -> Void
 
@@ -209,46 +210,20 @@ private struct MacConversationCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center, spacing: 8) {
-                if conversation.isPinned {
-                    Image(systemName: "pin.fill")
-                        .angroveIcon(.small)
-                        .foregroundStyle(AngroveTheme.Colors.lightGreen)
-                        .accessibilityLabel("Pinned")
-                }
-
-                Text(MacStudyTopicsView.title(of: conversation))
-                    .font(AngroveTheme.Typography.uiHeading)
-                    .foregroundStyle(AngroveTheme.Colors.primaryReadable)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-
-                Spacer(minLength: 8)
-
-                MacActionMenu(entries: { menuEntries }) {
-                    MacCollectionCardOptionsLabel()
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Conversation options")
+        MacConversationCardContent(
+            title: MacStudyTopicsView.title(of: conversation),
+            preview: MacConversationSummary.preview(of: conversation),
+            createdAt: conversation.createdAt,
+            topicTitle: topicTitle,
+            answerCount: MacConversationSummary.answerCount(in: conversation),
+            isPinned: conversation.isPinned
+        ) {
+            MacActionMenu(entries: { menuEntries }) {
+                MacCollectionCardOptionsLabel()
             }
-
-            Text(verbatim: MacConversationSummary.preview(of: conversation))
-                .font(AngroveTheme.Typography.body)
-                .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                .lineSpacing(5)
-                .lineLimit(2)
-                .truncationMode(.tail)
+            .buttonStyle(.plain)
+            .accessibilityLabel("Conversation options")
         }
-        .padding(28)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AngroveTheme.Colors.canvasSecondary,
-                    in: RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous)
-                .stroke(AngroveTheme.Colors.controlBorder, lineWidth: 1)
-        }
-        .contentShape(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous))
         .onTapGesture(perform: onOpen)
         .macCardHover()
         .macContextMenu { menuEntries }

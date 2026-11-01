@@ -135,8 +135,7 @@ struct MacStudyTopicsView: View {
             description: "Bring related conversations together and follow an idea as it develops.",
             stats: topics.isEmpty ? [] : [
                 MacCollectionStat(topics.count, "Topic", "Topics"),
-                MacCollectionStat(filedConversationCount, "Conversation", "Conversations"),
-                MacCollectionStat(topics.reduce(0) { $0 + $1.files.count }, "Image", "Images")
+                MacCollectionStat(filedConversationCount, "Conversation", "Conversations")
             ])
             // New Study Topic is the dashed card in the grid; the shortcut stays with the page.
             .background {
@@ -179,16 +178,11 @@ struct MacStudyTopicsView: View {
     @ViewBuilder private func detail(_ topic: StudyTopic) -> some View {
         let members = members(of: topic)
         MacStudyTopicDetailHeader(title: textBinding(topic.id, \.title), description: textBinding(topic.id, \.description),
-            titleFocusRequest: state.titleFocusRequest, conversationCount: members.count, imageCount: topic.files.count) {
-            Button("Insight Tree", systemImage: "leaf") { state.retain(topic.id); treeTopicID = topic.id }
+            titleFocusRequest: state.titleFocusRequest, conversationCount: members.count) {
+            Button("Insight Tree", systemImage: "point.3.connected.trianglepath.dotted") { state.retain(topic.id); treeTopicID = topic.id }
                 .buttonStyle(MacSecondaryCapsuleButtonStyle())
                 .help("Open the Insight Tree gathered from this topic’s conversations")
-            MacActionMenu(entries: { [
-                MacMenuEntry("Photos…", symbol: "photo.on.rectangle") { showsPhotoPicker = true },
-                MacMenuEntry("Image File…", symbol: "folder") { showsFilePicker = true }
-            ] }) { Label("Add Images", systemImage: "photo.badge.plus") }
-                .buttonStyle(MacSecondaryCapsuleButtonStyle())
-                .fixedSize()
+            // Add Images is hidden for now; the pickers and Reference Images section remain.
             MacActionMenu(entries: { [
                 MacMenuEntry("Rename", symbol: "pencil.line") { state.open(topic.id, focusTitle: true) }, .divider,
                 MacMenuEntry("Delete", symbol: "trash", destructive: true) { pendingDelete = topic }
@@ -205,20 +199,27 @@ struct MacStudyTopicsView: View {
             if members.isEmpty {
                 MacTopicEmptyConversations { startConversation(in: topic.id) }
             } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(members.enumerated()), id: \.element.id) { index, conversation in
-                        if index > 0 {
-                            Rectangle().fill(AngroveTheme.Colors.divider).frame(height: 1).padding(.horizontal, 28)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: MacCollectionLayout.gridSpacing, alignment: .top)],
+                          spacing: MacCollectionLayout.gridSpacing) {
+                    ForEach(members) { conversation in
+                        MacConversationCardContent(
+                            title: Self.title(of: conversation),
+                            preview: MacConversationSummary.preview(of: conversation),
+                            createdAt: conversation.createdAt,
+                            topicTitle: nil,
+                            answerCount: MacConversationSummary.answerCount(in: conversation),
+                            isPinned: conversation.isPinned
+                        ) {
+                            // No options here yet; keep the strip the same height as the collection's cards.
+                            Color.clear.frame(width: 0, height: AngroveTheme.Spacing.controlHeight)
                         }
-                        MacTopicConversationRow(index: index + 1, title: Self.title(of: conversation),
-                            preview: MacHomePreviewText.plainText(from: HomeDashboardContent.latestText(in: conversation)),
-                            date: conversation.createdAt, isPinned: conversation.isPinned) {
-                            onOpenConversation(conversation.id)
-                        }
+                        .onTapGesture { onOpenConversation(conversation.id) }
+                        .macCardHover()
+                        .accessibilityElement(children: .combine)
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction { onOpenConversation(conversation.id) }
                     }
                 }
-                .padding(.vertical, 8)
-                .macCollectionCard()
             }
         }
         // Drop a conversation anywhere in the section to file it here.

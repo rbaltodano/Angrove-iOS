@@ -108,21 +108,14 @@ struct MacWorktreeHomeView: View {
     }
 }
 
-/// A saved Board using the conversation collection card style, without a canvas preview.
+/// A saved Board in the editorial collection card, without a canvas preview.
 private struct WorktreeCard: View {
     let document: WorktreeDocument
     let onOpen: () -> Void
     let onDelete: () -> Void
     let onRename: () -> Void
-    @State private var isHovered = false
 
-    private var summary: String {
-        let windows = document.items.filter { $0.branches != nil }.count
-        let count = document.items.count
-        let items = count == 1 ? String(localized: "1 item") : String(localized: "\(count) items")
-        return windows > 0 ? items + " · " + (windows == 1 ? String(localized: "1 conversation")
-            : String(localized: "\(windows) conversations")) : items
-    }
+    private var windowCount: Int { document.items.filter { $0.branches != nil }.count }
 
     private var menuEntries: [MacMenuEntry] { [
         MacMenuEntry("Open", symbol: "arrow.up.right", action: onOpen),
@@ -131,46 +124,27 @@ private struct WorktreeCard: View {
     ] }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Spacer(minLength: 8)
-                MacActionMenu(entries: { menuEntries }) { MacCollectionCardOptionsLabel() }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Board options")
-            }
-            .frame(height: AngroveTheme.Spacing.controlHeight)
-
+        MacEditorialCard(kind: "Board", symbol: "square.on.square.dashed", date: document.updatedAt) {
+            MacActionMenu(entries: { menuEntries }) { MacCollectionCardOptionsLabel() }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Board options")
+        } content: {
             Text(document.displayTitle)
-                .font(AngroveTheme.Typography.uiHeading)
+                .font(AngroveTheme.Typography.heading)
                 .foregroundStyle(AngroveTheme.Colors.primaryReadable)
-                .lineSpacing(3)
-                .lineLimit(2)
+                .lineSpacing(2)
+                .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 12)
-
-            Spacer(minLength: 20)
-
-            HStack(spacing: 8) {
-                Text(MacCollectionDate.short(document.updatedAt))
+        } footer: {
+            Image(systemName: "square.grid.2x2")
+            Text(document.items.count == 1 ? "1 item" : "\(document.items.count) items")
+            if windowCount > 0 {
                 Text(verbatim: "·")
-                Text(summary)
-                    .lineLimit(1)
-                Spacer(minLength: 8)
-                Image(systemName: "arrow.up.right")
-                    .angroveIcon(.small, .strong)
-                    .foregroundStyle(AngroveTheme.Colors.lightGreen)
-                    .opacity(isHovered ? 1 : 0)
-                    .offset(x: isHovered ? 0 : -4, y: isHovered ? 0 : 4)
+                Text(windowCount == 1 ? "1 conversation" : "\(windowCount) conversations")
             }
-            .font(AngroveTheme.Typography.chipLabel)
-            .foregroundStyle(AngroveTheme.Colors.placeholderText)
+            Spacer(minLength: 8)
         }
-        .padding(24)
-        .frame(maxWidth: .infinity, minHeight: 210, alignment: .topLeading)
-        .macCollectionCard()
         .onTapGesture(perform: onOpen)
-        .onHover { isHovered = $0 }
-        .animation(.springQuick, value: isHovered)
         .macCardHover()
         .macContextMenu { menuEntries }
         .accessibilityElement(children: .contain)
@@ -201,7 +175,7 @@ private struct WorktreeNewCard: View {
                     .foregroundStyle(AngroveTheme.Colors.placeholderText)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 210)
+            .frame(height: 270)
             .background {
                 RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous)
                     .strokeBorder(AngroveTheme.Colors.controlBorder, style: StrokeStyle(lineWidth: 1.5, dash: [6, 6]))

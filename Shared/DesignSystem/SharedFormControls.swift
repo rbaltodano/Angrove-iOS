@@ -11,10 +11,11 @@ struct StudyTopicsSearchField: View {
         HStack(spacing: 8) {
             GlobalSearchGlass()
 
-            TextField("", text: $searchText, prompt: prompt.foregroundStyle(AngroveTheme.Colors.placeholderText))
+            TextField("", text: $searchText, prompt: SearchFieldPrompt.native(prompt))
                 .textFieldStyle(.plain)
                 .focusEffectDisabled()
                 .font(GlobalSearchBarStyle.font)
+                .searchFieldPrompt(prompt, isShown: searchText.isEmpty)
                 .tint(AngroveTheme.Colors.secondaryMuted)
                 .submitLabel(.search)
                 .focused($isFocused)
@@ -23,6 +24,38 @@ struct StudyTopicsSearchField: View {
         }
         .foregroundStyle(AngroveTheme.Colors.paragraphText)
         .modifier(GlobalSearchBarStyle())
+    }
+}
+
+/// macOS ignores a styled `TextField` prompt and draws its own gray, so the Mac draws the prompt
+/// itself in the placeholder color; iOS keeps the native, styled prompt.
+enum SearchFieldPrompt {
+    static func native(_ prompt: Text) -> Text? {
+        #if os(macOS)
+        nil
+        #else
+        prompt.foregroundStyle(AngroveTheme.Colors.placeholderText)
+        #endif
+    }
+}
+
+extension View {
+    /// Apply after the field's font so the drawn prompt matches the typed text.
+    @ViewBuilder func searchFieldPrompt(_ prompt: Text, isShown: Bool) -> some View {
+        #if os(macOS)
+        overlay(alignment: .leading) {
+            if isShown {
+                prompt
+                    .foregroundStyle(AngroveTheme.Colors.placeholderText)
+                    .lineLimit(1)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+        .accessibilityLabel(prompt)
+        #else
+        self
+        #endif
     }
 }
 

@@ -33,11 +33,7 @@ struct SettingsView: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             NavigationStack(path: $path) {
-                SettingsHubView(
-                    colorSchemeOverride: colorSchemeOverride,
-                    conversationFontSize: conversationFontSize,
-                    responseFont: responseFont
-                ) { route in
+                SettingsHubView { route in
                     if route == .privacyPolicy {
                         openURL(AngroveLinks.privacyPolicy)
                     } else {
@@ -135,7 +131,7 @@ struct SettingsView: View {
         colorSchemeOverride = nil
         userName = ""
         customInstructions = ""
-        conversationFontSize = .medium
+        conversationFontSize = .small
         conversationTextAlignment = .left
         inputFont = .serif
         responseFont = .serif
@@ -168,12 +164,8 @@ enum AngroveLinks {
 
 // MARK: - Hub
 
-/// The Settings home reads like a book's table of contents: italic part titles, serif entries, and
-/// each entry's current state noted beneath it.
+/// The Settings home groups named destinations under section titles.
 private struct SettingsHubView: View {
-    let colorSchemeOverride: ColorScheme?
-    let conversationFontSize: ConversationFontSizeOption
-    let responseFont: ConversationFontOption
     let onSelect: (SettingsRoute) -> Void
 
     var body: some View {
@@ -202,41 +194,32 @@ private struct SettingsHubView: View {
         }
     }
 
-    private var appearanceDetail: LocalizedStringResource {
-        switch colorSchemeOverride {
-        case .light: "Light"
-        case .dark: "Dark"
-        default: "Matches system"
-        }
-    }
-
     private var parts: [(title: LocalizedStringResource, rows: [SettingsHubItem])] {
         [
             ("General", [
-                SettingsHubItem(title: "Personalization", detail: "How Angrove addresses you", iconName: "person.crop.circle", route: .personalization),
-                SettingsHubItem(title: "Appearance", detail: appearanceDetail, iconName: "paintpalette", route: .appearance),
-                SettingsHubItem(title: "App Experience", detail: "Start screen and haptics", iconName: "sparkles", route: .appExperience),
-                SettingsHubItem(title: "Notifications", detail: "Daily question and finished responses", iconName: "bell", route: .notifications),
-                SettingsHubItem(title: "Privacy & Data", detail: "App lock, export, and import", iconName: "lock.shield", route: .privacyAndData)
+                SettingsHubItem(title: "Personalization", iconName: "person.crop.circle", route: .personalization),
+                SettingsHubItem(title: "Appearance", iconName: "paintpalette", route: .appearance),
+                SettingsHubItem(title: "App Experience", iconName: "sparkles", route: .appExperience),
+                SettingsHubItem(title: "Notifications", iconName: "bell", route: .notifications),
+                SettingsHubItem(title: "Privacy & Data", iconName: "lock.shield", route: .privacyAndData)
             ]),
             ("Conversations", [
-                SettingsHubItem(title: "Audio", detail: "Read-aloud playback", iconName: "speaker.wave.2", route: .audio),
+                SettingsHubItem(title: "Audio", iconName: "speaker.wave.2", route: .audio),
                 SettingsHubItem(
                     title: "Text & Display",
-                    detail: "\(responseFont.rawValue) · \(conversationFontSize.rawValue)",
                     iconName: "textformat.size",
                     route: .textAndDisplay
                 ),
-                SettingsHubItem(title: "Conversation Defaults", detail: "Titles and daily study", iconName: "bubble.left.and.bubble.right", route: .conversationDefaults)
+                SettingsHubItem(title: "Conversation Defaults", iconName: "bubble.left.and.bubble.right", route: .conversationDefaults)
             ]),
             ("Model", [
-                SettingsHubItem(title: "On-device Model", detail: "Download, readiness, and recovery", iconName: "arrow.down.circle", route: .modelDownload)
+                SettingsHubItem(title: "On-device Model", iconName: "arrow.down.circle", route: .modelDownload)
             ]),
             ("Support", [
-                SettingsHubItem(title: "User Guide", detail: "How each part of Angrove works", iconName: "book", route: .userGuide),
-                SettingsHubItem(title: "Report a Bug", detail: "Tell us what went wrong", iconName: "ladybug", route: .reportBug),
-                SettingsHubItem(title: "Privacy Policy", detail: "How Angrove handles your information", iconName: "hand.raised", route: .privacyPolicy),
-                SettingsHubItem(title: "Licenses", detail: "Models, software, fonts, and Library", iconName: "doc.text", route: .licenses)
+                SettingsHubItem(title: "User Guide", iconName: "book", route: .userGuide),
+                SettingsHubItem(title: "Report a Bug", iconName: "ladybug", route: .reportBug),
+                SettingsHubItem(title: "Privacy Policy", iconName: "hand.raised", route: .privacyPolicy),
+                SettingsHubItem(title: "Licenses", iconName: "doc.text", route: .licenses)
             ])
         ]
     }
@@ -244,18 +227,12 @@ private struct SettingsHubView: View {
 
 private struct SettingsHubHeader: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            SettingsDetailHeading(title: "Settings")
-            Text("Choose how Angrove looks, works, and fits your conversations.")
-                .settingsParagraph()
-                .foregroundStyle(AngroveTheme.Colors.paragraphText)
-        }
+        SettingsDetailHeading(title: "Settings")
     }
 }
 
 private struct SettingsHubItem: Identifiable {
     let title: LocalizedStringResource
-    let detail: LocalizedStringResource
     let iconName: String
     let route: SettingsRoute
 
@@ -263,7 +240,7 @@ private struct SettingsHubItem: Identifiable {
     var opensExternally: Bool { route == .privacyPolicy }
 }
 
-/// One part of the contents: an italic serif title over its entries on a flat bordered card.
+/// One group of preferences on a flat bordered card.
 private struct SettingsHubPart: View {
     let title: LocalizedStringResource
     let rows: [SettingsHubItem]
@@ -272,7 +249,7 @@ private struct SettingsHubPart: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(title)
-                .font(.custom("LibreBaskerville-Italic", size: 24))
+                .settingsText(.partTitle)
                 .foregroundStyle(AngroveTheme.Colors.headingText)
                 .accessibilityAddTraits(.isHeader)
 
@@ -315,16 +292,9 @@ private struct SettingsHubRow: View {
                     .foregroundStyle(AngroveTheme.Colors.lightGreen)
                     .frame(width: 20)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(item.title)
-                        .font(AngroveTheme.Typography.settingsHubEntry)
-                        .foregroundStyle(AngroveTheme.Colors.primaryReadable)
-
-                    Text(item.detail)
-                        .font(.custom("Figtree-Regular", size: 12))
-                        .foregroundStyle(AngroveTheme.Colors.placeholderText)
-                        .lineLimit(1)
-                }
+                Text(item.title)
+                    .settingsText(.menuEntry)
+                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
 
                 Spacer(minLength: 8)
 
@@ -358,11 +328,11 @@ private struct SettingsColophon: View {
                 .padding(.bottom, 4)
 
             Text("Angrove")
-                .font(AngroveTheme.Typography.quote)
+                .font(AngroveTheme.Typography.settingsBody)
                 .foregroundStyle(AngroveTheme.Colors.headingText)
 
             Text("Version \(version) · Runs entirely on this device")
-                .font(.custom("Figtree-Regular", size: 11))
+                .settingsText(.detail)
                 .foregroundStyle(AngroveTheme.Colors.placeholderText)
                 .multilineTextAlignment(.center)
         }

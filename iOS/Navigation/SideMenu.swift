@@ -46,6 +46,8 @@ struct AngroveSideMenu: View, Equatable {
     @State private var topicBeingRenamed: StudyTopic? = nil
     @State private var topicRenameDraft = ""
     @State private var showsTopFade = false
+    @State private var searchPull = SideMenuSearchPull()
+    @State private var isScrollInteracting = false
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.currentTitle == rhs.currentTitle
@@ -220,11 +222,24 @@ struct AngroveSideMenu: View, Equatable {
             .padding(.bottom, 88) // let the last row scroll fully above the pinned buttons
 
             } // end scrollable content
-            .onScrollGeometryChange(for: Bool.self) { geometry in
-                geometry.contentOffset.y + geometry.contentInsets.top > 0.5
-            } action: { _, isScrolled in
-                showsTopFade = isScrolled
+            .scrollBounceBehavior(.always, axes: .vertical)
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top
+            } action: { _, offset in
+                showsTopFade = offset > 0.5
+                if searchPull.update(
+                    revealedDistance: -offset,
+                    isInteracting: isScrollInteracting && isPresented
+                ) {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    onOpenSearch()
+                }
             }
+            .onScrollPhaseChange { _, phase in
+                isScrollInteracting = phase == .interacting
+                if !isScrollInteracting { searchPull = SideMenuSearchPull() }
+            }
+            .preference(key: SideMenuAtTopKey.self, value: !showsTopFade)
             .padding(.horizontal, 24)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
@@ -316,6 +331,8 @@ struct AngroveSideMenu: View, Equatable {
             runTitleEntrance()
         }
         .onChange(of: isPresented) { _, newValue in
+            searchPull = SideMenuSearchPull()
+            isScrollInteracting = false
             if newValue { SideMenuEntrance.openedAt = Date() }
             runTitleEntrance()
         }

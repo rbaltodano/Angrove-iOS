@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// A Study Topic: the serif title, its description and the first few conversations filed inside,
-/// as a ruled index.
+/// A Study Topic in the editorial collection card: its title, description and the first
+/// conversations filed inside, as a ruled index.
 struct MacStudyTopicCard: View {
     let topic: StudyTopic
     let members: [InquiryConversation]
@@ -11,7 +11,7 @@ struct MacStudyTopicCard: View {
     var onDelete: () -> Void
     var onOpenConversation: (InquiryConversation) -> Void
 
-    private static let previewCount = 3
+    private static let previewCount = 2
 
     private var menuEntries: [MacMenuEntry] { [
         MacMenuEntry("Open", symbol: "arrow.up.right", action: onSelect),
@@ -20,85 +20,74 @@ struct MacStudyTopicCard: View {
     ] }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: "square.stack")
-                    .angroveIcon(.medium)
-                Text(members.count == 1 ? "1 CONVERSATION" : "\(members.count) CONVERSATIONS")
-                    .font(AngroveTheme.Typography.uiLabel)
-                    .monospacedDigit()
-                Spacer(minLength: 8)
-                MacActionMenu(entries: { menuEntries }) { MacCollectionCardOptionsLabel() }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Topic options")
-            }
-            .foregroundStyle(AngroveTheme.Colors.lightGreen)
-
+        MacEditorialCard(kind: "Study Topic", symbol: "square.stack", date: topic.createdAt, height: 300) {
+            MacActionMenu(entries: { menuEntries }) { MacCollectionCardOptionsLabel() }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Topic options")
+        } content: {
             Text(MacStudyTopicsView.displayTitle(topic))
-                .font(AngroveTheme.Typography.title)
-                .foregroundStyle(AngroveTheme.Colors.headingText)
-                .lineSpacing(4)
+                .font(AngroveTheme.Typography.heading)
+                .foregroundStyle(AngroveTheme.Colors.primaryReadable)
+                .lineSpacing(2)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 16)
-
             if !topic.description.isEmpty {
                 Text(topic.description)
                     .paragraphFont()
                     .foregroundStyle(AngroveTheme.Colors.paragraphText)
                     .lineSpacing(5)
                     .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 10)
             }
-
-            Spacer(minLength: 20)
-
-            if members.isEmpty {
-                Text("No conversations filed yet.")
-                    .font(AngroveTheme.Typography.body)
-                    .foregroundStyle(AngroveTheme.Colors.placeholderText)
-                    .padding(.vertical, 10)
-                    .overlay(alignment: .top) { rule }
-            } else {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(members.prefix(Self.previewCount)) { conversation in
-                        Button { onOpenConversation(conversation) } label: {
-                            HStack(spacing: 10) {
-                                Text(memberTitle(conversation))
-                                    .font(AngroveTheme.Typography.uiSubheading)
-                                    .foregroundStyle(AngroveTheme.Colors.primaryReadable)
-                                    .lineLimit(1)
-                                Spacer(minLength: 8)
-                                Image(systemName: "chevron.right")
-                                    .angroveIcon(.xSmall, .strong)
-                                    .foregroundStyle(AngroveTheme.Colors.placeholderText)
-                            }
-                            .padding(.vertical, 10)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(MacRowHoverStyle())
-                        .overlay(alignment: .top) { rule }
-                    }
-                    if members.count > Self.previewCount {
-                        Text("+ \(members.count - Self.previewCount) more")
-                            .font(AngroveTheme.Typography.uiLabel)
-                            .foregroundStyle(AngroveTheme.Colors.lightGreen)
-                            .padding(.top, 10)
-                            .overlay(alignment: .top) { rule }
-                    }
-                }
+            memberIndex
+                .padding(.top, 4)
+        } footer: {
+            Image(systemName: "text.bubble")
+            Text(members.count == 1 ? "1 conversation" : "\(members.count) conversations")
+                .monospacedDigit()
+            if members.count > Self.previewCount {
+                Text(verbatim: "·")
+                Text("\(members.count - Self.previewCount) more")
             }
+            Spacer(minLength: 8)
         }
-        .padding(28)
-        .frame(maxWidth: .infinity, minHeight: 260, alignment: .topLeading)
-        .macCollectionCard()
         .onTapGesture(perform: onSelect)
         .macCardHover()
         .macContextMenu { menuEntries }
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(named: Text("Open"), onSelect)
+    }
+
+    @ViewBuilder private var memberIndex: some View {
+        if members.isEmpty {
+            Text("No conversations filed yet.")
+                .font(AngroveTheme.Typography.body)
+                .foregroundStyle(AngroveTheme.Colors.placeholderText)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .overlay(alignment: .top) { rule }
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(members.prefix(Self.previewCount)) { conversation in
+                    Button { onOpenConversation(conversation) } label: {
+                        HStack(spacing: 10) {
+                            Text(memberTitle(conversation))
+                                .font(AngroveTheme.Typography.uiSubheading)
+                                .foregroundStyle(AngroveTheme.Colors.primaryReadable)
+                                .lineLimit(1)
+                            Spacer(minLength: 8)
+                            Image(systemName: "chevron.right")
+                                .angroveIcon(.xSmall, .strong)
+                                .foregroundStyle(AngroveTheme.Colors.placeholderText)
+                        }
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(MacRowHoverStyle())
+                    .overlay(alignment: .top) { rule }
+                }
+            }
+        }
     }
 
     private var rule: some View {
@@ -196,65 +185,6 @@ struct MacTopicEmptyConversations: View {
             .contentShape(RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous))
         }
         .buttonStyle(.plain)
-    }
-}
-
-/// One conversation in a topic's ruled index: its number, title, latest line and date.
-struct MacTopicConversationRow: View {
-    let index: Int
-    let title: String
-    let preview: String
-    let date: Date
-    let isPinned: Bool
-    var onOpen: () -> Void
-    @State private var isHovered = false
-
-    var body: some View {
-        Button(action: onOpen) {
-            HStack(alignment: .center, spacing: 20) {
-                Text(index.formatted(.number.precision(.integerLength(2))))
-                    .font(AngroveTheme.Typography.heading)
-                    .foregroundStyle(AngroveTheme.Colors.lightGreen)
-                    .monospacedDigit()
-                    .frame(width: 32, alignment: .leading)
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        if isPinned {
-                            Image(systemName: "pin.fill")
-                                .angroveIcon(.xSmall)
-                                .foregroundStyle(AngroveTheme.Colors.lightGreen)
-                        }
-                        Text(title)
-                            .font(AngroveTheme.Typography.uiHeading)
-                            .foregroundStyle(AngroveTheme.Colors.primaryReadable)
-                            .lineLimit(1)
-                    }
-                    Text(verbatim: preview)
-                        .font(AngroveTheme.Typography.body)
-                        .foregroundStyle(AngroveTheme.Colors.placeholderText)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 16)
-                Text(MacCollectionDate.short(date))
-                    .font(AngroveTheme.Typography.chipLabel)
-                    .foregroundStyle(AngroveTheme.Colors.placeholderText)
-                Image(systemName: "chevron.right")
-                    .angroveIcon(.small, .strong)
-                    .foregroundStyle(isHovered ? AngroveTheme.Colors.lightGreen : AngroveTheme.Colors.placeholderText)
-                    .offset(x: isHovered ? 2 : 0)
-            }
-            .padding(.horizontal, 28)
-            .padding(.vertical, 18)
-            .background {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(AngroveTheme.Colors.systemSelection.opacity(isHovered ? 1 : 0))
-                    .padding(.horizontal, 8)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
-        .animation(.springQuick, value: isHovered)
     }
 }
 
