@@ -111,16 +111,28 @@ struct SettingsLabeledControl<Content: View>: View {
                 Spacer(minLength: 8)
                 content.fixedSize()
             }
-            VStack(alignment: .leading, spacing: 12) {
-                Text(title)
-                    .settingsText(.label)
-                    .foregroundStyle(AngroveTheme.Colors.paragraphText)
-                    .fixedSize(horizontal: false, vertical: true)
+            SettingsStackedControl(title: title) {
                 content
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+    }
+}
+
+/// Keeps related settings on the same layout as their text grows.
+struct SettingsStackedControl<Content: View>: View {
+    let title: LocalizedStringResource
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .settingsText(.label)
+                .foregroundStyle(AngroveTheme.Colors.paragraphText)
+                .fixedSize(horizontal: false, vertical: true)
+            content
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -404,7 +416,8 @@ struct ConversationAlignmentSegmentedControl: View {
                     Image(systemName: option.iconName)
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(AngroveTheme.Colors.primaryReadable)
-                        .frame(width: 44, height: 26)
+                        .frame(maxWidth: .infinity, minHeight: AngroveTheme.Spacing.controlHeight)
+                        .contentShape(Rectangle())
                         .background {
                             if selection == option {
                                 Capsule()
@@ -422,6 +435,8 @@ struct ConversationAlignmentSegmentedControl: View {
             }
         }
         .padding(4)
+        // Settings bindings write through AppStorage, which drops the tap's transaction.
+        .animation(.springQuick, value: selection)
         .overlay {
             Capsule()
                 .stroke(AngroveTheme.Colors.border, lineWidth: 1)
@@ -447,8 +462,9 @@ struct FontSizeSegmentedControl: View {
                     Text(option.rawValue)
                         .settingsText(.label)
                         .foregroundStyle(AngroveTheme.Colors.primaryReadable)
-                        .padding(.horizontal, 8)
-                        .frame(minWidth: 54, minHeight: 30)
+                        .padding(.horizontal, 4)
+                        .frame(minWidth: 54, maxWidth: .infinity, minHeight: AngroveTheme.Spacing.controlHeight)
+                        .contentShape(Rectangle())
                         .background {
                             if selection == option {
                                 Capsule()
@@ -465,8 +481,10 @@ struct FontSizeSegmentedControl: View {
             }
         }
         .padding(4)
+        // Settings bindings write through AppStorage, which drops the tap's transaction.
+        .animation(.springQuick, value: selection)
         .overlay {
-            Capsule()
+            RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous)
                 .stroke(AngroveTheme.Colors.border, lineWidth: 1)
         }
     }
@@ -491,7 +509,8 @@ struct FontSegmentedControl: View {
                         .settingsText(.label)
                         .foregroundStyle(AngroveTheme.Colors.primaryReadable)
                         .padding(.horizontal, 8)
-                        .frame(minWidth: 54, minHeight: 30)
+                        .frame(minWidth: 54, maxWidth: .infinity, minHeight: AngroveTheme.Spacing.controlHeight)
+                        .contentShape(Rectangle())
                         .background {
                             if selection == option {
                                 Capsule()
@@ -508,8 +527,10 @@ struct FontSegmentedControl: View {
             }
         }
         .padding(4)
+        // Settings bindings write through AppStorage, which drops the tap's transaction.
+        .animation(.springQuick, value: selection)
         .overlay {
-            Capsule()
+            RoundedRectangle(cornerRadius: AngroveTheme.Spacing.cardRadius, style: .continuous)
                 .stroke(AngroveTheme.Colors.border, lineWidth: 1)
         }
     }

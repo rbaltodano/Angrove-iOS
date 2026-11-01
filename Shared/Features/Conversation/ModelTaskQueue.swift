@@ -232,6 +232,9 @@ final class ModelTaskQueue {
     private(set) var latestCompletedTask: ModelTaskSnapshot?
     /// Runs synchronously when a task completes, including while the app is in the background.
     @ObservationIgnored var onTaskCompleted: ((ModelTaskSnapshot) -> Void)?
+    /// Runs when the person asks for model work, before it queues. Work always queues: a missing
+    /// model downloads as the runtime loads, while the status shows Loading...
+    @ObservationIgnored var onForegroundWorkRequested: (() -> Void)?
     private(set) var currentTask: ModelTaskSnapshot?
     private(set) var upcomingTasks: [ModelTaskSnapshot] = []
     private(set) var isRuntimeLoading = false
@@ -309,6 +312,7 @@ final class ModelTaskQueue {
                 return waitingJobs[index].id
             }
         }
+        if priority == .foreground { onForegroundWorkRequested?() }
         completedTasksClearTask?.cancel()
         completedTasksClearTask = nil
         if let branchID = kind.userQuestionBranchID {

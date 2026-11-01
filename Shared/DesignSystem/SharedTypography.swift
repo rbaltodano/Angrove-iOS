@@ -226,7 +226,7 @@ struct ParagraphFontModifier: ViewModifier {
     }
 
     let role: Role
-    @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .medium
+    @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .small
 
     func body(content: Content) -> some View {
         let size = role.baseSize + (fontSize.pointSize - ConversationFontSizeOption.medium.pointSize)
@@ -256,7 +256,7 @@ struct SettingsTextModifier: ViewModifier {
     }
 
     let role: Role
-    @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .medium
+    @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .small
 
     func body(content: Content) -> some View {
         let base = fontSize.pointSize

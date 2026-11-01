@@ -55,6 +55,22 @@ nonisolated enum ModelDeliveryPhase: Equatable, Sendable {
     /// The ready and development states are silent; there is nothing to report.
     var showsStatus: Bool { self != .ready && self != .development }
 
+    /// Model work can't run until the person chooses to download (or re-download) the model.
+    var needsInstall: Bool {
+        switch self {
+        case .notInstalled, .failed: true
+        default: false
+        }
+    }
+
+    /// The model is on its way: Model Controls show it loading and Model Tasks show progress.
+    var isDownloading: Bool {
+        switch self {
+        case .waiting, .downloading, .paused, .verifying: true
+        default: false
+        }
+    }
+
     var isBusy: Bool {
         switch self {
         case .checking, .waiting, .downloading, .paused, .verifying: true

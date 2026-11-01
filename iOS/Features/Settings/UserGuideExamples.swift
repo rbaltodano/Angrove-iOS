@@ -56,7 +56,7 @@ private struct UserGuideDefinitionsExample: View {
     /// The reveal is held until the page has finished sliding in, so it isn't missed.
     @State private var hasStartedReveal = false
     // The same reading settings a conversation uses, so the example text matches a real answer.
-    @AppStorage("aquinas.settings.conversationFontSize") private var conversationFontSize: ConversationFontSizeOption = .medium
+    @AppStorage("aquinas.settings.conversationFontSize") private var conversationFontSize: ConversationFontSizeOption = .small
     @AppStorage(SettingsStorageKey.conversationTextAlignment) private var conversationTextAlignment: ConversationTextAlignmentOption = .left
     @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .serif
 

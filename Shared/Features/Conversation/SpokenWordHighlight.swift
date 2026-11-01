@@ -345,7 +345,7 @@ struct CardSpeechText: View {
     var lineLimit: Int? = nil
 
     @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .serif
-    @AppStorage("aquinas.settings.conversationFontSize") private var responseSize: ConversationFontSizeOption = .medium
+    @AppStorage("aquinas.settings.conversationFontSize") private var responseSize: ConversationFontSizeOption = .small
     private var speech: ResponseSpeechPlayer { .shared }
     private var isReading: Bool { !speechText.isEmpty && speech.activeText == speechText }
 

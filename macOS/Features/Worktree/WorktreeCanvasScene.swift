@@ -34,7 +34,7 @@ struct WorktreeSceneContent: View, Equatable {
     let pointer: WorktreeCanvasPointer
     let bridge: WorktreeSceneBridge
     @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .serif
-    @AppStorage("aquinas.settings.conversationFontSize") private var responseSize: ConversationFontSizeOption = .medium
+    @AppStorage("aquinas.settings.conversationFontSize") private var responseSize: ConversationFontSizeOption = .small
 
     nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
         MainActor.assumeIsolated { lhs.board === rhs.board && lhs.runtime === rhs.runtime && lhs.pointer === rhs.pointer && lhs.bridge === rhs.bridge }

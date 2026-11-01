@@ -131,7 +131,7 @@ struct SettingsView: View {
         colorSchemeOverride = nil
         userName = ""
         customInstructions = ""
-        conversationFontSize = .medium
+        conversationFontSize = .small
         conversationTextAlignment = .left
         inputFont = .serif
         responseFont = .serif

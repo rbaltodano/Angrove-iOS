@@ -12,7 +12,7 @@ struct ReadingControlsCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openReadingConversation) private var openReadingConversation
     @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .serif
-    @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .medium
+    @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .small
     @State private var isUserScrolling = false
     @State private var resumeFollowing: Task<Void, Never>?
 

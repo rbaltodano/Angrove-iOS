@@ -276,7 +276,7 @@ private struct MacAppearanceSettings: View {
 
 private struct MacResponseSettings: View {
     @AppStorage("aquinas.settings.responseFont") private var font: ConversationFontOption = .serif
-    @AppStorage("aquinas.settings.conversationFontSize") private var size: ConversationFontSizeOption = .medium
+    @AppStorage("aquinas.settings.conversationFontSize") private var size: ConversationFontSizeOption = .small
     @AppStorage(MacConversationStyle.questionFontKey) private var questionFont: ConversationFontOption = .serif
     @AppStorage(SettingsStorageKey.conversationTitles) private var titles: ConversationTitleOption = .automatic
     @AppStorage(SettingsStorageKey.defaultStartScreen) private var startScreen: DefaultStartScreenOption = .home

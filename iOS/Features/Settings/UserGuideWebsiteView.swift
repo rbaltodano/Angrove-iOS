@@ -9,7 +9,7 @@ struct UserGuideWebsiteView: UIViewRepresentable {
     var onSelectTopic: (String) -> Void
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .serif
-    @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .medium
+    @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .small
     @AppStorage(UserGuideReadingHistory.key) private var visitedTopicsJSON = "[]"
 
     private var visitedTopics: [String] {

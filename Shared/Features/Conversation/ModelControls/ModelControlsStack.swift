@@ -351,7 +351,15 @@ struct ModelStatusButton: View {
     var statusOverride: String? = nil
 
     private var isActive: Bool {
-        modelTasks.isBusy || statusOverride != nil
+        modelTasks.isBusy || statusOverride != nil || isDownloadingModel
+    }
+
+    private var isDownloadingModel: Bool {
+        #if os(iOS)
+        ModelDeliveryState.shared.phase.isDownloading
+        #else
+        false
+        #endif
     }
 
     private var totalTaskCount: Int {
@@ -364,6 +372,7 @@ struct ModelStatusButton: View {
 
     private var activeStatusText: String {
         if let statusOverride { return statusOverride }
+        if isDownloadingModel { return String(localized: "Loading...") }
         if modelTasks.isRuntimeLoading {
             return modelTasks.currentTask?.funLoadingStatusText
                 ?? String(localized: "Loading...")
@@ -375,7 +384,7 @@ struct ModelStatusButton: View {
 
     private var accessibleActiveStatusText: String {
         if let statusOverride { return statusOverride }
-        if modelTasks.isRuntimeLoading {
+        if isDownloadingModel || modelTasks.isRuntimeLoading {
             return String(localized: "Loading...")
         }
         return modelTasks.currentTask?.kind.standardStatusText

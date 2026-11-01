@@ -473,9 +473,9 @@ enum ConversationFontOption: String, CaseIterable, Identifiable {
 }
 
 enum ConversationFontSizeOption: String, CaseIterable, Identifiable {
-    case large = "Large"
-    case medium = "Medium"
     case small = "Small"
+    case medium = "Medium"
+    case large = "Large"
 
     var id: Self { self }
 

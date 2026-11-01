@@ -90,7 +90,9 @@ struct ModelTasksCard: View {
             }
 
             #if os(iOS)
-            if ModelDeliveryState.shared.phase.showsStatus {
+            if ModelDeliveryState.shared.phase.isDownloading {
+                ModelDownloadProgressRow(delivery: .shared)
+            } else if ModelDeliveryState.shared.phase.showsStatus {
                 ModelDownloadStatusView(delivery: .shared)
             }
             #endif
@@ -218,6 +220,55 @@ struct ModelTasksCard: View {
         popupState?.reset()
     }
 }
+
+#if os(iOS)
+/// The Model Tasks card's whole download status: one label and Apple's reported progress.
+struct ModelDownloadProgressRow: View {
+    let delivery: ModelDeliveryState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Downloading Model")
+                Spacer(minLength: 8)
+                Text(fraction, format: .percent.precision(.fractionLength(0)))
+                    .monospacedDigit()
+                    .contentTransition(.numericText(value: fraction))
+            }
+            .font(BrandTypography.font("Figtree-Regular", size: 14))
+            ModelDownloadProgressBar(fraction: fraction)
+        }
+        .frame(minHeight: 28)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Downloading Model")
+        .accessibilityValue(Text(fraction, format: .percent.precision(.fractionLength(0))))
+    }
+
+    /// Waiting starts empty; verification follows a completed download.
+    private var fraction: Double {
+        if delivery.phase == .verifying { return 1 }
+        return delivery.phase.fractionCompleted ?? 0
+    }
+}
+
+struct ModelDownloadProgressBar: View {
+    let fraction: Double
+
+    var body: some View {
+        Capsule()
+            .fill(AngroveTheme.Colors.quietBorder)
+            .overlay(alignment: .leading) {
+                GeometryReader { geometry in
+                    Capsule()
+                        .fill(AngroveTheme.Colors.lightGreen)
+                        .frame(width: max(6, geometry.size.width * min(1, max(0, fraction))))
+                }
+            }
+            .frame(height: 6)
+            .animation(.smooth(duration: 0.25), value: fraction)
+    }
+}
+#endif
 
 #if os(macOS)
 /// The model new tasks use, with a menu of the models this Mac can run. Choosing one switches

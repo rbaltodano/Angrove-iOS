@@ -137,6 +137,47 @@ struct SettingsTypographyTests {
         }
     }
 
+    @Test("Text & Display keeps its layout across all app text sizes and phone widths")
+    func textDisplayAppSizeSnapshots() async throws {
+        let defaults = UserDefaults.standard
+        let key = "aquinas.settings.conversationFontSize"
+        let original = defaults.object(forKey: key)
+        defer {
+            if let original { defaults.set(original, forKey: key) }
+            else { defaults.removeObject(forKey: key) }
+        }
+
+        for appSize in ConversationFontSizeOption.allCases {
+            defaults.set(appSize.rawValue, forKey: key)
+            for width in [320, 402] {
+                for scheme in [ColorScheme.light, .dark] {
+                    for systemSize in [DynamicTypeSize.large, .accessibility3] {
+                        let page = TextAndDisplaySettingsView(
+                            conversationFontSize: .constant(appSize),
+                            conversationTextAlignment: .constant(.left),
+                            inputFont: .constant(.serif), responseFont: .constant(.serif))
+                            .dynamicTypeSize(systemSize)
+                            .environment(\.colorScheme, scheme)
+                        let window = try host(page, width: width, height: 1100)
+                        window.overrideUserInterfaceStyle = scheme == .dark ? .dark : .light
+                        try await Task.sleep(for: .milliseconds(1200))
+                        let format = UIGraphicsImageRendererFormat()
+                        format.scale = 1
+                        let image = UIGraphicsImageRenderer(size: window.bounds.size, format: format).image { _ in
+                            window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+                        }
+                        window.isHidden = true
+                        let mode = scheme == .dark ? "dark" : "light"
+                        let system = systemSize == .large ? "regular" : "accessibility3"
+                        let path = "/tmp/angrove-text-display-\(width)-\(appSize.rawValue)-\(system)-\(mode).png"
+                        try #require(image.pngData()).write(to: URL(fileURLWithPath: path))
+                        print("Text & Display app-size snapshot: \(path)")
+                    }
+                }
+            }
+        }
+    }
+
     private func host<Content: View>(_ content: Content, width: Int, height: Int) throws -> UIWindow {
         let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let window = UIWindow(windowScene: scene)

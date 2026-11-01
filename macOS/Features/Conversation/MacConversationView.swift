@@ -11,7 +11,7 @@ struct MacConversationView: View {
     @State private var displayedEyebrow = ""
     @State private var isEyebrowHidden = false
     @AppStorage("aquinas.settings.responseFont") private var responseFont: ConversationFontOption = .serif
-    @AppStorage("aquinas.settings.conversationFontSize") private var responseSize: ConversationFontSizeOption = .medium
+    @AppStorage("aquinas.settings.conversationFontSize") private var responseSize: ConversationFontSizeOption = .small
     // Read so a change in Settings redraws questions in the chosen face.
     @AppStorage(MacConversationStyle.questionFontKey) private var questionFont: ConversationFontOption = .serif
     @State private var position = ScrollPosition()

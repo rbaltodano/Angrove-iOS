@@ -550,16 +550,16 @@ struct TextAndDisplaySettingsView: View {
     var body: some View {
         SettingsDetailScaffold(title: "Text & Display") {
             SettingsControlCard {
-                SettingsLabeledControl(title: "Font Size") {
+                SettingsStackedControl(title: "Font Size") {
                     FontSizeSegmentedControl(selection: $conversationFontSize)
                 }
-                SettingsLabeledControl(title: "Conversation Text Alignment") {
+                SettingsStackedControl(title: "Alignment") {
                     ConversationAlignmentSegmentedControl(selection: $conversationTextAlignment)
                 }
-                SettingsLabeledControl(title: "Input Font") {
+                SettingsStackedControl(title: "Input Font") {
                     FontSegmentedControl(selection: $inputFont)
                 }
-                SettingsLabeledControl(title: "Response Font") {
+                SettingsStackedControl(title: "Response Font") {
                     FontSegmentedControl(selection: $responseFont)
                 }
             }

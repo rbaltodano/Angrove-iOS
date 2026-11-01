@@ -24,6 +24,26 @@ Collected from the [iOS] and [Shared] entries below.
 - Library scripture citations no longer run into the word before them ("judgment, Psalm 94:15"
   instead of "judgment,Psalm 94:15").
 - VoiceOver reads the answer actions as Copy, Regenerate, Bad response and Read aloud.
+- Text size choices now read Small, Medium, Large from left to right, Small is the new default,
+  and the selection slides between choices.
+- If the on-device model isn't installed, an Install? notification offers to download it. Dismiss
+  it and it returns the next time you ask the model for something. While the model downloads,
+  Model Controls show Loading..., and Model Tasks shows Downloading Model with its percentage and a progress bar.
+
+## 2026-10-31
+
+- **[Shared] Text size control and default.** Options run Small, Medium, Large (left to right),
+  and the selection capsule animates between them (AppStorage writes drop the tap's animation,
+  so the controls animate on their selection value). New installs and Reset default to Small;
+  existing choices are kept.
+- **[iOS] Model install prompt and download status.** When the E4B pack is not installed or
+  failed, an Install? notification (check / X) appears at launch or when a download fails.
+  Check starts the download; X dismisses it, and the next foreground model action shows it
+  again. Questions are never refused: they wait while the model downloads, as in 1.0, so a
+  reviewer who asks before iOS finishes the essential download still gets an answer. During download
+  and verification, Model Controls show Loading... and Model Tasks shows Downloading Model with
+  its percentage and an accent-green progress bar from Apple's reported progress. The Home
+  download card and Settings > On-device Model also show the percentage beside the title.
 
 ## 2026-10-30
 
