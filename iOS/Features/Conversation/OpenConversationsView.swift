@@ -448,21 +448,17 @@ struct OpenConversationsView: View {
                 text += " \(startingConcept.word) \(startingConcept.meaning)"
             }
 
-            if let attachedConcept = branch.attachedConcept {
-                text += " \(attachedConcept.word) \(attachedConcept.meaning)"
-            }
-
-            if let branchContextConcept = branch.branchContextConcept {
-                text += " \(branchContextConcept.word) \(branchContextConcept.meaning)"
+            for concept in branch.attachedConcepts + branch.branchContextConcepts {
+                text += " \(concept.word) \(concept.meaning)"
             }
 
             for block in branch.activeChatBlocks {
                 switch block {
                 case .text(let answer):
                     text += " \(answer)"
-                case .user(let question, let concept, _):
+                case .user(let question, let concepts, _):
                     text += " \(question)"
-                    if let concept {
+                    for concept in concepts {
                         text += " \(concept.word) \(concept.meaning)"
                     }
                 }

@@ -161,7 +161,7 @@ nonisolated final class MiniLMGroundingProvider: AngroveGroundingProviding {
                 }
                 // A definition request goes first to the article that defines the term.
                 if let term = LiteRTAngroveModel.definitionRequestTerm(
-                       in: [.user(question, nil, [])]
+                       in: [.user(question, [], [])]
                    ),
                    let opening = store.summaDefiningArticleOpening(for: term) {
                     appendCorpus(opening, id: "corpus-\(opening.sourceID)-definition")

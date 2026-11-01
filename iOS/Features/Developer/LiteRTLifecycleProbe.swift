@@ -209,7 +209,7 @@ enum LiteRTLifecycleProbe {
             do {
                 _ = try await model.generateQuestionOfTheDay(
                     from: ConversationContext(transcript: [
-                        .user("What does Aquinas say about the virtue of justice?", nil, []),
+                        .user("What does Aquinas say about the virtue of justice?", [], []),
                         .text("Justice gives each person what is due to them."),
                     ]),
                     conversationTitle: "Justice",
@@ -259,7 +259,7 @@ enum LiteRTLifecycleProbe {
             onCancel: { box.done = box.done || box.request.cancelled }
         ) {
             let response = await model.respond(
-                to: ConversationContext(transcript: [.user(question, nil, [])]),
+                to: ConversationContext(transcript: [.user(question, [], [])]),
                 thinkingEnabled: false,
                 onUpdate: { _ in
                     box.firstUpdate = true

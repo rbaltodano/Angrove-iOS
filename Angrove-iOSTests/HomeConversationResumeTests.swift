@@ -21,7 +21,7 @@ struct HomeConversationResumeTests {
         let blankConversation = InquiryConversation()
         var previousConversation = InquiryConversation(title: "Grace and Nature")
         previousConversation.branches[0].activeChatBlocks = [
-            .user("How does grace perfect nature?", nil, [])
+            .user("How does grace perfect nature?", [], [])
         ]
 
         let featuredConversation = HomeConversationResume.featuredConversation(

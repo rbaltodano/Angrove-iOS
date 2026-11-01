@@ -161,9 +161,9 @@ struct LiteRTProbeHarnessTests {
         """
         let context = try LiteRTProbeFixture.parse(Data(json.utf8)).conversationContext()
         #expect(context.transcript == [
-            .user("Can mercy conflict with justice?", nil, []),
+            .user("Can mercy conflict with justice?", [], []),
             .text("They can seem to."),
-            .user("What's the capital of Portugal?", nil, [])
+            .user("What's the capital of Portugal?", [], [])
         ])
         #expect(context.personality == .scholarly)
     }
@@ -172,7 +172,7 @@ struct LiteRTProbeHarnessTests {
     @Test("A single-question fixture needs no prior turns")
     func fixtureWithoutTurns() throws {
         let fixture = try LiteRTProbeFixture.parse(Data(#"{"question":"What is prudence?"}"#.utf8))
-        #expect(try fixture.conversationContext().transcript == [.user("What is prudence?", nil, [])])
+        #expect(try fixture.conversationContext().transcript == [.user("What is prudence?", [], [])])
     }
 
     @MainActor

@@ -95,7 +95,7 @@ enum DailyQuestionSourceSelector {
                 )
                 if branch.topQuestionSubmitted, !topQuestion.isEmpty {
                     transcript.append(
-                        .user(topQuestion, branch.branchContextConcept, branch.topQuestionUploads)
+                        .user(topQuestion, branch.branchContextConcepts, branch.topQuestionUploads)
                     )
                 }
                 transcript.append(contentsOf: branch.activeChatBlocks)
@@ -132,16 +132,13 @@ enum DailyQuestionSourceSelector {
     ) -> [ConceptDefinition] {
         var conceptWords = Set<String>()
         for branch in conversation.branches {
-            for concept in [
-                branch.startingConcept,
-                branch.attachedConcept,
-                branch.branchContextConcept,
-            ].compactMap({ $0 }) {
+            for concept in [branch.startingConcept].compactMap({ $0 })
+                + branch.attachedConcepts + branch.branchContextConcepts {
                 conceptWords.insert(concept.word.lowercased())
             }
             for block in branch.activeChatBlocks {
-                if case .user(_, let concept?, _) = block {
-                    conceptWords.insert(concept.word.lowercased())
+                if case .user(_, let concepts, _) = block {
+                    concepts.forEach { conceptWords.insert($0.word.lowercased()) }
                 }
             }
         }

@@ -15,11 +15,11 @@ struct ConversationPassagePickerTests {
         let third = passage("Third excerpt")
         let insight = ConceptDefinition(word: "Virtue", partOfSpeech: "", pronunciation: "", meaning: "A moral habit", example: "")
         var root = ChatBranch(startingConcept: nil)
-        root.branchContextConcept = first
-        root.attachedConcept = second
-        root.activeChatBlocks = [.user("A question", first, []), .user("An insight question", insight, [])]
+        root.branchContextConcepts = [first]
+        root.attachedConcepts = [second]
+        root.activeChatBlocks = [.user("A question", [first], []), .user("An insight question", [insight], [])]
         var child = ChatBranch(startingConcept: third, parentBranchID: root.id)
-        child.activeChatBlocks = [.user("Another question", second, [])]
+        child.activeChatBlocks = [.user("Another question", [second], [])]
 
         let results = ChatBranch.quotedLibraryPassages(in: [root, child])
         #expect(results.map(\.id) == [first.id, second.id, third.id])

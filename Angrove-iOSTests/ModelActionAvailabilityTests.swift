@@ -10,7 +10,7 @@ struct ModelActionAvailabilityTests {
 
     private var context: ConversationContext {
         ConversationContext(
-            transcript: [.user("What is prudence?", nil, [])]
+            transcript: [.user("What is prudence?", [], [])]
         )
     }
 

@@ -147,9 +147,9 @@ struct MacFollowUpRetrievalDiagnostics {
         let provider = LazyGroundingProvider()
         for fixture in Self.fixtures {
             let context = ConversationContext(transcript: [
-                .user(fixture.previousQuestion, nil, []),
+                .user(fixture.previousQuestion, [], []),
                 .text(fixture.previousAnswer),
-                .user(fixture.latest, nil, []),
+                .user(fixture.latest, [], []),
             ])
             let currentQuery = LiteRTAngroveModel.groundingQuery(for: context)
             let withPrevious = "\(fixture.previousQuestion)\n\n\(fixture.latest)"

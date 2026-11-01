@@ -92,7 +92,7 @@ struct MacBoardsPerformanceTests {
         branch.topQuestionSubmitted = true
         branch.activeChatBlocks = [.text("Practical wisdom guides sound judgment in daily life.")]
         for turn in 1...30 {
-            branch.activeChatBlocks.append(.user("Question \(turn)", nil, []))
+            branch.activeChatBlocks.append(.user("Question \(turn)", [], []))
             branch.activeChatBlocks.append(.text(String(repeating: "A thoughtful answer. ", count: 60)))
         }
         session.branches = [branch]

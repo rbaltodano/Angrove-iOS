@@ -153,7 +153,7 @@ extension PerformancePipelineTests {
         let file = InquirySnapshotFileStore(rootDirectory: root)
         let worker = SerializedInquiryStore(makeStore: { file })
         var branch = ChatBranch(startingConcept: nil)
-        branch.activeChatBlocks = [.user("Question", nil, []), .text("")]
+        branch.activeChatBlocks = [.user("Question", [], []), .text("")]
         let conversation = InquiryConversation(branches: [branch])
         var snapshot = InquiryPersistenceSnapshot(conversations: [conversation], activeConversationID: conversation.id)
         worker.save(snapshot)

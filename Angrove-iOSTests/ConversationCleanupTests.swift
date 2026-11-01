@@ -175,7 +175,7 @@ struct ConversationCleanupTests {
     @Test("A completed response refresh preserves composer edits and other branches")
     func completionPreservesDraft() throws {
         var stored = ChatBranch(startingConcept: nil)
-        stored.activeChatBlocks = [.user("Question", nil, []), .text("Answer")]
+        stored.activeChatBlocks = [.user("Question", [], []), .text("Answer")]
         stored.setResponsePresentation(ResponsePresentationMetadata(
             responseIndex: 1, showsThinking: true, thinkingSummary: ["Compare the sources"]
         ))
@@ -206,7 +206,7 @@ struct ConversationCleanupTests {
     @Test("A completion after navigation updates its conversation without replacing the displayed one")
     func completionStaysWithOrigin() throws {
         var originBranch = ChatBranch(startingConcept: nil)
-        originBranch.activeChatBlocks = [.user("Original question", nil, []), .text("Answer")]
+        originBranch.activeChatBlocks = [.user("Original question", [], []), .text("Answer")]
         let origin = InquiryConversation(branches: [originBranch])
         var displayedBranch = ChatBranch(startingConcept: nil)
         displayedBranch.topQuestionText = "New draft"
@@ -230,7 +230,7 @@ struct ConversationCleanupTests {
     @Test("A late completion cannot restore a response slot cleared from the session")
     func clearedSlotStaysCleared() {
         var branch = ChatBranch(startingConcept: nil)
-        branch.activeChatBlocks = [.user("Question", nil, []), .text("Late answer")]
+        branch.activeChatBlocks = [.user("Question", [], []), .text("Late answer")]
         let original = InquiryConversation(branches: [branch])
         let snapshot = InquiryPersistenceSnapshot(conversations: [original], activeConversationID: original.id)
         var cleared = original

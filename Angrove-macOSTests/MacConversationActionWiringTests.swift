@@ -15,7 +15,7 @@ struct MacConversationActionWiringTests {
         #expect(initial.question == "Initial question")
         #expect(initial.response == "First answer")
 
-        session.branches[0].activeChatBlocks += [.user("Follow-up question", nil, []), .text("Second answer")]
+        session.branches[0].activeChatBlocks += [.user("Follow-up question", [], []), .text("Second answer")]
         #expect(session.feedbackReport(transcriptIndex: 1) == nil)
         let followUp = try #require(session.feedbackReport(transcriptIndex: 3))
         #expect(followUp.question == "Follow-up question")

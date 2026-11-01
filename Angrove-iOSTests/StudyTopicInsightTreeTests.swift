@@ -79,8 +79,8 @@ struct StudyTopicInsightTreeTests {
 
         var branch = ChatBranch(startingConcept: grace)
         branch.activeChatBlocks = [
-            .user("What is charity?", chipCharity, []),
-            .user("And prudence?", unsaved, [])
+            .user("What is charity?", [chipCharity], []),
+            .user("And prudence?", [unsaved], [])
         ]
 
         let snapshot = StudyTopicInsightTreeBuilder.snapshot(

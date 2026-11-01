@@ -147,6 +147,9 @@ struct CurrentConversationView: View {
     @State private var hasTextToSubmit: Bool = false
     /// True while the focused composer holds a bare "/token" — shows the slash-command card.
     @State private var isSlashCommandContext: Bool = false
+    /// The composer ends in `#title`; the Insight picker filters on `insightQuery`.
+    @State private var isInsightQuoteContext: Bool = false
+    @State private var insightQuery = SlashCommandQuery()
     /// Live mirror of the typed "/token" for the picker header. Held as a plain reference so
     /// per-keystroke updates re-render only the picker, not this whole conversation view.
     @State private var slashQuery = SlashCommandQuery()
@@ -764,6 +767,17 @@ struct CurrentConversationView: View {
         isKeyboardOpen && isSlashCommandContext && !canvasMode.isTopicCanvasVisible
     }
 
+    private var showInsightQuoteMenu: Bool {
+        isKeyboardOpen && isInsightQuoteContext && !canvasMode.isTopicCanvasVisible
+    }
+
+    /// Insights `#` can quote: this conversation's first, then the saved library.
+    private var insightQuoteCandidates: [ConceptDefinition] {
+        conversationInsights
+            + ChatBranch.mentionedInsights(in: session.activeBranches)
+            + collectedDefinitions
+    }
+
     /// A command was tapped — insert it into the focused field and dismiss the card.
     private func selectSlashCommand(_ command: SlashCommand) {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -1327,6 +1341,7 @@ struct CurrentConversationView: View {
             withAnimation(.springStandard) {
                 isKeyboardOpen = false
                 isSlashCommandContext = false
+                isInsightQuoteContext = false
             }
         }
         .photosPicker(
@@ -1533,6 +1548,13 @@ struct CurrentConversationView: View {
                                 isSlashCommandContext = slash
                             }
                         }
+                        let insightQuery = InsightMention.activeQuery(in: text)
+                        if let insightQuery { self.insightQuery.text = insightQuery }
+                        if (insightQuery != nil) != isInsightQuoteContext {
+                            withAnimation(.springQuick) {
+                                isInsightQuoteContext = insightQuery != nil
+                            }
+                        }
                     },
                     insertCommandRequest: b.id == effectiveFocusedID ? insertCommandRequest : 0,
                     commandToInsert: commandToInsert,
@@ -1544,6 +1566,9 @@ struct CurrentConversationView: View {
                     onExecuteSlashCommand: { command in
                         executeSlashCommand(command, in: b.id)
                     },
+                    insightQuoteCandidates: { insightQuoteCandidates },
+                    showsInsightQuoteMenu: b.id == effectiveFocusedID && showInsightQuoteMenu,
+                    insightQuoteQuery: insightQuery,
                     onQuoteHandled: { attachedConcept = nil },
                     onQuotedConceptRemoved: {
                         returnToStudyTopicTreeAfterQuoteCancellation()
@@ -1887,7 +1912,7 @@ struct CurrentConversationView: View {
             let topQuestion = branch.topQuestionText.trimmingCharacters(in: .whitespacesAndNewlines)
             if branch.topQuestionSubmitted, !topQuestion.isEmpty {
                 uncompactedTranscript.append(
-                    .user(topQuestion, branch.branchContextConcept, branch.topQuestionUploads)
+                    .user(topQuestion, branch.branchContextConcepts, branch.topQuestionUploads)
                 )
             }
         }
@@ -2342,7 +2367,7 @@ struct CurrentConversationView: View {
                 if case .text(let text) = $0 { return text == sourceResponseBlock }
                 return false
             }), let question = precedingQuestion(in: branch, before: index) else { continue }
-            return ConversationContext(transcript: [.user(question, nil, []), response])
+            return ConversationContext(transcript: [.user(question, [], []), response])
         }
         return ConversationContext(transcript: [response])
     }

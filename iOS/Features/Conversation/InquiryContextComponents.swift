@@ -6,6 +6,45 @@
 import SwiftUI
 import UIKit
 
+/// Quoted Insight chips in one row. More chips than fit scroll sideways and fade toward the
+/// row's edges; the fade sits in padding that overhangs the column, so chips that fit line up
+/// exactly where a single chip would.
+struct QuotedInsightRow<Chip: View>: View {
+    let concepts: [ConceptDefinition]
+    var alignment: Alignment = .center
+    @ViewBuilder let chip: (ConceptDefinition) -> Chip
+    @State private var rowWidth: CGFloat = 0
+
+    private static var edgeFade: CGFloat { 20 }
+
+    var body: some View {
+        if !concepts.isEmpty {
+            ScrollView(.horizontal) {
+                HStack(spacing: 8) {
+                    ForEach(concepts) { concept in
+                        chip(concept)
+                    }
+                }
+                .padding(.horizontal, Self.edgeFade)
+                .frame(minWidth: rowWidth, alignment: alignment)
+            }
+            .scrollIndicators(.hidden)
+            .mask {
+                HStack(spacing: 0) {
+                    LinearGradient(colors: [.clear, AngroveTheme.Colors.mask], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: Self.edgeFade)
+                    Rectangle()
+                    LinearGradient(colors: [AngroveTheme.Colors.mask, .clear], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: Self.edgeFade)
+                }
+            }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { rowWidth = $0 }
+            .padding(.horizontal, -Self.edgeFade)
+            .attachmentScrollRegion()
+        }
+    }
+}
+
 struct UploadedFileStrip: View {
     let files: [UploadedFile]
     var alignment: Alignment = .center

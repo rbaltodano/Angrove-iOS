@@ -49,7 +49,14 @@ extension CanvasSwipeView: UIGestureRecognizerDelegate {
     }
 
     func gestureRecognizer(_ gr: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        acceptsSwipe(at: touch.location(in: nil))
+        // Horizontal swipes in or around an editable question field recall earlier questions.
+        var view = touch.view
+        while let current = view {
+            if let textView = current as? UITextView, textView.isEditable { return false }
+            if current is RecallSwipeArea.AreaView { return false }
+            view = current.superview
+        }
+        return acceptsSwipe(at: touch.location(in: nil))
     }
 
     func gestureRecognizer(_ gr: UIGestureRecognizer,

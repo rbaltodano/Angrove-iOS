@@ -236,7 +236,7 @@ struct MiniLMGroundingRetrievalTests {
             retrievalAliases: []
         )
         let context = ConversationContext(
-            transcript: [.user("What did Trent teach about justification?", nil, [])]
+            transcript: [.user("What did Trent teach about justification?", [], [])]
         )
 
         let instruction = LiteRTAngroveModel.evidenceExperimentInstruction(

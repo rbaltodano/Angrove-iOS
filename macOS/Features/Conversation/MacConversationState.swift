@@ -77,6 +77,9 @@ import SwiftUI
     func attachQuote(_ concept: ConceptDefinition) {
         quote = concept
         if !isGlobalTree, let index = branches.firstIndex(where: { $0.id == selectedBranch }) {
+            // The Mac composer holds one quote, so a new quote replaces the current one.
+            if !branches[index].topQuestionSubmitted { branches[index].branchContextConcepts = [] }
+            branches[index].attachedConcepts = []
             branches[index].attachQuote(concept)
             persistConversation()
         }
@@ -85,8 +88,8 @@ import SwiftUI
     func removeQuote() {
         quote = nil
         if !isGlobalTree, let index = branches.firstIndex(where: { $0.id == selectedBranch }) {
-            if !branches[index].topQuestionSubmitted { branches[index].branchContextConcept = nil }
-            branches[index].attachedConcept = nil
+            if !branches[index].topQuestionSubmitted { branches[index].branchContextConcepts = [] }
+            branches[index].attachedConcepts = []
             persistConversation()
         }
     }
@@ -172,7 +175,7 @@ import SwiftUI
     var activeBranch: ChatBranch? { branches.first { $0.id == selectedBranch } }
     var transcript: [ChatBlock] {
         guard let branch = activeBranch, branch.topQuestionSubmitted else { return [] }
-        return [.user(branch.topQuestionText, branch.branchContextConcept, branch.topQuestionUploads)] + branch.activeChatBlocks
+        return [.user(branch.topQuestionText, branch.branchContextConcepts, branch.topQuestionUploads)] + branch.activeChatBlocks
     }
     /// Mac transcript indices include the initial question; ChatBranch indices do not.
     func feedbackReport(transcriptIndex: Int) -> ResponseFeedbackReport? {
@@ -207,13 +210,13 @@ import SwiftUI
         var branch = branches[index]
         if !branch.topQuestionSubmitted, !isPreview { MacDailyPrompt.markAnswered(branch) }
         if !branch.topQuestionSubmitted {
-            branch.branchContextConcept = quote
+            branch.branchContextConcepts = quote.map { [$0] } ?? []
             branch.topQuestionText = question
             branch.topQuestionUploads = uploads
             branch.topQuestionSubmitted = true
-        } else { branch.activeChatBlocks.append(.user(question, quote, uploads)) }
+        } else { branch.activeChatBlocks.append(.user(question, quote.map { [$0] } ?? [], uploads)) }
         let responseIndex = branch.activeChatBlocks.count
-        branch.attachedConcept = nil
+        branch.attachedConcepts = []
         branch.activeChatBlocks.append(.text(""))
         branches[index] = branch
         quote = nil
@@ -260,7 +263,7 @@ import SwiftUI
                                            branches[i].activeChatBlocks.removeLast()
                                            if case .user(let value, let quoted, _) = branches[i].activeChatBlocks.last, value == question {
                                                branches[i].activeChatBlocks.removeLast()
-                                               if selectedBranch == branchID { quote = quoted; restoredDraft = question }
+                                               if selectedBranch == branchID { quote = quoted.first; restoredDraft = question }
                                            } else if responseIndex == 0 {
                                                branches[i].topQuestionSubmitted = false
                                                if selectedBranch == branchID { restoredDraft = question }
@@ -399,10 +402,10 @@ import SwiftUI
     }
     private func modelContext(for branch: ChatBranch, personality: ConversationPersonality) -> ConversationContext {
         let hasCompaction = branch.compactedContext?.isEmpty == false
-        var blocks: [ChatBlock] = hasCompaction ? [] : [.user(branch.topQuestionText, branch.branchContextConcept, branch.topQuestionUploads)]
+        var blocks: [ChatBlock] = hasCompaction ? [] : [.user(branch.topQuestionText, branch.branchContextConcepts, branch.topQuestionUploads)]
         // Home prompts carry hidden context ahead of the visible question, as on iPhone.
         if let hidden = branch.hiddenPromptContext?.trimmingCharacters(in: .whitespacesAndNewlines), !hidden.isEmpty {
-            blocks.insert(.user(hidden, nil, []), at: 0)
+            blocks.insert(.user(hidden, [], []), at: 0)
         }
         blocks += branch.activeChatBlocks.dropFirst(hasCompaction ? min(branch.compactedThroughBlockCount ?? 0, branch.activeChatBlocks.count) : 0).filter { $0 != .text(questionCanceledResponseText) }
         return ConversationContext(compactedContext: branch.compactedContext, transcript: blocks, personality: personality)

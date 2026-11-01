@@ -18,6 +18,7 @@ struct MacConversationView: View {
     @State private var isQuestionFocused = false
     @StateObject private var slashQuery = SlashCommandQuery()
     @State private var dismissesCommands = false
+    @State private var questionRecall = QuestionRecall()
     @Environment(\.modelCompletionNotifications) private var completionNotifications
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -180,9 +181,10 @@ struct MacConversationView: View {
             }
             ForEach(Array(session.transcript.enumerated()), id: \.offset) { index, block in
                 switch block {
-                case .user(let text, let concept, let uploads):
+                case .user(let text, let concepts, let uploads):
                     VStack(alignment: .trailing, spacing: 8) {
-                        if let concept { quoteChip(concept, removable: false) }
+                        // Questions quoted on iPhone can carry several Insights.
+                        ForEach(concepts) { concept in quoteChip(concept, removable: false) }
                         if !uploads.isEmpty { MacAttachmentStrip(files: uploads) }
                         QuotedQuestionContainer(isEmpty: false,
                             lineHeight: MacConversationStyle.questionLineHeight,
@@ -264,6 +266,12 @@ struct MacConversationView: View {
                     reduceMotion: reduceMotion, onSubmit: onSend,
                     onEscape: {
                         if showsCommands { dismissesCommands = true } else { isQuestionFocused = false }
+                    },
+                    onRecall: { older in
+                        let history = session.activeBranch?.submittedQuestions ?? []
+                        return older
+                            ? questionRecall.older(in: history, current: question)
+                            : questionRecall.newer(in: history, current: question)
                     })
                     .frame(width: min(MacConversationStyle.questionContentWidth(question, minimum: "Ask a question..."),
                                       MacConversationStyle.questionMaxWidth - 36))
@@ -277,6 +285,7 @@ struct MacConversationView: View {
                     dismissesCommands = false
                 }
                 .onAppear { slashQuery.text = question }
+                .onChange(of: session.selectedBranch) { questionRecall.reset() }
                 .onKeyPress(.escape) {
                     guard showsCommands else { return .ignored }
                     dismissesCommands = true
@@ -398,6 +407,8 @@ struct MacCommandEditor: NSViewRepresentable {
     let onEscape: () -> Void
     /// Which leading text counts as a command for the green sweep; the conversation's by default.
     var recognizesCommand: (String) -> Bool = { SlashCommand.invocation(for: $0) != nil }
+    /// Up (`true`) or Down from the first or last line; returns replacement text, or nil to move the caret.
+    var onRecall: ((Bool) -> String?)? = nil
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -467,6 +478,18 @@ struct MacCommandEditor: NSViewRepresentable {
             if selector == #selector(NSResponder.insertNewline(_:)),
                !NSEvent.modifierFlags.contains(.shift) { parent.onSubmit(); return true }
             if selector == #selector(NSResponder.cancelOperation(_:)) { parent.onEscape(); return true }
+            if let onRecall = parent.onRecall, let view = textView as? Editor {
+                let older = selector == #selector(NSResponder.moveUp(_:))
+                guard older || selector == #selector(NSResponder.moveDown(_:)),
+                      older ? view.isCaretOnFirstLine : view.isCaretOnLastLine,
+                      let recalled = onRecall(older) else { return false }
+                view.string = recalled
+                view.setSelectedRange(NSRange(location: (recalled as NSString).length, length: 0))
+                parent.text = recalled
+                view.refreshHighlight()
+                view.invalidateIntrinsicContentSize()
+                return true
+            }
             return false
         }
     }
@@ -488,6 +511,27 @@ struct MacCommandEditor: NSViewRepresentable {
         }
 
         override func layout() { super.layout(); applyHighlight() }
+
+        var isCaretOnFirstLine: Bool { caretLineRect.map { $0.minY <= lineRect(at: 0).minY } ?? true }
+        var isCaretOnLastLine: Bool {
+            let length = (string as NSString).length
+            return caretLineRect.map { $0.minY >= lineRect(at: length).minY } ?? true
+        }
+
+        private var caretLineRect: NSRect? {
+            guard selectedRange().length == 0 else { return nil }
+            return lineRect(at: selectedRange().location)
+        }
+
+        /// The line fragment holding the character at `location`; the end of text maps to the last line.
+        private func lineRect(at location: Int) -> NSRect {
+            guard let manager = layoutManager, manager.numberOfGlyphs > 0 else { return .zero }
+            if location >= (string as NSString).length, !manager.extraLineFragmentRect.isEmpty {
+                return manager.extraLineFragmentRect
+            }
+            let glyph = manager.glyphIndexForCharacter(at: min(location, (string as NSString).length - 1))
+            return manager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+        }
 
         private var clickMonitor: Any?
 

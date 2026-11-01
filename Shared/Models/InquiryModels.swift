@@ -22,8 +22,13 @@ nonisolated struct ChatBranch: Identifiable, Codable, Equatable {
     var topQuestionSubmitted: Bool = false
     var bottomQuestionText: String = ""
     var showBottomInput: Bool = false
-    var attachedConcept: ConceptDefinition? = nil
-    var branchContextConcept: ConceptDefinition? = nil
+    /// The first Insight quoted into the follow-up question. Stored alone under its original key
+    /// so earlier builds still read one quote; use `attachedConcepts` to read or change quotes.
+    private(set) var attachedConcept: ConceptDefinition? = nil
+    private(set) var additionalAttachedConcepts: [ConceptDefinition] = []
+    /// The first Insight quoted into the branch's first question, stored like `attachedConcept`.
+    private(set) var branchContextConcept: ConceptDefinition? = nil
+    private(set) var additionalBranchContextConcepts: [ConceptDefinition] = []
     var generatedBranchTitle: String? = nil
     /// Hidden model context produced by `/compact`. The visible transcript remains untouched.
     var compactedContext: String? = nil
@@ -58,17 +63,58 @@ nonisolated struct ChatBranch: Identifiable, Codable, Equatable {
         self.hiddenPromptContext = hiddenPromptContext
     }
 
+    /// Insights quoted into the follow-up question, in the order they were added.
+    var attachedConcepts: [ConceptDefinition] {
+        get { (attachedConcept.map { [$0] } ?? []) + additionalAttachedConcepts }
+        set {
+            attachedConcept = newValue.first
+            additionalAttachedConcepts = Array(newValue.dropFirst())
+        }
+    }
+
+    /// Insights quoted into the branch's first question, in the order they were added.
+    var branchContextConcepts: [ConceptDefinition] {
+        get { (branchContextConcept.map { [$0] } ?? []) + additionalBranchContextConcepts }
+        set {
+            branchContextConcept = newValue.first
+            additionalBranchContextConcepts = Array(newValue.dropFirst())
+        }
+    }
+
+    /// The most Insights one question can quote, keeping the on-device prompt small.
+    static let maximumQuotedInsights = 5
+
+    /// Quotes on the question currently being written: the first question until it is sent,
+    /// then the follow-up.
+    var editableQuestionQuotes: [ConceptDefinition] {
+        isEditingFirstQuestion ? branchContextConcepts : attachedConcepts
+    }
+
+    /// Whether the current editable question can take another quote.
+    var canQuoteAnotherInsight: Bool {
+        editableQuestionQuotes.count < Self.maximumQuotedInsights
+    }
+
+    private var isEditingFirstQuestion: Bool { !topQuestionSubmitted && activeChatBlocks.isEmpty }
+
     /// Quotes use the current editable question. An unanswered first question never needs
-    /// a second composer just to hold an attachment.
+    /// a second composer just to hold an attachment. Quoting an Insight already quoted, or one
+    /// past the limit, leaves the quotes unchanged.
     mutating func attachQuote(_ concept: ConceptDefinition) {
-        if !topQuestionSubmitted && activeChatBlocks.isEmpty {
-            branchContextConcept = concept
-            attachedConcept = nil
+        if isEditingFirstQuestion {
+            branchContextConcepts = Self.adding(concept, to: branchContextConcepts)
+            attachedConcepts = []
             showBottomInput = false
         } else {
-            attachedConcept = concept
+            attachedConcepts = Self.adding(concept, to: attachedConcepts)
             showBottomInput = true
         }
+    }
+
+    private static func adding(_ concept: ConceptDefinition, to quotes: [ConceptDefinition]) -> [ConceptDefinition] {
+        guard !quotes.contains(where: { $0.id == concept.id }),
+              quotes.count < maximumQuotedInsights else { return quotes }
+        return quotes + [concept]
     }
 
     func responsePresentation(at responseIndex: Int) -> ResponsePresentationMetadata? {
@@ -196,8 +242,8 @@ enum ConversationDraftRetention {
             && branch.topQuestionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && branch.topQuestionUploads.isEmpty
             && branch.bottomQuestionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && branch.attachedConcept == nil
-            && branch.branchContextConcept == nil
+            && branch.attachedConcepts.isEmpty
+            && branch.branchContextConcepts.isEmpty
             && branch.compactedContext == nil
     }
 
@@ -223,8 +269,8 @@ enum ConversationDraftRetention {
             branch.topQuestionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ||
             !branch.topQuestionUploads.isEmpty ||
             branch.bottomQuestionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ||
-            branch.attachedConcept != nil ||
-            branch.branchContextConcept != nil ||
+            !branch.attachedConcepts.isEmpty ||
+            !branch.branchContextConcepts.isEmpty ||
             branch.compactedContext?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ||
             branch.hiddenPromptContext?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ||
             branch.pinnedHeaderQuestion?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ||
@@ -236,9 +282,9 @@ enum ConversationDraftRetention {
         switch block {
         case .text(let text):
             !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        case .user(let text, let concept, let uploads):
+        case .user(let text, let concepts, let uploads):
             !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-            concept != nil ||
+            !concepts.isEmpty ||
             !uploads.isEmpty
         }
     }
@@ -306,15 +352,12 @@ extension ChatBranch {
             if seen.insert(concept.word.lowercased()).inserted { result.append(concept) }
         }
         for branch in branches {
-            [branch.startingConcept, branch.attachedConcept, branch.branchContextConcept]
-                .compactMap { $0 }
+            ([branch.startingConcept].compactMap { $0 } + branch.attachedConcepts + branch.branchContextConcepts)
                 .forEach(add)
             for block in branch.activeChatBlocks {
                 switch block {
-                case .user(_, let concept?, _):
-                    add(concept)
-                case .user:
-                    break
+                case .user(_, let concepts, _):
+                    concepts.forEach(add)
                 case .text(let text):
                     InlineInsightMarkup.insights(in: text).forEach(add)
                 }
@@ -332,11 +375,10 @@ extension ChatBranch {
             result.append(concept)
         }
         for branch in branches {
-            [branch.startingConcept, branch.branchContextConcept, branch.attachedConcept]
-                .compactMap { $0 }
+            ([branch.startingConcept].compactMap { $0 } + branch.branchContextConcepts + branch.attachedConcepts)
                 .forEach(add)
             for block in branch.activeChatBlocks {
-                if case .user(_, let concept?, _) = block { add(concept) }
+                if case .user(_, let concepts, _) = block { concepts.forEach(add) }
             }
         }
         return result
@@ -370,6 +412,45 @@ nonisolated enum ChatBlock: Hashable, Codable {
     /// A model-generated response card.
     case text(String)
 
-    /// A submitted user question, including any locked insight chip and uploaded files.
-    case user(String, ConceptDefinition?, [UploadedFile])
+    /// A submitted user question, including its quoted Insight chips and uploaded files.
+    case user(String, [ConceptDefinition], [UploadedFile])
+
+    // Earlier builds stored one optional quote as `_1`. It is still written as the first quote
+    // so those builds can read new conversations; the full list is under `quotes`.
+    private enum CodingKeys: String, CodingKey { case text, user }
+    private enum TextKeys: String, CodingKey { case _0 }
+    private enum UserKeys: String, CodingKey { case _0, _1, _2, quotes }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        if c.contains(.text) {
+            let text = try c.nestedContainer(keyedBy: TextKeys.self, forKey: .text)
+            self = .text(try text.decode(String.self, forKey: ._0))
+            return
+        }
+        let user = try c.nestedContainer(keyedBy: UserKeys.self, forKey: .user)
+        let quotes = try user.decodeIfPresent([ConceptDefinition].self, forKey: .quotes)
+            ?? (try user.decodeIfPresent(ConceptDefinition.self, forKey: ._1)).map { [$0] }
+            ?? []
+        self = .user(
+            try user.decode(String.self, forKey: ._0),
+            quotes,
+            try user.decode([UploadedFile].self, forKey: ._2)
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .text(let value):
+            var text = c.nestedContainer(keyedBy: TextKeys.self, forKey: .text)
+            try text.encode(value, forKey: ._0)
+        case .user(let question, let quotes, let uploads):
+            var user = c.nestedContainer(keyedBy: UserKeys.self, forKey: .user)
+            try user.encode(question, forKey: ._0)
+            try user.encodeIfPresent(quotes.first, forKey: ._1)
+            try user.encode(uploads, forKey: ._2)
+            if quotes.count > 1 { try user.encode(quotes, forKey: .quotes) }
+        }
+    }
 }

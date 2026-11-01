@@ -13,6 +13,7 @@ extension ChatBranch {
         case id, startingConcept, parentBranchID, parentResponseIndex, duplicatedResponse, yOffset
         case activeChatBlocks, topQuestionText, topQuestionUploads, topQuestionSubmitted
         case bottomQuestionText, showBottomInput, attachedConcept, branchContextConcept
+        case additionalAttachedConcepts, additionalBranchContextConcepts
         case generatedBranchTitle, compactedContext, compactedThroughBlockCount
         case hiddenPromptContext, pinnedHeaderQuestion, responsePresentations
     }
@@ -34,8 +35,12 @@ extension ChatBranch {
         topQuestionSubmitted = try c.decodeIfPresent(Bool.self, forKey: .topQuestionSubmitted) ?? false
         bottomQuestionText = try c.decodeIfPresent(String.self, forKey: .bottomQuestionText) ?? ""
         showBottomInput = try c.decodeIfPresent(Bool.self, forKey: .showBottomInput) ?? false
-        attachedConcept = try c.decodeIfPresent(ConceptDefinition.self, forKey: .attachedConcept)
-        branchContextConcept = try c.decodeIfPresent(ConceptDefinition.self, forKey: .branchContextConcept)
+        let attached = try c.decodeIfPresent(ConceptDefinition.self, forKey: .attachedConcept)
+        let additionalAttached = try c.decodeIfPresent([ConceptDefinition].self, forKey: .additionalAttachedConcepts)
+        attachedConcepts = (attached.map { [$0] } ?? []) + (additionalAttached ?? [])
+        let context = try c.decodeIfPresent(ConceptDefinition.self, forKey: .branchContextConcept)
+        let additionalContext = try c.decodeIfPresent([ConceptDefinition].self, forKey: .additionalBranchContextConcepts)
+        branchContextConcepts = (context.map { [$0] } ?? []) + (additionalContext ?? [])
         generatedBranchTitle = try c.decodeIfPresent(String.self, forKey: .generatedBranchTitle)
         compactedContext = try c.decodeIfPresent(String.self, forKey: .compactedContext)
         compactedThroughBlockCount = try c.decodeIfPresent(Int.self, forKey: .compactedThroughBlockCount)

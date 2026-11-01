@@ -104,10 +104,10 @@ struct MacWorktreeCommandTests {
     }
 
     @MainActor @Test func summaryMaterialKeepsNewestTurnsBehindTheCompactedSummary() {
-        let transcript: [ChatBlock] = [.user("old", nil, []), .text(String(repeating: "a", count: 50)),
-                                       .user("new", nil, []), .text("short")]
+        let transcript: [ChatBlock] = [.user("old", [], []), .text(String(repeating: "a", count: 50)),
+                                       .user("new", [], []), .text("short")]
         let fitted = WorktreeBoard.fitting(transcript, earlier: "earlier summary", budget: 40)
-        #expect(fitted == [.text("earlier summary"), .user("new", nil, []), .text("short")])
+        #expect(fitted == [.text("earlier summary"), .user("new", [], []), .text("short")])
         #expect(WorktreeBoard.fitting(transcript, earlier: nil, budget: 1000) == transcript)
     }
 }

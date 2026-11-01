@@ -29,6 +29,57 @@ Collected from the [iOS] and [Shared] entries below.
 - If the on-device model isn't installed, an Install? notification offers to download it. Dismiss
   it and it returns the next time you ask the model for something. While the model downloads,
   Model Controls show Loading..., and Model Tasks shows Downloading Model with its percentage and a progress bar.
+- Swipe right in an empty follow-up field to bring back your previous question in that thread, and
+  keep swiping to go further back. Swipe left to come forward again; past your newest question the
+  field is empty. Questions follow your finger as you swipe, with a light tap as they switch. A question you've started
+  typing is never replaced. VoiceOver offers the same as
+  Previous question and Next question actions.
+- Quote several Insights in one question (up to five). They line up above your question in a
+  row you can scroll. Type # to pick an Insight from this conversation or your library, or type
+  its full name after #. The mention highlights while you type and becomes a chip when you send.
+  Insight chip text follows your paragraph text size.
+- After an answer finishes, the field for your next question now appears once the answer's
+  buttons and disclaimer have finished appearing, rather than sliding down while they appear.
+
+## 2026-11-01
+
+- **[Shared] Several quoted Insights per question, and `#` to quote.** A question can quote up
+  to five Insights. Pending and sent quotes sit in one row that scrolls sideways and fades at
+  its edges. Typing `#` at the start of a word opens a picker styled like the command menu,
+  listing this conversation's Insights and then the saved library, filtered by the typed title;
+  tapping one completes the `#title` in the draft. Complete titles sweep green like a command
+  while typing and become quote chips only on submission, when the `#` is removed. Insight
+  and Library quote chip titles follow the paragraph text size setting.
+  Storage: `ChatBlock.user` and `ChatBranch` quotes are lists; the first quote is still
+  written under the original keys (`_1`, `attachedConcept`, `branchContextConcept`) and the rest
+  under new keys, so earlier builds keep reading one quote. Each quote becomes its own
+  `<insight_quote>` block before the question. The Mac composer still holds one quote, but shows
+  every quote on questions sent from iPhone.
+- **[iOS] Follow-up field waits for the full answer reveal.** The "Ask a question..." field
+  now appears only after the answer text, its action buttons, and the AI disclaimer have all
+  animated in (the footer's reveal completion), instead of when the text finished, which let the
+  footer push the field down as it appeared.
+- **[iOS] Swipe to recall earlier questions.** In the follow-up field, swipe left-to-right for the
+  previous question in this branch, right-to-left for the next; the end is an empty field.
+  Recall applies only to an empty field or an unedited recalled question, so drafts are safe.
+  The recalled text is written to the branch's saved draft. Logic shared in `QuestionRecall`.
+  Swipes that start in an editable question field no longer trigger the page-wide
+  right-to-left swipe that opens the canvas.
+  The swap reuses the old Study tool carousel motion (slide toward the swipe with a fade,
+  spring 0.34 / 0.82); text fades out near the field's edges as it moves; the quote marks glide to the new width.
+  Reduce Motion swaps instantly.
+  The swap is interactive: both questions track the finger 1:1 (a pan on the field's container,
+  moving the text view's contents by sublayer transform since SwiftUI resets its frame), and
+  release finishes past halfway or on a flick, otherwise springs back without moving the recall
+  position. A rigid haptic tap (the Study tools' tap) plays as the switch passes halfway. While the
+  field can recall, its caret loupe waits for the drag so focused fields track from the start;
+  drafts keep native caret dragging.
+  The swipe area spans the question row and extends above and below the text. Holding the
+  field reveals chevrons on either side without reserving layout space; unavailable directions
+  are dimmed. Swipes in the expanded area also stay out of page-wide canvas navigation.
+- **[macOS] Up arrow recalls earlier questions.** Up on the composer's first line steps back
+  through this branch's questions; Down on the last line steps forward, ending empty. Same draft
+  protection as iOS.
 
 ## 2026-10-31
 

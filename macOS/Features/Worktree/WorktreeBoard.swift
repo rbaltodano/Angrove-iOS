@@ -796,7 +796,7 @@ enum WorktreeWork: Equatable { case queued, running }
         guard let item = id.flatMap({ id in items.first { $0.id == id } }) else { return [] }
         if let session = item.session { return Self.fitting(session.transcript, earlier: session.activeBranch?.compactedContext) }
         if let insight = item.insight { return [.text("\(insight.word): \(insight.meaning)")] }
-        if let image = item.image { return [.user("Selected photo", nil, [image])] }
+        if let image = item.image { return [.user("Selected photo", [], [image])] }
         if item.isHelp { return [.text(WorktreeCommandGuide.entries.map { "\($0.name): \($0.explanation)" }.joined(separator: "\n"))] }
         return item.text.isEmpty ? [] : [.text(item.text)]
     }

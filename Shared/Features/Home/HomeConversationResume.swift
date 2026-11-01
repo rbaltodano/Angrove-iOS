@@ -29,8 +29,8 @@ enum HomeConversationResume {
 
         return conversation.branches.contains { branch in
             if branch.startingConcept != nil
-                || branch.attachedConcept != nil
-                || branch.branchContextConcept != nil
+                || !branch.attachedConcepts.isEmpty
+                || !branch.branchContextConcepts.isEmpty
                 || !branch.topQuestionUploads.isEmpty {
                 return true
             }
@@ -45,8 +45,8 @@ enum HomeConversationResume {
                 switch block {
                 case .text(let response):
                     return containsText(response)
-                case .user(let question, let concept, let uploads):
-                    return containsText(question) || concept != nil || !uploads.isEmpty
+                case .user(let question, let concepts, let uploads):
+                    return containsText(question) || !concepts.isEmpty || !uploads.isEmpty
                 }
             }
         }

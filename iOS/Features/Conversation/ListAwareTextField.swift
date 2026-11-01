@@ -28,6 +28,59 @@ final class TextInputRelay {
     var replaceAll: (String) -> Void = { _ in }
     /// Moves keyboard focus into the underlying text view.
     var focus: () -> Void = {}
+    /// Question recall, for a swipe area around the field (see `RecallSwipeArea`).
+    var shouldBeginRecall: (UIPanGestureRecognizer) -> Bool = { _ in false }
+    var handleRecallPan: (UIPanGestureRecognizer) -> Void = { _ in }
+    /// Which directions can recall right now: older (swipe right) and newer (swipe left).
+    var recallDirections: () -> (older: Bool, newer: Bool) = { (false, false) }
+}
+
+/// A swipe area behind a question field, larger than the field, so recall swipes are easy to
+/// start. Drags here drive the same recall as drags on the field; contact shows the hints.
+struct RecallSwipeArea: UIViewRepresentable {
+    let relay: TextInputRelay
+    var onContactChange: (Bool) -> Void
+
+    /// Marks the area so page-wide swipes leave its drags to recall.
+    final class AreaView: UIView {}
+
+    func makeUIView(context: Context) -> AreaView {
+        let view = AreaView()
+        view.backgroundColor = .clear
+        let pan = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.pan(_:)))
+        pan.delegate = context.coordinator
+        view.addGestureRecognizer(pan)
+        let contact = TextFieldContactRecognizer()
+        contact.cancelsTouchesInView = false
+        contact.delaysTouchesBegan = false
+        contact.delaysTouchesEnded = false
+        contact.onContactChange = { [weak coordinator = context.coordinator] in coordinator?.parent.onContactChange($0) }
+        view.addGestureRecognizer(contact)
+        return view
+    }
+
+    func updateUIView(_ view: AreaView, context: Context) { context.coordinator.parent = self }
+
+    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var parent: RecallSwipeArea
+        init(parent: RecallSwipeArea) { self.parent = parent }
+
+        @objc func pan(_ pan: UIPanGestureRecognizer) { parent.relay.handleRecallPan(pan) }
+
+        func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
+            guard let pan = gesture as? UIPanGestureRecognizer else { return true }
+            return parent.relay.shouldBeginRecall(pan)
+        }
+
+        func gestureRecognizer(
+            _ gesture: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
+        ) -> Bool {
+            other is TextFieldContactRecognizer || gesture is TextFieldContactRecognizer
+        }
+    }
 }
 
 // MARK: - ListAwareTextField
@@ -63,6 +116,14 @@ struct ListAwareTextField: UIViewRepresentable {
     var onTextChange: ((String) -> Void)? = nil
     /// Called when Return should submit the current question instead of inserting a newline.
     var onSubmit: (() -> Void)? = nil
+    /// Dragging right (`true`) or left steps through earlier questions; returns the question to
+    /// show, committed only if the drag completes, or nil to leave the field unchanged.
+    var onSwipeRecall: ((Bool) -> QuestionRecallStep?)? = nil
+    /// Recognized `#title` Insight mentions in a draft, colored like a command.
+    var insightMentions: ((String) -> [InsightMention.Mention])? = nil
+    /// Reports the recall slide starting and ending, so a SwiftUI placeholder can step aside.
+    var onRecallSlideChange: ((Bool) -> Void)? = nil
+    var placeholderColor: UIColor = .placeholderText
     /// Fits the live UIKit buffer up to the proposed width, then wraps.
     var hugsContentWidth: Bool = false
     /// Width reserved for the placeholder only while the live editor is empty.
@@ -73,6 +134,9 @@ struct ListAwareTextField: UIViewRepresentable {
     func makeUIView(context: Context) -> UITextView {
         let tv = CommandHighlightTextView()
         tv.delegate = context.coordinator
+        tv.mentionRanges = { [weak coordinator = context.coordinator] text in
+            coordinator?.parent.insightMentions?(text).map(\.range) ?? []
+        }
         tv.isEditable = !isLocked
         tv.isSelectable = true
         if onPressChange != nil {
@@ -84,6 +148,31 @@ struct ListAwareTextField: UIViewRepresentable {
                 coordinator?.parent.onPressChange?(isPressed)
             }
             tv.addGestureRecognizer(press)
+        }
+        if onSwipeRecall != nil {
+            context.coordinator.recallTextView = tv
+            relay?.shouldBeginRecall = { [weak coordinator = context.coordinator] pan in
+                coordinator?.shouldBeginRecall(pan) ?? false
+            }
+            relay?.handleRecallPan = { [weak coordinator = context.coordinator] pan in
+                coordinator?.handleRecallPan(pan)
+            }
+            relay?.recallDirections = { [weak coordinator = context.coordinator] in
+                guard let parent = coordinator?.parent, !parent.isLocked else { return (false, false) }
+                return (parent.onSwipeRecall?(true) != nil, parent.onSwipeRecall?(false) != nil)
+            }
+            tv.accessibilityCustomActions = [
+                UIAccessibilityCustomAction(name: String(localized: "Previous question")) {
+                    [weak coordinator = context.coordinator, weak tv] _ in
+                    guard let tv else { return false }
+                    return coordinator?.recall(older: true, in: tv) ?? false
+                },
+                UIAccessibilityCustomAction(name: String(localized: "Next question")) {
+                    [weak coordinator = context.coordinator, weak tv] _ in
+                    guard let tv else { return false }
+                    return coordinator?.recall(older: false, in: tv) ?? false
+                }
+            ]
         }
         tv.font = font
         tv.textColor = textColor
@@ -179,6 +268,7 @@ struct ListAwareTextField: UIViewRepresentable {
     func updateUIView(_ uiView: UITextView, context: Context) {
         // Keep coordinator's parent reference current every render.
         context.coordinator.parent = self
+        context.coordinator.attachRecallPanIfNeeded()
         (uiView as? CommandHighlightTextView)?.isPresentationSuspended = isPageDeparting
         // Do not invalidate text layout while the shell animates the whole page away.
         guard !isPageDeparting else { return }
@@ -256,7 +346,7 @@ struct ListAwareTextField: UIViewRepresentable {
 
     // MARK: - Coordinator
 
-    class Coordinator: NSObject, UITextViewDelegate {
+    class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
         var parent: ListAwareTextField
 
         // Compiled once per Coordinator instance (effectively once per field lifetime)
@@ -385,6 +475,366 @@ struct ListAwareTextField: UIViewRepresentable {
         private func flushText(_ tv: UITextView) {
             parent.text = tv.text ?? ""
         }
+
+        // MARK: - Question recall
+
+        private var activeSlide: RecallSlide?
+
+        weak var recallTextView: UITextView?
+        private var recallPan: UIPanGestureRecognizer?
+
+        /// The recall pan lives on the field's container: on the text view itself, a focused
+        /// field's selection gestures hold it back until most of the drag is over.
+        func attachRecallPanIfNeeded() {
+            guard recallPan?.view == nil, let tv = recallTextView, let container = tv.superview else { return }
+            let pan = recallPan ?? UIPanGestureRecognizer(target: self, action: #selector(handleRecallPan(_:)))
+            pan.delegate = self
+            container.addGestureRecognizer(pan)
+            recallPan = pan
+        }
+
+        func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
+            guard let pan = gesture as? UIPanGestureRecognizer, pan === recallPan else { return true }
+            return shouldBeginRecall(pan)
+        }
+
+        /// Recall begins on a mostly horizontal drag toward a question that can be shown.
+        func shouldBeginRecall(_ pan: UIPanGestureRecognizer) -> Bool {
+            let velocity = pan.velocity(in: pan.view)
+            guard activeSlide == nil, !parent.isLocked,
+                  abs(velocity.x) > abs(velocity.y) * 1.5 else { return false }
+            return parent.onSwipeRecall?(velocity.x > 0) != nil
+        }
+
+        /// A focused field's caret loupe starts on touch, before a drag can read as recall, so
+        /// recall runs alongside the field's own gestures and cancels them once it begins.
+        /// Recall never begins on a draft, which keeps native caret dragging and selection.
+        func gestureRecognizer(
+            _ gesture: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
+        ) -> Bool {
+            guard gesture === recallPan, let container = gesture.view,
+                  let otherView = other.view else { return false }
+            return otherView.isDescendant(of: container)
+        }
+
+        /// While the field can recall (empty, or showing an unedited recalled question), its
+        /// caret loupe and other holds wait to see whether a drag is recall, so the questions
+        /// track the finger from the first point. Taps, and every gesture on a draft, are unchanged.
+        func gestureRecognizer(
+            _ gesture: UIGestureRecognizer,
+            shouldBeRequiredToFailBy other: UIGestureRecognizer
+        ) -> Bool {
+            guard gesture === recallPan, !(other is UITapGestureRecognizer),
+                  let textView = recallTextView, let otherView = other.view,
+                  otherView.isDescendant(of: textView) else { return false }
+            return parent.onSwipeRecall?(true) != nil || parent.onSwipeRecall?(false) != nil
+        }
+
+        private func cancelTextInteractions(in tv: UITextView, except recall: UIGestureRecognizer) {
+            var views: [UIView] = [tv]
+            while let view = views.popLast() {
+                // Contact tracking stays, so the swipe hints remain while the finger is down.
+                for gesture in view.gestureRecognizers ?? []
+                where gesture !== recall && gesture.isEnabled && !(gesture is TextFieldContactRecognizer) {
+                    gesture.isEnabled = false
+                    gesture.isEnabled = true
+                }
+                views.append(contentsOf: view.subviews)
+            }
+        }
+
+        /// Dragging right shows the previous question and left the next, tracking the finger.
+        @objc func handleRecallPan(_ pan: UIPanGestureRecognizer) {
+            guard let tv = recallTextView else { return }
+            let dx = pan.translation(in: tv.superview).x
+            switch pan.state {
+            case .began:
+                let older = pan.velocity(in: tv.superview).x > 0
+                guard let step = parent.onSwipeRecall?(older) else { return }
+                cancelTextInteractions(in: tv, except: pan)
+                activeSlide = RecallSlide(coordinator: self, textView: tv, older: older, step: step)
+                activeSlide?.track(dx)
+            case .changed:
+                activeSlide?.track(dx)
+            case .ended:
+                activeSlide?.release(dx: dx, velocity: pan.velocity(in: tv.superview).x)
+                activeSlide = nil
+            default:
+                activeSlide?.release(dx: 0, velocity: 0)
+                activeSlide = nil
+            }
+        }
+
+        /// VoiceOver's Previous and Next question actions run the whole switch at once.
+        @discardableResult
+        func recall(older: Bool, in tv: UITextView) -> Bool {
+            guard activeSlide == nil, !parent.isLocked,
+                  let step = parent.onSwipeRecall?(older) else { return false }
+            RecallSlide(coordinator: self, textView: tv, older: older, step: step).complete()
+            return true
+        }
+
+        fileprivate func show(_ text: String, in tv: UITextView) {
+            tv.text = text
+            (tv as? CommandHighlightTextView)?.updateCommandHighlight(baseColor: parent.textColor)
+            let end = tv.endOfDocument
+            tv.selectedTextRange = tv.textRange(from: end, to: end)
+            tv.invalidateIntrinsicContentSize()
+            // Write through so an unfocused field isn't reset from the binding on the next update.
+            flushText(tv)
+            parent.onTextChange?(text)
+        }
+
+        /// A horizontal mask that fades content out over the last stretch of each edge.
+        fileprivate static func edgeFade(for bounds: CGRect) -> CAGradientLayer {
+            let fade = CAGradientLayer()
+            fade.frame = bounds
+            fade.startPoint = CGPoint(x: 0, y: 0.5)
+            fade.endPoint = CGPoint(x: 1, y: 0.5)
+            fade.colors = [UIColor.clear, .black, .black, .clear].map(\.cgColor)
+            fade.locations = edgeFadeLocations(for: bounds.width)
+            return fade
+        }
+
+        fileprivate static func edgeFadeLocations(for width: CGFloat, fraction: CGFloat? = nil) -> [NSNumber] {
+            let fraction = fraction ?? (width > 0 ? min(0.25, 28 / width) : 0.25)
+            return [0, fraction, 1 - fraction, 1].map { NSNumber(value: Double($0)) }
+        }
+    }
+}
+
+/// The Study tool carousel's swap, driven by the finger: the old question moves with the drag
+/// and fades, the recalled one arrives from the opposite side, and both fade out toward the
+/// field's edges. Releasing past halfway, or with a flick, finishes on the carousel's spring;
+/// otherwise the old question springs back.
+@MainActor
+private final class RecallSlide {
+    private weak var coordinator: ListAwareTextField.Coordinator?
+    private let textView: UITextView
+    private let step: QuestionRecallStep
+    private let originalText: String
+    private let isAnimated = !UIAccessibility.isReduceMotionEnabled
+    private var outgoing: UIView?
+    private var clip: UIView?
+    private var container: UIView?
+    private var previousMask: CALayer?
+    private var containerFade: CAGradientLayer?
+    private var fadeTracker: EdgeFadeTracker?
+    private var incomingPlaceholder: UILabel?
+    private let haptic = UIImpactFeedbackGenerator(style: .rigid)
+    private var hasPlayedHaptic = false
+    /// Signed distance a full switch moves: rightward for older questions.
+    private var travel: CGFloat = 1
+    private var progress: CGFloat = 0
+    private let direction: CGFloat
+
+    init(coordinator: ListAwareTextField.Coordinator, textView tv: UITextView, older: Bool, step: QuestionRecallStep) {
+        self.coordinator = coordinator
+        textView = tv
+        self.step = step
+        originalText = tv.text ?? ""
+        direction = older ? 1 : -1
+        haptic.prepare()
+        guard isAnimated, let container = tv.superview, let window = tv.window else { return }
+        let parent = coordinator.parent
+
+        // Capture from the window so the SwiftUI placeholder leaves with the field.
+        let outgoingRect = tv.convert(tv.bounds, to: window)
+        let outgoing = UIImageView(image: UIGraphicsImageRenderer(bounds: outgoingRect).image { _ in
+            window.drawHierarchy(in: window.bounds, afterScreenUpdates: false)
+        })
+        // Host the outgoing question above the field so it keeps its place and width while the
+        // field resizes for the recalled one.
+        let host = container.superview ?? container
+        let clip = UIView(frame: tv.convert(tv.bounds, to: host))
+        clip.isUserInteractionEnabled = false
+        clip.layer.mask = ListAwareTextField.Coordinator.edgeFade(for: clip.bounds)
+        outgoing.frame = clip.bounds
+        clip.addSubview(outgoing)
+        host.addSubview(clip)
+        previousMask = container.layer.mask
+        let containerFade = ListAwareTextField.Coordinator.edgeFade(for: container.bounds)
+        container.layer.mask = containerFade
+        // The field resizes for the recalled question on SwiftUI's next layout pass.
+        fadeTracker = EdgeFadeTracker(container: container, fade: containerFade)
+        self.outgoing = outgoing
+        self.clip = clip
+        self.container = container
+        self.containerFade = containerFade
+        travel = direction * max(outgoing.bounds.width, 1)
+
+        parent.onRecallSlideChange?(true)
+        coordinator.show(step.text, in: tv)
+        // The SwiftUI placeholder is hidden while sliding; carry a copy in with an empty field.
+        if step.text.isEmpty {
+            incomingPlaceholder = Self.placeholderLabel(for: parent, in: tv)
+        }
+        apply(progress: 0)
+    }
+
+    /// Moves both questions with the finger, 1:1.
+    func track(_ dx: CGFloat) {
+        guard outgoing != nil else { return }
+        apply(progress: min(1, max(0, dx / travel)))
+        if progress >= 0.5 { playHapticOnce() }
+    }
+
+    func release(dx: CGFloat, velocity: CGFloat) {
+        let towardSwitch = velocity * direction
+        let flicked = towardSwitch > 500 && dx * direction > 8
+        let reversed = towardSwitch < -500
+        let completes = outgoing != nil
+            ? !reversed && (progress >= 0.5 || flicked)
+            : abs(dx) > 40 && dx * direction > 0
+        if completes {
+            complete(velocity: velocity)
+        } else {
+            cancel(velocity: velocity)
+        }
+    }
+
+    func complete(velocity: CGFloat = 0) {
+        step.commit()
+        playHapticOnce()
+        // Without a slide (Reduce Motion), the question simply changes.
+        guard outgoing != nil else {
+            coordinator?.show(step.text, in: textView)
+            return
+        }
+        // Clear the fade as the question settles so its edge letters don't pop in at the end.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+            self?.clearFade()
+        }
+        animate(to: 1, velocity: velocity)
+    }
+
+    private func cancel(velocity: CGFloat) {
+        guard outgoing != nil else { return }
+        animate(to: 0, velocity: velocity) { [weak self] in
+            guard let self else { return }
+            self.coordinator?.show(self.originalText, in: self.textView)
+        }
+    }
+
+    private func animate(to target: CGFloat, velocity: CGFloat, then: (() -> Void)? = nil) {
+        let remaining = abs(travel) * abs(target - progress)
+        let relativeVelocity = remaining > 1
+            ? min(20, max(0, velocity * direction * (target > progress ? 1 : -1) / remaining))
+            : 0
+        // The text view's own transform is reset whenever SwiftUI resizes the field, so its
+        // contents move by sublayer transform on a spring matching the UIKit one below.
+        let spring = CASpringAnimation(perceptualDuration: 0.34, bounce: 0.18)
+        spring.keyPath = "sublayerTransform.translation.x"
+        spring.fromValue = incomingOffset(at: progress)
+        spring.toValue = incomingOffset(at: target)
+        spring.initialVelocity = relativeVelocity
+        spring.duration = spring.settlingDuration
+        textView.layer.add(spring, forKey: "questionRecallSlide")
+        UIView.animate(
+            springDuration: 0.34,
+            bounce: 0.18,
+            initialSpringVelocity: relativeVelocity,
+            delay: 0,
+            options: [.allowUserInteraction, .beginFromCurrentState]
+        ) {
+            self.apply(progress: target)
+        } completion: { _ in
+            then?()
+            self.finish()
+        }
+    }
+
+    private func incomingOffset(at progress: CGFloat) -> CGFloat {
+        -travel * (1 - progress)
+    }
+
+    private func apply(progress: CGFloat) {
+        self.progress = progress
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        textView.layer.sublayerTransform = CATransform3DMakeTranslation(incomingOffset(at: progress), 0, 0)
+        CATransaction.commit()
+        textView.alpha = progress
+        outgoing?.transform = CGAffineTransform(translationX: travel * progress, y: 0)
+        outgoing?.alpha = 1 - progress
+    }
+
+    private func clearFade() {
+        guard let containerFade else { return }
+        fadeTracker?.isClearing = true
+        CATransaction.begin()
+        CATransaction.setAnimationDuration(0.15)
+        containerFade.locations = ListAwareTextField.Coordinator.edgeFadeLocations(for: 0, fraction: 0)
+        CATransaction.commit()
+    }
+
+    private func finish() {
+        textView.layer.removeAnimation(forKey: "questionRecallSlide")
+        textView.layer.sublayerTransform = CATransform3DIdentity
+        textView.alpha = 1
+        clip?.removeFromSuperview()
+        incomingPlaceholder?.removeFromSuperview()
+        fadeTracker?.stop()
+        container?.layer.mask = previousMask
+        coordinator?.parent.onRecallSlideChange?(false)
+    }
+
+    private func playHapticOnce() {
+        guard !hasPlayedHaptic else { return }
+        hasPlayedHaptic = true
+        guard SettingsHaptics.isEnabled else { return }
+        haptic.impactOccurred(intensity: 0.74)
+    }
+
+    private static func placeholderLabel(for parent: ListAwareTextField, in tv: UITextView) -> UILabel? {
+        guard !parent.placeholder.isEmpty else { return nil }
+        let label = UILabel()
+        label.text = parent.placeholder
+        label.font = parent.font
+        label.textColor = parent.placeholderColor
+        label.textAlignment = parent.textAlignment
+        label.sizeToFit()
+        let width = max(tv.bounds.width, label.bounds.width)
+        let x: CGFloat = parent.textAlignment == .center ? (tv.bounds.width - width) / 2 : 0
+        label.frame = CGRect(x: x, y: tv.bounds.height - label.bounds.height, width: width, height: label.bounds.height)
+        label.autoresizingMask = [.flexibleTopMargin]
+        tv.addSubview(label)
+        return label
+    }
+}
+
+/// Keeps a recall slide's edge fade matched to the field while SwiftUI resizes it.
+private final class EdgeFadeTracker {
+    private weak var container: UIView?
+    private let fade: CAGradientLayer
+    private var link: CADisplayLink?
+    /// Once the fade is easing away, only its frame follows the field.
+    var isClearing = false
+
+    init(container: UIView, fade: CAGradientLayer) {
+        self.container = container
+        self.fade = fade
+        let link = CADisplayLink(target: self, selector: #selector(tick))
+        link.add(to: .main, forMode: .common)
+        self.link = link
+    }
+
+    @objc private func tick() {
+        guard let container else { return stop() }
+        guard fade.frame != container.bounds else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        fade.frame = container.bounds
+        if !isClearing {
+            fade.locations = ListAwareTextField.Coordinator.edgeFadeLocations(for: container.bounds.width)
+        }
+        CATransaction.commit()
+    }
+
+    func stop() {
+        link?.invalidate()
+        link = nil
     }
 }
 
@@ -409,11 +859,53 @@ final class CommandHighlightTextView: UITextView {
     private var lastCommandColor: UIColor?
     private let fadeDuration: CFTimeInterval = 0.3
     private let waveDuration: CFTimeInterval = 1.0 // Matches ThinkingShimmer's sweep.
+    /// Finds recognized `#title` Insight mentions in the draft (see `InsightMention`).
+    var mentionRanges: (String) -> [NSRange] = { _ in [] }
+    /// When each mention, keyed by title and occurrence, was recognized; each sweeps once.
+    private var mentionWaveStarts: [String: CFTimeInterval] = [:]
+    private var currentMentions: [(key: String, range: NSRange)] = []
+    private var mentionLink: CADisplayLink?
+
+    /// Recognized mentions sweep green like a command, then stay green until the question is
+    /// sent, when they become quotes.
+    private func updateMentions(in draft: String) {
+        let source = draft as NSString
+        var occurrences: [String: Int] = [:]
+        currentMentions = mentionRanges(draft).map { range in
+            let title = source.substring(with: range).lowercased()
+            occurrences[title, default: 0] += 1
+            return ("\(title)#\(occurrences[title]!)", range)
+        }
+        let now = CACurrentMediaTime()
+        let keys = Set(currentMentions.map(\.key))
+        mentionWaveStarts = mentionWaveStarts.filter { keys.contains($0.key) }
+        for mention in currentMentions where mentionWaveStarts[mention.key] == nil {
+            mentionWaveStarts[mention.key] = UIAccessibility.isReduceMotionEnabled ? 0 : now
+        }
+        if mentionLink == nil, mentionWaveStarts.values.contains(where: { now - $0 < waveDuration }) {
+            let link = CADisplayLink(target: WaveTarget(self), selector: #selector(WaveTarget.tickMention(_:)))
+            link.add(to: .main, forMode: .common)
+            mentionLink = link
+        }
+    }
+
+    fileprivate func advanceMentions() {
+        let now = CACurrentMediaTime()
+        if !mentionWaveStarts.values.contains(where: { now - $0 < waveDuration }) {
+            mentionLink?.invalidate()
+            mentionLink = nil
+        }
+        applyCommandColor(progress: waveProgress)
+    }
 
     private final class WaveTarget: NSObject {
         weak var textView: CommandHighlightTextView?
         init(_ textView: CommandHighlightTextView) { self.textView = textView }
         @objc func tick(_ link: CADisplayLink) { textView?.advanceCommandWave() }
+        @objc func tickMention(_ link: CADisplayLink) {
+            guard let textView else { return link.invalidate() }
+            textView.advanceMentions()
+        }
     }
 
     func updateCommandHighlight(baseColor: UIColor) {
@@ -422,6 +914,7 @@ final class CommandHighlightTextView: UITextView {
         // Leave marked text alone while an input method is composing it.
         guard markedTextRange == nil else { return }
         let draft = text ?? ""
+        updateMentions(in: draft)
         let token = draft.split(whereSeparator: \.isWhitespace).first.map(String.init)
         let nextCommand = SlashCommand.invocation(for: draft) == nil ? nil : token?.lowercased()
         let previousRange = commandRange
@@ -500,28 +993,7 @@ final class CommandHighlightTextView: UITextView {
         let fullRange = NSRange(location: 0, length: textStorage.length)
         textStorage.addAttribute(.foregroundColor, value: baseColor, range: fullRange)
         if let commandRange, NSMaxRange(commandRange) <= textStorage.length {
-            let green = UIColor(AngroveTheme.Colors.lightGreen).resolvedColor(with: traitCollection)
-            var color = green
-            if progress < 1, bounds.width > 0, bounds.height > 0 {
-                let glyphRange = layoutManager.glyphRange(forCharacterRange: commandRange, actualCharacterRange: nil)
-                let rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
-                // Green trails the moving front; the normal text color lies ahead.
-                let band = max(rect.width * 0.4, 1)
-                let front = rect.minX - band + (rect.width + 2 * band) * progress
-                // The gradient is horizontal, so a one-point strip tiles vertically
-                // without allocating a full bitmap for a tall pasted draft.
-                let image = UIGraphicsImageRenderer(size: CGSize(width: bounds.width, height: 1)).image { context in
-                    let colors = [green.cgColor, baseColor.resolvedColor(with: traitCollection).cgColor] as CFArray
-                    guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) else { return }
-                    context.cgContext.drawLinearGradient(
-                        gradient,
-                        start: CGPoint(x: front - band + textContainerInset.left, y: 0),
-                        end: CGPoint(x: front + band + textContainerInset.left, y: 0),
-                        options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
-                    )
-                }
-                color = UIColor(patternImage: image)
-            }
+            let color = sweepColor(over: commandRange, progress: progress)
             lastCommandColor = color
             textStorage.addAttribute(.foregroundColor, value: color, range: commandRange)
         } else if let fadeStart, let fadeRange, let fadeColor,
@@ -542,10 +1014,49 @@ final class CommandHighlightTextView: UITextView {
         } else {
             lastCommandColor = nil
         }
+        applyMentionColor()
         // New keystrokes, including /rename arguments, begin in the normal color.
         var attributes = typingAttributes
         attributes[.foregroundColor] = baseColor
         typingAttributes = attributes
+    }
+}
+
+private extension CommandHighlightTextView {
+    /// Green trailing a moving front across `range`, with the normal text color ahead of it.
+    func sweepColor(over range: NSRange, progress: CGFloat) -> UIColor {
+        let green = UIColor(AngroveTheme.Colors.lightGreen).resolvedColor(with: traitCollection)
+        guard progress < 1, bounds.width > 0, bounds.height > 0 else { return green }
+        let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+        let rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+        let band = max(rect.width * 0.4, 1)
+        let front = rect.minX - band + (rect.width + 2 * band) * progress
+        // The gradient is horizontal, so a one-point strip tiles vertically
+        // without allocating a full bitmap for a tall pasted draft.
+        let image = UIGraphicsImageRenderer(size: CGSize(width: bounds.width, height: 1)).image { context in
+            let colors = [green.cgColor, baseColor.resolvedColor(with: traitCollection).cgColor] as CFArray
+            guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) else { return }
+            context.cgContext.drawLinearGradient(
+                gradient,
+                start: CGPoint(x: front - band + textContainerInset.left, y: 0),
+                end: CGPoint(x: front + band + textContainerInset.left, y: 0),
+                options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
+            )
+        }
+        return UIColor(patternImage: image)
+    }
+
+    func applyMentionColor() {
+        let now = CACurrentMediaTime()
+        for mention in currentMentions where NSMaxRange(mention.range) <= textStorage.length {
+            let elapsed = now - (mentionWaveStarts[mention.key] ?? 0)
+            let progress = CGFloat(min(1, elapsed / waveDuration))
+            textStorage.addAttribute(
+                .foregroundColor,
+                value: sweepColor(over: mention.range, progress: progress),
+                range: mention.range
+            )
+        }
     }
 }
 
@@ -591,7 +1102,7 @@ private extension UITextView {
 }
 
 /// Tracks contact for visual feedback while allowing caret, selection, and scrolling gestures.
-private final class TextFieldContactRecognizer: UIGestureRecognizer {
+final class TextFieldContactRecognizer: UIGestureRecognizer {
     var onContactChange: ((Bool) -> Void)?
     private var contacts: Set<UITouch> = []
 

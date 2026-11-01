@@ -9,7 +9,7 @@ struct MacCompletionNotificationTests {
         let center = ModelCompletionNotificationCenter()
         var branch = ChatBranch(startingConcept: nil)
         branch.topQuestionText = "First question"
-        branch.activeChatBlocks = [.user("  Follow-up question  ", nil, []), .text("Answer")]
+        branch.activeChatBlocks = [.user("  Follow-up question  ", [], []), .text("Answer")]
         let conversation = InquiryConversation(title: "Test", branches: [branch])
         let task = snapshot(kind: .userQuestion(branchID: branch.id, responseIndex: 1), conversationID: conversation.id)
         var opened: UUID?

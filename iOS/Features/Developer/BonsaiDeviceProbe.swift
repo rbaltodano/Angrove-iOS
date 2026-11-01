@@ -91,7 +91,7 @@ enum BonsaiDeviceProbe {
         let model = LiteRTAngroveModel(runtime: runtime)
         var transcript: [ChatBlock] = []
         for (name, question) in conversation {
-            transcript.append(.user(question, nil, []))
+            transcript.append(.user(question, [], []))
             LiteRTAngroveModel.debugLastResponseError = nil
             let response = await model.respond(to: ConversationContext(transcript: transcript))
             let failed = response.text.hasPrefix("The on-device Angrove model couldn't complete")

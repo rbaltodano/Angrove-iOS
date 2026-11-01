@@ -149,6 +149,10 @@ struct ChatThreadColumn: View {
     var slashCommandQuery: SlashCommandQuery? = nil
     var onSelectSlashCommand: (SlashCommand) -> Void = { _ in }
     var onExecuteSlashCommand: (SlashCommandInvocation) -> Void = { _ in }
+    /// Insights `#` can quote: this conversation's first, then the saved library.
+    var insightQuoteCandidates: () -> [ConceptDefinition] = { [] }
+    var showsInsightQuoteMenu: Bool = false
+    var insightQuoteQuery: SlashCommandQuery? = nil
     var onQuoteHandled: () -> Void
     var onQuotedConceptRemoved: () -> Void = {}
     var onQuotedConceptSubmitted: () -> Void = {}
@@ -284,7 +288,6 @@ struct ChatThreadColumn: View {
     @State private var responseViewLifetime = ConversationResponseViewLifetime()
     @State private var pendingDockSubmission: Task<Void, Never>?
     @State private var animatedResponseIndices: Set<Int> = []
-    @State private var composerReadyResponseIndices: Set<Int> = []
     @State private var pendingResponseIndices: Set<Int> = []
     @State private var streamingResponseIndices: Set<Int> = []
     @State private var modelQueuedResponseIndices: Set<Int> = []
@@ -306,6 +309,7 @@ struct ChatThreadColumn: View {
     /// Tracks UITextView buffer emptiness for placeholder visibility (not tied to binding).
     @State private var topFieldIsEmpty: Bool = true
     @State private var bottomFieldIsEmpty: Bool = true
+    @State private var questionRecall = QuestionRecall()
     /// Relay references for reading live UITextView text at submit time without
     /// requiring per-keystroke binding writes (which would re-render the whole tree).
     @State private var topFieldRelay = TextInputRelay()
@@ -331,7 +335,20 @@ struct ChatThreadColumn: View {
 
     @ViewBuilder
     private func slashCommandMenuOverlay(forBottomField: Bool, yOffset: CGFloat) -> some View {
-        if showsSlashCommandMenu,
+        if showsInsightQuoteMenu,
+           bottomFieldIsActive == forBottomField,
+           let insightQuoteQuery {
+            InsightQuoteMenu(
+                query: insightQuoteQuery,
+                candidates: insightQuoteCandidates(),
+                quotedIDs: Set(branchData.editableQuestionQuotes.map(\.id)),
+                onSelect: selectInsightQuote
+            )
+            .fixedSize(horizontal: false, vertical: true)
+            .offset(y: yOffset)
+            .zIndex(50)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        } else if showsSlashCommandMenu,
            bottomFieldIsActive == forBottomField,
            let slashCommandQuery {
             SlashCommandMenu(query: slashCommandQuery, maxHeight: nil, onSelect: onSelectSlashCommand)
@@ -524,7 +541,6 @@ struct ChatThreadColumn: View {
         let responseLifetime = responseViewLifetime
         let model = angroveModel
 
-        composerReadyResponseIndices.remove(responseIndex)
         animatedResponseIndices.insert(responseIndex)
         LiveResponseStore.shared.begin(liveKey, showsThinking: thinkingEnabled)
         pendingResponseIndices.insert(responseIndex)
@@ -911,7 +927,7 @@ struct ChatThreadColumn: View {
 
     private func restoreQueuedBottomQuestion(
         _ question: String,
-        quotedConcept: ConceptDefinition?,
+        quotedConcepts: [ConceptDefinition],
         uploads: [UploadedFile],
         connectionConcepts: [ConceptDefinition]?
     ) {
@@ -926,7 +942,7 @@ struct ChatThreadColumn: View {
                 branchData.activeChatBlocks.removeLast()
             }
             branchData.bottomQuestionText = question
-            branchData.attachedConcept = quotedConcept
+            branchData.attachedConcepts = quotedConcepts
             localConnectionConcepts = connectionConcepts
             branchData.showBottomInput = true
         }
@@ -963,12 +979,12 @@ struct ChatThreadColumn: View {
         if let hiddenPromptContext = branchData.hiddenPromptContext?
             .trimmingCharacters(in: .whitespacesAndNewlines),
            !hiddenPromptContext.isEmpty {
-            transcript.append(.user(hiddenPromptContext, nil, []))
+            transcript.append(.user(hiddenPromptContext, [], []))
         }
         if !usesCompactedContext {
             let topQuestion = branchData.topQuestionText.trimmingCharacters(in: .whitespacesAndNewlines)
             if branchData.topQuestionSubmitted, !topQuestion.isEmpty {
-                transcript.append(.user(topQuestion, branchData.branchContextConcept, branchData.topQuestionUploads))
+                transcript.append(.user(topQuestion, branchData.branchContextConcepts, branchData.topQuestionUploads))
             }
         }
         transcript.append(
@@ -984,13 +1000,13 @@ struct ChatThreadColumn: View {
                if case .user = block { return true }
                return false
            }),
-           case .user(let question, let concept, let uploads) = transcript[userIndex] {
+           case .user(let question, let concepts, let uploads) = transcript[userIndex] {
             transcript[userIndex] = .user(
                 connectionInquiryPrompt(
                     concepts: connectionConcepts,
                     question: question
                 ),
-                concept,
+                concepts,
                 uploads
             )
         }
@@ -1078,12 +1094,46 @@ struct ChatThreadColumn: View {
         branchData.attachQuote(concept)
     }
 
+    // MARK: # Insight quotes
+
+    /// Recognized `#title` mentions in a draft, colored like a command while typing.
+    private func insightMentions(_ text: String) -> [InsightMention.Mention] {
+        InsightMention.mentions(in: text, candidates: insightQuoteCandidates())
+    }
+
+    /// On send, each `#title` becomes a quote on the question (up to the limit, skipping ones
+    /// already quoted), and the question keeps the title's words without the `#`.
+    private func resolvingInsightMentions(in question: String) -> String {
+        let mentions = insightMentions(question)
+        guard !mentions.isEmpty else { return question }
+        for mention in mentions { branchData.attachQuote(mention.concept) }
+        return InsightMention.resolving(mentions, in: question)
+    }
+
+    /// Tapping an Insight in the `#` menu completes the typed `#title`, which then colors like
+    /// a command and becomes a quote when the question is sent.
+    private func selectInsightQuote(_ concept: ConceptDefinition) {
+        let isBottom = bottomFieldIsActive
+        let relay = isBottom ? bottomFieldRelay : topFieldRelay
+        let completed = InsightMention.completingActiveQuery(in: relay.currentText(), with: concept)
+        relay.replaceAll(completed)
+        if isBottom {
+            branchData.bottomQuestionText = completed
+            bottomFieldIsEmpty = completed.isEmpty
+        } else {
+            branchData.topQuestionText = completed
+            topFieldIsEmpty = completed.isEmpty
+        }
+        onActiveInputTextChange(completed)
+        SettingsHaptics.playSelection()
+    }
+
     private func submitTopQuestionIfNeeded() {
         // Flush the UITextView's live buffer into the binding synchronously.
         // Because we stopped per-keystroke binding writes, the relay is the only
         // way to read text that was typed but not yet blurred.
         branchData.topQuestionText = topFieldRelay.currentText()
-        let submittedQuestion = branchData.topQuestionText.trimmingCharacters(in: .whitespacesAndNewlines)
+        var submittedQuestion = branchData.topQuestionText.trimmingCharacters(in: .whitespacesAndNewlines)
         if let command = SlashCommand.invocation(for: submittedQuestion), !command.producesResponse {
             // Keep an incomplete definition request editable until it has a subject.
             guard command != .define(nil) else { return }
@@ -1099,6 +1149,7 @@ struct ChatThreadColumn: View {
             return
         }
 
+        submittedQuestion = resolvingInsightMentions(in: submittedQuestion)
         let submittedUploads = visibleUploads
         branchData.topQuestionText = submittedQuestion
         branchData.topQuestionUploads = submittedUploads
@@ -1146,7 +1197,7 @@ struct ChatThreadColumn: View {
     private func submitBottomQuestionIfNeeded() {
         // Flush live UITextView text to binding before reading (relay avoids per-keystroke writes).
         branchData.bottomQuestionText = bottomFieldRelay.currentText()
-        let submittedQuestion = branchData.bottomQuestionText.trimmingCharacters(in: .whitespacesAndNewlines)
+        var submittedQuestion = branchData.bottomQuestionText.trimmingCharacters(in: .whitespacesAndNewlines)
         if let command = SlashCommand.invocation(for: submittedQuestion), !command.producesResponse {
             // Keep an incomplete definition request editable until it has a subject.
             guard command != .define(nil) else { return }
@@ -1162,26 +1213,27 @@ struct ChatThreadColumn: View {
             return
         }
 
-        let quotedConcept = branchData.attachedConcept
+        submittedQuestion = resolvingInsightMentions(in: submittedQuestion)
+        let quotedConcepts = branchData.attachedConcepts
         let submittedUploads = visibleUploads
         let submittedConnectionConcepts = localConnectionConcepts
         withAnimation(.springQuick) {
             branchData.showBottomInput = false
-            branchData.activeChatBlocks.append(.user(submittedQuestion, quotedConcept, submittedUploads))
+            branchData.activeChatBlocks.append(.user(submittedQuestion, quotedConcepts, submittedUploads))
         }
-        if quotedConcept != nil {
+        if !quotedConcepts.isEmpty {
             onQuotedConceptSubmitted()
         }
         if showsPendingUploads {
             uploadedFiles.removeAll()
         }
-        branchData.attachedConcept = nil
+        branchData.attachedConcepts = []
         localConnectionConcepts = nil
         branchData.bottomQuestionText = ""
         appendSimulatedResponse(connectionConcepts: submittedConnectionConcepts) {
             restoreQueuedBottomQuestion(
                 submittedQuestion,
-                quotedConcept: quotedConcept,
+                quotedConcepts: quotedConcepts,
                 uploads: submittedUploads,
                 connectionConcepts: submittedConnectionConcepts
             )
@@ -1326,7 +1378,7 @@ struct ChatThreadColumn: View {
 
     private var newConversationQuestionField: some View {
         VStack(alignment: questionContextHorizontalAlignment, spacing: 12) {
-            if let concept = branchData.branchContextConcept {
+            QuotedInsightRow(concepts: branchData.branchContextConcepts, alignment: questionContextAlignment) { concept in
                 BranchContextChip(
                     title: concept.isLibraryQuote ? concept.word : concept.word.capitalized,
                     icon: concept.isLibraryQuote ? "books.vertical" : "text.bubble",
@@ -1335,7 +1387,7 @@ struct ChatThreadColumn: View {
                     onTap: { onQuotedConceptTap(concept) },
                     onRemove: {
                         withAnimation(.springLively) {
-                            branchData.branchContextConcept = nil
+                            branchData.branchContextConcepts.removeAll { $0.id == concept.id }
                         }
                         onQuotedConceptRemoved()
                     }
@@ -1375,7 +1427,8 @@ struct ChatThreadColumn: View {
                     isTopQuestionFocused = true
                     isBottomQuestionFocused = false
                     topFieldRelay.focus()
-                }
+                },
+                insightMentions: insightMentions
             )
             .overlay(alignment: .top) {
                 slashCommandMenuOverlay(forBottomField: false, yOffset: 34)
@@ -1456,21 +1509,32 @@ struct ChatThreadColumn: View {
                         }
                     )
 
-                    if let concept = branchData.branchContextConcept, !usesNewConversationPromptHeader {
-                        BranchContextChip(
-                            title: concept.isLibraryQuote ? concept.word : concept.word.capitalized,
-                            icon: concept.isLibraryQuote ? "books.vertical" : (branchData.topQuestionSubmitted ? "text.bubble.fill" : "text.bubble"),
-                            animationKey: branchData.topQuestionSubmitted ? "submitted" : "pending",
-                            isFilled: branchData.topQuestionSubmitted,
-                            appearDelay: 0.25,
-                            showRemove: branchData.parentBranchID != nil && !branchData.topQuestionSubmitted,
-                            onTap: { onQuotedConceptTap(concept) },
-                            onRemove: onDeleteBranch
-                        )
-                        .matchedGeometryEffect(
-                            id: quotedConceptMatchID(concept.id, responseIndex: 0),
-                            in: quotedContextChipNamespace
-                        )
+                    if !branchData.branchContextConcepts.isEmpty, !usesNewConversationPromptHeader {
+                        QuotedInsightRow(concepts: branchData.branchContextConcepts, alignment: questionContextAlignment) { concept in
+                            // The Insight a branch started from removes the branch; later quotes remove themselves.
+                            let isBranchStart = concept.id == branchData.startingConcept?.id
+                            BranchContextChip(
+                                title: concept.isLibraryQuote ? concept.word : concept.word.capitalized,
+                                icon: concept.isLibraryQuote ? "books.vertical" : (branchData.topQuestionSubmitted ? "text.bubble.fill" : "text.bubble"),
+                                animationKey: branchData.topQuestionSubmitted ? "submitted" : "pending",
+                                isFilled: branchData.topQuestionSubmitted,
+                                appearDelay: 0.25,
+                                showRemove: !branchData.topQuestionSubmitted
+                                    && (!isBranchStart || branchData.parentBranchID != nil),
+                                onTap: { onQuotedConceptTap(concept) },
+                                onRemove: {
+                                    guard !isBranchStart else { return onDeleteBranch() }
+                                    withAnimation(.springLively) {
+                                        branchData.branchContextConcepts.removeAll { $0.id == concept.id }
+                                    }
+                                    onQuotedConceptRemoved()
+                                }
+                            )
+                            .matchedGeometryEffect(
+                                id: quotedConceptMatchID(concept.id, responseIndex: 0),
+                                in: quotedContextChipNamespace
+                            )
+                        }
                     } else if let branchResponseTitle {
                         BranchContextChip(
                             title: branchResponseTitle,
@@ -1518,7 +1582,8 @@ struct ChatThreadColumn: View {
                                         isTopQuestionFocused = true
                                         isBottomQuestionFocused = false
                                         topFieldRelay.focus()
-                                    }
+                                    },
+                                    insightMentions: insightMentions
                                 )
                                 .overlay(alignment: .top) {
                                     slashCommandMenuOverlay(forBottomField: false, yOffset: 72)
@@ -1583,11 +1648,6 @@ struct ChatThreadColumn: View {
                                 onRevealStart: {
                                     responseRevealGatesByIndex[index]?.markStarted()
                                 },
-                                onBodyRevealComplete: {
-                                    withAnimation(ResponseRevealTiming.finishingAnimation) {
-                                        composerReadyResponseIndices.insert(index)
-                                    }
-                                },
                                 onFinish: {
                                     withAnimation(ResponseRevealTiming.finishingAnimation) {
                                         animatedResponseIndices.remove(index)
@@ -1618,13 +1678,13 @@ struct ChatThreadColumn: View {
                         : .identity
                     )
 
-                case .user(let questionText, let concept, let attachments):
+                case .user(let questionText, let concepts, let attachments):
                     ConversationGap()
 
                     VStack(alignment: questionContextHorizontalAlignment, spacing: 16) {
                         UploadedFileStrip(files: attachments, alignment: questionContextAlignment)
 
-                        if let concept {
+                        QuotedInsightRow(concepts: concepts, alignment: questionContextAlignment) { concept in
                             BranchContextChip(
                                 title: concept.isLibraryQuote ? concept.word : concept.word.capitalized,
                                 icon: concept.isLibraryQuote ? "books.vertical" : "text.bubble.fill",
@@ -1665,10 +1725,10 @@ struct ChatThreadColumn: View {
             }
 
             // MARK: Follow-up Input
-            // Appears after the latest model response finishes.
+            // Appears once the latest response, its actions, and the disclaimer have all
+            // finished revealing, so it never appears early and gets pushed down.
             if branchData.showBottomInput
-                && (!animatedResponseIndices.contains(branchData.activeChatBlocks.count - 1)
-                    || composerReadyResponseIndices.contains(branchData.activeChatBlocks.count - 1)) {
+                && !animatedResponseIndices.contains(branchData.activeChatBlocks.count - 1) {
                 ConversationGap()
 
                 VStack(alignment: questionContextHorizontalAlignment, spacing: 16) {
@@ -1676,7 +1736,7 @@ struct ChatThreadColumn: View {
                             uploadedFiles.removeAll { $0.id == file.id }
                         }
 
-                        if let concept = branchData.attachedConcept {
+                        QuotedInsightRow(concepts: branchData.attachedConcepts, alignment: questionContextAlignment) { concept in
                             BranchContextChip(
                                 title: concept.isLibraryQuote ? concept.word : concept.word.capitalized,
                                 icon: concept.isLibraryQuote ? "books.vertical" : "text.bubble",
@@ -1685,7 +1745,7 @@ struct ChatThreadColumn: View {
                                 onTap: { onQuotedConceptTap(concept) },
                                 onRemove: {
                                     withAnimation {
-                                        branchData.attachedConcept = nil
+                                        branchData.attachedConcepts.removeAll { $0.id == concept.id }
                                     }
                                     onQuotedConceptRemoved()
                                 }
@@ -1737,7 +1797,19 @@ struct ChatThreadColumn: View {
                                     onActiveInputTextChange(text)
                                 },
                                 onSubmit: submitBottomQuestionIfNeeded,
-                                onTapToFocus: { bottomFieldRelay.focus() }
+                                onTapToFocus: { bottomFieldRelay.focus() },
+                                onSwipeRecall: { older in
+                                    var recall = questionRecall
+                                    let current = bottomFieldRelay.currentText()
+                                    let history = branchData.submittedQuestions
+                                    let text = older
+                                        ? recall.older(in: history, current: current)
+                                        : recall.newer(in: history, current: current)
+                                    return text.map { text in
+                                        QuestionRecallStep(text: text) { questionRecall = recall }
+                                    }
+                                },
+                                insightMentions: insightMentions
                             )
                             .overlay(alignment: .top) {
                                 slashCommandMenuOverlay(forBottomField: true, yOffset: 72)
@@ -1769,8 +1841,9 @@ struct ChatThreadColumn: View {
         .coordinateSpace(name: "ColumnContent-\(branchData.id)")
         .onAppear {
             responseViewLifetime.isVisible = true
-            if let concept = branchData.startingConcept {
-                branchData.branchContextConcept = concept
+            if let concept = branchData.startingConcept,
+               !branchData.branchContextConcepts.contains(where: { $0.id == concept.id }) {
+                branchData.branchContextConcepts.insert(concept, at: 0)
             }
             // A brand-new branch (e.g. from the "Ask" flow) can mount with `quotedConcept`
             // already populated at construction time, rather than it changing later while this
@@ -1783,9 +1856,9 @@ struct ChatThreadColumn: View {
                 onQuoteHandled()
             } else if !branchData.topQuestionSubmitted,
                       branchData.activeChatBlocks.isEmpty,
-                      let concept = branchData.attachedConcept {
+                      !branchData.attachedConcepts.isEmpty {
                 // Normalize drafts saved before quotes used the first question field.
-                attachQuotedConcept(concept)
+                branchData.attachedConcepts.forEach(attachQuotedConcept)
             }
             // Sync placeholder visibility with any pre-filled text (e.g. restored branch)
             topFieldIsEmpty    = branchData.topQuestionText.isEmpty
@@ -1934,10 +2007,21 @@ private struct QuestionInputField: View {
     var onTextChange: (String) -> Void
     var onSubmit: (() -> Void)? = nil
     var onTapToFocus: (() -> Void)? = nil
+    var onSwipeRecall: ((Bool) -> QuestionRecallStep?)? = nil
+    var insightMentions: ((String) -> [InsightMention.Mention])? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isConversationPageDeparting) private var isPageDeparting
     @State private var isPressed = false
+    /// The editor draws its own placeholder while a recalled question slides in.
+    @State private var isRecallSliding = false
+    /// Recall directions available when the finger went down, shown as chevrons beside the field.
+    @State private var recallHints: (older: Bool, newer: Bool) = (false, false)
+
+    private func setPressed(_ pressed: Bool) {
+        if pressed, onSwipeRecall != nil { recallHints = relay.recallDirections() }
+        isPressed = !isLocked && pressed
+    }
 
     private var inputFont: UIFont {
         let fontName = fontOption == .sans
@@ -1965,20 +2049,32 @@ private struct QuestionInputField: View {
     private var questionEditor: some View {
         ListAwareTextField(
             text: $text,
+            placeholder: placeholder,
             font: inputFont,
             lineHeight: lineHeight,
             isLocked: isLocked,
             textColor: .angrovePrimaryReadable,
             textAlignment: uiTextAlignment,
             onFocusChange: onFocusChange,
-            onPressChange: { isPressed = !isLocked && $0 },
+            onPressChange: setPressed,
             relay: relay,
             onTextChange: onTextChange,
             onSubmit: onSubmit,
+            onSwipeRecall: onSwipeRecall,
+            insightMentions: insightMentions,
+            onRecallSlideChange: { isRecallSliding = $0 },
+            placeholderColor: UIColor(placeholderColor),
             hugsContentWidth: true,
             minimumContentWidth: isLocked ? 0 : placeholderWidth
         )
         .frame(minHeight: 22, alignment: textAlignment.frameAlignment)
+        .overlay(alignment: .leading) {
+            // Newer questions arrive by swiping left; older ones by swiping right.
+            recallChevron("chevron.left", isAvailable: recallHints.newer).offset(x: -Self.recallChevronInset)
+        }
+        .overlay(alignment: .trailing) {
+            recallChevron("chevron.right", isAvailable: recallHints.older).offset(x: Self.recallChevronInset)
+        }
         .overlay(alignment: textAlignment == .left ? .bottomLeading : textAlignment.frameAlignment) {
             if isEmpty {
                 Text(placeholder)
@@ -1986,8 +2082,23 @@ private struct QuestionInputField: View {
                     .foregroundStyle(placeholderColor)
                     .multilineTextAlignment(textAlignment.textAlignment)
                     .allowsHitTesting(false)
+                    .opacity(isRecallSliding ? 0 : 1)
             }
         }
+    }
+
+    /// Chevrons sit just outside the quotation marks, so the field itself never moves.
+    private static let recallChevronInset: CGFloat = 34
+
+    private func recallChevron(_ symbol: String, isAvailable: Bool) -> some View {
+        let isShown = isPressed && (recallHints.older || recallHints.newer) && !isRecallSliding
+        return Image(systemName: symbol)
+            .angroveIcon(.small, .strong)
+            .foregroundStyle(placeholderColor)
+            .opacity(isShown ? (isAvailable ? 1 : 0.35) : 0)
+            .animation(.easeOut(duration: 0.2), value: isShown)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     private var placeholderWidth: CGFloat {
@@ -1996,6 +2107,13 @@ private struct QuestionInputField: View {
 
     var body: some View {
         quotedQuestion
+            .background {
+                // A taller swipe area across the row makes recall easy to start.
+                if onSwipeRecall != nil, !isLocked {
+                    RecallSwipeArea(relay: relay, onContactChange: setPressed)
+                        .padding(.vertical, -18)
+                }
+            }
             .scaleEffect(!isLocked && isPressed ? 1.05 : 1, anchor: questionAlignment == .trailing ? .trailing : .center)
             .animation(reduceMotion ? nil : .springMicro, value: isPressed)
             .onDisappear { isPressed = false }
@@ -2019,6 +2137,7 @@ private struct QuestionInputField: View {
             maximumWidth: maximumWidth,
             alignment: questionAlignment,
             isPageDeparting: isPageDeparting,
+            glidesMarks: isRecallSliding,
             onTapToFocus: onTapToFocus
         ) {
             questionEditor

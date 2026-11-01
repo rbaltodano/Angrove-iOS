@@ -209,7 +209,7 @@ struct MacBoardConversationMappingTests {
 
     private func append(_ answer: String, to branch: inout ChatBranch) {
         if !branch.activeChatBlocks.isEmpty {
-            branch.activeChatBlocks.append(.user("Question \(branch.activeChatBlocks.count)", nil, []))
+            branch.activeChatBlocks.append(.user("Question \(branch.activeChatBlocks.count)", [], []))
         }
         let index = branch.activeChatBlocks.count
         branch.activeChatBlocks.append(.text(answer))

@@ -457,8 +457,9 @@ private struct BranchMapPreviewView: View {
         switch block {
         case .text(let t):
             responseShell(title: generatedResponseTitle(from: t))
-        case .user(let q, let concept, let attachments):
-            userQuestionPreview(question: q, concept: concept, attachments: attachments)
+        case .user(let q, let concepts, let attachments):
+            // The canvas card has room for one quote; it shows the first.
+            userQuestionPreview(question: q, concept: concepts.first, attachments: attachments)
         }
     }
 

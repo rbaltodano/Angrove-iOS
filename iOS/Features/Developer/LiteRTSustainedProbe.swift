@@ -69,7 +69,7 @@ enum LiteRTSustainedProbe {
                 LiteRTLifecycleTrace.shared.record("c9-request-accepted", ["turn": turn, "uptime": start])
                 app.modelTasks.enqueue(kind: .userQuestion(branchID: UUID(), responseIndex: 1)) {
                     let response = await app.model.respond(
-                        to: ConversationContext(transcript: [.user(question, nil, [])]),
+                        to: ConversationContext(transcript: [.user(question, [], [])]),
                         thinkingEnabled: false,
                         onUpdate: { update in
                             if case let .responseText(text) = update, !text.isEmpty {

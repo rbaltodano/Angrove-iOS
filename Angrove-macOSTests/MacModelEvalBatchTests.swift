@@ -131,9 +131,9 @@ struct MacModelEvalBatchTests {
         var failed = 0
         for evalCase in cases {
             var transcript: [ChatBlock] = evalCase.turns.map { turn in
-                turn.role == "assistant" ? .text(turn.text) : .user(turn.text, nil, [])
+                turn.role == "assistant" ? .text(turn.text) : .user(turn.text, [], [])
             }
-            transcript.append(.user(evalCase.question, nil, []))
+            transcript.append(.user(evalCase.question, [], []))
             if let supplied {
                 oracleProvider.set((supplied[evalCase.id] ?? []).enumerated().map { index, passage in
                     AngroveGroundingReference(

@@ -583,7 +583,7 @@ struct StudyTopicDetailView: View {
                 case .text(let t): text += " \(t)"
                 case .user(let q, let c, _):
                     text += " \(q)"
-                    if let c { text += " \(c.word) \(c.meaning)" }
+                    for c in c { text += " \(c.word) \(c.meaning)" }
                 }
             }
         }

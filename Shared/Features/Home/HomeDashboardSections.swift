@@ -559,15 +559,12 @@ enum HomeDashboardContent {
         var concepts: [ConceptDefinition] = []
 
         for branch in conversation.branches {
-            concepts.append(contentsOf: [
-                branch.startingConcept,
-                branch.attachedConcept,
-                branch.branchContextConcept
-            ].compactMap { $0 })
+            concepts.append(contentsOf: [branch.startingConcept].compactMap { $0 })
+            concepts.append(contentsOf: branch.attachedConcepts + branch.branchContextConcepts)
 
             for block in branch.activeChatBlocks {
-                if case .user(_, let concept?, _) = block {
-                    concepts.append(concept)
+                if case .user(_, let quoted, _) = block {
+                    concepts.append(contentsOf: quoted)
                 }
             }
         }

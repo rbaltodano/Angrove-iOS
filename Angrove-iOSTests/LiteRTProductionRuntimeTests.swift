@@ -216,7 +216,7 @@ struct LiteRTProductionRuntimeTests {
         #expect(LiteRTAngroveModel.requiresCorpusEvidence("What is the latest space mission?"))
 
         let instruction = LiteRTAngroveModel.evidenceExperimentInstruction(
-            context: ConversationContext(transcript: [.user(reflection, nil, [])]),
+            context: ConversationContext(transcript: [.user(reflection, [], [])]),
             references: []
         )
         #expect(instruction.contains("Engage with the user’s argument"))
@@ -230,8 +230,8 @@ struct LiteRTProductionRuntimeTests {
         let query = LiteRTAngroveModel.groundingQuery(
             for: ConversationContext(
                 transcript: [
-                    .user(prompt, nil, []),
-                    .user(reflection, nil, [])
+                    .user(prompt, [], []),
+                    .user(reflection, [], [])
                 ]
             )
         )
@@ -246,9 +246,9 @@ struct LiteRTProductionRuntimeTests {
         let query = LiteRTAngroveModel.groundingQuery(
             for: ConversationContext(
                 transcript: [
-                    .user("What is justification?", nil, []),
+                    .user("What is justification?", [], []),
                     .text("Justification is God's gracious work of making a person righteous."),
-                    .user(latestQuestion, nil, [])
+                    .user(latestQuestion, [], [])
                 ]
             )
         )
@@ -261,9 +261,9 @@ struct LiteRTProductionRuntimeTests {
         let lombard = LiteRTAngroveModel.groundingQuery(
             for: ConversationContext(
                 transcript: [
-                    .user("Who was Peter Lombard?", nil, []),
+                    .user("Who was Peter Lombard?", [], []),
                     .text("Peter Lombard was a theologian and bishop of Paris whose Four Books of Sentences became the standard theology textbook."),
-                    .user("Did Aquinas comment on his work?", nil, [])
+                    .user("Did Aquinas comment on his work?", [], [])
                 ]
             )
         )
@@ -273,9 +273,9 @@ struct LiteRTProductionRuntimeTests {
         let subjectless = LiteRTAngroveModel.groundingQuery(
             for: ConversationContext(
                 transcript: [
-                    .user("What is the natural law?", nil, []),
+                    .user("What is the natural law?", [], []),
                     .text("The natural law is the rational creature's participation in the eternal law."),
-                    .user("Can you give a concrete example?", nil, [])
+                    .user("Can you give a concrete example?", [], [])
                 ]
             )
         )
@@ -284,9 +284,9 @@ struct LiteRTProductionRuntimeTests {
         let answerSubject = LiteRTAngroveModel.groundingQuery(
             for: ConversationContext(
                 transcript: [
-                    .user("What is the Summa Theologiae?", nil, []),
+                    .user("What is the Summa Theologiae?", [], []),
                     .text("The Summa Theologiae is Thomas Aquinas's unfinished systematic presentation of theology, organized into questions and articles."),
-                    .user("How is each article structured?", nil, [])
+                    .user("How is each article structured?", [], [])
                 ]
             )
         )
@@ -296,9 +296,9 @@ struct LiteRTProductionRuntimeTests {
         let unrelated = LiteRTAngroveModel.groundingQuery(
             for: ConversationContext(
                 transcript: [
-                    .user("Who was Peter Lombard?", nil, []),
+                    .user("Who was Peter Lombard?", [], []),
                     .text("Peter Lombard was a theologian and bishop of Paris."),
-                    .user(newTopic, nil, [])
+                    .user(newTopic, [], [])
                 ]
             )
         )
@@ -312,9 +312,9 @@ struct LiteRTProductionRuntimeTests {
             LiteRTAngroveModel.latestRequestMessage(
                 for: ConversationContext(
                     transcript: [
-                        .user("Who was Peter Lombard?", nil, []),
+                        .user("Who was Peter Lombard?", [], []),
                         .text("Peter Lombard was a theologian and bishop of Paris."),
-                        .user("Did Aquinas comment on his work?", nil, [])
+                        .user("Did Aquinas comment on his work?", [], [])
                     ]
                 )
             )
@@ -325,9 +325,9 @@ struct LiteRTProductionRuntimeTests {
             LiteRTAngroveModel.latestRequestMessage(
                 for: ConversationContext(
                     transcript: [
-                        .user("Who was Peter Lombard?", nil, []),
+                        .user("Who was Peter Lombard?", [], []),
                         .text("Peter Lombard was a theologian and bishop of Paris."),
-                        .user("What is the natural law?", nil, [])
+                        .user("What is the natural law?", [], [])
                     ]
                 )
             )
@@ -539,7 +539,7 @@ struct LiteRTProductionRuntimeTests {
         for isLatest in [true, false] {
             let message = try #require(
                 LiteRTAngroveModel.engineMessage(
-                    .user("What does this diagram show?", nil, [upload]),
+                    .user("What does this diagram show?", [], [upload]),
                     isLatestUserRequest: isLatest,
                     supportsVision: false
                 )
@@ -552,7 +552,7 @@ struct LiteRTProductionRuntimeTests {
             #expect(message.toString.contains("cannot view"))
         }
         let imageOnly = try #require(
-            LiteRTAngroveModel.engineMessage(.user("", nil, [upload]), supportsVision: false)
+            LiteRTAngroveModel.engineMessage(.user("", [], [upload]), supportsVision: false)
         )
         #expect(imageOnly.toString.contains("cannot view"))
     }
@@ -564,7 +564,7 @@ struct LiteRTProductionRuntimeTests {
         let upload = UploadedFile(name: "diagram.png", imageData: bytes, rotationDegrees: 0)
         for isLatest in [true, false] {
             let message = try #require(LiteRTAngroveModel.engineMessage(
-                .user("Describe this diagram", nil, [upload]),
+                .user("Describe this diagram", [], [upload]),
                 isLatestUserRequest: isLatest, supportsVision: true
             ))
             #expect(message.toString.contains("Describe this diagram"))
@@ -575,7 +575,7 @@ struct LiteRTProductionRuntimeTests {
             })
         }
         let imageOnly = try #require(LiteRTAngroveModel.engineMessage(
-            .user("", nil, [upload]), supportsVision: true
+            .user("", [], [upload]), supportsVision: true
         ))
         #expect(imageOnly.contents.count == 1)
     }
@@ -593,7 +593,7 @@ struct LiteRTProductionRuntimeTests {
         }.pngData())
         let upload = UploadedFile(name: "large.png", imageData: original, rotationDegrees: 0)
         let message = try #require(LiteRTAngroveModel.engineMessage(
-            .user("Describe this image", nil, [upload]), supportsVision: true
+            .user("Describe this image", [], [upload]), supportsVision: true
         ))
         let normalized = try #require(message.contents.compactMap { content -> Data? in
             if case .imageData(let data) = content { return data }
@@ -611,8 +611,8 @@ struct LiteRTProductionRuntimeTests {
     func contextBudgetIncludesImageTokens() {
         let photo = UploadedFile(name: "photo", imageData: Data([1]), rotationDegrees: 0)
         let context = ConversationContext(transcript: [
-            .user("Describe this", nil, [photo]), .text("A red square."),
-            .user("Compare it with this", nil, [photo])
+            .user("Describe this", [], [photo]), .text("A red square."),
+            .user("Compare it with this", [], [photo])
         ])
         let textOnly = AngroveContextBudget.estimatedRequestTokenCount(
             for: context, supportsVision: false
@@ -642,9 +642,9 @@ struct LiteRTProductionRuntimeTests {
     func repeatedPriorAnswerIsDetected() {
         let answer = "The Apostle Paul's letter to the elders is presented as a model of Christian teaching and living."
         let transcript: [ChatBlock] = [
-            .user("Tell me about an early church letter.", nil, []),
+            .user("Tell me about an early church letter.", [], []),
             .text(answer),
-            .user("Write some JavaScript cursor tracker code.", nil, [])
+            .user("Write some JavaScript cursor tracker code.", [], [])
         ]
 
         #expect(
@@ -804,14 +804,14 @@ struct LiteRTProductionRuntimeTests {
         #expect(!ConversationDraftRetention.shouldKeep(emptyDraft))
 
         var insightDraft = InquiryConversation()
-        insightDraft.branches[0].attachedConcept = ConceptDefinition(
+        insightDraft.branches[0].attachedConcepts = [ConceptDefinition(
             word: "Prudence",
             partOfSpeech: "noun",
             pronunciation: "",
             meaning: "Practical wisdom.",
             example: "",
             definitions: []
-        )
+        )]
         #expect(ConversationDraftRetention.shouldKeep(insightDraft))
 
         var textDraft = InquiryConversation()
@@ -870,7 +870,7 @@ struct LiteRTProductionRuntimeTests {
 
         let prompt = ConversationPromptMarkup.userPrompt(
             question: "How does this apply to change?",
-            quotedInsight: insight
+            quotedInsights: [insight]
         )
 
         #expect(prompt.hasPrefix("<insight_quote>"))
@@ -926,7 +926,7 @@ struct LiteRTProductionRuntimeTests {
             transcript: [
                 .user(
                     "How do I forgive myself when I keep making moral mistakes?",
-                    nil,
+                    [],
                     []
                 )
             ]
@@ -946,7 +946,7 @@ struct LiteRTProductionRuntimeTests {
             transcript: [
                 .user(
                     "How can friendship help a person become more patient?",
-                    nil,
+                    [],
                     []
                 )
             ]
@@ -1221,9 +1221,9 @@ struct LiteRTProductionRuntimeTests {
         let latestQuestion = "Was the Didache written by Paul, or is its authorship unknown?"
         let context = ConversationContext(
             transcript: [
-                .user("Explain early Christian writings.", nil, []),
+                .user("Explain early Christian writings.", [], []),
                 .text(String(repeating: "Earlier discussion with important context. ", count: 240)),
-                .user(latestQuestion, nil, [])
+                .user(latestQuestion, [], [])
             ]
         )
 
@@ -1277,7 +1277,7 @@ struct LiteRTProductionRuntimeTests {
     @MainActor
     private func definitionTerm(in request: String) -> String? {
         LiteRTAngroveModel.definitionRequestTerm(
-            in: [.user(request, nil, [])]
+            in: [.user(request, [], [])]
         )
     }
 }

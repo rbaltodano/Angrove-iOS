@@ -42,7 +42,7 @@ struct EvidenceAblationTests {
         if request.useCPU == true { await runtime.configureEvidenceExperimentCPU() }
         try await runtime.loadModelWeights()
         for job in request.jobs where !done.contains(job.id) {
-            let context = ConversationContext(transcript: [.user(job.question, nil, [])])
+            let context = ConversationContext(transcript: [.user(job.question, [], [])])
             let placeholder = AngroveGroundingReference(
                 id: "experiment", title: "EVIDENCE_PLACEHOLDER", sourceName: "Corpus",
                 facts: "EVIDENCE_PLACEHOLDER", retrievalAliases: []

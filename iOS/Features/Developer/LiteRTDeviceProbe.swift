@@ -339,7 +339,7 @@ final class LiteRTDeviceProbeModel {
                     in: arguments
                 ) ?? "How can justice and mercy work together when someone repeatedly does wrong?"
                 context = ConversationContext(
-                    transcript: [.user(question, nil, [])]
+                    transcript: [.user(question, [], [])]
                 )
                 fixturePath = nil
             }
@@ -452,7 +452,7 @@ final class LiteRTDeviceProbeModel {
                 let followUpResult = await model.respond(
                     to: ConversationContext(
                         compactedContext: context.compactedContext,
-                        transcript: imageTranscript + [.text(response), .user(followUp, nil, [])],
+                        transcript: imageTranscript + [.text(response), .user(followUp, [], [])],
                         personality: context.personality
                     ),
                     thinkingEnabled: false, onUpdate: { _ in }

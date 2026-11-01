@@ -25,7 +25,7 @@ struct MacModelTierLiveTests {
         let model = LiteRTAngroveModel(runtime: runtime, groundingProvider: LazyGroundingProvider())
         let answerStart = Date()
         let response = await model.respond(to: ConversationContext(
-            transcript: [.user("How many chapters are in the Gospel of John?", nil, [])]
+            transcript: [.user("How many chapters are in the Gospel of John?", [], [])]
         ))
         let answerSeconds = Date().timeIntervalSince(answerStart)
         print("MacModelTierLive tier=\(tier.rawValue) load=\(loadSeconds)s answer=\(answerSeconds)s text=\(response.text)")
@@ -46,7 +46,7 @@ struct MacModelTierLiveTests {
         )
         let lifecycle = ModelRuntimeLifecycleManager(driver: driver, configuration: .adaptiveOnDevice)
         let model = LiteRTAngroveModel(runtime: runtime, groundingProvider: LazyGroundingProvider())
-        let question = ConversationContext(transcript: [.user("How many chapters are in the Gospel of John?", nil, [])])
+        let question = ConversationContext(transcript: [.user("How many chapters are in the Gospel of John?", [], [])])
 
         let first = try #require(await lifecycle.acquireLease())
         let firstAnswer = await model.respond(to: question).text

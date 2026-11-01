@@ -83,7 +83,7 @@ struct GlobalSearchTests {
     private func search(_ query: String, scope: GlobalSearchScope) -> [GlobalSearchResult] {
         var branch = ChatBranch(startingConcept: nil)
         branch.activeChatBlocks = [
-            .user("What makes an action good? Can someone do the right thing for the wrong reason?", nil, [])
+            .user("What makes an action good? Can someone do the right thing for the wrong reason?", [], [])
         ]
         let titled = InquiryConversation(title: "Virtue Ethics in Practice")
         let byMessage = InquiryConversation(title: "Intention", branches: [branch])

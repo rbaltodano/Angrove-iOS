@@ -52,9 +52,9 @@ struct MacConversationQueueTests {
         #expect(conversation.transcript.isEmpty)
         #expect(conversation.send("How does this guide action?", runtime: runtime))
         #expect(conversation.quote == nil)
-        #expect(conversation.transcript.first == .user("How does this guide action?", insight, []))
+        #expect(conversation.transcript.first == .user("How does this guide action?", [insight], []))
         try await wait { await model.requestCount == 1 }
-        #expect(await model.contexts.first?.transcript.last == .user("How does this guide action?", insight, []))
+        #expect(await model.contexts.first?.transcript.last == .user("How does this guide action?", [insight], []))
         await model.finishFirst()
         try await wait { runtime.modelTasks.currentTask == nil }
         conversation.attachQuote(insight)
@@ -62,7 +62,7 @@ struct MacConversationQueueTests {
         #expect(conversation.send("What about this case?", runtime: runtime))
         #expect(conversation.activeBranch?.attachedConcept == nil)
         try await wait { runtime.modelTasks.currentTask == nil }
-        #expect(await model.contexts.last?.transcript.last == .user("What about this case?", insight, []))
+        #expect(await model.contexts.last?.transcript.last == .user("What about this case?", [insight], []))
     }
 
     @Test func completedDefinitionCanWaitInANotificationWithoutOpeningASheet() async throws {
@@ -147,7 +147,7 @@ struct MacConversationQueueTests {
         let contexts = await model.contexts
         #expect(contexts.count == 2)
         #expect(contexts[1].transcript.contains(.text("Test answer 1")))
-        #expect(contexts[1].transcript.last == .user("Second", nil, []))
+        #expect(contexts[1].transcript.last == .user("Second", [], []))
     }
 
     @Test func removingWaitingQuestionRestoresItsDraft() async throws {
@@ -285,7 +285,7 @@ struct MacConversationQueueTests {
         try await wait { runtime.modelTasks.currentTask == nil }
         let request = try #require(await model.contexts.first)
         #expect(request.compactedContext == "Test summary 1")
-        #expect(request.transcript == [.user("Continue from the checkpoint", nil, [])])
+        #expect(request.transcript == [.user("Continue from the checkpoint", [], [])])
     }
 
     @Test func repeatCompactionOnlyProcessesNewTurns() async throws {
@@ -297,11 +297,11 @@ struct MacConversationQueueTests {
         conversation.branches[0].topQuestionText = "First question"
         conversation.branches[0].activeChatBlocks = [.text("First answer")]
         #expect(await conversation.compact(runtime: runtime))
-        conversation.branches[0].activeChatBlocks += [.user("Second question", nil, []), .text("Second answer")]
+        conversation.branches[0].activeChatBlocks += [.user("Second question", [], []), .text("Second answer")]
         #expect(await conversation.compact(runtime: runtime))
         let request = try #require(await model.compactContexts.last)
         #expect(request.compactedContext == "Test summary 1")
-        #expect(request.transcript == [.user("Second question", nil, []), .text("Second answer")])
+        #expect(request.transcript == [.user("Second question", [], []), .text("Second answer")])
         #expect(conversation.activeBranch?.compactedThroughBlockCount == 3)
     }
 

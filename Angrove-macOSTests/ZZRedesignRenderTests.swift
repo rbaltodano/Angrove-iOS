@@ -13,7 +13,7 @@ struct ZZRedesignRenderTests {
         var branch = ChatBranch(startingConcept: nil)
         branch.topQuestionText = question
         branch.topQuestionSubmitted = true
-        branch.activeChatBlocks = [.text(answer), .user("And how does that relate?", nil, []), .text(answer)]
+        branch.activeChatBlocks = [.text(answer), .user("And how does that relate?", [], []), .text(answer)]
         return InquiryConversation(title: title, studyTopicID: topic, isPinned: pinned, branches: [branch],
                                    createdAt: Date().addingTimeInterval(-daysAgo * 86_400))
     }

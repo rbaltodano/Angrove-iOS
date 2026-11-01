@@ -90,7 +90,7 @@ struct LiteRTProbeFixture: Decodable, Equatable {
             }
             switch turn.role {
             case "user":
-                transcript.append(.user(text, nil, []))
+                transcript.append(.user(text, [], []))
             case "assistant":
                 transcript.append(.text(text))
             default:
@@ -101,7 +101,7 @@ struct LiteRTProbeFixture: Decodable, Equatable {
         guard !finalQuestion.isEmpty else {
             throw LiteRTProbeFixtureError.emptyQuestion
         }
-        transcript.append(.user(finalQuestion, nil, []))
+        transcript.append(.user(finalQuestion, [], []))
 
         let resolvedPersonality: ConversationPersonality
         if let personality {

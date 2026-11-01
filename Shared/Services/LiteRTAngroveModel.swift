@@ -753,7 +753,7 @@ struct LiteRTAngroveModel: AngroveModel {
         }
         guard images.isEmpty || supportsVision else { throw SelectionImageError.unsupported }
         guard !images.isEmpty else { return Message(prompt) }
-        return liteRTMessage(.user(prompt, nil, images), supportsVision: true) ?? Message(prompt)
+        return liteRTMessage(.user(prompt, [], images), supportsVision: true) ?? Message(prompt)
     }
 
     func summarize(_ context: ConversationContext) async throws -> String {
@@ -2104,11 +2104,11 @@ private extension LiteRTAngroveModel {
         case .text(let text):
             let plain = InlineInsightMarkup.plainText(from: text).trimmed
             return plain.isEmpty ? nil : Message(plain, role: .model)
-        case let .user(text, concept, uploads):
+        case let .user(text, concepts, uploads):
             var contents: [Content] = []
             var prompt = ConversationPromptMarkup.userPrompt(
                 question: text,
-                quotedInsight: concept
+                quotedInsights: concepts
             )
             if isLatestUserRequest, !prompt.isEmpty {
                 prompt = """
@@ -2120,9 +2120,9 @@ private extension LiteRTAngroveModel {
                 label such as "Answer:", "Response:", or "Angrove:". Never repeat a claim merely
                 to create length. If the user asks whether a claim is correct, begin with a direct
                 yes, no, or qualified answer and keep every named person and work distinct.
-                When an <insight_quote> appears before the question, treat it as the Insight the
+                When an <insight_quote> appears before the question, treat it as an Insight the
                 user deliberately selected and resolve references such as "this" or "that idea"
-                against its title and definition.
+                against its title and definition. When several appear, consider each of them.
                 \(followUpNote)
                 User question:
                 \(prompt)
@@ -2165,10 +2165,10 @@ private extension LiteRTAngroveModel {
             case .text(let text):
                 let plain = InlineInsightMarkup.plainText(from: text).trimmed
                 return plain.isEmpty ? nil : "Angrove: \(plain)"
-            case let .user(text, concept, _):
+            case let .user(text, concepts, _):
                 let value = ConversationPromptMarkup.userPrompt(
                     question: text,
-                    quotedInsight: concept
+                    quotedInsights: concepts
                 )
                 return value.isEmpty ? nil : "User: \(value)"
             }

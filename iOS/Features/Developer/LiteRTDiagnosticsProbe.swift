@@ -100,20 +100,20 @@ enum LiteRTDiagnosticsProbe {
         )
         let naturalLawAnswer = "Natural law is the rational creature's participation in the eternal law. Its first precept is that good is to be done and pursued and evil avoided, and reason grasps further precepts from the natural inclinations of human beings."
         let naturalLawContext = ConversationContext(transcript: [
-            .user("What is natural law?", nil, []),
+            .user("What is natural law?", [], []),
             .text(naturalLawAnswer)
         ])
         let mercyContext = ConversationContext(transcript: [
-            .user("Think carefully about whether mercy can conflict with justice.", nil, []),
+            .user("Think carefully about whether mercy can conflict with justice.", [], []),
             .text("Mercy and justice can seem to conflict, since justice gives each what is due while mercy remits some of what is due. Aquinas holds that mercy does not destroy justice but is a kind of fullness of it."),
-            .user("Can you give a concrete example?", nil, [])
+            .user("Can you give a concrete example?", [], [])
         ])
         let image = UploadedFile(name: "probe.png", imageData: probeImagePNG(), rotationDegrees: 0)
 
         return [
             ("conversation: single turn with key terms (What is natural law?)", {
                 describe(await model.respond(
-                    to: ConversationContext(transcript: [.user("What is natural law?", nil, [])]),
+                    to: ConversationContext(transcript: [.user("What is natural law?", [], [])]),
                     thinkingEnabled: false,
                     onUpdate: { _ in }
                 ))
@@ -124,7 +124,7 @@ enum LiteRTDiagnosticsProbe {
             ("conversation: topic shift (mercy/justice, then capital of Portugal)", {
                 describe(await model.respond(
                     to: ConversationContext(transcript: Array(mercyContext.transcript.prefix(2))
-                        + [.user("What's the capital of Portugal?", nil, [])]),
+                        + [.user("What's the capital of Portugal?", [], [])]),
                     thinkingEnabled: false,
                     onUpdate: { _ in }
                 ))
@@ -132,7 +132,7 @@ enum LiteRTDiagnosticsProbe {
             ("images: latest turn attaches an image (text-only runtime)", {
                 describe(await model.respond(
                     to: ConversationContext(transcript: [
-                        .user("What does this picture show about prudence?", nil, [image])
+                        .user("What does this picture show about prudence?", [], [image])
                     ]),
                     thinkingEnabled: false,
                     onUpdate: { _ in }
@@ -141,9 +141,9 @@ enum LiteRTDiagnosticsProbe {
             ("images: image-bearing history, then a text follow-up", {
                 describe(await model.respond(
                     to: ConversationContext(transcript: [
-                        .user("Here is a diagram of the virtues.", nil, [image]),
+                        .user("Here is a diagram of the virtues.", [], [image]),
                         .text("The diagram places prudence at the center, guiding the other moral virtues."),
-                        .user("Why is prudence placed at the center?", nil, [])
+                        .user("Why is prudence placed at the center?", [], [])
                     ]),
                     thinkingEnabled: false,
                     onUpdate: { _ in }

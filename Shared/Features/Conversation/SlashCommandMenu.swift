@@ -171,6 +171,57 @@ struct SlashCommandMenu: View {
     }
 }
 
+/// The Insight picker shown while a question ends in `#title`, styled like the command menu.
+/// Tapping an Insight quotes it into the question.
+struct InsightQuoteMenu: View {
+    @ObservedObject var query: SlashCommandQuery
+    let candidates: [ConceptDefinition]
+    var quotedIDs: Set<UUID> = []
+    var maxHeight: CGFloat = 186
+    var onSelect: (ConceptDefinition) -> Void
+
+    private var rowLineBox: CGFloat { 14 * 1.5 }
+
+    private var suggestions: [ConceptDefinition] {
+        InsightMention.suggestions(for: query.text, from: candidates, excluding: quotedIDs)
+    }
+
+    var body: some View {
+        let suggestions = suggestions
+        if !suggestions.isEmpty {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(suggestions) { insight in
+                        Button {
+                            onSelect(insight)
+                        } label: {
+                            Text(insight.word.capitalized)
+                                .font(.custom("Figtree-SemiBold", size: 14))
+                                .foregroundColor(AngroveTheme.Colors.placeholderText)
+                                .frame(maxWidth: .infinity, minHeight: rowLineBox, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(insight.word.capitalized)
+                        .accessibilityHint("Quotes this Insight in your question")
+                    }
+                }
+                .animation(.easeInOut(duration: 0.18), value: suggestions.map(\.id))
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(maxHeight: min(maxHeight, CGFloat(suggestions.count) * rowLineBox))
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AngroveTheme.Colors.canvasSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(AngroveTheme.Colors.popupBorder, lineWidth: 1)
+            )
+        }
+    }
+}
+
 #Preview("Slash Command Menu") {
     ZStack {
         AngroveTheme.Colors.canvas.ignoresSafeArea()

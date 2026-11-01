@@ -339,9 +339,8 @@ enum AngroveContextBudget {
         switch block {
         case .text(let text):
             InlineInsightMarkup.plainText(from: text)
-        case .user(let text, let concept, _):
-            [text, concept?.word, concept?.semanticDefinition]
-                .compactMap { $0 }
+        case .user(let text, let concepts, _):
+            ([text] + concepts.flatMap { [$0.word, $0.semanticDefinition] })
                 .joined(separator: " ")
         }
     }
@@ -352,16 +351,22 @@ enum AngroveContextBudget {
 enum ConversationPromptMarkup {
     static func userPrompt(
         question: String,
-        quotedInsight: ConceptDefinition?
+        quotedInsights: [ConceptDefinition]
     ) -> String {
         let question = question.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let quotedInsight else { return question }
+        guard !quotedInsights.isEmpty else { return question }
 
+        // One block per quoted Insight, in the order the user quoted them.
+        let quotes = quotedInsights.map { insight in
+            """
+            <insight_quote>
+            <title>\(xmlEscaped(insight.word))</title>
+            <definition>\(xmlEscaped(insight.semanticDefinition))</definition>
+            </insight_quote>
+            """
+        }
         return """
-        <insight_quote>
-        <title>\(xmlEscaped(quotedInsight.word))</title>
-        <definition>\(xmlEscaped(quotedInsight.semanticDefinition))</definition>
-        </insight_quote>
+        \(quotes.joined(separator: "\n"))
 
         User question:
         \(question)

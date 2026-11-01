@@ -13,7 +13,7 @@ struct InquiryPersistenceStoreTests {
         let queue = ModelTaskQueue()
         let conversations = (0..<3).map { index in
             var branch = ChatBranch(startingConcept: nil)
-            branch.activeChatBlocks = [.user("Question \(index)", nil, []), .text("")]
+            branch.activeChatBlocks = [.user("Question \(index)", [], []), .text("")]
             return InquiryConversation(branches: [branch])
         }
         // The user has already navigated to another empty composer when results arrive.
@@ -61,7 +61,7 @@ struct InquiryPersistenceStoreTests {
         #expect(restored.conversations.last == emptyConversation)
         for index in 0..<3 {
             #expect(restored.conversations[index].branches[0].activeChatBlocks == [
-                .user("Question \(index)", nil, []), .text("Answer \(index)")
+                .user("Question \(index)", [], []), .text("Answer \(index)")
             ])
             #expect(restored.conversations[index].branches[0].showBottomInput)
         }
@@ -73,7 +73,7 @@ struct InquiryPersistenceStoreTests {
         defer { fixture.cleanup() }
         let serialized = SerializedInquiryStore(makeStore: { fixture.store })
         var branch = ChatBranch(startingConcept: nil)
-        branch.activeChatBlocks = [.user("Question", nil, []), .text("")]
+        branch.activeChatBlocks = [.user("Question", [], []), .text("")]
         let conversation = InquiryConversation(branches: [branch])
         var staleSnapshot = InquiryPersistenceSnapshot(
             conversations: [conversation], activeConversationID: conversation.id
@@ -94,7 +94,7 @@ struct InquiryPersistenceStoreTests {
         #expect(restored.showBottomInput)
 
         // A different question at the same position must not inherit the previous answer.
-        staleSnapshot.conversations[0].branches[0].activeChatBlocks[0] = .user("Different", nil, [])
+        staleSnapshot.conversations[0].branches[0].activeChatBlocks[0] = .user("Different", [], [])
         serialized.save(staleSnapshot)
         #expect(serialized.load()?.conversations[0].branches[0].activeChatBlocks[1] == .text(""))
     }
@@ -128,7 +128,7 @@ struct InquiryPersistenceStoreTests {
             conversations: [InquiryConversation(title: "Before import")], activeConversationID: nil
         ))
         var branch = ChatBranch(startingConcept: nil)
-        branch.activeChatBlocks = [.user("Imported question", nil, []), .text("")]
+        branch.activeChatBlocks = [.user("Imported question", [], []), .text("")]
         let imported = InquiryConversation(title: "Imported", branches: [branch])
         let data = try JSONEncoder().encode(InquiryPersistenceSnapshot(
             conversations: [imported], activeConversationID: imported.id
@@ -185,7 +185,7 @@ struct InquiryPersistenceStoreTests {
         defer { fixture.cleanup() }
         let serialized = SerializedInquiryStore(makeStore: { fixture.store })
         var branch = ChatBranch(startingConcept: nil)
-        branch.activeChatBlocks = [.user("What is prudence?", nil, []), .text("")]
+        branch.activeChatBlocks = [.user("What is prudence?", [], []), .text("")]
         let conversation = InquiryConversation(branches: [branch])
 
         serialized.save(
@@ -207,7 +207,7 @@ struct InquiryPersistenceStoreTests {
         defer { fixture.cleanup() }
         var branch = ChatBranch(startingConcept: nil)
         branch.activeChatBlocks = [
-            .user("What is prudence?", nil, []),
+            .user("What is prudence?", [], []),
             .text("")
         ]
         let conversation = InquiryConversation(branches: [branch])

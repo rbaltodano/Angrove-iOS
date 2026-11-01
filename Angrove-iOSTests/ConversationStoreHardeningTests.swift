@@ -43,7 +43,7 @@ struct ConversationStoreHardeningTests {
     @Test("Conversations saved before newer fields existed still decode")
     func legacyConversationDecodes() throws {
         var branch = ChatBranch(startingConcept: nil)
-        branch.activeChatBlocks = [.user("What is prudence?", nil, []), .text("Right reason in action.")]
+        branch.activeChatBlocks = [.user("What is prudence?", [], []), .text("Right reason in action.")]
         let conversation = InquiryConversation(title: "Prudence", isPinned: true, branches: [branch])
         var json = try #require(
             JSONSerialization.jsonObject(with: JSONEncoder().encode(conversation)) as? [String: Any]
@@ -73,14 +73,14 @@ struct ConversationStoreHardeningTests {
             startingConcept: concept, parentBranchID: UUID(), parentResponseIndex: 1,
             duplicatedResponse: "Copied", yOffset: 12, hiddenPromptContext: "Hidden"
         )
-        branch.activeChatBlocks = [.user("Q", nil, []), .text("A")]
+        branch.activeChatBlocks = [.user("Q", [], []), .text("A")]
         branch.topQuestionText = "Top"
         branch.topQuestionUploads = [UploadedFile(name: "note.txt", imageData: nil, rotationDegrees: 2)]
         branch.topQuestionSubmitted = true
         branch.bottomQuestionText = "Bottom"
         branch.showBottomInput = true
-        branch.attachedConcept = concept
-        branch.branchContextConcept = concept
+        branch.attachedConcepts = [concept]
+        branch.branchContextConcepts = [concept]
         branch.generatedBranchTitle = "Title"
         branch.compactedContext = "Summary"
         branch.compactedThroughBlockCount = 2

@@ -290,7 +290,7 @@ import Testing
         try fixture { f in
             let file = UploadedFile(name: "Board photo", imageData: Data([6, 5, 4]), rotationDegrees: 2)
             var branch = ChatBranch(startingConcept: nil)
-            branch.activeChatBlocks = [.user("Nested window photo", nil, [file])]
+            branch.activeChatBlocks = [.user("Nested window photo", [], [file])]
             let item = WorktreeStoredItem(id: UUID(), origin: .zero, text: "", isHeading: false, image: file, branches: [branch])
             let store = InsightTreeLocalStateFileStore(rootDirectory: f.root.appending(path: "Worktree"), defaults: f.defaults)
             let documents = [WorktreeDocument(items: [item], trash: [item])]
@@ -306,7 +306,7 @@ import Testing
 
     private func snapshot(_ files: [UploadedFile]) -> InquiryPersistenceSnapshot {
         var branch = ChatBranch(startingConcept: nil)
-        branch.activeChatBlocks = [.user("Question", nil, files), .text("Answer")]
+        branch.activeChatBlocks = [.user("Question", [], files), .text("Answer")]
         return InquiryPersistenceSnapshot(conversations: [InquiryConversation(title: "Saved", branches: [branch])], activeConversationID: nil)
     }
     private func files(_ value: InquiryPersistenceSnapshot) -> [UploadedFile] {

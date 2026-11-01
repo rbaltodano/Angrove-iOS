@@ -34,7 +34,7 @@ struct ConversationTreeLifecycleTests {
         let old = ConceptDefinition(word: "Virtue", partOfSpeech: "", pronunciation: "", meaning: "Old answer's definition", example: "")
         let saved = ConceptDefinition(word: "Virtue", partOfSpeech: "", pronunciation: "", meaning: "The user's saved contextual definition", example: "")
         var branch = ChatBranch(startingConcept: old)
-        branch.attachedConcept = old
+        branch.attachedConcepts = [old]
         let resolved = ChatBranch.resolvedConversationInsights(in: [branch], savedInsights: [saved], manuallySavedIDs: [saved.id])
         #expect(resolved == [saved])
     }

@@ -313,7 +313,7 @@ struct MacWorktreeBoardTests {
     @Test func selectionTaskMessageRetainsImagesAndRejectsTextOnlyEngine() throws {
         let bytes = Data([0, 1, 2])
         let file = UploadedFile(name: "Photo", imageData: bytes, rotationDegrees: 0)
-        let context = ConversationContext(transcript: [.user("Selected photo", nil, [file])])
+        let context = ConversationContext(transcript: [.user("Selected photo", [], [file])])
         let message = try LiteRTAngroveModel.selectionTaskMessage("Summarize", context: context, supportsVision: true)
         #expect(message.contents.contains { if case .imageData(let data) = $0 { return data == bytes }; return false })
         #expect(throws: LiteRTAngroveModel.SelectionImageError.self) {

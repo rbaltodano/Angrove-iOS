@@ -18,6 +18,16 @@ struct BranchContextChip: View {
     var isMinimal: Bool = false
     @State private var borderDrawProgress: CGFloat = 0
     @State private var isVisible: Bool = false
+    @AppStorage("aquinas.settings.conversationFontSize") private var fontSize: ConversationFontSizeOption = .small
+
+    /// Insight and Library quote titles follow the paragraph text size, as paragraphs do:
+    /// the 14pt design size at Medium, moving with each step.
+    private var quoteTitleFont: Font {
+        BrandTypography.font(
+            "Figtree-Bold",
+            fixedSize: 14 + fontSize.pointSize - ConversationFontSizeOption.medium.pointSize
+        )
+    }
 
     private var isInsightChip: Bool {
         icon == "text.bubble" || icon == "text.bubble.fill"
@@ -35,7 +45,7 @@ struct BranchContextChip: View {
                 .id(icon)
                 .sfSymbolDrawOn(delay: appearDelay + 0.25)
             Text(title)
-                .font((isInsightChip || isLibraryChip) ? .figtreeHeading2 : .figtreeChipLabel)
+                .font((isInsightChip || isLibraryChip) ? quoteTitleFont : .figtreeChipLabel)
                 .foregroundColor(AngroveTheme.Colors.darkGreen)
                 .lineLimit(1)
         }

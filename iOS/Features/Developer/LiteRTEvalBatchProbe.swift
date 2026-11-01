@@ -267,9 +267,9 @@ enum LiteRTEvalBatchProbe {
 
     private static func run(_ evalCase: EvalCase, model: LiteRTAngroveModel) async -> CaseResult {
         var transcript: [ChatBlock] = evalCase.turns.map { turn in
-            turn.role == "assistant" ? .text(turn.text) : .user(turn.text, nil, [])
+            turn.role == "assistant" ? .text(turn.text) : .user(turn.text, [], [])
         }
-        transcript.append(.user(evalCase.question, nil, []))
+        transcript.append(.user(evalCase.question, [], []))
 #if DEBUG
         let before = LiteRTGenerationRecorder.shared.startedCount
 #endif

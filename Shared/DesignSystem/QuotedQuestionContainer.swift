@@ -17,6 +17,8 @@ struct QuotedQuestionContainer<Content: View>: View {
     var maximumWidth: CGFloat = Self.quotedMaxWidth
     var alignment: Alignment = .trailing
     var isPageDeparting = false
+    /// Animate the marks to a new width even when emptiness is unchanged (recalled questions).
+    var glidesMarks = false
     var onTapToFocus: (() -> Void)? = nil
     @ViewBuilder let content: () -> Content
 
@@ -37,7 +39,7 @@ struct QuotedQuestionContainer<Content: View>: View {
                 geometry.frame(in: .named(coordinateSpace))
             } action: { bounds in
                 guard !isPageDeparting else { return }
-                animatesWidth = measuredIsEmpty != nil && measuredIsEmpty != isEmpty && !reduceMotion
+                animatesWidth = measuredIsEmpty != nil && (measuredIsEmpty != isEmpty || glidesMarks) && !reduceMotion
                 animatesHeight = measuredIsEmpty != nil && !reduceMotion
                 openingX = bounds.minX + quotationWidth / 2
                 openingY = bounds.minY + lineHeight / 2
