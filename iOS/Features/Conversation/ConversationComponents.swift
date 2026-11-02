@@ -2091,7 +2091,8 @@ private struct QuestionInputField: View {
     private static let recallChevronInset: CGFloat = 34
 
     private func recallChevron(_ symbol: String, isAvailable: Bool) -> some View {
-        let isShown = isPressed && (recallHints.older || recallHints.newer) && !isRecallSliding
+        // Keep hints visible throughout an interactive swipe, until finger contact ends.
+        let isShown = isPressed && (recallHints.older || recallHints.newer)
         return Image(systemName: symbol)
             .angroveIcon(.small, .strong)
             .foregroundStyle(placeholderColor)
