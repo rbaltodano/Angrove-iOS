@@ -47,6 +47,12 @@ explicit Quote action navigates. Tree-update questions join the same stack while
 visible controls. Window-level input observers collapse an expanded stack on an outside tap while
 letting that same event reach the Insight, button, or editor underneath.
 
+Explicit Insight selections replace the currently open reader immediately. Quoted chips and
+cached response definitions share the conversation's single active selection; they never queue
+cards to open after Close. Opening a notification Insight clears the conversation reader, and
+opening a conversation Insight closes the notification reader, so dismissing the replacement
+cannot uncover an earlier card. Each conversation reader is keyed by its selected definition.
+
 `CurrentConversationView` owns active conversation and branch presentation, the visible model-task
 experience, conversation-scoped definition flow, slash-command handling, and on-device Insight Tree seeding
 after each completed response. Its `ConversationSession` owns the conversation list, active

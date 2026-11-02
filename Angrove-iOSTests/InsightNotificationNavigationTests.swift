@@ -38,6 +38,26 @@ struct InsightNotificationNavigationTests {
         page.presentCompletedDefinition(next)
         #expect(page.activeWord == next.word)
         #expect(page.definitionsByKey[next.word.id] == next.definition)
-        #expect(page.completedWords.isEmpty)
+    }
+
+    @Test func selectingQuotedInsightsReplacesTheOpenCardWithoutQueuing() {
+        let page = ConversationDefinitionState()
+        let quotes = [request("Prudence"), request("Justice"), request("Temperance")]
+        for quote in quotes {
+            page.definitionsByKey[quote.word.id] = quote.definition
+            page.present(quote.word)
+            #expect(page.activeWord == quote.word)
+            #expect(page.definitionsByKey[quote.word.id] == quote.definition)
+        }
+        page.present(quotes[0].word)
+        #expect(page.activeWord == quotes[0].word)
+    }
+
+    @Test func selectingAnInsightReplacesANotificationCard() {
+        let page = ConversationDefinitionState()
+        page.presentCompletedDefinition(request("Prudence"))
+        let selected = request("Justice")
+        page.present(selected.word)
+        #expect(page.activeWord == selected.word)
     }
 }

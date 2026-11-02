@@ -43,14 +43,12 @@ struct ConversationDefinitionRequest: Identifiable, Equatable {
 final class ConversationDefinitionState {
     var activeWord: ConversationInsightWord?
     var loadingWord: ConversationInsightWord?
-    var completedWords: [ConversationInsightWord] = []
     var definitionsByKey: [String: ConceptDefinition] = [:]
     var lookupKeys: Set<String> = []
     var failedWord: ConversationInsightWord?
 
     func reset() {
         loadingWord = nil
-        completedWords.removeAll()
         definitionsByKey.removeAll()
         lookupKeys.removeAll()
         activeWord = nil
@@ -58,22 +56,13 @@ final class ConversationDefinitionState {
     }
 
     func present(_ word: ConversationInsightWord) {
-        if activeWord == nil {
-            activeWord = word
-        } else if activeWord != word,
-                  !completedWords.contains(where: { $0.id == word.id }) {
-            completedWords.append(word)
-        }
+        // An explicit selection replaces the reader immediately instead of waiting for Close.
+        activeWord = word
     }
 
     func presentCompletedDefinition(_ request: ConversationDefinitionRequest) {
         definitionsByKey[request.word.id] = request.definition
         activeWord = request.word
-    }
-
-    func takeNextCompletedWord() -> ConversationInsightWord? {
-        guard activeWord == nil, !completedWords.isEmpty else { return nil }
-        return completedWords.removeFirst()
     }
 }
 
@@ -1264,6 +1253,10 @@ struct CurrentConversationView: View {
                                 staysVisibleDuringInteraction: true) {
             if let word = definitionState.activeWord { dockedDefinitionCard(for: word) }
         }
+        .onChange(of: modelCompletionNotifications?.presentedInsight?.id) { _, id in
+            // Opening a notification replaces this reader, so closing it cannot reveal an old card.
+            if id != nil { definitionState.activeWord = nil }
+        }
         .alert("Couldn’t compact context", isPresented: $isCompactionErrorPresented) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -1808,9 +1801,9 @@ struct CurrentConversationView: View {
             },
             onClose: {
                 withAnimation(.springStandard) { definitionState.activeWord = nil }
-                presentNextCompletedDefinition()
             }
         )
+        .id(sheetData.id)
         .padding(.horizontal, 24)
     }
 
@@ -2388,21 +2381,15 @@ struct CurrentConversationView: View {
     }
 
     private func presentDefinition(_ word: ConversationInsightWord) {
-        definitionState.present(word)
+        modelCompletionNotifications?.closeInsight()
+        withAnimation(.springStandard) {
+            definitionState.present(word)
+        }
     }
 
     private func postDefinitionCompletedNotification(_ word: ConversationInsightWord) {
         guard let definition = definitionState.definitionsByKey[word.id] else { return }
         modelCompletionNotifications?.postInsightDefinition(definition, conversationID: session.activeConversationID)
-    }
-
-    private func presentNextCompletedDefinition() {
-        guard let nextWord = definitionState.takeNextCompletedWord() else { return }
-        Task {
-            try? await Task.sleep(for: .milliseconds(150))
-            guard definitionState.activeWord == nil else { return }
-            definitionState.activeWord = nextWord
-        }
     }
 
     private func toggleSavedConcept(_ concept: ConceptDefinition) {
