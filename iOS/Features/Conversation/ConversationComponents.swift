@@ -2013,6 +2013,7 @@ private struct QuestionInputField: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isConversationPageDeparting) private var isPageDeparting
     @State private var isPressed = false
+    @State private var showsRecallHints = false
     /// The editor draws its own placeholder while a recalled question slides in.
     @State private var isRecallSliding = false
     /// Recall directions available when the finger went down, shown as chevrons beside the field.
@@ -2021,6 +2022,7 @@ private struct QuestionInputField: View {
     private func setPressed(_ pressed: Bool) {
         if pressed, onSwipeRecall != nil { recallHints = relay.recallDirections() }
         isPressed = !isLocked && pressed
+        if isPressed { showsRecallHints = recallHints.older || recallHints.newer }
     }
 
     private var inputFont: UIFont {
@@ -2091,8 +2093,7 @@ private struct QuestionInputField: View {
     private static let recallChevronInset: CGFloat = 34
 
     private func recallChevron(_ symbol: String, isAvailable: Bool) -> some View {
-        // Keep hints visible throughout an interactive swipe, until finger contact ends.
-        let isShown = isPressed && (recallHints.older || recallHints.newer)
+        let isShown = showsRecallHints && !isLocked
         return Image(systemName: symbol)
             .angroveIcon(.small, .strong)
             .foregroundStyle(placeholderColor)
@@ -2117,7 +2118,19 @@ private struct QuestionInputField: View {
             }
             .scaleEffect(!isLocked && isPressed ? 1.05 : 1, anchor: questionAlignment == .trailing ? .trailing : .center)
             .animation(reduceMotion ? nil : .springMicro, value: isPressed)
-            .onDisappear { isPressed = false }
+            .task(id: isPressed) {
+                guard !isPressed, showsRecallHints else { return }
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    return
+                }
+                showsRecallHints = false
+            }
+            .onDisappear {
+                isPressed = false
+                showsRecallHints = false
+            }
     }
 
     private var questionAlignment: Alignment {
